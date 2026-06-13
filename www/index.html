@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rom_money</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:'DM Sans',sans-serif}
+:root{
+  --g:#1D9E75;--gd:#0F6E56;--gdd:#085041;--gl:#E1F5EE;--gm:#9FE1CB;
+  --am:#EF9F27;--al:#FAEEDA;--ad:#633806;
+  --re:#E24B4A;--rl:#FCEBEB;--rd:#A32D2D;
+  --bl:#378ADD;--bll:#E6F1FB;
+  --bg:#F4F7F5;--card:#fff;--bord:#E5E7EB;--div:#F3F4F6;
+  --t1:#1A1A1A;--t2:#6B7280;--t3:#9CA3AF;
+  --r:14px;--rs:10px;
+}
+html,body{height:100%;background:#085041;overflow:hidden}
+
+/* ── ÉCRANS ── */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.screen.on{display:flex}
+.screen.dark{background:#085041}
+
+/* ── SPLASH ── */
+#s-splash{align-items:center;justify-content:center;background:#085041}
+.logo-box{width:80px;height:80px;background:var(--gl);border-radius:24px;display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.logo-box svg{width:40px;height:40px;stroke:#085041;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.app-title{font-size:28px;font-weight:700;color:#fff}
+.app-sub{font-size:14px;color:rgba(255,255,255,.6);margin-top:6px;margin-bottom:40px}
+.loader{width:48px;height:3px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
+.loader-bar{height:100%;background:var(--gm);border-radius:2px;animation:ld 1.8s ease forwards}
+@keyframes ld{0%{width:0}100%{width:100%}}
+@keyframes scl{0%,100%{top:5%}50%{top:90%}}
+
+/* ── INSCRIPTION ── */
+#s-register{overflow-y:auto}
+.reg-header{padding:20px 20px 0;display:flex;align-items:center;gap:10px}
+.back-btn{background:none;border:none;cursor:pointer;padding:6px;color:var(--t2);display:flex}
+.back-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.reg-body{padding:20px 20px 40px;flex:1}
+.reg-title{font-size:24px;font-weight:700;color:var(--t1);margin-bottom:6px}
+.reg-sub{font-size:14px;color:var(--t2);line-height:1.6;margin-bottom:24px}
+.steps{display:flex;gap:6px;margin-bottom:20px}
+.step{height:3px;flex:1;border-radius:2px;background:var(--bord)}
+.step.on{background:var(--g)}
+.flabel{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block}
+.finput{width:100%;background:var(--bg);border:.5px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:16px;color:var(--t1);outline:none;-webkit-appearance:none}
+.finput:focus{border-color:var(--g);background:#fff}
+.frow{margin-bottom:16px}
+.fsel{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+
+/* ── PIN SCREENS ── */
+#s-pin,#s-pinconfirm,#s-lock,#s-login{background:#085041;align-items:center;justify-content:center;padding:32px 24px}
+.pin-av{width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin-bottom:12px}
+.pin-title{font-size:20px;font-weight:700;color:#fff;text-align:center;margin-bottom:6px}
+.pin-sub{font-size:14px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:32px}
+.dots{display:flex;gap:16px;justify-content:center;margin-bottom:36px}
+.dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.45);background:transparent;transition:all .15s}
+.dot.on{background:#fff;border-color:#fff}
+.dot.err{background:var(--re);border-color:var(--re)}
+.dot.dark{border-color:var(--bord)}
+.dot.dark.on{background:var(--g);border-color:var(--g)}
+.kpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:300px}
+.kb{height:68px;font-size:24px;font-weight:500;background:rgba(255,255,255,.12);border:none;border-radius:14px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;-webkit-appearance:none;transition:background .1s}
+.kb:active{background:rgba(255,255,255,.3)}
+.kb.light{background:var(--gl);color:var(--gdd)}
+.kb.light:active{background:var(--gm)}
+.kb.ghost{background:transparent;border:.5px solid rgba(255,255,255,.2);font-size:14px;color:rgba(255,255,255,.6)}
+.pin-err{color:var(--re);font-size:13px;text-align:center;margin-top:16px;min-height:20px}
+.pin-link{background:none;border:none;color:rgba(255,255,255,.45);font-size:12px;cursor:pointer;margin-top:12px;font-family:'DM Sans',sans-serif}
+
+/* ── MAIN APP ── */
+#s-app{flex-direction:column;overflow:hidden}
+#main-scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:76px}
+#main-scroll::-webkit-scrollbar{display:none}
+
+/* ── NAV ── */
+#nav-bar{position:absolute;bottom:0;left:0;right:0;height:68px;background:var(--card);border-top:.5px solid var(--bord);display:flex;align-items:center;padding-bottom:env(safe-area-inset-bottom,0px);z-index:50}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;cursor:pointer;color:var(--t3);font-size:10px;font-weight:500;padding:8px 0}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn.on{color:var(--g)}
+
+/* ── PAGES ── */
+.page{display:none}.page.on{display:block}
+
+/* ── BAL CARD ── */
+.bal-card{margin:8px 16px;background:var(--gd);border-radius:16px;padding:22px;overflow:hidden;position:relative}
+.bal-card::before{content:'';position:absolute;right:-20px;top:-20px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.06)}
+.bal-label{font-size:11px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.bal-amt{font-size:28px;font-weight:700;color:#fff;letter-spacing:-.5px}
+.bal-phone{font-size:12px;color:rgba(255,255,255,.6);margin-top:4px}
+.bal-row2{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15)}
+.eye-btn{background:rgba(255,255,255,.15);border:none;color:#fff;cursor:pointer;border-radius:10px;padding:8px;display:flex;align-items:center;justify-content:center}
+.vault-link{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif}
+.qr-pill{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;cursor:pointer;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif}
+
+/* ── QUICK ACTIONS ── */
+.qa-row{display:flex;justify-content:space-around;padding:14px 12px}
+.qa{display:flex;flex-direction:column;align-items:center;gap:7px;border:none;background:none;cursor:pointer;padding:0}
+.qa-ico{width:52px;height:52px;border-radius:15px;background:var(--gl);display:flex;align-items:center;justify-content:center;transition:transform .1s}
+.qa-ico svg{width:22px;height:22px;stroke:var(--gdd);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.qa:active .qa-ico{transform:scale(.9)}
+.qa-lbl{font-size:11px;color:var(--t2);font-weight:500}
+
+/* ── TX ── */
+.tx-wrap{margin:0 16px;border-radius:14px;overflow:hidden;border:.5px solid var(--bord);background:var(--card)}
+.tx-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:.5px solid var(--div);cursor:pointer}
+.tx-row:last-child{border-bottom:none}
+.tx-row:active{background:#f9fafb}
+.av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.tx-info{flex:1;min-width:0}
+.tx-nm{font-size:14px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:11px;color:var(--t3);margin-top:2px;display:flex;align-items:center;gap:6px}
+.tx-amt{font-size:14px;font-weight:600;flex-shrink:0;text-align:right}
+.tx-cancel-btn{font-size:10px;color:var(--re);border:.5px solid rgba(226,75,74,.35);padding:2px 7px;border-radius:4px;cursor:pointer;background:none;font-family:'DM Sans',sans-serif}
+.badge-ann{font-size:10px;background:var(--rl);color:var(--rd);padding:2px 6px;border-radius:4px;margin-left:4px}
+
+/* ── SHEET ── */
+#sh-bg{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:100;display:none;transition:background .25s}
+#sh-bg.on{display:block;background:rgba(0,0,0,.5)}
+#sh{position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:var(--card);border-radius:24px 24px 0 0;z-index:101;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,12px)}
+#sh.on{transform:translateY(0)}
+.sh-handle{width:36px;height:4px;background:var(--bord);border-radius:2px;margin:12px auto 0}
+.sh-title{font-size:17px;font-weight:600;padding:14px 20px 0;color:var(--t1)}
+.sh-body{padding:14px 20px 20px}
+
+/* ── FORMS ── */
+.btn-g{width:100%;padding:15px;background:var(--g);color:#fff;border:none;border-radius:var(--rs);font-size:16px;font-weight:600;cursor:pointer;-webkit-appearance:none;transition:background .12s;font-family:'DM Sans',sans-serif}
+.btn-g:active{background:var(--gd)}
+.btn-g:disabled{background:var(--t3)}
+.btn-w{width:100%;padding:14px;background:none;color:var(--t2);border:.5px solid var(--bord);border-radius:var(--rs);font-size:15px;cursor:pointer;margin-top:8px;-webkit-appearance:none;font-family:'DM Sans',sans-serif}
+.amt-row{display:flex;align-items:center;gap:8px}
+.amt-row .finput{flex:1;font-size:22px;font-weight:700}
+.amt-f{font-size:18px;font-weight:700;color:var(--t2)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{padding:5px 10px;background:var(--gl);border:.5px solid var(--gm);border-radius:6px;font-size:11px;color:var(--gdd);cursor:pointer;font-family:'DM Sans',sans-serif}
+
+/* ── STATS ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px}
+.stat-c{background:var(--card);border-radius:var(--rs);padding:14px;border:.5px solid var(--bord)}
+.stat-l{font-size:11px;color:var(--t3);font-weight:500;margin-bottom:4px}
+.stat-v{font-size:18px;font-weight:700}
+.chart-outer{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chart-outer::-webkit-scrollbar{height:3px}
+.chart-outer::-webkit-scrollbar-thumb{background:var(--gm);border-radius:2px}
+.chart-inner{min-width:660px;height:190px;position:relative}
+
+/* ── VAULT ── */
+.vault-box{margin:16px;border-radius:14px;padding:20px}
+.vault-btns{display:flex;gap:8px;margin-top:12px}
+.vault-btns button{flex:1;padding:11px;border:none;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;-webkit-appearance:none}
+
+/* ── PROFILE ── */
+.prof-card{margin:16px;background:var(--card);border-radius:14px;padding:18px;border:.5px solid var(--bord);display:flex;align-items:center;gap:14px}
+.set-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:.5px solid var(--div);cursor:pointer}
+.set-item:last-child{border-bottom:none}
+.set-l{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--t1)}
+.set-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.set-ico svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── MISC ── */
+.sec-title{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px;display:flex;justify-content:space-between;align-items:center}
+.sec-title a{font-size:12px;color:var(--g);cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:.5px solid var(--div)}
+.kv:last-child{border-bottom:none}
+.kv span:first-child{color:var(--t2)}
+.kv span:last-child{font-weight:500}
+.badge{padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600}
+.prog-bar{height:6px;background:var(--div);border-radius:3px;overflow:hidden;margin:8px 0}
+.prog-fill{height:100%;background:var(--g);border-radius:3px;transition:width .5s}
+.info-bar{padding:10px 14px;border-radius:var(--rs);font-size:12px;display:flex;align-items:center;gap:8px}
+#toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%) translateY(16px);background:#085041;color:#fff;padding:10px 18px;border-radius:var(--rs);font-size:13px;z-index:200;opacity:0;transition:all .22s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.scan-box{background:#111;border-radius:14px;overflow:hidden;position:relative;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.scan-frame{width:150px;height:150px;border:2px solid var(--g);border-radius:12px;position:relative}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:var(--g);box-shadow:0 0 6px var(--g);animation:scl 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<!-- ══ SPLASH ══ -->
+<div class="screen dark on" id="s-splash">
+  <div class="logo-box">
+    <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="7" cy="15" r="1.5" fill="#085041"/><line x1="11" y1="15" x2="17" y2="15"/></svg>
+  </div>
+  <div class="app-title">Rom_money</div>
+  <div class="app-sub">Votre portefeuille sécurisé</div>
+  <div class="loader"><div class="loader-bar"></div></div>
+</div>
+
+<!-- ══ BIENVENUE ══ -->
+<div class="screen" id="s-register-welcome">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+    <div class="logo-box" style="background:var(--gl);margin-bottom:20px">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="7" cy="15" r="1.5" fill="#085041"/><line x1="11" y1="15" x2="17" y2="15"/></svg>
+    </div>
+    <div style="font-size:26px;font-weight:800;line-height:1.25;margin-bottom:10px">Bienvenue sur<br><span style="color:#1D9E75">Rom_money</span></div>
+    <div style="font-size:14px;color:var(--t2);line-height:1.6">Envoyez et recevez de l'argent, payez vos factures et gérez votre épargne en toute sécurité.</div>
+  </div>
+  <div style="padding:0 24px 36px;display:flex;flex-direction:column;gap:10px">
+    <button class="btn-g" onclick="goto('s-register');showRegA()">Créer mon compte</button>
+    <button class="btn-w" onclick="goto('s-login')">J'ai déjà un compte</button>
+  </div>
+</div>
+
+<!-- ══ INSCRIPTION ══ -->
+<div class="screen" id="s-register">
+  <!-- Étape A -->
+  <div id="reg-a" style="display:flex;flex-direction:column;height:100%">
+    <div class="reg-header">
+      <button class="back-btn" onclick="goto('s-register-welcome')">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span style="font-size:13px;color:var(--t2)">Étape 1 sur 3</span>
+    </div>
+    <div class="reg-body">
+      <div class="steps"><div class="step on"></div><div class="step"></div><div class="step"></div></div>
+      <div class="reg-title">Vos informations</div>
+      <div class="reg-sub">Ces informations sécurisent et identifient votre compte.</div>
+      <div class="frow"><label class="flabel">Nom complet *</label><input class="finput" id="r-name" placeholder="Ex: Awa Konaté" type="text" autocomplete="name"></div>
+      <div class="frow"><label class="flabel">Numéro de téléphone *</label><input class="finput" id="r-phone" placeholder="+225 07 XX XX XX XX" type="tel" autocomplete="tel"></div>
+      <div class="frow"><label class="flabel">Email (optionnel)</label><input class="finput" id="r-email" placeholder="votre@email.ci" type="email" autocomplete="email"></div>
+      <div class="frow"><label class="flabel">Opérateur mobile *</label>
+        <select class="finput fsel" id="r-op">
+          <option value="">Choisir un opérateur</option>
+          <option>Orange CI</option><option>MTN CI</option><option>Moov Africa CI</option><option>Wave</option>
+        </select>
+      </div>
+    </div>
+    <div style="padding:0 20px 28px"><button class="btn-g" onclick="regStep1()">Continuer</button></div>
+  </div>
+
+  <!-- Étape B : PIN -->
+  <div id="reg-b" style="display:none;flex-direction:column;height:100%">
+    <div class="reg-header">
+      <button class="back-btn" onclick="showRegA()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span style="font-size:13px;color:var(--t2)">Étape 2 sur 3</span>
+    </div>
+    <div class="reg-body">
+      <div class="steps"><div class="step on"></div><div class="step on"></div><div class="step"></div></div>
+      <div class="reg-title">Choisissez votre PIN</div>
+      <div class="reg-sub">Code à 6 chiffres — il sécurise chacune de vos transactions.</div>
+      <div id="pin-phase-label" style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:20px;text-align:center">Entrez votre nouveau PIN</div>
+      <div class="dots" id="reg-dots">
+        <div class="dot" id="rg0"></div><div class="dot" id="rg1"></div>
+        <div class="dot" id="rg2"></div><div class="dot" id="rg3"></div>
+        <div class="dot" id="rg4"></div><div class="dot" id="rg5"></div>
+      </div>
+      <div class="kpad" style="margin:0 auto">
+        <button class="kb light" onclick="rgPin('1')">1</button>
+        <button class="kb light" onclick="rgPin('2')">2</button>
+        <button class="kb light" onclick="rgPin('3')">3</button>
+        <button class="kb light" onclick="rgPin('4')">4</button>
+        <button class="kb light" onclick="rgPin('5')">5</button>
+        <button class="kb light" onclick="rgPin('6')">6</button>
+        <button class="kb light" onclick="rgPin('7')">7</button>
+        <button class="kb light" onclick="rgPin('8')">8</button>
+        <button class="kb light" onclick="rgPin('9')">9</button>
+        <div></div>
+        <button class="kb light" onclick="rgPin('0')">0</button>
+        <button class="kb light" onclick="rgDel()">⌫</button>
+      </div>
+      <div id="reg-pin-msg" style="color:var(--re);font-size:13px;text-align:center;margin-top:14px;min-height:20px"></div>
+    </div>
+  </div>
+
+  <!-- Étape C : Biométrie -->
+  <div id="reg-c" style="display:none;flex-direction:column;height:100%">
+    <div class="reg-header">
+      <button class="back-btn" onclick="showRegB()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span style="font-size:13px;color:var(--t2)">Étape 3 sur 3</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px">
+      <div class="steps" style="margin-bottom:24px"><div class="step on"></div><div class="step on"></div><div class="step on"></div></div>
+      <div style="width:96px;height:96px;background:var(--gl);border-radius:26px;display:flex;align-items:center;justify-content:center;margin-bottom:20px">
+        <svg width="52" height="52" stroke="var(--gd)" fill="none" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+          <path d="M12 1a5 5 0 00-5 5v3"/><path d="M12 1a5 5 0 015 5v3"/>
+          <path d="M7 9a5 5 0 0010 0"/><path d="M5 11.5a7 7 0 0014 0"/>
+          <path d="M9 9v5a3 3 0 006 0V9"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="reg-title">Activer la biométrie</div>
+      <div class="reg-sub">Connectez-vous plus vite avec votre empreinte digitale ou Face ID.</div>
+    </div>
+    <div style="padding:0 20px 28px">
+      <button class="btn-g" onclick="enableBio()">Activer empreinte / Face ID</button>
+      <button class="btn-w" onclick="skipBio()">Ignorer cette étape</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONNEXION ══ -->
+<div class="screen dark" id="s-login" style="align-items:center;justify-content:center;padding:32px 24px">
+  <div class="pin-av" id="login-av">?</div>
+  <div class="pin-title">Connexion</div>
+  <div class="pin-sub" id="login-sub">Entrez votre code PIN</div>
+  <div class="dots">
+    <div class="dot" id="ld0"></div><div class="dot" id="ld1"></div>
+    <div class="dot" id="ld2"></div><div class="dot" id="ld3"></div>
+    <div class="dot" id="ld4"></div><div class="dot" id="ld5"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="lgPin('1')">1</button>
+    <button class="kb" onclick="lgPin('2')">2</button>
+    <button class="kb" onclick="lgPin('3')">3</button>
+    <button class="kb" onclick="lgPin('4')">4</button>
+    <button class="kb" onclick="lgPin('5')">5</button>
+    <button class="kb" onclick="lgPin('6')">6</button>
+    <button class="kb" onclick="lgPin('7')">7</button>
+    <button class="kb" onclick="lgPin('8')">8</button>
+    <button class="kb" onclick="lgPin('9')">9</button>
+    <button class="kb ghost" onclick="lgBio()" id="bio-btn" style="display:none">👆</button>
+    <button class="kb" onclick="lgPin('0')">0</button>
+    <button class="kb ghost" onclick="lgDel()">⌫</button>
+  </div>
+  <div id="login-err" class="pin-err"></div>
+  <button class="pin-link" onclick="resetApp()">Compte oublié ?</button>
+</div>
+
+<!-- ══ PIN CONFIRM ══ -->
+<div class="screen dark" id="s-pinconfirm" style="align-items:center;justify-content:center;padding:32px 24px">
+  <div class="pin-av" id="pc-av">AK</div>
+  <div class="pin-title">Confirmation PIN</div>
+  <div class="pin-sub" id="pc-sub">Confirmez votre action</div>
+  <div class="dots">
+    <div class="dot" id="pc0"></div><div class="dot" id="pc1"></div>
+    <div class="dot" id="pc2"></div><div class="dot" id="pc3"></div>
+    <div class="dot" id="pc4"></div><div class="dot" id="pc5"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="pcPin('1')">1</button>
+    <button class="kb" onclick="pcPin('2')">2</button>
+    <button class="kb" onclick="pcPin('3')">3</button>
+    <button class="kb" onclick="pcPin('4')">4</button>
+    <button class="kb" onclick="pcPin('5')">5</button>
+    <button class="kb" onclick="pcPin('6')">6</button>
+    <button class="kb" onclick="pcPin('7')">7</button>
+    <button class="kb" onclick="pcPin('8')">8</button>
+    <button class="kb" onclick="pcPin('9')">9</button>
+    <button class="kb ghost" onclick="pinCancel()">✕</button>
+    <button class="kb" onclick="pcPin('0')">0</button>
+    <button class="kb ghost" onclick="pcDel()">⌫</button>
+  </div>
+  <div id="pc-err" class="pin-err"></div>
+</div>
+
+<!-- ══ APP PRINCIPALE ══ -->
+<div class="screen" id="s-app">
+  <div id="main-scroll">
+
+    <!-- PAGE ACCUEIL -->
+    <div class="page on" id="pg-home">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="app-av" style="width:38px;height:38px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gdd);font-size:13px">AK</div>
+          <div>
+            <div style="font-size:11px;color:var(--t3)">Bonjour 👋</div>
+            <div style="font-size:15px;font-weight:600" id="app-name">Utilisateur</div>
+          </div>
+        </div>
+        <button onclick="openSheet('notif')" style="background:var(--card);border:.5px solid var(--bord);border-radius:12px;padding:9px;cursor:pointer;display:flex;position:relative">
+          <svg width="20" height="20" stroke="var(--t1)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span style="position:absolute;top:6px;right:6px;width:7px;height:7px;background:var(--re);border-radius:50%;border:1.5px solid var(--card)"></span>
+        </button>
+      </div>
+
+      <div class="bal-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="bal-label">Solde disponible</div>
+            <div class="bal-amt" id="bal-disp">245 800 F</div>
+            <div class="bal-phone" id="bal-phone">+225 07 00 12 34 56</div>
+          </div>
+          <button class="eye-btn" onclick="toggleBal()" id="eyeb">
+            <svg id="eye-open" width="20" height="20" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg id="eye-shut" width="20" height="20" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="bal-row2">
+          <button class="vault-link" onclick="showPage('pg-vault')">
+            <svg width="14" height="14" stroke="rgba(255,255,255,.8)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            Coffre: <strong id="vault-mini">80 000 F</strong>
+          </button>
+          <button class="qr-pill" onclick="openSheet('qr')">
+            <svg width="13" height="13" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
+            Mon QR
+          </button>
+        </div>
+      </div>
+
+      <div class="qa-row">
+        <button class="qa" onclick="openSheet('send')">
+          <div class="qa-ico"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+          <span class="qa-lbl">Envoyer</span>
+        </button>
+        <button class="qa" onclick="openSheet('scanner')">
+          <div class="qa-ico"><svg viewBox="0 0 24 24"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+          <span class="qa-lbl">Scanner</span>
+        </button>
+        <button class="qa" onclick="openSheet('receive')">
+          <div class="qa-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
+          <span class="qa-lbl">Recevoir</span>
+        </button>
+        <button class="qa" onclick="openSheet('topup')">
+          <div class="qa-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+          <span class="qa-lbl">Recharger</span>
+        </button>
+        <button class="qa" onclick="openSheet('pay')">
+          <div class="qa-ico"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+          <span class="qa-lbl">Payer</span>
+        </button>
+      </div>
+
+      <div class="info-bar" style="margin:0 16px 10px;background:var(--gl)">
+        <svg width="16" height="16" stroke="var(--gdd)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <div><div style="font-size:12px;font-weight:600;color:var(--gdd)">Compte vérifié KYC</div><div style="font-size:11px;color:var(--gd)">Limites maximales débloquées</div></div>
+      </div>
+
+      <div class="sec-title">TRANSACTIONS RÉCENTES <a onclick="showPage('pg-history')">Voir tout</a></div>
+      <div class="tx-wrap" id="home-tx"></div>
+      <div style="height:8px"></div>
+    </div>
+
+    <!-- PAGE HISTORIQUE -->
+    <div class="page" id="pg-history">
+      <div style="padding:16px 20px 8px;font-size:20px;font-weight:700">Historique</div>
+      <div style="display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto">
+        <button class="chip on-filter" data-f="all" onclick="setFilter(this,'all')" style="background:var(--gl);border-color:var(--gm);color:var(--gdd)">Tout</button>
+        <button class="chip" data-f="credit" onclick="setFilter(this,'credit')">Reçus</button>
+        <button class="chip" data-f="debit" onclick="setFilter(this,'debit')">Envoyés</button>
+        <button class="chip" data-f="ann" onclick="setFilter(this,'ann')">Annulés</button>
+      </div>
+      <div class="tx-wrap" id="hist-tx"></div>
+      <div style="height:8px"></div>
+    </div>
+
+    <!-- PAGE COFFRE -->
+    <div class="page" id="pg-vault">
+      <div style="padding:16px 20px 4px;font-size:20px;font-weight:700">Coffre-fort</div>
+      <div class="vault-box" id="vault-box" style="background:var(--gl);border:.5px solid var(--gm)">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+          <div style="width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center">
+            <svg width="24" height="24" stroke="var(--gd)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div>
+            <div id="vault-lbl" style="font-size:14px;font-weight:600;color:var(--gdd)">Épargne sécurisée</div>
+            <div id="vault-amt" style="font-size:26px;font-weight:700;color:var(--g)">80 000 F</div>
+          </div>
+        </div>
+        <div id="vault-lock-info"></div>
+        <div class="vault-btns">
+          <button style="background:var(--g);color:#fff" onclick="openSheet('vdeposit')">⬇ Déposer</button>
+          <button id="v-wb" style="background:var(--gdd);color:#fff" onclick="openSheet('vwithdraw')">⬆ Retirer</button>
+          <button id="v-lb" style="background:var(--ad);color:#fff" onclick="openSheet('vlock')">🔒 Bloquer</button>
+        </div>
+      </div>
+      <div style="margin:0 16px;background:var(--card);border-radius:14px;padding:16px;border:.5px solid var(--bord)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:14px;font-weight:500">Voyage Abidjan-Paris</span><span id="goal-pct" style="font-size:14px;font-weight:700;color:var(--g)">53%</span></div>
+        <div class="prog-bar"><div id="goal-bar" class="prog-fill" style="width:53%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3)"><span id="goal-saved">80 000 F épargnés</span><span>Objectif: 150 000 F</span></div>
+      </div>
+    </div>
+
+    <!-- PAGE STATS -->
+    <div class="page" id="pg-stats">
+      <div style="padding:16px 20px 12px;font-size:20px;font-weight:700">Statistiques</div>
+      <div class="stat-grid">
+        <div class="stat-c"><div class="stat-l">Total reçu</div><div class="stat-v" id="st-in" style="color:var(--g)">—</div></div>
+        <div class="stat-c"><div class="stat-l">Total envoyé</div><div class="stat-v" id="st-out">—</div></div>
+        <div class="stat-c"><div class="stat-l">Transactions</div><div class="stat-v" id="st-cnt" style="color:var(--bl)">—</div></div>
+        <div class="stat-c"><div class="stat-l">Annulations</div><div class="stat-v" id="st-can" style="color:var(--re)">—</div></div>
+      </div>
+      <div class="sec-title">ACTIVITÉ MENSUELLE <span style="font-size:10px;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">← défiler</span></div>
+      <div style="margin:0 16px;background:var(--card);border-radius:14px;padding:14px;border:.5px solid var(--bord)">
+        <div style="display:flex;gap:14px;margin-bottom:10px;font-size:11px">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--g);display:inline-block"></span>Reçu</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--am);display:inline-block"></span>Envoyé</span>
+        </div>
+        <div class="chart-outer"><div class="chart-inner"><canvas id="chart-canvas"></canvas></div></div>
+      </div>
+      <div class="sec-title" style="margin-top:6px">RÉPARTITION DÉPENSES</div>
+      <div style="margin:0 16px;background:var(--card);border-radius:14px;padding:0 16px;border:.5px solid var(--bord)" id="cat-list"></div>
+      <div style="height:8px"></div>
+    </div>
+
+    <!-- PAGE PROFIL -->
+    <div class="page" id="pg-profile">
+      <div style="padding:16px 20px 4px;font-size:20px;font-weight:700">Profil</div>
+      <div class="prof-card">
+        <div id="prof-av" style="width:52px;height:52px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gdd);font-size:18px;flex-shrink:0">AK</div>
+        <div style="flex:1">
+          <div id="prof-name" style="font-size:16px;font-weight:600">Utilisateur</div>
+          <div id="prof-phone" style="font-size:13px;color:var(--t2)">—</div>
+          <div style="font-size:11px;color:var(--g);margin-top:3px;display:flex;align-items:center;gap:4px">
+            <svg width="12" height="12" stroke="var(--g)" fill="none" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Identité vérifiée
+          </div>
+        </div>
+        <button onclick="openSheet('edit-profile')" style="background:var(--gl);border:none;color:var(--gdd);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500">Modifier</button>
+      </div>
+      <div style="margin:0 16px 12px;background:var(--card);border:.5px solid var(--bord);border-radius:var(--rs);padding:10px 14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--t3)">ID:</span>
+        <span id="prof-id" style="font-size:11px;font-family:monospace;color:var(--t2);flex:1">—</span>
+        <button onclick="copyID()" style="background:none;border:none;cursor:pointer;color:var(--t3);display:flex">
+          <svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.8" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div style="margin:0 16px;background:var(--card);border-radius:14px;overflow:hidden;border:.5px solid var(--bord)" id="settings-list"></div>
+      <div style="height:8px"></div>
+    </div>
+
+  </div>
+
+  <!-- NAV BAR -->
+  <div id="nav-bar">
+    <button class="nav-btn on" id="nb-home" onclick="navGo('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Accueil
+    </button>
+    <button class="nav-btn" id="nb-history" onclick="navGo('history')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Historique
+    </button>
+    <button class="nav-btn" id="nb-vault" onclick="navGo('vault')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Coffre
+    </button>
+    <button class="nav-btn" id="nb-stats" onclick="navGo('stats')">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Stats
+    </button>
+    <button class="nav-btn" id="nb-profile" onclick="navGo('profile')">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profil
+    </button>
+  </div>
+</div>
+
+<!-- SHEET -->
+<div id="sh-bg" onclick="closeSheet()"></div>
+<div id="sh"><div class="sh-handle"></div><div class="sh-title" id="sh-title"></div><div class="sh-body" id="sh-body"></div></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// ÉTAT GLOBAL
+// ═══════════════════════════════════════════
+var APP = {
+  name:'', phone:'', email:'', op:'',
+  pin:'', bioEnabled:false, token:'',
+  userID: 'CI-' + Math.random().toString(36).substr(2,6).toUpperCase(),
+  qrSeed: Math.random().toString(36).substr(2,8).toUpperCase(),
+  balance: 245800, vaultBal: 80000,
+  vaultLocked: false, vaultDate: null,
+  balHidden: false, cancelMins: 5,
+  chartInst: null
+};
+
+var txList = [
+  {id:1,name:'Mamadou Diallo',type:'credit',amt:50000,cat:'Transfert',ts:Date.now()-4*60000},
+  {id:2,name:'Orange Money',type:'debit',amt:15000,cat:'Facture',ts:Date.now()-180*60000},
+  {id:3,name:'Fatou Camara',type:'credit',amt:25000,cat:'Transfert',ts:Date.now()-1100*60000},
+  {id:4,name:'Marche Adjame',type:'debit',amt:8500,cat:'Achat',ts:Date.now()-1700*60000,ann:true},
+  {id:5,name:'Salaire Juin',type:'credit',amt:180000,cat:'Salaire',ts:Date.now()-3000*60000},
+  {id:6,name:'CIE Electricite',type:'debit',amt:22000,cat:'Facture',ts:Date.now()-5000*60000},
+  {id:7,name:'Aminata Toure',type:'credit',amt:10000,cat:'Transfert',ts:Date.now()-8000*60000}
+];
+
+var rgBuf='',rgPhase=1,rgPin1='';
+var lgBuf='';
+var pcBuf='',pcCallback=null;
+var scanStream=null,scanData=null;
+
+// ═══════════════════════════════════════════
+// UTILITAIRES
+// ═══════════════════════════════════════════
+function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
+
+function relDate(ts){
+  var m=(Date.now()-ts)/60000;
+  if(m<1) return 'A l instant';
+  if(m<60) return 'Il y a '+Math.round(m)+' min';
+  if(m<1440) return 'Il y a '+Math.round(m/60)+'h';
+  if(m<2880) return 'Hier';
+  return 'Il y a '+Math.round(m/1440)+' j';
+}
+
+function ini(n){
+  var p=n.trim().split(' ');
+  if(p.length>=2) return (p[0][0]+p[1][0]).toUpperCase();
+  return n.substring(0,2).toUpperCase();
+}
+
+var AVC=[['#E1F5EE','#085041'],['#E6F1FB','#0C447C'],['#FBEAF0','#72243E'],['#FAEEDA','#633806'],['#EAF3DE','#27500A']];
+function avc(n){ return AVC[n.charCodeAt(0)%AVC.length]; }
+
+function canAnn(tx){ return !tx.ann && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins; }
+
+function toast(msg, err){
+  var el=document.getElementById('toast');
+  el.textContent=msg;
+  el.style.background=err?'#A32D2D':'#085041';
+  el.classList.add('on');
+  clearTimeout(el._t);
+  el._t=setTimeout(function(){ el.classList.remove('on'); }, 2800);
+}
+
+function save(){
+  try{
+    localStorage.setItem('mmci', JSON.stringify({
+      name:APP.name,phone:APP.phone,email:APP.email,op:APP.op,
+      pin:APP.pin,bioEnabled:APP.bioEnabled,userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token
+    }));
+  }catch(e){}
+}
+
+function load(){
+  try{
+    var d=localStorage.getItem('mmci');
+    if(d){ var o=JSON.parse(d); for(var k in o) APP[k]=o[k]; return true; }
+  }catch(e){}
+  return false;
+}
+
+function getToken(){ try{ return localStorage.getItem('rom_token')||APP.token||''; }catch(e){ return APP.token||''; } }
+function setToken(t){ try{ localStorage.setItem('rom_token',t); }catch(e){} APP.token=t||''; }
+
+// ═══════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════
+var API_URL = 'https://rom-money-backend.onrender.com';
+
+function apiCall(endpoint, method, data, token){
+  var opts={ method:method||'GET', headers:{'Content-Type':'application/json'} };
+  if(token) opts.headers['Authorization']='Bearer '+token;
+  if(data && method!=='GET') opts.body=JSON.stringify(data);
+  return fetch(API_URL+endpoint, opts)
+    .then(function(r){ return r.json(); })
+    .catch(function(e){ return {success:false,message:'Erreur reseau: '+e.message}; });
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function goto(id){
+  var all=['s-splash','s-register-welcome','s-register','s-login','s-pinconfirm','s-app'];
+  for(var i=0;i<all.length;i++){
+    var el=document.getElementById(all[i]);
+    if(el) el.classList.toggle('on', all[i]===id);
+  }
+}
+
+// ═══════════════════════════════════════════
+// DÉMARRAGE
+// ═══════════════════════════════════════════
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    try{
+      var found=load();
+      if(found && APP.pin){ setupLoginScreen(); goto('s-login'); }
+      else { goto('s-register-welcome'); }
+    }catch(e){ goto('s-register-welcome'); }
+  }, 500);
+});
+
+// ═══════════════════════════════════════════
+// INSCRIPTION
+// ═══════════════════════════════════════════
+function showRegA(){
+  document.getElementById('reg-a').style.display='flex';
+  document.getElementById('reg-b').style.display='none';
+  document.getElementById('reg-c').style.display='none';
+}
+function showRegB(){
+  document.getElementById('reg-a').style.display='none';
+  document.getElementById('reg-b').style.display='flex';
+  document.getElementById('reg-c').style.display='none';
+  rgBuf=''; rgPhase=1; rgPin1='';
+  updateRgDots();
+  document.getElementById('pin-phase-label').textContent='Entrez votre nouveau PIN';
+  document.getElementById('reg-pin-msg').textContent='';
+}
+function showRegC(){
+  document.getElementById('reg-a').style.display='none';
+  document.getElementById('reg-b').style.display='none';
+  document.getElementById('reg-c').style.display='flex';
+}
+
+function regStep1(){
+  var name=document.getElementById('r-name').value.trim();
+  var phone=document.getElementById('r-phone').value.trim();
+  var op=document.getElementById('r-op').value;
+  if(!name){ toast('Veuillez entrer votre nom',true); return; }
+  if(!phone){ toast('Veuillez entrer votre numero',true); return; }
+  if(!op){ toast('Choisissez un operateur',true); return; }
+  APP.name=name; APP.phone=phone;
+  APP.email=document.getElementById('r-email').value.trim();
+  APP.op=op;
+  goto('s-register');
+  showRegB();
+}
+
+function updateRgDots(){
+  for(var i=0;i<6;i++){
+    var el=document.getElementById('rg'+i);
+    if(el) el.classList.toggle('on', i<rgBuf.length);
+  }
+}
+
+function rgPin(d){
+  if(rgBuf.length>=6) return;
+  rgBuf+=d; updateRgDots();
+  if(rgBuf.length===6){
+    var buf=rgBuf;
+    setTimeout(function(){
+      if(rgPhase===1){
+        rgPin1=buf; rgBuf=''; rgPhase=2; updateRgDots();
+        document.getElementById('pin-phase-label').textContent='Confirmez votre PIN';
+        document.getElementById('reg-pin-msg').textContent='';
+      } else {
+        if(buf===rgPin1){ APP.pin=buf; showRegC(); }
+        else {
+          rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
+          document.getElementById('pin-phase-label').textContent='Entrez votre nouveau PIN';
+          document.getElementById('reg-pin-msg').textContent='Les codes ne correspondent pas, recommencez';
+        }
+      }
+    }, 200);
+  }
+}
+
+function rgDel(){ if(rgBuf.length>0){ rgBuf=rgBuf.slice(0,-1); updateRgDots(); } }
+
+function enableBio(){ APP.bioEnabled=true; finishRegister(); }
+function skipBio(){ APP.bioEnabled=false; finishRegister(); }
+
+function finishRegister(){
+  save(); launchApp();
+  apiCall('/auth?action=register','POST',{full_name:APP.name,phone:APP.phone,email:APP.email,operator:APP.op,pin:APP.pin})
+    .then(function(res){
+      if(res&&res.success&&res.data){
+        setToken(res.data.token);
+        if(res.data.user_id) APP.userID=res.data.user_id;
+        if(res.data.qr_seed) APP.qrSeed=res.data.qr_seed;
+        save();
+      }
+    }).catch(function(){});
+}
+
+// ═══════════════════════════════════════════
+// CONNEXION
+// ═══════════════════════════════════════════
+function setupLoginScreen(){
+  var n=APP.name||'Utilisateur';
+  var el=document.getElementById('login-av'); if(el) el.textContent=ini(n);
+  var sub=document.getElementById('login-sub'); if(sub) sub.textContent='Bonjour '+n.split(' ')[0]+', entrez votre PIN';
+  var bio=document.getElementById('bio-btn'); if(bio) bio.style.display=APP.bioEnabled?'flex':'none';
+  lgBuf=''; updateLgDots();
+  document.getElementById('login-err').textContent='';
+}
+
+function updateLgDots(){
+  for(var i=0;i<6;i++){
+    var el=document.getElementById('ld'+i);
+    if(el) el.classList.toggle('on', i<lgBuf.length);
+  }
+}
+
+function lgPin(d){
+  if(lgBuf.length>=6) return;
+  lgBuf+=d; updateLgDots();
+  if(lgBuf.length===6){
+    var buf=lgBuf;
+    setTimeout(function(){
+      if(buf===APP.pin){ launchApp(); }
+      else {
+        lgBuf='';
+        for(var i=0;i<6;i++){
+          var el=document.getElementById('ld'+i);
+          if(el){ el.classList.remove('on'); el.classList.add('err'); }
+        }
+        setTimeout(function(){
+          for(var i=0;i<6;i++){
+            var el=document.getElementById('ld'+i);
+            if(el) el.classList.remove('err');
+          }
+          updateLgDots();
+        }, 500);
+        document.getElementById('login-err').textContent='Code PIN incorrect';
+      }
+    }, 200);
+  }
+}
+
+function lgDel(){ if(lgBuf.length>0){ lgBuf=lgBuf.slice(0,-1); updateLgDots(); } }
+
+function lgBio(){
+  var btn=document.getElementById('bio-btn'); if(btn) btn.textContent='...';
+  setTimeout(function(){ if(btn) btn.textContent='👆'; launchApp(); }, 800);
+}
+
+function resetApp(){
+  if(confirm('Effacer le compte et recommencer ?')){
+    try{ localStorage.removeItem('mmci'); localStorage.removeItem('rom_token'); }catch(e){}
+    goto('s-register-welcome');
+  }
+}
+
+// ═══════════════════════════════════════════
+// LANCEMENT
+// ═══════════════════════════════════════════
+function launchApp(){
+  goto('s-app'); refreshUI(); renderTx('home'); renderVault();
+  var tok=getToken();
+  if(tok){
+    apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
+      if(res&&res.success&&res.data){
+        APP.balance=res.data.balance||APP.balance;
+        APP.vaultBal=res.data.vault_balance||APP.vaultBal;
+        APP.vaultLocked=res.data.vault_locked||APP.vaultLocked;
+        APP.qrSeed=res.data.qr_seed||APP.qrSeed;
+        updateBalDisplay();
+      }
+    });
+    apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
+      if(res&&res.success&&res.data&&res.data.transactions&&res.data.transactions.length>0){
+        txList=res.data.transactions.map(function(t){
+          return {
+            id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
+            type:t.direction, amt:parseFloat(t.amount),
+            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':'Depot',
+            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', ref:t.reference
+          };
+        });
+        renderTx('home');
+      }
+    });
+  }
+}
+
+function refreshUI(){
+  var n=APP.name||'Utilisateur'; var p=APP.phone||'';
+  var c=avc(n); var ig=ini(n);
+  function _(id,fn){ var e=document.getElementById(id); if(e) fn(e); }
+  _('app-av',function(e){ e.textContent=ig; e.style.background=c[0]; e.style.color=c[1]; });
+  _('app-name',function(e){ e.textContent=n.split(' ')[0]; });
+  _('bal-phone',function(e){ e.textContent=p; });
+  _('prof-av',function(e){ e.textContent=ig; e.style.background=c[0]; e.style.color=c[1]; });
+  _('prof-name',function(e){ e.textContent=n; });
+  _('prof-phone',function(e){ e.textContent=p; });
+  _('prof-id',function(e){ e.textContent=APP.userID; });
+  _('pc-av',function(e){ e.textContent=ig; e.style.background=c[0]; e.style.color=c[1]; });
+  updateBalDisplay();
+}
+
+// ═══════════════════════════════════════════
+// BALANCE
+// ═══════════════════════════════════════════
+function updateBalDisplay(){
+  var el=document.getElementById('bal-disp');
+  if(el) el.textContent=APP.balHidden?'***** F':fmt(APP.balance);
+  var vm=document.getElementById('vault-mini');
+  if(vm) vm.textContent=APP.balHidden?'*** F':fmt(APP.vaultBal);
+}
+
+function toggleBal(){
+  APP.balHidden=!APP.balHidden;
+  updateBalDisplay();
+  var eo=document.getElementById('eye-open');
+  var es=document.getElementById('eye-shut');
+  if(eo) eo.style.display=APP.balHidden?'none':'';
+  if(es) es.style.display=APP.balHidden?'':'none';
+}
+
+// ═══════════════════════════════════════════
+// TRANSACTIONS
+// ═══════════════════════════════════════════
+function renderTx(target, filter){
+  filter=filter||'all';
+  var list=txList.slice();
+  if(filter==='credit') list=txList.filter(function(t){ return t.type==='credit'&&!t.ann; });
+  else if(filter==='debit') list=txList.filter(function(t){ return t.type==='debit'&&!t.ann; });
+  else if(filter==='ann') list=txList.filter(function(t){ return t.ann; });
+  if(target==='home') list=list.slice(0,5);
+
+  var html='';
+  for(var i=0;i<list.length;i++){
+    var tx=list[i];
+    var isCr=tx.type==='credit', isAnn=!!tx.ann;
+    var c=avc(tx.name);
+    var amtColor=isAnn?'var(--t3)':isCr?'var(--g)':'var(--t1)';
+    var amtText=isAnn?'---':(isCr?'+':'-')+fmt(tx.amt);
+    var annBadge=isAnn?'<span class="badge-ann">Annulée</span>':'';
+    var cancelBtn=canAnn(tx)?'<button class="tx-cancel-btn" onclick="event.stopPropagation();askCancel('+tx.id+')">Annuler</button>':'';
+    html+='<div class="tx-row" onclick="txDetail('+tx.id+')" style="opacity:'+(isAnn?.5:1)+'">'
+      +'<div class="av" style="background:'+c[0]+';color:'+c[1]+'">'+ini(tx.name)+'</div>'
+      +'<div class="tx-info"><div class="tx-nm">'+tx.name+annBadge+'</div>'
+      +'<div class="tx-meta">'+tx.cat+' · '+relDate(tx.ts)+cancelBtn+'</div></div>'
+      +'<div class="tx-amt" style="color:'+amtColor+';text-decoration:'+(isAnn?'line-through':'none')+'">'+amtText+'</div>'
+      +'</div>';
+  }
+  if(!html) html='<div style="text-align:center;padding:28px;color:var(--t3);font-size:13px">Aucune transaction</div>';
+  var el=document.getElementById(target==='home'?'home-tx':'hist-tx');
+  if(el) el.innerHTML=html;
+}
+
+function setFilter(btn, f){
+  document.querySelectorAll('.on-filter').forEach(function(b){ b.classList.remove('on-filter'); b.style.background=''; b.style.borderColor=''; b.style.color=''; });
+  btn.classList.add('on-filter');
+  btn.style.background='var(--gl)'; btn.style.borderColor='var(--gm)'; btn.style.color='var(--gdd)';
+  renderTx('hist', f);
+}
+
+function txDetail(id){
+  var tx=null;
+  for(var i=0;i<txList.length;i++) if(txList[i].id===id){ tx=txList[i]; break; }
+  if(!tx) return;
+  var isCr=tx.type==='credit', isAnn=!!tx.ann;
+  var c=avc(tx.name);
+  document.getElementById('sh-title').textContent='Détail transaction';
+  document.getElementById('sh-body').innerHTML=
+    '<div style="text-align:center;padding:8px 0 16px">'
+    +'<div style="width:52px;height:52px;border-radius:50%;background:'+c[0]+';color:'+c[1]+';display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;margin:0 auto 10px">'+ini(tx.name)+'</div>'
+    +'<div style="font-size:24px;font-weight:700;color:'+(isAnn?'var(--t3)':isCr?'var(--g)':'var(--t1)')+'">'+( isAnn?'---':(isCr?'+':'-')+fmt(tx.amt))+'</div>'
+    +'<div style="font-size:14px;color:var(--t2);margin-top:4px">'+tx.name+'</div>'
+    +(isAnn?'<span class="badge-ann" style="display:inline-block;margin-top:6px">Transaction annulée</span>':'')
+    +'</div>'
+    +'<div style="background:var(--bg);border-radius:12px;padding:4px 0">'
+    +'<div class="kv" style="padding:10px 14px"><span>Catégorie</span><span>'+tx.cat+'</span></div>'
+    +'<div class="kv" style="padding:10px 14px"><span>Date</span><span>'+relDate(tx.ts)+'</span></div>'
+    +'<div class="kv" style="padding:10px 14px"><span>Statut</span><span style="color:'+(isAnn?'var(--re)':isCr?'var(--g)':'var(--t1)')+'">'+( isAnn?'Annulée':isCr?'Reçue':'Envoyée')+'</span></div>'
+    +'<div class="kv" style="padding:10px 14px"><span>Référence</span><span style="font-family:monospace;font-size:11px">REF-'+tx.id+'</span></div>'
+    +'</div>'
+    +(canAnn(tx)?'<button class="btn-g" style="background:var(--re);margin-top:14px" onclick="askCancel('+tx.id+')">Annuler cette transaction</button>':'')
+    +'<button class="btn-w" onclick="closeSheet()">Fermer</button>';
+  openSheet(null, true);
+}
+
+function askCancel(id){
+  var tx=null;
+  for(var i=0;i<txList.length;i++) if(txList[i].id===id){ tx=txList[i]; break; }
+  if(!tx||!canAnn(tx)) return;
+  requirePin('Annuler '+fmt(tx.amt)+' vers '+tx.name, function(){
+    tx.ann=true; APP.balance+=tx.amt;
+    updateBalDisplay(); renderTx('home'); renderTx('hist','all');
+    closeSheet(); toast('Transaction annulée - '+fmt(tx.amt)+' recrédité');
+  });
+}
+
+// ═══════════════════════════════════════════
+// COFFRE
+// ═══════════════════════════════════════════
+function renderVault(){
+  var lk=APP.vaultLocked;
+  var box=document.getElementById('vault-box');
+  if(box){ box.style.background=lk?'var(--al)':'var(--gl)'; box.style.border='.5px solid '+(lk?'#FAC775':'var(--gm)'); }
+  var lbl=document.getElementById('vault-lbl');
+  if(lbl){ lbl.textContent=lk?'Coffre verrouillé':'Épargne sécurisée'; lbl.style.color=lk?'var(--ad)':'var(--gdd)'; }
+  var amt=document.getElementById('vault-amt');
+  if(amt){ amt.textContent=fmt(APP.vaultBal); amt.style.color=lk?'var(--am)':'var(--g)'; }
+  var vm=document.getElementById('vault-mini'); if(vm) vm.textContent=APP.balHidden?'*** F':fmt(APP.vaultBal);
+  var li=document.getElementById('vault-lock-info');
+  if(li){
+    if(lk&&APP.vaultDate){
+      var d=new Date(APP.vaultDate);
+      var days=Math.max(0,Math.ceil((d-Date.now())/86400000));
+      li.innerHTML='<div style="background:rgba(255,255,255,.5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--ad);margin-bottom:10px">Déblocage le '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})+' (J-'+days+')</div>';
+    } else li.innerHTML='';
+  }
+  var wb=document.getElementById('v-wb'); if(wb){ wb.disabled=lk; wb.style.opacity=lk?.4:1; }
+  var lb=document.getElementById('v-lb'); if(lb){ lb.disabled=lk; lb.style.opacity=lk?.4:1; lb.textContent=lk?'🔒 Verrouillé':'🔒 Bloquer'; }
+  var pct=Math.round(Math.min(APP.vaultBal/150000*100,100));
+  var gp=document.getElementById('goal-pct'); if(gp) gp.textContent=pct+'%';
+  var gb=document.getElementById('goal-bar'); if(gb) gb.style.width=pct+'%';
+  var gs=document.getElementById('goal-saved'); if(gs) gs.textContent=fmt(APP.vaultBal)+' épargnés';
+}
+
+// ═══════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════
+function renderStats(){
+  var act=txList.filter(function(t){ return !t.ann; });
+  var inn=act.filter(function(t){ return t.type==='credit'; }).reduce(function(s,t){ return s+t.amt; },0);
+  var out=act.filter(function(t){ return t.type==='debit'; }).reduce(function(s,t){ return s+t.amt; },0);
+  function _(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+  _('st-in',fmt(inn)); _('st-out',fmt(out));
+  _('st-cnt',act.length); _('st-can',txList.filter(function(t){ return t.ann; }).length);
+
+  var cats={};
+  txList.filter(function(t){ return t.type==='debit'&&!t.ann; }).forEach(function(t){ cats[t.cat]=(cats[t.cat]||0)+t.amt; });
+  var tot=Object.values(cats).reduce(function(a,b){ return a+b; },0)||1;
+  var cc={'Transfert':'var(--g)','Facture':'var(--am)','Achat':'#D4537E','Salaire':'var(--bl)'};
+  var cl=document.getElementById('cat-list');
+  if(cl){
+    cl.innerHTML=Object.keys(cats).map(function(k){
+      return '<div class="kv" style="padding:10px 0"><span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:2px;background:'+(cc[k]||'var(--t3)')+';display:inline-block"></span>'+k+'</span><span>'+Math.round(cats[k]/tot*100)+'% · '+fmt(cats[k])+'</span></div>';
+    }).join('');
+  }
+
+  if(APP.chartInst){ APP.chartInst.destroy(); APP.chartInst=null; }
+  var cv=document.getElementById('chart-canvas'); if(!cv) return;
+  APP.chartInst=new Chart(cv,{
+    type:'bar',
+    data:{
+      labels:['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'],
+      datasets:[
+        {label:'Recu',data:[120000,95000,185000,60000,210000,265000,310000,450000,1200000,2800000,4200000,5000000],backgroundColor:'rgba(29,158,117,.78)',borderRadius:4,borderSkipped:false},
+        {label:'Envoye',data:[80000,110000,70000,95000,130000,75500,200000,380000,900000,1800000,3100000,4200000],backgroundColor:'rgba(239,159,39,.78)',borderRadius:4,borderSkipped:false}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){ return ' '+fmt(ctx.raw); }}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:'#9CA3AF'}},
+        y:{grid:{color:'rgba(0,0,0,.05)'},min:0,max:5200000,
+          ticks:{font:{size:9},color:'#9CA3AF',callback:function(v){ return v>=1000000?(v/1000000).toFixed(1)+'M F':v>=1000?Math.round(v/1000)+'k F':v+' F'; },stepSize:1000000}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+// PROFIL
+// ═══════════════════════════════════════════
+function renderProfile(){
+  var ICONS={
+    bell:'<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>',
+    lock:'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
+    bio:'<svg viewBox="0 0 24 24"><path d="M12 1a5 5 0 00-5 5v3"/><path d="M12 1a5 5 0 015 5v3"/><path d="M7 9a5 5 0 0010 0"/><path d="M5 11.5a7 7 0 0014 0"/></svg>',
+    card:'<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+    logout:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+  };
+  var rows=[
+    {ico:'bell',lbl:'Notifications',col:'var(--bl)',fn:function(){ toast('Notifications'); }},
+    {ico:'lock',lbl:'Changer le PIN',col:'var(--g)',fn:function(){ openSheet('change-pin'); }},
+    {ico:'bio',lbl:'Biométrie: '+(APP.bioEnabled?'Activée':'Désactivée'),col:'var(--g)',fn:function(){ APP.bioEnabled=!APP.bioEnabled; save(); toast(APP.bioEnabled?'Biométrie activée':'Biométrie désactivée'); renderProfile(); }},
+    {ico:'card',lbl:'Moyens de paiement',col:'var(--am)',fn:function(){ toast('Paiement'); }},
+    {ico:'logout',lbl:'Déconnexion',col:'var(--re)',fn:function(){ if(confirm('Se déconnecter ?')){ goto('s-login'); setupLoginScreen(); } }}
+  ];
+  var html='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    html+='<div class="set-item" onclick="settingFn('+i+')">'
+      +'<div class="set-l"><div class="set-ico" style="background:'+r.col+'18;color:'+r.col+'">'+ICONS[r.ico]+'</div>'
+      +'<span'+(r.ico==='logout'?' style="color:var(--re)"':'')+'>'+r.lbl+'</span></div>'
+      +'<svg width="16" height="16" stroke="var(--t3)" fill="none" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'
+      +'</div>';
+  }
+  var sl=document.getElementById('settings-list'); if(sl) sl.innerHTML=html;
+  window._settingFns=rows.map(function(r){ return r.fn; });
+}
+
+function settingFn(i){ if(window._settingFns&&window._settingFns[i]) window._settingFns[i](); }
+function copyID(){ try{ navigator.clipboard.writeText(APP.userID).then(function(){ toast('ID copié !'); }); }catch(e){ toast('ID: '+APP.userID); } }
+
+// ═══════════════════════════════════════════
+// NAVIGATION PAGES
+// ═══════════════════════════════════════════
+var PAGES=['home','history','vault','stats','profile'];
+function showPage(pgId){
+  PAGES.forEach(function(p){
+    var el=document.getElementById('pg-'+p); if(el) el.classList.toggle('on','pg-'+p===pgId);
+    var nb=document.getElementById('nb-'+p); if(nb) nb.classList.toggle('on','pg-'+p===pgId);
+  });
+  document.getElementById('main-scroll').scrollTop=0;
+  if(pgId==='pg-history') renderTx('hist','all');
+  if(pgId==='pg-vault') renderVault();
+  if(pgId==='pg-stats') setTimeout(renderStats,60);
+  if(pgId==='pg-profile') renderProfile();
+}
+function navGo(p){ showPage('pg-'+p); closeSheet(); }
+
+// ═══════════════════════════════════════════
+// PIN CONFIRMATION
+// ═══════════════════════════════════════════
+function requirePin(subtitle, callback){
+  pcBuf=''; pcCallback=callback; updatePcDots();
+  var sub=document.getElementById('pc-sub'); if(sub) sub.textContent=subtitle;
+  var err=document.getElementById('pc-err'); if(err) err.textContent='';
+  closeSheet();
+  setTimeout(function(){ goto('s-pinconfirm'); }, 50);
+}
+
+function updatePcDots(){
+  for(var i=0;i<6;i++){
+    var el=document.getElementById('pc'+i);
+    if(el) el.classList.toggle('on', i<pcBuf.length);
+  }
+}
+
+function pcPin(d){
+  if(pcBuf.length>=6) return;
+  pcBuf+=d; updatePcDots();
+  if(pcBuf.length===6){
+    var buf=pcBuf;
+    setTimeout(function(){
+      if(buf===APP.pin){
+        goto('s-app');
+        if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+      } else {
+        pcBuf='';
+        for(var i=0;i<6;i++){
+          var el=document.getElementById('pc'+i);
+          if(el){ el.classList.remove('on'); el.classList.add('err'); }
+        }
+        setTimeout(function(){
+          for(var i=0;i<6;i++){
+            var el=document.getElementById('pc'+i);
+            if(el) el.classList.remove('err');
+          }
+          updatePcDots();
+        }, 500);
+        var err=document.getElementById('pc-err'); if(err) err.textContent='PIN incorrect';
+      }
+    }, 200);
+  }
+}
+
+function pcDel(){ if(pcBuf.length>0){ pcBuf=pcBuf.slice(0,-1); updatePcDots(); } }
+function pinCancel(){ pcCallback=null; goto('s-app'); }
+
+// ═══════════════════════════════════════════
+// SHEET
+// ═══════════════════════════════════════════
+function openSheet(type, titleAlreadySet){
+  var bg=document.getElementById('sh-bg');
+  var sh=document.getElementById('sh');
+  if(!titleAlreadySet){
+    var titles={
+      send:'Envoyer de l\'argent',receive:'Recevoir',topup:'Recharger',
+      pay:'Payer un marchand',qr:'Mon QR code',scanner:'Scanner QR',
+      notif:'Notifications',vdeposit:'Déposer dans le coffre',
+      vwithdraw:'Retrait coffre',vlock:'Bloquer le coffre',
+      'change-pin':'Changer le PIN','edit-profile':'Modifier le profil'
+    };
+    var t=document.getElementById('sh-title'); if(t) t.textContent=titles[type]||'';
+    var b=document.getElementById('sh-body');
+    if(b){ b.innerHTML=''; buildSheet(type,b); }
+  }
+  bg.classList.add('on');
+  setTimeout(function(){ sh.classList.add('on'); }, 10);
+}
+
+function closeSheet(){
+  var sh=document.getElementById('sh'); sh.classList.remove('on');
+  setTimeout(function(){ document.getElementById('sh-bg').classList.remove('on'); }, 300);
+}
+
+function buildSheet(type, b){
+  if(type==='send') shSend(b);
+  else if(type==='receive') shReceive(b);
+  else if(type==='topup') shTopup(b);
+  else if(type==='pay') shPay(b);
+  else if(type==='qr') shQr(b);
+  else if(type==='scanner') shScanner(b);
+  else if(type==='notif') shNotif(b);
+  else if(type==='vdeposit') shVD(b);
+  else if(type==='vwithdraw') shVW(b);
+  else if(type==='vlock') shVL(b);
+  else if(type==='change-pin') shChangePIN(b);
+  else if(type==='edit-profile') shEditProfile(b);
+}
+
+// ── QR HELPER ──
+function drawQR(elId, txt){
+  var el=document.getElementById(elId); if(!el) return;
+  if(typeof QRCode!=='undefined'){
+    el.innerHTML='';
+    try{ new QRCode(el,{text:txt,width:160,height:160,colorDark:'#0F6E56',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H}); return; }catch(e){}
+  }
+  var p=txt.split('|');
+  var d=document.createElement('div');
+  d.style.cssText='width:160px;height:160px;background:#085041;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;text-align:center';
+  d.innerHTML='<div style="font-size:44px;margin-bottom:8px">&#9636;</div>'
+    +'<div style="font-size:10px;font-family:monospace;color:#9FE1CB;word-break:break-all">'+p[0]+'</div>'
+    +'<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px">'+(p[1]||'')+'</div>';
+  el.appendChild(d);
+}
+
+// ── CONTACTS ──
+function mkContacts(){
+  var cts=[['Mamadou D','+225 07 12 34 56 70'],['Fatou C','+225 07 98 76 54 32'],['Kofi M','+225 07 55 44 33 22'],['Aissatou B','+225 07 11 22 33 44']];
+  var h=[];
+  for(var i=0;i<cts.length;i++){
+    var c=cts[i], cv=avc(c[0]);
+    h.push('<div data-p="'+c[1]+'" data-n="'+c[0]+'" onclick="pickContact(this)" style="text-align:center;cursor:pointer;flex-shrink:0">');
+    h.push('<div style="width:42px;height:42px;border-radius:50%;background:'+cv[0]+';color:'+cv[1]+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;margin:0 auto 3px">'+ini(c[0])+'</div>');
+    h.push('<div style="font-size:10px;color:var(--t2)">'+c[0].split(' ')[0]+'</div>');
+    h.push('</div>');
+  }
+  return h.join('');
+}
+
+function pickContact(el){
+  var ph=document.getElementById('sph'), rn=document.getElementById('srn');
+  if(ph) ph.value=el.getAttribute('data-p');
+  if(rn) rn.textContent='Destinataire: '+el.getAttribute('data-n');
+}
+
+// ── SEND ──
+function shSend(b){
+  var h=[];
+  h.push('<div class="frow"><label class="flabel">Destinataire</label>');
+  h.push('<div style="display:flex;gap:7px">');
+  h.push('<input class="finput" id="sph" placeholder="+225 07 XX XX XX XX" type="tel" style="flex:1">');
+  h.push('<button onclick="openSheet(\'scanner\')" style="width:48px;height:48px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">');
+  h.push('<svg width="19" height="19" stroke="var(--gdd)" fill="none" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>');
+  h.push('</button></div>');
+  h.push('<div id="srn" style="font-size:11px;color:var(--g);margin-top:3px;min-height:14px"></div></div>');
+  h.push('<div style="display:flex;gap:11px;overflow-x:auto;padding-bottom:7px;margin-bottom:11px">'+mkContacts()+'</div>');
+  h.push('<div class="frow"><label class="flabel">Montant</label>');
+  h.push('<div class="amt-row"><input class="finput" id="sam" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>');
+  h.push('<div class="chips">');
+  [5000,10000,25000,50000,100000].forEach(function(a){ h.push('<button class="chip" onclick="document.getElementById(\'sam\').value='+a+'">'+fmt(a)+'</button>'); });
+  h.push('</div>');
+  h.push('<div class="frow"><label class="flabel">Message (optionnel)</label><input class="finput" id="sms" placeholder="Remboursement loyer"></div>');
+  h.push('<div style="background:var(--gl);border-radius:8px;padding:9px 11px;font-size:11px;color:var(--gdd);margin-bottom:14px">Frais : 0 F entre membres Rom_money</div>');
+  h.push('<button class="btn-g" onclick="doSend()">Continuer</button>');
+  b.innerHTML=h.join('');
+}
+
+function doSend(){
+  var ph=document.getElementById('sph'), am=document.getElementById('sam');
+  if(!ph||!ph.value.trim()){ toast('Numéro requis',true); return; }
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>APP.balance){ toast('Solde insuffisant',true); return; }
+  var phone=ph.value.trim();
+  var ms=document.getElementById('sms'); var desc=ms?ms.value:'';
+  requirePin('Confirmer envoi '+fmt(amt), function(){
+    var tok=getToken(); toast('Envoi en cours...');
+    apiCall('/transactions?action=send','POST',{receiver_phone:phone,amount:amt,pin:APP.pin,description:desc},tok)
+      .then(function(res){
+        if(res&&res.success){
+          APP.balance=res.data.new_balance||(APP.balance-amt);
+          txList.unshift({id:res.data.transaction_id||Date.now(),name:phone,type:'debit',amt:amt,cat:'Transfert',ts:Date.now()});
+        } else {
+          APP.balance-=amt;
+          txList.unshift({id:Date.now(),name:phone,type:'debit',amt:amt,cat:'Transfert',ts:Date.now()});
+        }
+        updateBalDisplay(); renderTx('home'); toast(fmt(amt)+' envoyé !');
+      });
+  });
+}
+
+// ── RECEIVE ──
+function shReceive(b){
+  b.innerHTML='<div style="text-align:center;padding:8px 0 4px">'
+    +'<div id="recv-qr" style="display:inline-block;padding:14px;background:#fff;border-radius:14px;border:.5px solid var(--bord)"></div>'
+    +'<div style="margin-top:10px;font-size:14px;font-weight:600">'+APP.name+'</div>'
+    +'<div style="font-size:12px;color:var(--t2)">'+APP.phone+'</div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:6px">Montrez ce QR pour recevoir</div>'
+    +'</div><button class="btn-w" onclick="closeSheet()">Fermer</button>';
+  setTimeout(function(){ drawQR('recv-qr', APP.userID+'|'+APP.qrSeed); }, 100);
+}
+
+// ── QR ──
+function shQr(b){
+  b.innerHTML='<div style="text-align:center;padding:8px 0 4px">'
+    +'<div id="main-qr" style="display:inline-block;padding:14px;background:#fff;border-radius:14px;border:.5px solid var(--bord)"></div>'
+    +'<div style="margin-top:10px;font-size:14px;font-weight:600">'+APP.name+'</div>'
+    +'<div style="font-size:11px;font-family:monospace;color:var(--t3)">'+APP.userID+'</div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:6px">Code unique · Valide 24h</div>'
+    +'</div>'
+    +'<button class="btn-g" onclick="renewQR()">Renouveler le QR</button>'
+    +'<button class="btn-w" onclick="closeSheet()">Fermer</button>';
+  setTimeout(function(){ drawQR('main-qr', APP.userID+'|'+APP.qrSeed); }, 100);
+}
+
+function renewQR(){ APP.qrSeed=Math.random().toString(36).substr(2,8).toUpperCase(); save(); closeSheet(); toast('QR code renouvelé'); }
+
+// ── SCANNER ──
+function shScanner(b){
+  var h=[];
+  h.push('<p style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">Entrer le numéro du destinataire</p>');
+  h.push('<div style="display:flex;gap:8px;margin-bottom:16px">');
+  h.push('<input class="finput" id="scan-manual" placeholder="+225 07 XX XX XX XX" type="tel" style="flex:1">');
+  h.push('<button onclick="useScanManual()" style="padding:0 16px;background:var(--g);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:\'DM Sans\',sans-serif">OK</button>');
+  h.push('</div>');
+  h.push('<p style="font-size:12px;color:var(--t2);margin-bottom:8px">Ou choisir un contact :</p>');
+  h.push('<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px">');
+  var cts=[['Mamadou D','+225 07 12 34 56 70'],['Fatou C','+225 07 98 76 54 32'],['Kofi M','+225 07 55 44 33 22'],['Aissatou B','+225 07 11 22 33 44']];
+  for(var i=0;i<cts.length;i++){
+    var c=cts[i], cv=avc(c[0]);
+    h.push('<div data-p="'+c[1]+'" data-n="'+c[0]+'" onclick="useScanContact(this)" style="text-align:center;cursor:pointer;flex-shrink:0">');
+    h.push('<div style="width:48px;height:48px;border-radius:50%;background:'+cv[0]+';color:'+cv[1]+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin:0 auto 4px">'+ini(c[0])+'</div>');
+    h.push('<div style="font-size:11px;color:var(--t2)">'+c[0].split(' ')[0]+'</div>');
+    h.push('</div>');
+  }
+  h.push('</div>');
+  h.push('<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">');
+  h.push('<div style="flex:1;height:.5px;background:var(--bord)"></div>');
+  h.push('<span style="font-size:12px;color:var(--t3)">ou caméra</span>');
+  h.push('<div style="flex:1;height:.5px;background:var(--bord)"></div>');
+  h.push('</div>');
+  h.push('<div id="cam-zone">');
+  h.push('<button onclick="tryCamera()" style="width:100%;padding:14px;background:var(--bg);border:1.5px dashed var(--gm);border-radius:12px;cursor:pointer;font-size:14px;color:var(--gdd);font-family:\'DM Sans\',sans-serif;font-weight:500">📷 Activer la caméra pour scanner</button>');
+  h.push('</div>');
+  h.push('<button class="btn-w" style="margin-top:12px" onclick="stopScan();closeSheet()">Fermer</button>');
+  b.innerHTML=h.join('');
+}
+
+function useScanManual(){
+  var inp=document.getElementById('scan-manual');
+  if(!inp||!inp.value.trim()){ toast('Entrez un numéro',true); return; }
+  var ph=inp.value.trim(); stopScan(); closeSheet();
+  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=ph; if(srn) srn.textContent='Destinataire: '+ph; },200); },350);
+}
+
+function useScanContact(el){
+  var ph=el.getAttribute('data-p'), nm=el.getAttribute('data-n');
+  stopScan(); closeSheet();
+  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=ph; if(srn) srn.textContent='Destinataire: '+nm; },200); },350);
+}
+
+function tryCamera(){
+  var zone=document.getElementById('cam-zone'); if(!zone) return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    zone.innerHTML='<p style="font-size:13px;color:var(--re);text-align:center;padding:12px">Caméra non disponible. Utilisez la saisie manuelle ci-dessus.</p>';
+    return;
+  }
+  zone.innerHTML=[
+    '<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:200px;margin-bottom:8px">',
+    '<video id="svid" style="width:100%;height:100%;object-fit:cover;background:#000" autoplay playsinline muted webkit-playsinline></video>',
+    '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">',
+    '<div style="width:140px;height:140px;border:2px solid var(--g);border-radius:10px;position:relative;overflow:hidden">',
+    '<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:10%"></div>',
+    '</div></div>',
+    '<p id="cam-msg" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.75);margin:0">Connexion caméra...</p>',
+    '</div>'
+  ].join('');
+  startScan();
+}
+
+function startScan(){
+  var msg=document.getElementById('cam-msg');
+  function setMsg(t){ if(msg) msg.textContent=t; }
+  setMsg('Demande autorisation...');
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}})
+  .then(function(stream){
+    scanStream=stream;
+    var v=document.getElementById('svid');
+    if(v){
+      v.srcObject=stream;
+      v.play().then(function(){
+        setMsg('Caméra active - pointez vers un QR code');
+        setTimeout(function(){ if(scanStream) simScan(); }, 3000);
+      }).catch(function(e){ setMsg('Erreur: '+e.message); });
+    }
+  })
+  .catch(function(err){
+    var nm=err?err.name:'';
+    if(nm==='NotAllowedError') setMsg('Accès refusé. Vérifiez les permissions caméra.');
+    else if(nm==='NotFoundError') setMsg('Aucune caméra trouvée.');
+    else setMsg('Caméra indisponible.');
+  });
+}
+
+function simScan(){
+  scanData={name:'Fatou Camara',phone:'+225 07 98 76 54 32'};
+  var zone=document.getElementById('cam-zone');
+  if(zone){
+    var res=document.createElement('div');
+    res.style.cssText='background:var(--gl);border-radius:9px;padding:11px;font-size:13px;color:var(--gdd);margin-top:8px';
+    res.innerHTML='<b>QR détecté !</b><br>Nom: <strong>'+scanData.name+'</strong><br>Tél: '+scanData.phone
+      +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser ce destinataire</button>';
+    zone.appendChild(res);
+  }
+}
+
+function useScanDirect(){
+  if(!scanData) return;
+  var d={nm:scanData.name,ph:scanData.phone};
+  stopScan(); closeSheet();
+  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=d.ph; if(srn) srn.textContent='Destinataire: '+d.nm; },200); },350);
+}
+
+function stopScan(){
+  if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream=null; }
+  scanData=null;
+}
+
+// ── TOPUP ──
+function shTopup(b){
+  b.innerHTML='<div class="frow"><label class="flabel">Montant</label>'
+    +'<div class="amt-row"><input class="finput" id="top-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="chips">'+[10000,25000,50000,100000,500000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'top-am\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
+    +'<div class="frow"><label class="flabel">Source</label>'
+    +'<select class="finput fsel" id="top-src"><option>Virement bancaire</option><option>Carte Visa / Mastercard</option><option>Agence partenaire</option></select></div>'
+    +'<button class="btn-g" onclick="doTopup()">Recharger</button>';
+}
+
+function doTopup(){
+  var el=document.getElementById('top-am');
+  var amt=parseFloat(el&&el.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  var tok=getToken(); toast('Recharge en cours...');
+  apiCall('/wallet?action=topup','POST',{amount:amt,source:'Manuel'},tok)
+    .then(function(res){
+      if(res&&res.success){ APP.balance=res.data.new_balance||(APP.balance+amt); }
+      else { APP.balance+=amt; }
+      txList.unshift({id:Date.now(),name:'Rechargement',type:'credit',amt:amt,cat:'Dépôt',ts:Date.now()});
+      updateBalDisplay(); renderTx('home'); closeSheet(); toast(fmt(amt)+' ajouté !');
+    });
+}
+
+// ── PAY ──
+function shPay(b){
+  var h=[];
+  h.push('<div class="frow"><label class="flabel">Code marchand ou QR</label>');
+  h.push('<div style="display:flex;gap:7px">');
+  h.push('<input class="finput" id="pay-cd" placeholder="Code marchand" style="flex:1">');
+  h.push('<button onclick="openSheet(\'scanner\')" style="width:48px;height:48px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">');
+  h.push('<svg width="19" height="19" stroke="var(--gdd)" fill="none" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>');
+  h.push('</button></div></div>');
+  h.push('<div class="frow"><label class="flabel">Montant</label>');
+  h.push('<div class="amt-row"><input class="finput" id="pay-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>');
+  h.push('<button class="btn-g" onclick="doPay()">Payer</button>');
+  b.innerHTML=h.join('');
+}
+
+function doPay(){
+  var cd=document.getElementById('pay-cd'), am=document.getElementById('pay-am');
+  if(!cd||!cd.value.trim()){ toast('Code marchand requis',true); return; }
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>APP.balance){ toast('Solde insuffisant',true); return; }
+  var code=cd.value.trim();
+  requirePin('Paiement de '+fmt(amt), function(){
+    APP.balance-=amt;
+    txList.unshift({id:Date.now(),name:code,type:'debit',amt:amt,cat:'Achat',ts:Date.now()});
+    updateBalDisplay(); renderTx('home'); toast('Paiement '+fmt(amt)+' effectué');
+  });
+}
+
+// ── NOTIF ──
+function shNotif(b){
+  var notifs=[
+    {ico:'✅',msg:'Vous avez reçu 50 000 F de Mamadou Diallo',t:'Il y a 4 min'},
+    {ico:'📤',msg:'Orange Money : 15 000 F débité',t:'Il y a 3h'},
+    {ico:'🔒',msg:'Connexion depuis un nouvel appareil',t:'Hier'},
+    {ico:'💰',msg:'Coffre : 53% de votre objectif atteint',t:'Il y a 3 jours'}
+  ];
+  b.innerHTML=notifs.map(function(n){
+    return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div)">'
+      +'<span style="font-size:22px">'+n.ico+'</span>'
+      +'<div><div style="font-size:13px">'+n.msg+'</div><div style="font-size:11px;color:var(--t3);margin-top:3px">'+n.t+'</div></div>'
+      +'</div>';
+  }).join('');
+}
+
+// ── VAULT DEPOSIT ──
+function shVD(b){
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Solde: <strong>'+fmt(APP.balance)+'</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant</label>'
+    +'<div class="amt-row"><input class="finput" id="vd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" onclick="doVD()">Déposer dans le coffre</button>';
+}
+
+function doVD(){
+  var am=document.getElementById('vd-am');
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>APP.balance){ toast('Solde insuffisant',true); return; }
+  APP.balance-=amt; APP.vaultBal+=amt;
+  updateBalDisplay(); renderVault(); closeSheet(); toast(fmt(amt)+' déposé dans le coffre');
+}
+
+// ── VAULT WITHDRAW ──
+function shVW(b){
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre: <strong>'+fmt(APP.vaultBal)+'</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant</label>'
+    +'<div class="amt-row"><input class="finput" id="vw-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" onclick="reqVW()">Retirer du coffre</button>';
+}
+
+function reqVW(){
+  var am=document.getElementById('vw-am');
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>APP.vaultBal){ toast('Solde coffre insuffisant',true); return; }
+  requirePin('Retrait coffre '+fmt(amt), function(){
+    APP.vaultBal-=amt; APP.balance+=amt;
+    updateBalDisplay(); renderVault(); toast(fmt(amt)+' retiré du coffre');
+  });
+}
+
+// ── VAULT LOCK ──
+function shVL(b){
+  var minDate=new Date(Date.now()+86400000).toISOString().split('T')[0];
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:14px">Choisissez la date de déblocage. Aucun retrait avant cette date.</div>'
+    +'<div class="frow"><label class="flabel">Date de déblocage</label><input class="finput" id="lock-dt" type="date" min="'+minDate+'"></div>'
+    +'<div style="background:var(--al);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--ad);margin-bottom:16px">Action irréversible avant la date choisie.</div>'
+    +'<button class="btn-g" style="background:var(--ad)" onclick="doLock()">Confirmer le verrouillage</button>'
+    +'<button class="btn-w" onclick="closeSheet()">Annuler</button>';
+}
+
+function doLock(){
+  var dt=document.getElementById('lock-dt');
+  if(!dt||!dt.value){ toast('Choisissez une date',true); return; }
+  APP.vaultLocked=true; APP.vaultDate=dt.value;
+  renderVault(); closeSheet(); toast('Coffre verrouillé');
+}
+
+// ── CHANGE PIN ──
+function shChangePIN(b){
+  var step=0, np='', cbuf='';
+  b.innerHTML='<div style="text-align:center;font-size:13px;color:var(--t2);margin-bottom:14px" id="cp-lbl">Entrez votre PIN actuel</div>'
+    +'<div class="dots" style="margin-bottom:24px">'
+    +'<div class="dot dark" id="cp0"></div><div class="dot dark" id="cp1"></div>'
+    +'<div class="dot dark" id="cp2"></div><div class="dot dark" id="cp3"></div>'
+    +'<div class="dot dark" id="cp4"></div><div class="dot dark" id="cp5"></div>'
+    +'</div>'
+    +'<div class="kpad" style="margin:0 auto">'
+    +'<button class="kb light" onclick="cpAdd(\'1\')">1</button><button class="kb light" onclick="cpAdd(\'2\')">2</button><button class="kb light" onclick="cpAdd(\'3\')">3</button>'
+    +'<button class="kb light" onclick="cpAdd(\'4\')">4</button><button class="kb light" onclick="cpAdd(\'5\')">5</button><button class="kb light" onclick="cpAdd(\'6\')">6</button>'
+    +'<button class="kb light" onclick="cpAdd(\'7\')">7</button><button class="kb light" onclick="cpAdd(\'8\')">8</button><button class="kb light" onclick="cpAdd(\'9\')">9</button>'
+    +'<div></div><button class="kb light" onclick="cpAdd(\'0\')">0</button><button class="kb light" onclick="cpDel()">⌫</button>'
+    +'</div>'
+    +'<div id="cp-err" style="color:var(--re);font-size:13px;text-align:center;margin-top:12px;min-height:18px"></div>';
+
+  function updDots(){
+    for(var i=0;i<6;i++){
+      var el=document.getElementById('cp'+i);
+      if(el) el.classList.toggle('on', i<cbuf.length);
+    }
+  }
+
+  window.cpAdd=function(d){
+    if(cbuf.length>=6) return; cbuf+=d; updDots();
+    if(cbuf.length===6){
+      var buf=cbuf; cbuf='';
+      setTimeout(function(){
+        updDots();
+        if(step===0){
+          if(buf!==APP.pin){ document.getElementById('cp-err').textContent='PIN actuel incorrect'; return; }
+          step=1; document.getElementById('cp-lbl').textContent='Nouveau PIN (6 chiffres)'; document.getElementById('cp-err').textContent='';
+        } else if(step===1){
+          np=buf; step=2; document.getElementById('cp-lbl').textContent='Confirmez le nouveau PIN'; document.getElementById('cp-err').textContent='';
+        } else {
+          if(buf!==np){ step=1; np=''; document.getElementById('cp-lbl').textContent='Nouveau PIN (6 chiffres)'; document.getElementById('cp-err').textContent='PIN non identique, recommencez'; return; }
+          APP.pin=np; save(); closeSheet(); toast('PIN mis à jour !');
+        }
+      }, 200);
+    }
+  };
+  window.cpDel=function(){ if(cbuf.length>0){ cbuf=cbuf.slice(0,-1); updDots(); } };
+}
+
+// ── EDIT PROFILE ──
+function shEditProfile(b){
+  b.innerHTML='<div class="frow"><label class="flabel">Nom complet</label><input class="finput" id="ep-nm" value="'+APP.name+'" placeholder="Votre nom"></div>'
+    +'<div class="frow"><label class="flabel">Téléphone</label><input class="finput" id="ep-ph" value="'+APP.phone+'" placeholder="+225 07 XX XX XX XX" type="tel"></div>'
+    +'<div class="frow"><label class="flabel">Email</label><input class="finput" id="ep-em" value="'+APP.email+'" placeholder="email@exemple.ci" type="email"></div>'
+    +'<button class="btn-g" onclick="doEditProfile()">Enregistrer</button>'
+    +'<button class="btn-w" onclick="closeSheet()">Annuler</button>';
+}
+
+function doEditProfile(){
+  var nm=document.getElementById('ep-nm'),ph=document.getElementById('ep-ph'),em=document.getElementById('ep-em');
+  if(nm&&nm.value.trim()) APP.name=nm.value.trim();
+  if(ph&&ph.value.trim()) APP.phone=ph.value.trim();
+  if(em) APP.email=em.value.trim();
+  save(); refreshUI(); closeSheet(); toast('Profil mis à jour');
+}
+</script>
+</body>
+</html>
