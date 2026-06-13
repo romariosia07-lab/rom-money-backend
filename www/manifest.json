@@ -1,0 +1,21 @@
+{
+  "name": "Rom_money",
+  "short_name": "Rom_money",
+  "description": "Une Afrique, un portefeuille",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#085041",
+  "theme_color": "#085041",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
