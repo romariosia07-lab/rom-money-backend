@@ -464,11 +464,10 @@ html,body{height:100%;background:#085041;overflow:hidden}
           <button id="v-lb" style="background:var(--ad);color:#fff" onclick="openSheet('vlock')">🔒 Bloquer</button>
         </div>
       </div>
-      <div style="margin:0 16px;background:var(--card);border-radius:14px;padding:16px;border:.5px solid var(--bord)">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:14px;font-weight:500">Voyage Abidjan-Paris</span><span id="goal-pct" style="font-size:14px;font-weight:700;color:var(--g)">53%</span></div>
-        <div class="prog-bar"><div id="goal-bar" class="prog-fill" style="width:53%"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3)"><span id="goal-saved">80 000 F épargnés</span><span>Objectif: 150 000 F</span></div>
-      </div>
+
+      <div class="sec-title">MES SOUS-COFFRES <a onclick="openSheet('vcreate')">+ Créer</a></div>
+      <div id="subvault-list" style="margin:0 16px"></div>
+      <div style="height:8px"></div>
     </div>
 
     <!-- PAGE STATS -->
@@ -561,7 +560,11 @@ var APP = {
   balance: 245800, vaultBal: 80000,
   vaultLocked: false, vaultDate: null,
   balHidden: false, cancelMins: 5,
-  chartInst: null
+  chartInst: null,
+  subVaults: [
+    {id:1, name:'Voyage Abidjan-Paris', amt:80000, goal:150000}
+  ],
+  nextSubVaultId: 2
 };
 
 var txList = [
@@ -617,7 +620,9 @@ function save(){
   try{
     localStorage.setItem('mmci', JSON.stringify({
       name:APP.name,phone:APP.phone,email:APP.email,op:APP.op,
-      pin:APP.pin,bioEnabled:APP.bioEnabled,userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token
+      pin:APP.pin,bioEnabled:APP.bioEnabled,userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
+      balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,
+      subVaults:APP.subVaults,nextSubVaultId:APP.nextSubVaultId
     }));
   }catch(e){}
 }
@@ -977,10 +982,53 @@ function renderVault(){
   }
   var wb=document.getElementById('v-wb'); if(wb){ wb.disabled=lk; wb.style.opacity=lk?.4:1; }
   var lb=document.getElementById('v-lb'); if(lb){ lb.disabled=lk; lb.style.opacity=lk?.4:1; lb.textContent=lk?'🔒 Verrouillé':'🔒 Bloquer'; }
-  var pct=Math.round(Math.min(APP.vaultBal/150000*100,100));
-  var gp=document.getElementById('goal-pct'); if(gp) gp.textContent=pct+'%';
-  var gb=document.getElementById('goal-bar'); if(gb) gb.style.width=pct+'%';
-  var gs=document.getElementById('goal-saved'); if(gs) gs.textContent=fmt(APP.vaultBal)+' épargnés';
+
+  renderSubVaults();
+}
+
+function renderSubVaults(){
+  var list=document.getElementById('subvault-list');
+  if(!list) return;
+  var subs=APP.subVaults||[];
+  if(!subs.length){
+    list.innerHTML='<div style="text-align:center;padding:28px;color:var(--t3);font-size:13px;background:var(--card);border-radius:14px;border:.5px solid var(--bord)">Aucun sous-coffre. Créez-en un pour organiser votre épargne par objectif (voyage, urgence, études...)</div>';
+    return;
+  }
+  var html='';
+  for(var i=0;i<subs.length;i++){
+    var sv=subs[i];
+    var hasGoal = sv.goal && sv.goal>0;
+    var pct = hasGoal ? Math.round(Math.min(sv.amt/sv.goal*100,100)) : 0;
+    html+='<div style="background:var(--card);border-radius:14px;padding:16px;border:.5px solid var(--bord);margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<span style="font-size:14px;font-weight:600">'+sv.name+'</span>'
+        +(hasGoal?'<span style="font-size:14px;font-weight:700;color:var(--g)">'+pct+'%</span>':'<span style="font-size:14px;font-weight:700;color:var(--g)">'+fmt(sv.amt)+'</span>')
+      +'</div>'
+      +(hasGoal?'<div class="prog-bar"><div class="prog-fill" style="width:'+pct+'%"></div></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:12px"><span>'+fmt(sv.amt)+' épargnés</span><span>Objectif: '+fmt(sv.goal)+'</span></div>'
+        :'<div style="height:8px"></div>')
+      +'<div style="display:flex;gap:8px">'
+        +'<button onclick="openSheet(\'svdeposit\',false,'+sv.id+')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--gl);color:var(--gdd);font-family:\'DM Sans\',sans-serif">⬇ Déposer</button>'
+        +'<button onclick="openSheet(\'svwithdraw\',false,'+sv.id+')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--t1);border:.5px solid var(--bord);font-family:\'DM Sans\',sans-serif">⬆ Retirer</button>'
+        +'<button onclick="deleteSubVault('+sv.id+')" style="padding:9px 12px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--rl);color:var(--rd);font-family:\'DM Sans\',sans-serif">🗑</button>'
+      +'</div>'
+    +'</div>';
+  }
+  list.innerHTML=html;
+}
+
+function findSubVault(id){
+  for(var i=0;i<APP.subVaults.length;i++) if(APP.subVaults[i].id===id) return APP.subVaults[i];
+  return null;
+}
+
+function deleteSubVault(id){
+  var sv=findSubVault(id);
+  if(!sv) return;
+  if(!confirm('Supprimer "'+sv.name+'" ? Les '+fmt(sv.amt)+' seront reversés au coffre principal.')) return;
+  APP.vaultBal += sv.amt;
+  APP.subVaults = APP.subVaults.filter(function(s){ return s.id!==id; });
+  save(); renderVault(); updateBalDisplay(); toast('Sous-coffre supprimé, fonds reversés au coffre principal');
 }
 
 // ═══════════════════════════════════════════
@@ -1131,7 +1179,7 @@ function pinCancel(){ pcCallback=null; goto('s-app'); }
 // ═══════════════════════════════════════════
 // SHEET
 // ═══════════════════════════════════════════
-function openSheet(type, titleAlreadySet){
+function openSheet(type, titleAlreadySet, extra){
   var bg=document.getElementById('sh-bg');
   var sh=document.getElementById('sh');
   if(!titleAlreadySet){
@@ -1140,11 +1188,13 @@ function openSheet(type, titleAlreadySet){
       pay:'Payer un marchand',qr:'Mon QR code',scanner:'Scanner QR',
       notif:'Notifications',vdeposit:'Déposer dans le coffre',
       vwithdraw:'Retrait coffre',vlock:'Bloquer le coffre',
+      vcreate:'Créer un sous-coffre',svdeposit:'Déposer dans le sous-coffre',
+      svwithdraw:'Retrait du sous-coffre',
       'change-pin':'Changer le PIN','edit-profile':'Modifier le profil'
     };
     var t=document.getElementById('sh-title'); if(t) t.textContent=titles[type]||'';
     var b=document.getElementById('sh-body');
-    if(b){ b.innerHTML=''; buildSheet(type,b); }
+    if(b){ b.innerHTML=''; buildSheet(type,b,extra); }
   }
   bg.classList.add('on');
   setTimeout(function(){ sh.classList.add('on'); }, 10);
@@ -1155,7 +1205,7 @@ function closeSheet(){
   setTimeout(function(){ document.getElementById('sh-bg').classList.remove('on'); }, 300);
 }
 
-function buildSheet(type, b){
+function buildSheet(type, b, extra){
   if(type==='send') shSend(b);
   else if(type==='receive') shReceive(b);
   else if(type==='topup') shTopup(b);
@@ -1166,6 +1216,9 @@ function buildSheet(type, b){
   else if(type==='vdeposit') shVD(b);
   else if(type==='vwithdraw') shVW(b);
   else if(type==='vlock') shVL(b);
+  else if(type==='vcreate') shVCreate(b);
+  else if(type==='svdeposit') shSVDeposit(b, extra);
+  else if(type==='svwithdraw') shSVWithdraw(b, extra);
   else if(type==='change-pin') shChangePIN(b);
   else if(type==='edit-profile') shEditProfile(b);
 }
@@ -1509,6 +1562,79 @@ function doLock(){
   if(!dt||!dt.value){ toast('Choisissez une date',true); return; }
   APP.vaultLocked=true; APP.vaultDate=dt.value;
   renderVault(); closeSheet(); toast('Coffre verrouillé');
+}
+
+// ── CREATE SUB-VAULT ──
+function shVCreate(b){
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:14px">Créez un sous-coffre pour épargner vers un objectif précis (voyage, urgence, études, mariage...)</div>'
+    +'<div class="frow"><label class="flabel">Nom du sous-coffre</label><input class="finput" id="sv-name" placeholder="Ex: Urgence médicale"></div>'
+    +'<div class="frow"><label class="flabel">Montant initial (optionnel)</label>'
+    +'<div class="amt-row"><input class="finput" id="sv-amt" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">Disponible dans le coffre principal: '+fmt(APP.vaultBal)+'</div></div>'
+    +'<div class="frow"><label class="flabel">Objectif d\'épargne (optionnel)</label>'
+    +'<div class="amt-row"><input class="finput" id="sv-goal" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" onclick="doVCreate()">Créer le sous-coffre</button>'
+    +'<button class="btn-w" onclick="closeSheet()">Annuler</button>';
+}
+
+function doVCreate(){
+  var nm=document.getElementById('sv-name');
+  var am=document.getElementById('sv-amt');
+  var gl=document.getElementById('sv-goal');
+  var name=nm&&nm.value.trim();
+  if(!name){ toast('Donnez un nom au sous-coffre',true); return; }
+  var amt=parseFloat(am&&am.value)||0;
+  var goal=parseFloat(gl&&gl.value)||0;
+  if(amt>APP.vaultBal){ toast('Solde coffre principal insuffisant',true); return; }
+  APP.vaultBal-=amt;
+  APP.subVaults.push({id:APP.nextSubVaultId++, name:name, amt:amt, goal:goal});
+  save(); renderVault(); updateBalDisplay(); closeSheet();
+  toast('Sous-coffre "'+name+'" créé');
+}
+
+// ── SUB-VAULT DEPOSIT ──
+function shSVDeposit(b, id){
+  var sv=findSubVault(id);
+  if(!sv){ closeSheet(); return; }
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre principal: <strong>'+fmt(APP.vaultBal)+'</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant à transférer vers "'+sv.name+'"</label>'
+    +'<div class="amt-row"><input class="finput" id="sv-dep-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" onclick="doSVDeposit('+id+')">Déposer</button>';
+}
+
+function doSVDeposit(id){
+  var sv=findSubVault(id);
+  if(!sv) return;
+  var am=document.getElementById('sv-dep-am');
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>APP.vaultBal){ toast('Solde coffre principal insuffisant',true); return; }
+  APP.vaultBal-=amt; sv.amt+=amt;
+  save(); renderVault(); updateBalDisplay(); closeSheet();
+  toast(fmt(amt)+' déposé dans "'+sv.name+'"');
+}
+
+// ── SUB-VAULT WITHDRAW ──
+function shSVWithdraw(b, id){
+  var sv=findSubVault(id);
+  if(!sv){ closeSheet(); return; }
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'": <strong>'+fmt(sv.amt)+'</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant à retirer (vers le coffre principal)</label>'
+    +'<div class="amt-row"><input class="finput" id="sv-wd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" onclick="reqSVWithdraw('+id+')">Retirer</button>';
+}
+
+function reqSVWithdraw(id){
+  var sv=findSubVault(id);
+  if(!sv) return;
+  var am=document.getElementById('sv-wd-am');
+  var amt=parseFloat(am&&am.value)||0;
+  if(amt<=0){ toast('Montant invalide',true); return; }
+  if(amt>sv.amt){ toast('Solde du sous-coffre insuffisant',true); return; }
+  requirePin('Retrait '+fmt(amt)+' de "'+sv.name+'"', function(){
+    sv.amt-=amt; APP.vaultBal+=amt;
+    save(); renderVault(); updateBalDisplay(); toast(fmt(amt)+' retiré vers le coffre principal');
+  });
 }
 
 // ── CHANGE PIN ──
