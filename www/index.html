@@ -1310,11 +1310,11 @@ function doSend(){
         if(res&&res.success){
           APP.balance=res.data.new_balance||(APP.balance-amt);
           txList.unshift({id:res.data.transaction_id||Date.now(),name:phone,type:'debit',amt:amt,cat:'Transfert',ts:Date.now()});
+          updateBalDisplay(); renderTx('home'); save(); toast(fmt(amt)+' envoyé !');
         } else {
-          APP.balance-=amt;
-          txList.unshift({id:Date.now(),name:phone,type:'debit',amt:amt,cat:'Transfert',ts:Date.now()});
+          var errMsg = (res&&res.message) ? res.message : 'Échec de l\'envoi. Vérifiez le numéro et votre connexion.';
+          toast(errMsg, true);
         }
-        updateBalDisplay(); renderTx('home'); toast(fmt(amt)+' envoyé !');
       });
   });
 }
@@ -1327,7 +1327,7 @@ function shReceive(b){
     +'<div style="font-size:12px;color:var(--t2)">'+APP.phone+'</div>'
     +'<div style="font-size:11px;color:var(--t3);margin-top:6px">Montrez ce QR pour recevoir</div>'
     +'</div><button class="btn-w" onclick="closeSheet()">Fermer</button>';
-  setTimeout(function(){ drawQR('recv-qr', APP.userID+'|'+APP.qrSeed); }, 100);
+  setTimeout(function(){ drawQR('recv-qr', APP.userID+'|'+APP.qrSeed+'|'+APP.phone); }, 100);
 }
 
 // ── QR ──
@@ -1340,7 +1340,7 @@ function shQr(b){
     +'</div>'
     +'<button class="btn-g" onclick="renewQR()">Renouveler le QR</button>'
     +'<button class="btn-w" onclick="closeSheet()">Fermer</button>';
-  setTimeout(function(){ drawQR('main-qr', APP.userID+'|'+APP.qrSeed); }, 100);
+  setTimeout(function(){ drawQR('main-qr', APP.userID+'|'+APP.qrSeed+'|'+APP.phone); }, 100);
 }
 
 function renewQR(){ APP.qrSeed=Math.random().toString(36).substr(2,8).toUpperCase(); save(); closeSheet(); toast('QR code renouvelé'); }
@@ -1457,19 +1457,25 @@ function scanLoop(){
 }
 
 function handleScannedQR(text){
-  // Expected format from Rom_money QR: userID|qrSeed (e.g. CI-AB12CD|XY9Z8W7Q)
+  // Expected format from Rom_money QR: userID|qrSeed|phone (e.g. CI-AB12CD|XY9Z8W7Q|+225 07 12 34 56 78)
   var parts=text.split('|');
   var id=parts[0]||text;
   var seed=parts[1]||'';
-  scanData={id:id, seed:seed, raw:text};
+  var phone=parts[2]||'';
+  scanData={id:id, seed:seed, phone:phone, raw:text};
+
+  playBeep();
 
   var zone=document.getElementById('cam-zone');
   if(zone){
     var res=document.createElement('div');
     res.style.cssText='background:var(--gl);border-radius:9px;padding:11px;font-size:13px;color:var(--gdd);margin-top:8px';
-    if(id.indexOf('CI-')===0){
+    if(id.indexOf('CI-')===0 && phone){
+      res.innerHTML='<b>QR Rom_money détecté !</b><br>ID utilisateur: <strong>'+id+'</strong><br>Téléphone: <strong>'+phone+'</strong>'
+        +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser ce destinataire</button>';
+    } else if(id.indexOf('CI-')===0){
       res.innerHTML='<b>QR Rom_money détecté !</b><br>ID utilisateur: <strong>'+id+'</strong>'
-        +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser cet ID comme destinataire</button>';
+        +'<div style="font-size:11px;color:var(--re);margin-top:4px">Ce QR ne contient pas de numéro de téléphone. Demandez à la personne de mettre à jour son app.</div>';
     } else {
       res.innerHTML='<b>QR détecté</b><br>Contenu: <span style="word-break:break-all">'+text+'</span>'
         +'<div style="font-size:11px;color:var(--t3);margin-top:4px">Ce QR ne semble pas être un QR Rom_money valide.</div>';
@@ -1479,11 +1485,29 @@ function handleScannedQR(text){
   var msg=document.getElementById('cam-msg'); if(msg) msg.textContent='QR détecté !';
 }
 
+// Short confirmation beep on QR detection
+var beepCtx=null;
+function playBeep(){
+  try{
+    if(!beepCtx) beepCtx = new (window.AudioContext||window.webkitAudioContext)();
+    var o=beepCtx.createOscillator(), g=beepCtx.createGain();
+    o.type='sine'; o.frequency.value=880;
+    g.gain.setValueAtTime(0.15, beepCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, beepCtx.currentTime+0.18);
+    o.connect(g); g.connect(beepCtx.destination);
+    o.start(); o.stop(beepCtx.currentTime+0.18);
+  }catch(e){}
+}
+
 function useScanDirect(){
   if(!scanData) return;
-  var d={id:scanData.id};
+  var d={id:scanData.id, phone:scanData.phone};
   stopScan(); closeSheet();
-  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=d.id; if(srn) srn.textContent='Destinataire (ID): '+d.id; },200); },350);
+  setTimeout(function(){ openSheet('send'); setTimeout(function(){
+    var sph=document.getElementById('sph'),srn=document.getElementById('srn');
+    if(sph) sph.value=d.phone||d.id;
+    if(srn) srn.textContent= d.phone ? ('Destinataire: '+d.phone) : ('Destinataire (ID): '+d.id);
+  },200); },350);
 }
 
 function stopScan(){
