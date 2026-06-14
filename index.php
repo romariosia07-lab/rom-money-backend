@@ -93,6 +93,16 @@ switch($module) {
     case 'profile':     route_profile($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
+    case 'debug':
+        $raw = file_get_contents('php://input');
+        ok([
+            'raw_body'=>$raw,
+            'raw_len'=>strlen($raw),
+            'parsed'=>body(),
+            'content_type'=>$_SERVER['CONTENT_TYPE'] ?? null,
+            'content_length'=>$_SERVER['CONTENT_LENGTH'] ?? null,
+            'method'=>$_SERVER['REQUEST_METHOD'] ?? null,
+        ]);
     case 'install':     route_install(); break;
     default:
         ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/health','/install']]);
