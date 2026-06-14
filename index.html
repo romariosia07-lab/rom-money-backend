@@ -96,7 +96,7 @@ html,body{height:100%;background:#085041;overflow:hidden}
 .bal-amt{font-size:28px;font-weight:700;color:#fff;letter-spacing:-.5px}
 .bal-phone{font-size:12px;color:rgba(255,255,255,.6);margin-top:4px}
 .bal-row2{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15)}
-.eye-btn{background:rgba(255,255,255,.15);border:none;color:#fff;cursor:pointer;border-radius:10px;padding:8px;display:flex;align-items:center;justify-content:center}
+.eye-btn{background:rgba(255,255,255,.15);border:none;color:#fff;cursor:pointer;border-radius:10px;padding:8px;display:flex;align-items:center;justify-content:center;position:relative;z-index:2}
 .vault-link{background:none;border:none;color:rgba(255,255,255,.85);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif}
 .qr-pill{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;cursor:pointer;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif}
 
@@ -674,6 +674,15 @@ window.addEventListener('load', function(){
       else { goto('s-register-welcome'); }
     }catch(e){ goto('s-register-welcome'); }
   }, 500);
+
+  // Defensive binding in case inline onclick fails on some browsers
+  var eyeBtn=document.getElementById('eyeb');
+  if(eyeBtn){
+    eyeBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      toggleBal();
+    });
+  }
 });
 
 // ═══════════════════════════════════════════
