@@ -546,9 +546,28 @@ html,body{height:100%;background:#085041;overflow:hidden}
 <!-- TOAST -->
 <div id="toast"></div>
 
+<!-- DEBUG PANEL -->
+<div id="debug-panel" style="position:fixed;bottom:0;left:0;right:0;max-height:30vh;overflow-y:auto;background:rgba(0,0,0,.85);color:#0f0;font-family:monospace;font-size:11px;padding:8px;z-index:99999;display:block">DEBUG ACTIVÉ - touchez l'œil</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
+// ═══════════════════════════════════════════
+// DEBUG (temporaire)
+// ═══════════════════════════════════════════
+function dbg(msg){
+  var p=document.getElementById('debug-panel');
+  if(!p) return;
+  p.style.display='block';
+  var line=document.createElement('div');
+  line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  p.appendChild(line);
+  p.scrollTop=p.scrollHeight;
+}
+window.addEventListener('error', function(e){
+  dbg('ERREUR JS: '+e.message+' ('+e.filename+':'+e.lineno+')');
+});
+
 // ═══════════════════════════════════════════
 // ÉTAT GLOBAL
 // ═══════════════════════════════════════════
@@ -679,10 +698,19 @@ window.addEventListener('load', function(){
   var eyeBtn=document.getElementById('eyeb');
   if(eyeBtn){
     eyeBtn.addEventListener('click', function(e){
+      dbg('eyeBtn click listener declenche');
       e.preventDefault();
       toggleBal();
     });
+    eyeBtn.addEventListener('touchend', function(e){
+      dbg('eyeBtn touchend declenche');
+    });
   }
+
+  // Global click logger for debugging
+  document.addEventListener('click', function(e){
+    dbg('document click sur: '+e.target.tagName+'#'+(e.target.id||'-')+'.'+(e.target.className||'-'));
+  }, true);
 });
 
 // ═══════════════════════════════════════════
@@ -886,12 +914,14 @@ function updateBalDisplay(){
 }
 
 function toggleBal(){
+  dbg('toggleBal() appelé, balHidden avant='+APP.balHidden);
   APP.balHidden=!APP.balHidden;
   updateBalDisplay();
   var eo=document.getElementById('eye-open');
   var es=document.getElementById('eye-shut');
   if(eo) eo.style.display=APP.balHidden?'none':'';
   if(es) es.style.display=APP.balHidden?'':'none';
+  dbg('toggleBal() fini, balHidden apres='+APP.balHidden);
 }
 
 // ═══════════════════════════════════════════
