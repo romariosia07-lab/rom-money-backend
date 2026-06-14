@@ -93,16 +93,6 @@ switch($module) {
     case 'profile':     route_profile($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
-    case 'debug':
-        $raw = file_get_contents('php://input');
-        ok([
-            'raw_body'=>$raw,
-            'raw_len'=>strlen($raw),
-            'parsed'=>body(),
-            'content_type'=>$_SERVER['CONTENT_TYPE'] ?? null,
-            'content_length'=>$_SERVER['CONTENT_LENGTH'] ?? null,
-            'method'=>$_SERVER['REQUEST_METHOD'] ?? null,
-        ]);
     case 'install':     route_install(); break;
     default:
         ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/health','/install']]);
@@ -129,7 +119,7 @@ function auth_register() {
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
-    $exist = q("SELECT id FROM users WHERE phone_number=$1", [$phone])->fetch();
+    $exist = q("SELECT id FROM users WHERE phone_number=?", [$phone])->fetch();
     if($exist) fail('Ce numero est deja enregistre');
     db()->beginTransaction();
     try {
@@ -138,9 +128,9 @@ function auth_register() {
         $qrseed = strtoupper(bin2hex(random_bytes(5)));
         $pinh   = password_hash($pin, PASSWORD_BCRYPT);
         $passh  = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
-        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash) VALUES (?,?,?,?,?,?,?)",
           [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh]);
-        q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES ($1,$2,0,0,'FCFA',$3)",
+        q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,'FCFA',?)",
           [$wid,$uid,$qrseed]);
         $token = jwt_make(['sub'=>$uid,'phone'=>$phone]);
         db()->commit();
@@ -156,7 +146,7 @@ function auth_login() {
     $phone = trim($b['phone'] ?? '');
     $pin   = trim($b['pin']   ?? '');
     if(!$phone || !$pin) fail('Telephone et PIN requis');
-    $user = q("SELECT u.*,w.id wid,w.balance,w.vault_balance,w.vault_locked,w.vault_lock_date,w.qr_seed FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=$1", [$phone])->fetch();
+    $user = q("SELECT u.*,w.id wid,w.balance,w.vault_balance,w.vault_locked,w.vault_lock_date,w.qr_seed FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?", [$phone])->fetch();
     if(!$user || !password_verify($pin, $user['pin_hash'])) fail('Numero ou PIN incorrect', 401);
     if($user['status'] !== 'active') fail('Compte suspendu', 403);
     $token = jwt_make(['sub'=>$user['id'],'phone'=>$phone]);
@@ -174,9 +164,9 @@ function auth_change_pin() {
     $new = trim($b['new_pin']     ?? '');
     if(!preg_match('/^\d{6}$/',$cur)) fail('PIN actuel invalide');
     if(!preg_match('/^\d{6}$/',$new)) fail('Nouveau PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=$1", [$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash FROM users WHERE id=?", [$pl['sub']])->fetch();
     if(!password_verify($cur, $user['pin_hash'])) fail('PIN actuel incorrect', 401);
-    q("UPDATE users SET pin_hash=$1 WHERE id=$2", [password_hash($new,PASSWORD_BCRYPT), $pl['sub']]);
+    q("UPDATE users SET pin_hash=? WHERE id=?", [password_hash($new,PASSWORD_BCRYPT), $pl['sub']]);
     ok(null,'PIN mis a jour');
 }
 
@@ -197,7 +187,7 @@ function route_wallet($action) {
 
 function wallet_balance() {
     $pl = auth();
-    $w = q("SELECT w.*,u.full_name,u.phone_number,u.is_kyc,u.bio_enabled FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.user_id=$1",[$pl['sub']])->fetch();
+    $w = q("SELECT w.*,u.full_name,u.phone_number,u.is_kyc,u.bio_enabled FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.user_id=?",[$pl['sub']])->fetch();
     if(!$w) fail('Portefeuille introuvable',404);
     ok(['balance'=>(float)$w['balance'],'vault_balance'=>(float)$w['vault_balance'],
         'vault_locked'=>(bool)$w['vault_locked'],'vault_lock_date'=>$w['vault_lock_date'],
@@ -209,14 +199,14 @@ function wallet_topup() {
     $pl = auth(); $b = body();
     $amt = (float)($b['amount']??0);
     if($amt<=0) fail('Montant invalide');
-    $wid = q("SELECT id FROM wallets WHERE user_id=$1",[$pl['sub']])->fetchColumn();
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     db()->beginTransaction();
     try {
         $reference = ref();
-        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES ($1,$2,$3,'deposit','completed',$4,'Recharge')",[uid(),$wid,$amt,$reference]);
-        q("UPDATE wallets SET balance=balance+$1 WHERE id=$2",[$amt,$wid]);
+        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'deposit','completed',?,'Recharge')",[uid(),$wid,$amt,$reference]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$wid]);
         db()->commit();
-        $bal = (float)q("SELECT balance FROM wallets WHERE id=$1",[$wid])->fetchColumn();
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$wid])->fetchColumn();
         ok(['reference'=>$reference,'amount'=>$amt,'new_balance'=>$bal],'Recharge effectuee');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur recharge',500); }
 }
@@ -225,12 +215,12 @@ function vault_deposit() {
     $pl = auth(); $b = body();
     $amt = (float)($b['amount']??0);
     if($amt<=0) fail('Montant invalide');
-    $w = q("SELECT * FROM wallets WHERE user_id=$1",[$pl['sub']])->fetch();
+    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$w['balance']<$amt) fail('Solde insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-$1,vault_balance=vault_balance+$1 WHERE id=$2",[$amt,$w['id']]);
-        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES ($1,$2,$3,'vault_deposit','completed',$4,'Depot coffre')",[uid(),$w['id'],$amt,ref()]);
+        q("UPDATE wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=?",[$amt,$w['id']]);
+        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_deposit','completed',?,'Depot coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
         ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']-$amt,'vault_balance'=>(float)$w['vault_balance']+$amt],'Depose dans le coffre');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur depot',500); }
@@ -241,16 +231,16 @@ function vault_withdraw() {
     $amt = (float)($b['amount']??0); $pin = trim($b['pin']??'');
     if($amt<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=$1",[$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-    $w = q("SELECT * FROM wallets WHERE user_id=$1",[$pl['sub']])->fetch();
+    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if($w['vault_locked'] && strtotime($w['vault_lock_date']??'0')>time())
         fail("Coffre verrouille jusqu'au ".date('d/m/Y',strtotime($w['vault_lock_date'])));
     if((float)$w['vault_balance']<$amt) fail('Solde coffre insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET vault_balance=vault_balance-$1,balance=balance+$1,vault_locked=0 WHERE id=$2",[$amt,$w['id']]);
-        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES ($1,$2,$3,'vault_withdrawal','completed',$4,'Retrait coffre')",[uid(),$w['id'],$amt,ref()]);
+        q("UPDATE wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=?",[$amt,$w['id']]);
+        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_withdrawal','completed',?,'Retrait coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
         ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']+$amt,'vault_balance'=>(float)$w['vault_balance']-$amt],'Retire du coffre');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur retrait',500); }
@@ -260,14 +250,14 @@ function vault_lock() {
     $pl = auth(); $b = body();
     $date = trim($b['lock_date']??'');
     if(!$date || strtotime($date)<=time()) fail('Date invalide');
-    q("UPDATE wallets SET vault_locked=1,vault_lock_date=$1 WHERE user_id=$2",[$date,$pl['sub']]);
+    q("UPDATE wallets SET vault_locked=1,vault_lock_date=? WHERE user_id=?",[$date,$pl['sub']]);
     ok(['lock_date'=>$date],'Coffre verrouille');
 }
 
 function wallet_renew_qr() {
     $pl = auth();
     $seed = strtoupper(bin2hex(random_bytes(5)));
-    q("UPDATE wallets SET qr_seed=$1,qr_renewed_at=NOW() WHERE user_id=$2",[$seed,$pl['sub']]);
+    q("UPDATE wallets SET qr_seed=?,qr_renewed_at=NOW() WHERE user_id=?",[$seed,$pl['sub']]);
     ok(['qr_seed'=>$seed],'QR renouvele');
 }
 
@@ -277,7 +267,7 @@ function wallet_resolve_qr() {
     if(!$qr) fail('QR requis');
     $parts = explode('|',$qr);
     if(count($parts)<2) fail('QR invalide');
-    $u = q("SELECT u.full_name,u.phone_number FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=$1 AND w.qr_seed=$2",[$parts[0],$parts[1]])->fetch();
+    $u = q("SELECT u.full_name,u.phone_number FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=? AND w.qr_seed=?",[$parts[0],$parts[1]])->fetch();
     if(!$u) fail('QR invalide',404);
     if($parts[0]===$pl['sub']) fail('Vous ne pouvez pas vous scanner vous-meme');
     ok($u,'Destinataire trouve');
@@ -285,14 +275,14 @@ function wallet_resolve_qr() {
 
 function wallet_stats() {
     $pl = auth();
-    $wid = q("SELECT id FROM wallets WHERE user_id=$1",[$pl['sub']])->fetchColumn();
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $stats = q("SELECT
-        SUM(CASE WHEN receiver_wallet_id=$1 AND status='completed' THEN amount ELSE 0 END) as total_in,
-        SUM(CASE WHEN sender_wallet_id=$2 AND status='completed' THEN amount ELSE 0 END) as total_out,
-        COUNT(CASE WHEN (sender_wallet_id=$3 OR receiver_wallet_id=$4) AND status='completed' THEN 1 END) as tx_count,
-        COUNT(CASE WHEN sender_wallet_id=$5 AND status='cancelled' THEN 1 END) as cancelled
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN amount ELSE 0 END) as total_in,
+        SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) as total_out,
+        COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) as tx_count,
+        COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) as cancelled
         FROM transactions WHERE EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
-        AND (sender_wallet_id=$6 OR receiver_wallet_id=$7)",
+        AND (sender_wallet_id=? OR receiver_wallet_id=?)",
         [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
     ok($stats);
 }
@@ -319,23 +309,23 @@ function tx_send() {
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $to))) fail('Numero invalide');
     if($amt<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=$1",[$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-    $sw = q("SELECT * FROM wallets WHERE user_id=$1",[$pl['sub']])->fetch();
+    $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$sw['balance']<$amt) fail('Solde insuffisant');
-    $recv = q("SELECT u.id,u.full_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=$1",[$to])->fetch();
+    $recv = q("SELECT u.id,u.full_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
     if(!$recv) fail('Destinataire introuvable');
     if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES ($1,$2,$3,$4,'transfer','pending',$5,$6,$7)",
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,'transfer','pending',?,?,?)",
           [$txid,$sw['id'],$recv['wid'],$amt,$reference,$desc?:null,$deadline]);
-        $rows = q("UPDATE wallets SET balance=balance-$1 WHERE id=$2 AND balance>=$1",[$amt,$sw['id']])->rowCount();
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amt,$sw['id']])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
-        q("UPDATE wallets SET balance=balance+$1 WHERE id=$2",[$amt,$recv['wid']]);
-        q("UPDATE transactions SET status='completed' WHERE id=$1",[$txid]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$recv['wid']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         db()->commit();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amt,
             'receiver_name'=>$recv['full_name'],'cancel_before'=>$deadline,
@@ -351,18 +341,18 @@ function tx_pay() {
     if(!$code) fail('Code marchand requis');
     if($amt<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=$1",[$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-    $w = q("SELECT * FROM wallets WHERE user_id=$1",[$pl['sub']])->fetch();
+    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$w['balance']<$amt) fail('Solde insuffisant');
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES ($1,$2,$3,'payment','pending',$4,$5,$6)",
+        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,'payment','pending',?,?,?)",
           [$txid,$w['id'],$amt,$reference,"Paiement: $code",$deadline]);
-        q("UPDATE wallets SET balance=balance-$1 WHERE id=$2",[$amt,$w['id']]);
-        q("UPDATE transactions SET status='completed' WHERE id=$1",[$txid]);
+        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$amt,$w['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         db()->commit();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amt,
             'merchant'=>$code,'cancel_before'=>$deadline,'new_balance'=>(float)$w['balance']-$amt],'Paiement effectue');
@@ -375,9 +365,9 @@ function tx_cancel() {
     $pin  = trim($b['pin']??'');
     if(!$txid) fail('ID requis');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=$1",[$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-    $tx = q("SELECT t.*,w.user_id sender_uid FROM transactions t JOIN wallets w ON t.sender_wallet_id=w.id WHERE t.id=$1",[$txid])->fetch();
+    $tx = q("SELECT t.*,w.user_id sender_uid FROM transactions t JOIN wallets w ON t.sender_wallet_id=w.id WHERE t.id=?",[$txid])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     if($tx['sender_uid']!==$pl['sub']) fail('Non autorise',403);
     if($tx['status']!=='completed') fail('Transaction non annulable');
@@ -385,12 +375,12 @@ function tx_cancel() {
     if(strtotime($tx['cancel_deadline']??'0')<time()) fail('Delai annulation depasse');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance+$1 WHERE id=$2",[$tx['amount'],$tx['sender_wallet_id']]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$tx['sender_wallet_id']]);
         if($tx['type']==='transfer' && $tx['receiver_wallet_id'])
-            q("UPDATE wallets SET balance=balance-$1 WHERE id=$2",[$tx['amount'],$tx['receiver_wallet_id']]);
-        q("UPDATE transactions SET status='cancelled',cancelled_at=NOW(),cancel_reason='user_request' WHERE id=$1",[$txid]);
+            q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$tx['receiver_wallet_id']]);
+        q("UPDATE transactions SET status='cancelled',cancelled_at=NOW(),cancel_reason='user_request' WHERE id=?",[$txid]);
         db()->commit();
-        $bal = (float)q("SELECT balance FROM wallets WHERE id=$1",[$tx['sender_wallet_id']])->fetchColumn();
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$tx['sender_wallet_id']])->fetchColumn();
         ok(['refunded'=>(float)$tx['amount'],'new_balance'=>$bal],'Transaction annulee');
     } catch(Exception $e) { db()->rollBack(); fail('Echec annulation',500); }
 }
@@ -401,11 +391,11 @@ function tx_history() {
     $lim  = min(50,max(5,(int)($_GET['limit']??20)));
     $fil  = $_GET['filter']??'all';
     $off  = ($page-1)*$lim;
-    $wid = q("SELECT id FROM wallets WHERE user_id=$1",[$pl['sub']])->fetchColumn();
-    $where = "WHERE (t.sender_wallet_id=$1 OR t.receiver_wallet_id=$2)";
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $where = "WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?)";
     $params = [$wid,$wid];
-    if($fil==='credit'){$where.=" AND t.receiver_wallet_id=$3 AND t.status='completed'";$params[]=$wid;}
-    elseif($fil==='debit'){$where.=" AND t.sender_wallet_id=$3 AND t.status='completed'";$params[]=$wid;}
+    if($fil==='credit'){$where.=" AND t.receiver_wallet_id=? AND t.status='completed'";$params[]=$wid;}
+    elseif($fil==='debit'){$where.=" AND t.sender_wallet_id=? AND t.status='completed'";$params[]=$wid;}
     elseif($fil==='cancelled'){$where.=" AND t.status='cancelled'";}
     $txs = db()->prepare("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
@@ -423,14 +413,14 @@ function tx_detail() {
     $pl = auth();
     $id = $_GET['id']??'';
     if(!$id) fail('ID requis');
-    $wid = q("SELECT id FROM wallets WHERE user_id=$1",[$pl['sub']])->fetchColumn();
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
         su.full_name sender_name, ru.full_name receiver_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
-        WHERE t.id=$1 AND (t.sender_wallet_id='$wid' OR t.receiver_wallet_id='$wid')",[$id])->fetch();
+        WHERE t.id=? AND (t.sender_wallet_id='$wid' OR t.receiver_wallet_id='$wid')",[$id])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     $tx['can_cancel'] = $tx['status']==='completed' && $tx['direction']==='debit'
         && !$tx['cancelled_at'] && strtotime($tx['cancel_deadline']??'0')>time();
@@ -441,7 +431,7 @@ function tx_resolve() {
     $pl = auth();
     $phone = $_GET['phone']??'';
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
-    $u = q("SELECT full_name,phone_number,is_kyc FROM users WHERE phone_number=$1 AND id!=$2",[$phone,$pl['sub']])->fetch();
+    $u = q("SELECT full_name,phone_number,is_kyc FROM users WHERE phone_number=? AND id!=?",[$phone,$pl['sub']])->fetch();
     if(!$u) fail('Aucun compte trouve',404);
     ok($u,'Compte trouve');
 }
@@ -459,7 +449,7 @@ function route_profile($action) {
 
 function profile_get() {
     $pl = auth();
-    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=$1",[$pl['sub']])->fetch();
+    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
     if(!$u) fail('Introuvable',404);
     ok(['id'=>$u['id'],'name'=>$u['full_name'],'phone'=>$u['phone_number'],'email'=>$u['email'],
         'operator'=>$u['operator'],'bio_enabled'=>(bool)$u['bio_enabled'],'is_kyc'=>(bool)$u['is_kyc'],
@@ -480,15 +470,15 @@ function profile_update() {
 
 function profile_notif() {
     $pl = auth();
-    $notifs = q("SELECT * FROM notifications WHERE user_id=$1 ORDER BY sent_at DESC LIMIT 20",[$pl['sub']])->fetchAll();
-    $unread = (int)q("SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND is_read=0",[$pl['sub']])->fetchColumn();
+    $notifs = q("SELECT * FROM notifications WHERE user_id=? ORDER BY sent_at DESC LIMIT 20",[$pl['sub']])->fetchAll();
+    $unread = (int)q("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0",[$pl['sub']])->fetchColumn();
     ok(['notifications'=>$notifs,'unread'=>$unread]);
 }
 
 function profile_bio() {
     $pl = auth(); $b = body();
     $ena = (int)(bool)($b['enabled']??false);
-    q("UPDATE users SET bio_enabled=$1 WHERE id=$2",[$ena,$pl['sub']]);
+    q("UPDATE users SET bio_enabled=? WHERE id=?",[$ena,$pl['sub']]);
     ok(['bio_enabled'=>(bool)$ena]);
 }
 
