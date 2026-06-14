@@ -548,6 +548,7 @@ html,body{height:100%;background:#085041;overflow:hidden}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 // ═══════════════════════════════════════════
 // ÉTAT GLOBAL
@@ -1397,6 +1398,7 @@ function tryCamera(){
   zone.innerHTML=[
     '<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:200px;margin-bottom:8px">',
     '<video id="svid" style="width:100%;height:100%;object-fit:cover;background:#000" autoplay playsinline muted webkit-playsinline></video>',
+    '<canvas id="scan-canvas" style="display:none"></canvas>',
     '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">',
     '<div style="width:140px;height:140px;border:2px solid var(--g);border-radius:10px;position:relative;overflow:hidden">',
     '<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:10%"></div>',
@@ -1406,6 +1408,8 @@ function tryCamera(){
   ].join('');
   startScan();
 }
+
+var scanRAF=null;
 
 function startScan(){
   var msg=document.getElementById('cam-msg');
@@ -1419,7 +1423,7 @@ function startScan(){
       v.srcObject=stream;
       v.play().then(function(){
         setMsg('Caméra active - pointez vers un QR code');
-        setTimeout(function(){ if(scanStream) simScan(); }, 3000);
+        scanLoop();
       }).catch(function(e){ setMsg('Erreur: '+e.message); });
     }
   })
@@ -1431,26 +1435,59 @@ function startScan(){
   });
 }
 
-function simScan(){
-  scanData={name:'Fatou Camara',phone:'+225 07 98 76 54 32'};
+function scanLoop(){
+  if(!scanStream) return;
+  var v=document.getElementById('svid');
+  var c=document.getElementById('scan-canvas');
+  if(!v||!c||v.readyState!==v.HAVE_ENOUGH_DATA){
+    scanRAF=requestAnimationFrame(scanLoop);
+    return;
+  }
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  var ctx=c.getContext('2d');
+  ctx.drawImage(v,0,0,c.width,c.height);
+  var img;
+  try{ img=ctx.getImageData(0,0,c.width,c.height); }catch(e){ scanRAF=requestAnimationFrame(scanLoop); return; }
+  var code = (typeof jsQR!=='undefined') ? jsQR(img.data, img.width, img.height) : null;
+  if(code && code.data){
+    handleScannedQR(code.data);
+    return; // stop loop, scan handled
+  }
+  scanRAF=requestAnimationFrame(scanLoop);
+}
+
+function handleScannedQR(text){
+  // Expected format from Rom_money QR: userID|qrSeed (e.g. CI-AB12CD|XY9Z8W7Q)
+  var parts=text.split('|');
+  var id=parts[0]||text;
+  var seed=parts[1]||'';
+  scanData={id:id, seed:seed, raw:text};
+
   var zone=document.getElementById('cam-zone');
   if(zone){
     var res=document.createElement('div');
     res.style.cssText='background:var(--gl);border-radius:9px;padding:11px;font-size:13px;color:var(--gdd);margin-top:8px';
-    res.innerHTML='<b>QR détecté !</b><br>Nom: <strong>'+scanData.name+'</strong><br>Tél: '+scanData.phone
-      +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser ce destinataire</button>';
+    if(id.indexOf('CI-')===0){
+      res.innerHTML='<b>QR Rom_money détecté !</b><br>ID utilisateur: <strong>'+id+'</strong>'
+        +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser cet ID comme destinataire</button>';
+    } else {
+      res.innerHTML='<b>QR détecté</b><br>Contenu: <span style="word-break:break-all">'+text+'</span>'
+        +'<div style="font-size:11px;color:var(--t3);margin-top:4px">Ce QR ne semble pas être un QR Rom_money valide.</div>';
+    }
     zone.appendChild(res);
   }
+  var msg=document.getElementById('cam-msg'); if(msg) msg.textContent='QR détecté !';
 }
 
 function useScanDirect(){
   if(!scanData) return;
-  var d={nm:scanData.name,ph:scanData.phone};
+  var d={id:scanData.id};
   stopScan(); closeSheet();
-  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=d.ph; if(srn) srn.textContent='Destinataire: '+d.nm; },200); },350);
+  setTimeout(function(){ openSheet('send'); setTimeout(function(){ var sph=document.getElementById('sph'),srn=document.getElementById('srn'); if(sph) sph.value=d.id; if(srn) srn.textContent='Destinataire (ID): '+d.id; },200); },350);
 }
 
 function stopScan(){
+  if(scanRAF){ cancelAnimationFrame(scanRAF); scanRAF=null; }
   if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream=null; }
   scanData=null;
 }
