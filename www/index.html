@@ -381,7 +381,7 @@ html,body{height:100%;background:#085041;overflow:hidden}
             <div class="bal-amt" id="bal-disp">245 800 F</div>
             <div class="bal-phone" id="bal-phone">+225 07 00 12 34 56</div>
           </div>
-          <button class="eye-btn" onclick="toggleBal()" id="eyeb">
+          <button class="eye-btn" id="eyeb">
             <svg id="eye-open" width="20" height="20" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="pointer-events:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg id="eye-shut" width="20" height="20" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="display:none;pointer-events:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
@@ -546,28 +546,9 @@ html,body{height:100%;background:#085041;overflow:hidden}
 <!-- TOAST -->
 <div id="toast"></div>
 
-<!-- DEBUG PANEL -->
-<div id="debug-panel" style="position:fixed;bottom:0;left:0;right:0;max-height:30vh;overflow-y:auto;background:rgba(0,0,0,.85);color:#0f0;font-family:monospace;font-size:11px;padding:8px;z-index:99999;display:block">DEBUG ACTIVÉ - touchez l'œil</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-// ═══════════════════════════════════════════
-// DEBUG (temporaire)
-// ═══════════════════════════════════════════
-function dbg(msg){
-  var p=document.getElementById('debug-panel');
-  if(!p) return;
-  p.style.display='block';
-  var line=document.createElement('div');
-  line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
-  p.appendChild(line);
-  p.scrollTop=p.scrollHeight;
-}
-window.addEventListener('error', function(e){
-  dbg('ERREUR JS: '+e.message+' ('+e.filename+':'+e.lineno+')');
-});
-
 // ═══════════════════════════════════════════
 // ÉTAT GLOBAL
 // ═══════════════════════════════════════════
@@ -694,23 +675,18 @@ window.addEventListener('load', function(){
     }catch(e){ goto('s-register-welcome'); }
   }, 500);
 
-  // Defensive binding in case inline onclick fails on some browsers
+  // Eye button toggle (single handler, debounced to avoid double-fire on touch devices)
   var eyeBtn=document.getElementById('eyeb');
   if(eyeBtn){
+    var lastToggle=0;
     eyeBtn.addEventListener('click', function(e){
-      dbg('eyeBtn click listener declenche');
       e.preventDefault();
+      var now=Date.now();
+      if(now-lastToggle<300) return;
+      lastToggle=now;
       toggleBal();
     });
-    eyeBtn.addEventListener('touchend', function(e){
-      dbg('eyeBtn touchend declenche');
-    });
   }
-
-  // Global click logger for debugging
-  document.addEventListener('click', function(e){
-    dbg('document click sur: '+e.target.tagName+'#'+(e.target.id||'-')+'.'+(e.target.className||'-'));
-  }, true);
 });
 
 // ═══════════════════════════════════════════
@@ -914,14 +890,12 @@ function updateBalDisplay(){
 }
 
 function toggleBal(){
-  dbg('toggleBal() appelé, balHidden avant='+APP.balHidden);
   APP.balHidden=!APP.balHidden;
   updateBalDisplay();
   var eo=document.getElementById('eye-open');
   var es=document.getElementById('eye-shut');
   if(eo) eo.style.display=APP.balHidden?'none':'';
   if(es) es.style.display=APP.balHidden?'':'none';
-  dbg('toggleBal() fini, balHidden apres='+APP.balHidden);
 }
 
 // ═══════════════════════════════════════════
