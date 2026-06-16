@@ -762,16 +762,23 @@ function enableBio(){ APP.bioEnabled=true; finishRegister(); }
 function skipBio(){ APP.bioEnabled=false; finishRegister(); }
 
 function finishRegister(){
-  save(); launchApp();
+  save();
+  toast('Création du compte...');
   apiCall('/auth?action=register','POST',{full_name:APP.name,phone:APP.phone,email:APP.email,operator:APP.op,pin:APP.pin})
     .then(function(res){
       if(res&&res.success&&res.data){
         setToken(res.data.token);
         if(res.data.user_id) APP.userID=res.data.user_id;
         if(res.data.qr_seed) APP.qrSeed=res.data.qr_seed;
-        save();
+        save(); launchApp();
+      } else {
+        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:APP.pin})
+          .then(function(r){
+            if(r&&r.success&&r.data){ setToken(r.data.token); if(r.data.user_id) APP.userID=r.data.user_id; if(r.data.qr_seed) APP.qrSeed=r.data.qr_seed; save(); }
+            launchApp();
+          }).catch(function(){ launchApp(); });
       }
-    }).catch(function(){});
+    }).catch(function(){ launchApp(); });
 }
 
 // ═══════════════════════════════════════════
