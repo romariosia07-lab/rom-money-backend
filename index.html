@@ -907,10 +907,10 @@ function launchApp(){
 function openQRMenu(){
   var b=buildSheet('QR Code');
   b.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding:8px 0">'
-    +'<button onclick="closeSheet();openSheet('scanner')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif">'
+    +'<button onclick="closeSheet();openSheet(&quot;scanner&quot;)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:DM Sans,sans-serif">'
     +'<div style="width:44px;height:44px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/></svg></div>'
     +'<div style="text-align:left"><div style="font-size:15px;font-weight:700;color:var(--gdd)">Scanner</div><div style="font-size:12px;color:var(--t2)">Scanner le QR d'un destinataire</div></div></button>'
-    +'<button onclick="closeSheet();openSheet('receive')" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif">'
+    +'<button onclick="closeSheet();openSheet(&quot;receive&quot;)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:12px;cursor:pointer;width:100%;font-family:DM Sans,sans-serif">'
     +'<div style="width:44px;height:44px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg></div>'
     +'<div style="text-align:left"><div style="font-size:15px;font-weight:700;color:var(--gdd)">Recevoir</div><div style="font-size:12px;color:var(--t2)">Afficher mon QR pour recevoir</div></div></button>'
     +'</div>';
