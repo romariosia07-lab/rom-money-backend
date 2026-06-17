@@ -50,7 +50,7 @@ function jwt_check($token) {
     return ($pl && $pl['exp']>time()) ? $pl : null;
 }
 function auth() {
-    $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
     if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
     $pl = jwt_check(substr($h,7));
     if(!$pl) fail('Token invalide ou expire',401);
