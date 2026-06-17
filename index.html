@@ -671,7 +671,30 @@ window.addEventListener('load', function(){
   setTimeout(function(){
     try{
       var found=load();
-      if(found && APP.pin){ setupLoginScreen(); goto('s-login'); }
+      if(found && APP.pin){
+        // Si token existe, tenter auto-login backend avec timeout
+        var tok=getToken();
+        if(tok){
+          var started=false;
+          var timer=setTimeout(function(){ if(!started){ started=true; setupLoginScreen(); goto('s-login'); } }, 5000);
+          apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
+            clearTimeout(timer);
+            if(!started){ started=true; }
+            if(res&&res.success&&res.data){
+              APP.balance=res.data.balance;
+              APP.vaultBal=res.data.vault_balance||0;
+              APP.qrSeed=res.data.qr_seed||APP.qrSeed;
+              save();
+              launchApp();
+            } else {
+              // Token expiré, aller au login
+              setupLoginScreen(); goto('s-login');
+            }
+          }).catch(function(){ clearTimeout(timer); if(!started){ started=true; setupLoginScreen(); goto('s-login'); } });
+        } else {
+          setupLoginScreen(); goto('s-login');
+        }
+      }
       else { goto('s-register-welcome'); }
     }catch(e){ goto('s-register-welcome'); }
   }, 500);
@@ -806,8 +829,22 @@ function lgPin(d){
   if(lgBuf.length===6){
     var buf=lgBuf;
     setTimeout(function(){
-      if(buf===APP.pin){ launchApp(); }
-      else {
+      if(buf===APP.pin){
+        // Login backend pour obtenir un nouveau token valide
+        toast('Connexion...');
+        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:APP.pin})
+          .then(function(res){
+            if(res&&res.success&&res.data){
+              setToken(res.data.token);
+              APP.userID=res.data.user_id||APP.userID;
+              APP.qrSeed=res.data.qr_seed||APP.qrSeed;
+              APP.balance=res.data.balance||0;
+              APP.vaultBal=res.data.vault_balance||0;
+              save();
+            }
+            launchApp();
+          }).catch(function(){ launchApp(); });
+      } else {
         lgBuf='';
         for(var i=0;i<6;i++){
           var el=document.getElementById('ld'+i);
@@ -849,11 +886,15 @@ function launchApp(){
   if(tok){
     apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data){
-        APP.balance=res.data.balance||APP.balance;
-        APP.vaultBal=res.data.vault_balance||APP.vaultBal;
-        APP.vaultLocked=res.data.vault_locked||APP.vaultLocked;
+        APP.balance=res.data.balance!==undefined ? res.data.balance : APP.balance;
+        APP.vaultBal=res.data.vault_balance!==undefined ? res.data.vault_balance : APP.vaultBal;
+        APP.vaultLocked=res.data.vault_locked!==undefined ? res.data.vault_locked : APP.vaultLocked;
         APP.qrSeed=res.data.qr_seed||APP.qrSeed;
+        save();
         updateBalDisplay();
+      } else if(res&&!res.success){
+        // Token expiré pendant la session
+        setToken(''); save();
       }
     });
     apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
