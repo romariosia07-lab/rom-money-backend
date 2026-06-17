@@ -387,10 +387,7 @@ html,body{height:100%;background:#085041;overflow:hidden}
           </button>
         </div>
         <div class="bal-row2">
-          <button class="vault-link" onclick="showPage('pg-vault')">
-            <svg width="14" height="14" stroke="rgba(255,255,255,.8)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            Coffre: <strong id="vault-mini">80 000 F</strong>
-          </button>
+          <div id="vault-mini" style="display:none"></div>
           <button class="qr-pill" onclick="openSheet('qr')">
             <svg width="13" height="13" stroke="#fff" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
             Mon QR
@@ -398,18 +395,21 @@ html,body{height:100%;background:#085041;overflow:hidden}
         </div>
       </div>
 
+      <!-- Grand QR cliquable -->
+      <div style="display:flex;flex-direction:column;align-items:center;padding:10px 16px 2px">
+        <div id="home-qr-wrap" onclick="openQRMenu()" style="cursor:pointer;background:#fff;border-radius:20px;padding:16px 16px 10px;box-shadow:0 2px 14px rgba(0,0,0,.10);display:inline-flex;flex-direction:column;align-items:center;gap:8px">
+          <div id="main-qr" style="width:200px;height:200px;display:flex;align-items:center;justify-content:center"></div>
+          <div style="font-size:12px;color:var(--t2);font-weight:500;display:flex;align-items:center;gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" stroke="var(--g)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Appuyez pour Scanner ou Recevoir
+          </div>
+        </div>
+      </div>
+
       <div class="qa-row">
         <button class="qa" onclick="openSheet('send')">
           <div class="qa-ico"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
           <span class="qa-lbl">Envoyer</span>
-        </button>
-        <button class="qa" onclick="openSheet('scanner')">
-          <div class="qa-ico"><svg viewBox="0 0 24 24"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
-          <span class="qa-lbl">Scanner</span>
-        </button>
-        <button class="qa" onclick="openSheet('receive')">
-          <div class="qa-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
-          <span class="qa-lbl">Recevoir</span>
         </button>
         <button class="qa" onclick="openSheet('topup')">
           <div class="qa-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
@@ -671,30 +671,7 @@ window.addEventListener('load', function(){
   setTimeout(function(){
     try{
       var found=load();
-      if(found && APP.pin){
-        // Si token existe, tenter auto-login backend avec timeout
-        var tok=getToken();
-        if(tok){
-          var started=false;
-          var timer=setTimeout(function(){ if(!started){ started=true; setupLoginScreen(); goto('s-login'); } }, 5000);
-          apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
-            clearTimeout(timer);
-            if(!started){ started=true; }
-            if(res&&res.success&&res.data){
-              APP.balance=res.data.balance;
-              APP.vaultBal=res.data.vault_balance||0;
-              APP.qrSeed=res.data.qr_seed||APP.qrSeed;
-              save();
-              launchApp();
-            } else {
-              // Token expiré, aller au login
-              setupLoginScreen(); goto('s-login');
-            }
-          }).catch(function(){ clearTimeout(timer); if(!started){ started=true; setupLoginScreen(); goto('s-login'); } });
-        } else {
-          setupLoginScreen(); goto('s-login');
-        }
-      }
+      if(found && APP.pin){ setupLoginScreen(); goto('s-login'); }
       else { goto('s-register-welcome'); }
     }catch(e){ goto('s-register-welcome'); }
   }, 500);
@@ -829,22 +806,8 @@ function lgPin(d){
   if(lgBuf.length===6){
     var buf=lgBuf;
     setTimeout(function(){
-      if(buf===APP.pin){
-        // Login backend pour obtenir un nouveau token valide
-        toast('Connexion...');
-        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:APP.pin})
-          .then(function(res){
-            if(res&&res.success&&res.data){
-              setToken(res.data.token);
-              APP.userID=res.data.user_id||APP.userID;
-              APP.qrSeed=res.data.qr_seed||APP.qrSeed;
-              APP.balance=res.data.balance||0;
-              APP.vaultBal=res.data.vault_balance||0;
-              save();
-            }
-            launchApp();
-          }).catch(function(){ launchApp(); });
-      } else {
+      if(buf===APP.pin){ launchApp(); }
+      else {
         lgBuf='';
         for(var i=0;i<6;i++){
           var el=document.getElementById('ld'+i);
@@ -886,15 +849,11 @@ function launchApp(){
   if(tok){
     apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data){
-        APP.balance=res.data.balance!==undefined ? res.data.balance : APP.balance;
-        APP.vaultBal=res.data.vault_balance!==undefined ? res.data.vault_balance : APP.vaultBal;
-        APP.vaultLocked=res.data.vault_locked!==undefined ? res.data.vault_locked : APP.vaultLocked;
+        APP.balance=res.data.balance||APP.balance;
+        APP.vaultBal=res.data.vault_balance||APP.vaultBal;
+        APP.vaultLocked=res.data.vault_locked||APP.vaultLocked;
         APP.qrSeed=res.data.qr_seed||APP.qrSeed;
-        save();
         updateBalDisplay();
-      } else if(res&&!res.success){
-        // Token expiré pendant la session
-        setToken(''); save();
       }
     });
     apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
@@ -913,6 +872,21 @@ function launchApp(){
   }
 }
 
+function openQRMenu(){
+  var b=buildSheet('Scanner ou Recevoir');
+  b.innerHTML=''
+    +'<div style="display:flex;flex-direction:column;gap:12px;padding:4px 0">'
+    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'scanner\')},200)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
+    +'<div style="width:48px;height:48px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/></svg></div>'
+    +'<div style="text-align:left"><div style="font-size:16px;font-weight:700;color:var(--gdd)">Scanner</div><div style="font-size:13px;color:var(--t2);margin-top:2px">Scanner le QR d&#39;un autre utilisateur</div></div>'
+    +'</button>'
+    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'receive\')},200)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
+    +'<div style="width:48px;height:48px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg></div>'
+    +'<div style="text-align:left"><div style="font-size:16px;font-weight:700;color:var(--gdd)">Recevoir</div><div style="font-size:13px;color:var(--t2);margin-top:2px">Afficher mon QR pour recevoir de l&#39;argent</div></div>'
+    +'</button>'
+    +'</div>';
+}
+
 function refreshUI(){
   var n=APP.name||'Utilisateur'; var p=APP.phone||'';
   var c=avc(n); var ig=ini(n);
@@ -926,6 +900,13 @@ function refreshUI(){
   _('prof-id',function(e){ e.textContent=APP.userID; });
   _('pc-av',function(e){ e.textContent=ig; e.style.background=c[0]; e.style.color=c[1]; });
   updateBalDisplay();
+  setTimeout(function(){
+    var el=document.getElementById('main-qr');
+    if(el && APP.userID && APP.qrSeed){
+      el.innerHTML='';
+      drawQR('main-qr', APP.userID+'|'+APP.qrSeed+'|'+APP.phone);
+    }
+  }, 400);
 }
 
 // ═══════════════════════════════════════════
@@ -1518,10 +1499,11 @@ function handleScannedQR(text){
   if(zone){
     var res=document.createElement('div');
     res.style.cssText='background:var(--gl);border-radius:9px;padding:11px;font-size:13px;color:var(--gdd);margin-top:8px';
-    if(id.indexOf('CI-')===0 && phone){
+    var isRM = id.indexOf('CI-')===0 || (seed && id.length>=8);
+    if(isRM && phone){
       res.innerHTML='<b>QR Rom_money détecté !</b><br>ID utilisateur: <strong>'+id+'</strong><br>Téléphone: <strong>'+phone+'</strong>'
         +'<br><button onclick="useScanDirect()" style="margin-top:8px;width:100%;padding:10px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">Utiliser ce destinataire</button>';
-    } else if(id.indexOf('CI-')===0){
+    } else if(isRM){
       res.innerHTML='<b>QR Rom_money détecté !</b><br>ID utilisateur: <strong>'+id+'</strong>'
         +'<div style="font-size:11px;color:var(--re);margin-top:4px">Ce QR ne contient pas de numéro de téléphone. Demandez à la personne de mettre à jour son app.</div>';
     } else {
