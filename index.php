@@ -322,7 +322,7 @@ function tx_send() {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,'transfer','pending',?,?,?)",
           [$txid,$sw['id'],$recv['wid'],$amt,$reference,$desc?:null,$deadline]);
-        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amt,$sw['id']])->rowCount();
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amt,$sw["id"],$amt])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$recv['wid']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
