@@ -873,18 +873,25 @@ function launchApp(){
 }
 
 function openQRMenu(){
-  var b=buildSheet('Scanner ou Recevoir');
+  var t=document.getElementById('sh-title');
+  var b=document.getElementById('sh-body');
+  var bg=document.getElementById('sh-bg');
+  var sh=document.getElementById('sh');
+  if(!t||!b||!bg||!sh) return;
+  t.textContent='Scanner ou Recevoir';
   b.innerHTML=''
     +'<div style="display:flex;flex-direction:column;gap:12px;padding:4px 0">'
-    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'scanner\')},200)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
+    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'scanner\')},250)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
     +'<div style="width:48px;height:48px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 23 1 18 1"/><line x1="23" y1="1" x2="16" y2="8"/><polyline points="1 18 1 23 6 23"/><line x1="1" y1="23" x2="8" y2="16"/></svg></div>'
     +'<div style="text-align:left"><div style="font-size:16px;font-weight:700;color:var(--gdd)">Scanner</div><div style="font-size:13px;color:var(--t2);margin-top:2px">Scanner le QR d&#39;un autre utilisateur</div></div>'
     +'</button>'
-    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'receive\')},200)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
+    +'<button onclick="closeSheet();setTimeout(function(){openSheet(\'receive\')},250)" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--gl);border:none;border-radius:14px;cursor:pointer;width:100%">'
     +'<div style="width:48px;height:48px;background:var(--g);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg></div>'
     +'<div style="text-align:left"><div style="font-size:16px;font-weight:700;color:var(--gdd)">Recevoir</div><div style="font-size:13px;color:var(--t2);margin-top:2px">Afficher mon QR pour recevoir de l&#39;argent</div></div>'
     +'</button>'
     +'</div>';
+  bg.classList.add('on');
+  setTimeout(function(){ sh.classList.add('on'); }, 10);
 }
 
 function refreshUI(){
