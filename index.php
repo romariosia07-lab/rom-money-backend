@@ -219,7 +219,7 @@ function vault_deposit() {
     if((float)$w['balance']<$amt) fail('Solde insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=?",[$amt,$w['id']]);
+        q("UPDATE wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=?",[$amt,$amt,$w['id']]);
         q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_deposit','completed',?,'Depot coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
         ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']-$amt,'vault_balance'=>(float)$w['vault_balance']+$amt],'Depose dans le coffre');
@@ -239,7 +239,7 @@ function vault_withdraw() {
     if((float)$w['vault_balance']<$amt) fail('Solde coffre insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=?",[$amt,$w['id']]);
+        q("UPDATE wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=?",[$amt,$amt,$w['id']]);
         q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_withdrawal','completed',?,'Retrait coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
         ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']+$amt,'vault_balance'=>(float)$w['vault_balance']-$amt],'Retire du coffre');
@@ -439,11 +439,13 @@ function tx_resolve() {
 // PROFILE
 function route_profile($action) {
     match($action) {
-        'get'           => profile_get(),
-        'update'        => profile_update(),
-        'notifications' => profile_notif(),
-        'toggle-bio'    => profile_bio(),
-        default         => fail('Action inconnue',404)
+        'get'            => profile_get(),
+        'update'         => profile_update(),
+        'notifications'  => profile_notif(),
+        'toggle-bio'     => profile_bio(),
+        'waitlist'       => profile_waitlist(),
+        'waitlist-stats' => profile_waitlist_stats(),
+        default          => fail('Action inconnue',404)
     };
 }
 
@@ -480,6 +482,45 @@ function profile_bio() {
     $ena = (int)(bool)($b['enabled']??false);
     q("UPDATE users SET bio_enabled=? WHERE id=?",[$ena,$pl['sub']]);
     ok(['bio_enabled'=>(bool)$ena]);
+}
+
+function profile_waitlist() {
+    $b = body();
+    $phone = trim($b['phone'] ?? '');
+    $pays  = trim($b['pays']  ?? '');
+    $email = trim($b['email'] ?? '');
+    if(!$phone) fail('Numero requis');
+    if(!$pays)  fail('Pays requis');
+    // Create table if not exists
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS waitlist (
+            id SERIAL PRIMARY KEY,
+            phone VARCHAR(20) NOT NULL,
+            pays VARCHAR(100) NOT NULL,
+            email VARCHAR(150),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )");
+    } catch(Exception $e) {}
+    // Check if already registered
+    $exists = q("SELECT id FROM waitlist WHERE phone=? AND pays=?", [$phone, $pays])->fetch();
+    if($exists) {
+        ok(['already_registered'=>true], 'Deja inscrit pour '.$pays);
+        return;
+    }
+    q("INSERT INTO waitlist (phone, pays, email) VALUES (?,?,?)", [$phone, $pays, $email?:null]);
+    $total = (int)q("SELECT COUNT(*) FROM waitlist WHERE pays=?", [$pays])->fetchColumn();
+    ok(['total_waitlist'=>$total], 'Inscription confirmee pour '.$pays);
+}
+
+function profile_waitlist_stats() {
+    // Public stats - no auth required
+    try {
+        $stats = q("SELECT pays, COUNT(*) as total FROM waitlist GROUP BY pays ORDER BY total DESC")->fetchAll();
+        $total = array_sum(array_column($stats, 'total'));
+        ok(['stats'=>$stats, 'total'=>$total]);
+    } catch(Exception $e) {
+        ok(['stats'=>[], 'total'=>0]);
+    }
 }
 
 // INSTALL
@@ -544,6 +585,13 @@ function route_install() {
         action VARCHAR(100) NOT NULL,
         ip_address VARCHAR(45),
         result VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS waitlist (
+        id SERIAL PRIMARY KEY,
+        phone VARCHAR(20) NOT NULL,
+        pays VARCHAR(100) NOT NULL,
+        email VARCHAR(150),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"
     ];
