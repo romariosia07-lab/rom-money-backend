@@ -302,19 +302,29 @@ function route_tx($action) {
 
 function tx_send() {
     $pl = auth(); $b = body();
-    $to  = trim($b['receiver_phone']??'');
-    $net = (float)($b['amount']??0); // Amount the recipient should receive (NET)
+    $to     = trim($b['receiver_phone']??'');
+    $amount = (float)($b['amount']??0);
+    $mode   = ($b['mode']??'net')==='brut' ? 'brut' : 'net'; // default 'net' for backward compatibility
     $pin = trim($b['pin']??'');
     $desc= trim($b['description']??'');
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $to))) fail('Numero invalide');
-    if($net<=0) fail('Montant invalide');
+    if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
 
-    // Calculate fee (1% of net, simple model matching frontend)
-    $fee = ($net >= 4000) ? round($net * 0.01) : 0;
-    $brut = $net + $fee; // Total amount debited from sender
+    // Calculate fee (1% over 4000 F, single calculation matching frontend - direction
+    // depends on which field (brut or net) the user actually filled in)
+    if($mode==='brut'){
+        $brut = $amount;
+        $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
+        $net  = $brut - $fee;
+    } else {
+        $net  = $amount;
+        $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
+        $brut = $net + $fee; // Total amount debited from sender
+    }
+    if($net<=0) fail('Montant invalide');
 
     $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$sw['balance']<$brut) fail('Solde insuffisant');
