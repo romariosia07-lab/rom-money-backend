@@ -326,10 +326,25 @@ function tx_send() {
         if(!$rows) throw new Exception('Solde insuffisant');
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$recv['wid']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        
+        // ── Transfer fees to ROM_MONEY system account
+        $fee_phone = '0160629502'; // ROM_MONEY system account
+        $fee = ($amt >= 4000) ? round($amt * 0.01) : 0;
+        if($fee > 0){
+            $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
+            if($fee_recv && $fee_recv['id'] !== $pl['sub']){
+                $fee_txid = uid(); $fee_ref = ref();
+                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_MONEY 1%')",
+                  [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref]);
+                q("UPDATE wallets SET balance=balance-? WHERE id=?",[$fee,$sw['id']]);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+            }
+        }
+        
         db()->commit();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amt,
             'receiver_name'=>$recv['full_name'],'cancel_before'=>$deadline,
-            'new_balance'=>(float)$sw['balance']-$amt],'Transfert effectue');
+            'new_balance'=>(float)$sw['balance']-$amt-$fee],'Transfert effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
 }
 
