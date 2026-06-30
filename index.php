@@ -303,16 +303,21 @@ function route_tx($action) {
 function tx_send() {
     $pl = auth(); $b = body();
     $to  = trim($b['receiver_phone']??'');
-    $amt = (float)($b['amount']??0);
+    $net = (float)($b['amount']??0); // Amount the recipient should receive (NET)
     $pin = trim($b['pin']??'');
     $desc= trim($b['description']??'');
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $to))) fail('Numero invalide');
-    if($amt<=0) fail('Montant invalide');
+    if($net<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
+
+    // Calculate fee (1% of net, simple model matching frontend)
+    $fee = ($net >= 4000) ? round($net * 0.01) : 0;
+    $brut = $net + $fee; // Total amount debited from sender
+
     $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
-    if((float)$sw['balance']<$amt) fail('Solde insuffisant');
+    if((float)$sw['balance']<$brut) fail('Solde insuffisant');
     $recv = q("SELECT u.id,u.full_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
     if(!$recv) fail('Destinataire introuvable');
     if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
@@ -320,31 +325,31 @@ function tx_send() {
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,'transfer','pending',?,?,?)",
-          [$txid,$sw['id'],$recv['wid'],$amt,$reference,$desc?:null,$deadline]);
-        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amt,$sw["id"],$amt])->rowCount();
+        // Record the BRUT amount as the transaction amount (this is what sender sees deducted)
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,'transfer','pending',?,?,?)",
+          [$txid,$sw['id'],$recv['wid'],$brut,$net,$reference,$desc?:null,$deadline]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$sw["id"],$brut])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$recv['wid']]);
+        // Recipient gets NET amount
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$net,$recv['wid']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
-        
+
         // ── Transfer fees to ROM_MONEY system account
         $fee_phone = '0160629502'; // ROM_MONEY system account
-        $fee = ($amt >= 4000) ? round($amt * 0.01) : 0;
         if($fee > 0){
             $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
             if($fee_recv && $fee_recv['id'] !== $pl['sub']){
                 $fee_txid = uid(); $fee_ref = ref();
                 q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_MONEY 1%')",
                   [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref]);
-                q("UPDATE wallets SET balance=balance-? WHERE id=?",[$fee,$sw['id']]);
                 q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
             }
         }
-        
+
         db()->commit();
-        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amt,
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'receiver_name'=>$recv['full_name'],'cancel_before'=>$deadline,
-            'new_balance'=>(float)$sw['balance']-$amt-$fee],'Transfert effectue');
+            'new_balance'=>(float)$sw['balance']-$brut],'Transfert effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
 }
 
@@ -575,6 +580,7 @@ function route_install() {
         sender_wallet_id VARCHAR(36),
         receiver_wallet_id VARCHAR(36),
         amount DECIMAL(15,2) NOT NULL,
+        net_amount DECIMAL(15,2),
         fee DECIMAL(15,2) DEFAULT 0,
         currency VARCHAR(10) DEFAULT 'FCFA',
         type VARCHAR(30) NOT NULL,
@@ -586,6 +592,7 @@ function route_install() {
         cancel_deadline TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
