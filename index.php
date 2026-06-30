@@ -407,7 +407,7 @@ function tx_history() {
     $fil  = $_GET['filter']??'all';
     $off  = ($page-1)*$lim;
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
-    $where = "WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?)";
+    $where = "WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'";
     $params = [$wid,$wid];
     if($fil==='credit'){$where.=" AND t.receiver_wallet_id=? AND t.status='completed'";$params[]=$wid;}
     elseif($fil==='debit'){$where.=" AND t.sender_wallet_id=? AND t.status='completed'";$params[]=$wid;}
