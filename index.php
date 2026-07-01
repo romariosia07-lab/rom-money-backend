@@ -339,11 +339,37 @@ function wallet_stats_full() {
         ];
     }
 
+    // Cartes du haut - "Ce mois" : remis a zero automatiquement au changement de mois
+    // (calcule a la volee via EXTRACT, pas de tache planifiee necessaire).
+    $current = q("SELECT
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out,
+        COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) tx_count,
+        COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) cancelled
+        FROM transactions WHERE type!='fee' AND (sender_wallet_id=? OR receiver_wallet_id=?)
+        AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",
+        [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
+
+    // Cartes du haut - "Recap total" : cumul sur les 12 mois affiches dans le graphique.
+    $cumulative = q("SELECT
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out,
+        COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) tx_count,
+        COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) cancelled
+        FROM transactions WHERE type!='fee' AND (sender_wallet_id=? OR receiver_wallet_id=?)
+        AND created_at >= date_trunc('month', NOW() - INTERVAL '11 months')",
+        [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
+
+    // Repartition depenses : toujours le mois en cours uniquement, ne bascule jamais
+    // avec le recap (demande explicite : la repartition reste mensuelle).
     $cats = q("SELECT type, SUM(amount) total FROM transactions
         WHERE sender_wallet_id=? AND status='completed' AND type!='fee'
+        AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())
         GROUP BY type",[$wid])->fetchAll();
 
-    ok(['months'=>$months,'categories'=>$cats]);
+    ok(['months'=>$months,'current'=>$current,'cumulative'=>$cumulative,'categories'=>$cats]);
 }
 
 function wallet_stats() {
