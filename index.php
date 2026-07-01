@@ -211,6 +211,7 @@ function route_wallet($action) {
         'renew-qr'       => wallet_renew_qr(),
         'resolve-qr'     => wallet_resolve_qr(),
         'stats'          => wallet_stats(),
+        'stats-full'     => wallet_stats_full(),
         default          => fail('Action inconnue',404)
     };
 }
@@ -301,6 +302,48 @@ function wallet_resolve_qr() {
     if(!$u) fail('QR invalide',404);
     if($parts[0]===$pl['sub']) fail('Vous ne pouvez pas vous scanner vous-meme');
     ok($u,'Destinataire trouve');
+}
+
+// Real 12-month totals (in/out) + real full-history expense breakdown by category.
+// Unlike wallet_stats() (current month only), this feeds the Stats screen chart
+// and "Répartition dépenses" list with actual data instead of the old hardcoded
+// demo numbers. Fee transactions are excluded to avoid double-counting (a transfer's
+// brut amount already includes its fee).
+function wallet_stats_full() {
+    $pl = auth();
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+
+    $rows = q("SELECT to_char(created_at,'YYYY-MM') ym,
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out
+        FROM transactions
+        WHERE (sender_wallet_id=? OR receiver_wallet_id=?) AND type!='fee'
+        AND created_at >= date_trunc('month', NOW() - INTERVAL '11 months')
+        GROUP BY ym",[$wid,$wid,$wid,$wid])->fetchAll();
+
+    $byMonth = [];
+    foreach($rows as $r){ $byMonth[$r['ym']] = $r; }
+
+    $labels = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
+    $months = [];
+    for($i=11;$i>=0;$i--){
+        $ts = strtotime("-$i months", strtotime(date('Y-m-01')));
+        $ym = date('Y-m',$ts);
+        $mIdx = (int)date('n',$ts)-1;
+        $row = $byMonth[$ym] ?? null;
+        $months[] = [
+            'ym'    => $ym,
+            'label' => $labels[$mIdx],
+            'in'    => $row ? (float)$row['total_in']  : 0,
+            'out'   => $row ? (float)$row['total_out'] : 0,
+        ];
+    }
+
+    $cats = q("SELECT type, SUM(amount) total FROM transactions
+        WHERE sender_wallet_id=? AND status='completed' AND type!='fee'
+        GROUP BY type",[$wid])->fetchAll();
+
+    ok(['months'=>$months,'categories'=>$cats]);
 }
 
 function wallet_stats() {
