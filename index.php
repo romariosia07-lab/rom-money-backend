@@ -120,11 +120,12 @@ switch($module) {
     case 'wallet':      route_wallet($action); break;
     case 'transactions':route_tx($action); break;
     case 'profile':     route_profile($action); break;
+    case 'bank':        route_bank($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
     case 'install':     route_install(); break;
     default:
-        ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/health','/install']]);
+        ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/bank','/health','/install']]);
 }
 
 // AUTH
@@ -648,6 +649,135 @@ function profile_waitlist_stats() {
     }
 }
 
+
+// ============================================================
+// BANK MODULE — SIMULATION ONLY (no real partner integration yet)
+// Every function here is a MOCK. No money actually moves between
+// a real bank and ROM_MONEY. This exists to let the full user
+// flow (link bank, deposit, withdraw, multi-bank switch) be
+// tested end-to-end before any partner agreement is signed.
+// When a real aggregator (CinetPay, PayDunya, HUB2...) is
+// integrated, only bank_link()/bank_deposit()/bank_withdraw()
+// need to be rewritten to call the real API; the table schema
+// and the other routes (list/set_default/unlink) stay the same.
+// ============================================================
+function route_bank($action) {
+    match($action) {
+        'partners'    => bank_partners(),
+        'link'        => bank_link(),
+        'list'        => bank_list(),
+        'set_default' => bank_set_default(),
+        'unlink'      => bank_unlink(),
+        'deposit'     => bank_deposit(),
+        'withdraw'    => bank_withdraw(),
+        default       => fail('Action inconnue',404)
+    };
+}
+
+// Static placeholder list. Replace with real partner catalogue once
+// an aggregator agreement exists — names must not be real banks
+// until then (no authorization to use their branding).
+function bank_partners() {
+    auth();
+    ok(['partners'=>[
+        ['id'=>'ab','name'=>'Banque AB','type'=>'bank'],
+        ['id'=>'cd','name'=>'Banque CD','type'=>'bank'],
+        ['id'=>'ef','name'=>'Banque EF','type'=>'bank'],
+        ['id'=>'gh','name'=>'Mobile Money GH','type'=>'mobile_money'],
+        ['id'=>'ij','name'=>'Mobile Money IJ','type'=>'mobile_money'],
+    ]]);
+}
+
+function bank_link() {
+    $pl = auth(); $b = body();
+    $bankName = trim($b['bank_name']??'');
+    $accountNumber = trim($b['account_number']??'');
+    if(!$bankName) fail('Banque requise');
+    if(!preg_match('/^\d{4,20}$/',$accountNumber)) fail('Numero de compte invalide');
+    $last4 = substr($accountNumber,-4);
+    $id = uid();
+    $existing = q("SELECT COUNT(*) c FROM linked_banks WHERE user_id=?",[$pl['sub']])->fetch();
+    $isDefault = ((int)$existing['c'] === 0); // first linked bank becomes default automatically
+    q("INSERT INTO linked_banks (id,user_id,bank_name,account_last4,mock_token,is_default) VALUES (?,?,?,?,?,?)",
+      [$id,$pl['sub'],$bankName,$last4,'mock_'.uid(),$isDefault?'t':'f']);
+    ok(['id'=>$id,'bank_name'=>$bankName,'account_last4'=>$last4,'is_default'=>$isDefault],'Banque liee (simulation)');
+}
+
+function bank_list() {
+    $pl = auth();
+    $rows = q("SELECT id,bank_name,account_last4,is_default,linked_at FROM linked_banks WHERE user_id=? ORDER BY linked_at DESC",[$pl['sub']])->fetchAll();
+    ok(['banks'=>$rows]);
+}
+
+function bank_set_default() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id']??'');
+    if(!$id) fail('ID requis');
+    $bank = q("SELECT id FROM linked_banks WHERE id=? AND user_id=?",[$id,$pl['sub']])->fetch();
+    if(!$bank) fail('Banque introuvable',404);
+    q("UPDATE linked_banks SET is_default=false WHERE user_id=?",[$pl['sub']]);
+    q("UPDATE linked_banks SET is_default=true WHERE id=?",[$id]);
+    ok(null,'Banque active mise a jour');
+}
+
+function bank_unlink() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id']??'');
+    if(!$id) fail('ID requis');
+    $bank = q("SELECT id,is_default FROM linked_banks WHERE id=? AND user_id=?",[$id,$pl['sub']])->fetch();
+    if(!$bank) fail('Banque introuvable',404);
+    q("DELETE FROM linked_banks WHERE id=?",[$id]);
+    if($bank['is_default']){
+        $next = q("SELECT id FROM linked_banks WHERE user_id=? ORDER BY linked_at ASC LIMIT 1",[$pl['sub']])->fetch();
+        if($next) q("UPDATE linked_banks SET is_default=true WHERE id=?",[$next['id']]);
+    }
+    ok(null,'Banque retiree');
+}
+
+// MOCK: simulates money arriving from the linked bank into the wallet.
+// No real bank is contacted; the wallet is credited directly.
+function bank_deposit() {
+    $pl = auth(); $b = body();
+    $amount = (float)($b['amount']??0);
+    if($amount<=0) fail('Montant invalide');
+    $default = q("SELECT id,bank_name FROM linked_banks WHERE user_id=? AND is_default=true",[$pl['sub']])->fetch();
+    if(!$default) fail('Aucune banque liee');
+    $sw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    if(!$sw) fail('Wallet introuvable');
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'bank_deposit','completed',?,?)",
+          [$txid,null,$sw['id'],$amount,$reference,'[SIMULATION] Depot depuis '.$default['bank_name']]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amount,$sw['id']]);
+        db()->commit();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'bank_name'=>$default['bank_name']],'Depot simule effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec depot',500); }
+}
+
+// MOCK: simulates money leaving the wallet toward the linked bank.
+// No real bank is contacted; the wallet is debited directly.
+function bank_withdraw() {
+    $pl = auth(); $b = body();
+    $amount = (float)($b['amount']??0);
+    if($amount<=0) fail('Montant invalide');
+    $default = q("SELECT id,bank_name FROM linked_banks WHERE user_id=? AND is_default=true",[$pl['sub']])->fetch();
+    if(!$default) fail('Aucune banque liee');
+    $sw = q("SELECT id,balance FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    if(!$sw) fail('Wallet introuvable');
+    if((float)$sw['balance'] < $amount) fail('Solde insuffisant');
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'bank_withdraw','completed',?,?)",
+          [$txid,$sw['id'],null,$amount,$reference,'[SIMULATION] Retrait vers '.$default['bank_name']]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$sw['id'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        db()->commit();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'bank_name'=>$default['bank_name']],'Retrait simule effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec retrait',500); }
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -700,6 +830,15 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_attempts SMALLINT DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMP",
+    "CREATE TABLE IF NOT EXISTS linked_banks (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        bank_name VARCHAR(100) NOT NULL,
+        account_last4 VARCHAR(4),
+        mock_token VARCHAR(100),
+        is_default BOOLEAN DEFAULT false,
+        linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
