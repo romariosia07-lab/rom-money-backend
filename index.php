@@ -59,6 +59,35 @@ function auth() {
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
 function uid() { return bin2hex(random_bytes(8)); }
 
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 60;
+
+// Verifies $pin against $hash for $userId, with attempt counting + temporary lockout.
+// Stops execution via fail() if locked or incorrect; resets the counter on success.
+function pin_check($userId, $pin, $hash) {
+    $u = q("SELECT pin_attempts, pin_locked_until FROM users WHERE id=?",[$userId])->fetch();
+    $lockedUntil = $u['pin_locked_until'] ?? null;
+    if($lockedUntil && strtotime($lockedUntil) > time()){
+        $mins = (int)ceil((strtotime($lockedUntil) - time())/60);
+        fail("Compte temporairement bloque suite a plusieurs PIN incorrects. Reessayez dans $mins min.", 423);
+    }
+    if(!password_verify($pin, $hash)){
+        $attempts = (int)($u['pin_attempts'] ?? 0) + 1;
+        if($attempts >= PIN_MAX_ATTEMPTS){
+            q("UPDATE users SET pin_attempts=0, pin_locked_until=? WHERE id=?",
+              [date('Y-m-d H:i:s', time()+PIN_LOCK_MINUTES*60), $userId]);
+            fail('Trop de tentatives incorrectes. Compte bloque '.PIN_LOCK_MINUTES.' minutes.', 423);
+        }
+        q("UPDATE users SET pin_attempts=? WHERE id=?",[$attempts, $userId]);
+        $restantes = PIN_MAX_ATTEMPTS - $attempts;
+        fail('PIN incorrect ('.$restantes.' tentative'.($restantes>1?'s':'').' restante'.($restantes>1?'s':'').')', 401);
+    }
+    if(($u['pin_attempts'] ?? 0) > 0){
+        q("UPDATE users SET pin_attempts=0, pin_locked_until=NULL WHERE id=?",[$userId]);
+    }
+    return true;
+}
+
 function db(): PDO {
     static $pdo = null;
     if(!$pdo) {
@@ -291,6 +320,7 @@ function wallet_stats() {
 function route_tx($action) {
     match($action) {
         'send'    => tx_send(),
+        'collect' => tx_collect(),
         'pay'     => tx_pay(),
         'cancel'  => tx_cancel(),
         'history' => tx_history(),
@@ -311,8 +341,7 @@ function tx_send() {
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
-    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
     // Calculate fee (1% over 4000 F, single calculation matching frontend - direction
     // depends on which field (brut or net) the user actually filled in)
     if($mode==='brut'){
@@ -363,6 +392,72 @@ function tx_send() {
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
 }
 
+// Used by "Encaisser": the merchant (authenticated via token) scans a payer's QR
+// (phone number only) and the payer types their own PIN on the merchant's device.
+// Unlike tx_send, the debited party here is identified by phone number (the payer),
+// NOT by the bearer token (which belongs to the merchant/receiver).
+function tx_collect() {
+    $pl = auth(); $b = body(); // $pl = merchant (authenticated caller, will be credited)
+    $payerPhone = trim($b['payer_phone']??'');
+    $amount = (float)($b['amount']??0);
+    $mode   = ($b['mode']??'net')==='brut' ? 'brut' : 'net';
+    $pin    = trim($b['pin']??'');
+    $desc   = trim($b['description']??'');
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $payerPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+
+    $payer = q("SELECT u.id,u.full_name,u.pin_hash,w.id wid,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
+    if(!$payer) fail('Payeur introuvable');
+    if($payer['id']===$pl['sub']) fail('Encaissement de soi-meme impossible');
+
+    // PIN is verified against the PAYER's own account (not the merchant's), with
+    // anti-bruteforce lockout since this account is identified by phone, not by token.
+    pin_check($payer['id'], $pin, $payer['pin_hash']);
+
+    if($mode==='brut'){
+        $brut = $amount;
+        $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
+        $net  = $brut - $fee;
+    } else {
+        $net  = $amount;
+        $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
+        $brut = $net + $fee;
+    }
+    if($net<=0) fail('Montant invalide');
+    if((float)$payer['balance'] < $brut) fail('Solde du payeur insuffisant');
+
+    $mw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    if(!$mw) fail('Wallet marchand introuvable');
+
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,'transfer','pending',?,?,?)",
+          [$txid,$payer['wid'],$mw['id'],$brut,$net,$reference,$desc?:null,$deadline]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$payer['wid'],$brut])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$net,$mw['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+
+        $fee_phone = '0160629502';
+        if($fee > 0){
+            $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
+            if($fee_recv && $fee_recv['id'] !== $payer['id']){
+                $fee_txid = uid(); $fee_ref = ref();
+                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_MONEY 1%')",
+                  [$fee_txid,$payer['wid'],$fee_recv['wid'],$fee,$fee_ref]);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+            }
+        }
+
+        db()->commit();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
+            'payer_name'=>$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
+}
+
 function tx_pay() {
     $pl = auth(); $b = body();
     $code = trim($b['merchant_code']??'');
@@ -396,7 +491,7 @@ function tx_cancel() {
     if(!$txid) fail('ID requis');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
-    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
     $tx = q("SELECT t.*,w.user_id sender_uid FROM transactions t JOIN wallets w ON t.sender_wallet_id=w.id WHERE t.id=?",[$txid])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     if($tx['sender_uid']!==$pl['sub']) fail('Non autorise',403);
@@ -603,6 +698,8 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_attempts SMALLINT DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMP",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
