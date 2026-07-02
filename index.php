@@ -318,22 +318,21 @@ function wallet_stats_full() {
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out
         FROM transactions
         WHERE (sender_wallet_id=? OR receiver_wallet_id=?) AND type!='fee'
-        AND created_at >= date_trunc('month', NOW() - INTERVAL '11 months')
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())
         GROUP BY ym",[$wid,$wid,$wid,$wid])->fetchAll();
 
     $byMonth = [];
     foreach($rows as $r){ $byMonth[$r['ym']] = $r; }
 
     $labels = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
+    $year = date('Y');
     $months = [];
-    for($i=11;$i>=0;$i--){
-        $ts = strtotime("-$i months", strtotime(date('Y-m-01')));
-        $ym = date('Y-m',$ts);
-        $mIdx = (int)date('n',$ts)-1;
+    for($m=1;$m<=12;$m++){
+        $ym = $year.'-'.str_pad($m,2,'0',STR_PAD_LEFT);
         $row = $byMonth[$ym] ?? null;
         $months[] = [
             'ym'    => $ym,
-            'label' => $labels[$mIdx],
+            'label' => $labels[$m-1],
             'in'    => $row ? (float)$row['total_in']  : 0,
             'out'   => $row ? (float)$row['total_out'] : 0,
         ];
@@ -351,14 +350,14 @@ function wallet_stats_full() {
         AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",
         [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
 
-    // Cartes du haut - "Recap total" : cumul sur les 12 mois affiches dans le graphique.
+    // Cartes du haut - "Recap total" : cumul sur l'annee calendaire affichee dans le graphique.
     $cumulative = q("SELECT
         SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out,
         COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) tx_count,
         COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) cancelled
         FROM transactions WHERE type!='fee' AND (sender_wallet_id=? OR receiver_wallet_id=?)
-        AND created_at >= date_trunc('month', NOW() - INTERVAL '11 months')",
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",
         [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
 
     // Repartition depenses : toujours le mois en cours uniquement, ne bascule jamais
