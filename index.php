@@ -645,11 +645,11 @@ function route_profile($action) {
 
 function profile_get() {
     $pl = auth();
-    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
     if(!$u) fail('Introuvable',404);
     ok(['id'=>$u['id'],'name'=>$u['full_name'],'phone'=>$u['phone_number'],'email'=>$u['email'],
         'operator'=>$u['operator'],'bio_enabled'=>(bool)$u['bio_enabled'],'is_kyc'=>(bool)$u['is_kyc'],
-        'status'=>$u['status'],'member_since'=>$u['created_at'],'wallet_id'=>$u['wid']]);
+        'status'=>$u['status'],'member_since'=>$u['created_at'],'wallet_id'=>$u['wid'],'photo_url'=>$u['photo_url']]);
 }
 
 function profile_update() {
@@ -658,6 +658,7 @@ function profile_update() {
     if(!empty($b['full_name'])){$sets[]="full_name=\$$i";$vals[]=$b['full_name'];$i++;}
     if(!empty($b['email'])){$sets[]="email=\$$i";$vals[]=$b['email'];$i++;}
     if(!empty($b['operator'])){$sets[]="operator=\$$i";$vals[]=$b['operator'];$i++;}
+    if(array_key_exists('photo_url',$b)){$sets[]="photo_url=\$$i";$vals[]=$b['photo_url'];$i++;}
     if(!$sets) fail('Rien a mettre a jour');
     $vals[]=$pl['sub'];
     q("UPDATE users SET ".implode(',',$sets)." WHERE id=\$$i",$vals);
@@ -898,6 +899,7 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_attempts SMALLINT DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMP",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT",
     "CREATE TABLE IF NOT EXISTS linked_banks (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
