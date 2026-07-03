@@ -654,14 +654,18 @@ function profile_get() {
 
 function profile_update() {
     $pl = auth(); $b = body();
-    $sets=[]; $vals=[]; $i=1;
-    if(!empty($b['full_name'])){$sets[]="full_name=\$$i";$vals[]=$b['full_name'];$i++;}
-    if(!empty($b['email'])){$sets[]="email=\$$i";$vals[]=$b['email'];$i++;}
-    if(!empty($b['operator'])){$sets[]="operator=\$$i";$vals[]=$b['operator'];$i++;}
-    if(array_key_exists('photo_url',$b)){$sets[]="photo_url=\$$i";$vals[]=$b['photo_url'];$i++;}
+    $sets=[]; $vals=[];
+    if(!empty($b['full_name'])){$sets[]="full_name=?";$vals[]=$b['full_name'];}
+    if(!empty($b['email'])){$sets[]="email=?";$vals[]=$b['email'];}
+    if(!empty($b['operator'])){$sets[]="operator=?";$vals[]=$b['operator'];}
+    if(array_key_exists('photo_url',$b)){$sets[]="photo_url=?";$vals[]=$b['photo_url'];}
     if(!$sets) fail('Rien a mettre a jour');
     $vals[]=$pl['sub'];
-    q("UPDATE users SET ".implode(',',$sets)." WHERE id=\$$i",$vals);
+    try {
+        q("UPDATE users SET ".implode(',',$sets)." WHERE id=?",$vals);
+    } catch(Exception $e) {
+        fail(APP_DEBUG?$e->getMessage():'Echec de la sauvegarde du profil',500);
+    }
     ok(null,'Profil mis a jour');
 }
 
