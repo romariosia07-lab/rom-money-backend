@@ -240,6 +240,7 @@ function route_wallet($action) {
         'resolve-qr'     => wallet_resolve_qr(),
         'stats'          => wallet_stats(),
         'stats-full'     => wallet_stats_full(),
+        'limit-status'   => wallet_limit_status(),
         default          => fail('Action inconnue',404)
     };
 }
@@ -337,6 +338,23 @@ function wallet_resolve_qr() {
 // and "Répartition dépenses" list with actual data instead of the old hardcoded
 // demo numbers. Fee transactions are excluded to avoid double-counting (a transfer's
 // brut amount already includes its fee).
+// Statut du plafond mensuel de reception (pour la carte affichee dans Profil).
+// Reutilise la meme logique que check_receive_limit(), en mode "lecture seule".
+function wallet_limit_status() {
+    $pl = auth();
+    $u = q("SELECT is_kyc FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $isKyc = (bool)($u['is_kyc']??false);
+    $limit = $isKyc ? RECEIVE_LIMIT_VERIFIED : RECEIVE_LIMIT_UNVERIFIED;
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
+        WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
+        AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",[$wid])->fetch();
+    $received = (float)($row['total']??0);
+    $remaining = max(0, $limit - $received);
+    ok(['limit'=>$limit,'received'=>$received,'remaining'=>$remaining,'is_kyc'=>$isKyc]);
+}
+
 function wallet_stats_full() {
     $pl = auth();
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
