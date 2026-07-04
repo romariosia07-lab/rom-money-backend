@@ -1050,6 +1050,13 @@ function export_csv() {
     exit;
 }
 
+// Remplace utf8_decode() (obsolete/supprimee en PHP recent) : FPDF attend du
+// Latin-1 (ISO-8859-1), pas de l'UTF-8, pour ses polices standard.
+function pdf_str($s) {
+    $out = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', (string)$s);
+    return $out !== false ? $out : (string)$s;
+}
+
 function export_pdf() {
     $pl = auth();
     $period = ($_GET['period']??'month')==='all' ? 'all' : 'month';
@@ -1060,18 +1067,18 @@ function export_pdf() {
     $pdf = new FPDF();
     $pdf->AddPage();
     $pdf->SetFont('Arial','B',14);
-    $pdf->Cell(0,10,utf8_decode('ROM_MONEY - Releve de transactions'),0,1);
+    $pdf->Cell(0,10,pdf_str('ROM_MONEY - Releve de transactions'),0,1);
     $pdf->SetFont('Arial','',10);
-    $pdf->Cell(0,6,utf8_decode('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
-    $pdf->Cell(0,6,utf8_decode('Periode : '.($period==='month'?'Ce mois':'Tout l\'historique')),0,1);
-    $pdf->Cell(0,8,utf8_decode('Genere le '.date('d/m/Y a H:i')),0,1);
+    $pdf->Cell(0,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
+    $pdf->Cell(0,6,pdf_str('Periode : '.($period==='month'?'Ce mois':'Tout l\'historique')),0,1);
+    $pdf->Cell(0,8,pdf_str('Genere le '.date('d/m/Y a H:i')),0,1);
     $pdf->Ln(4);
 
     $pdf->SetFont('Arial','B',9);
     $pdf->SetFillColor(230,241,251);
     $w = [26,28,42,28,20,32,20];
     $headers = ['Date','Type','Contact','Montant','Frais','Reference','Statut'];
-    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,utf8_decode($h),1,0,'C',true); }
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
     $pdf->Ln();
 
     $pdf->SetFont('Arial','',8);
@@ -1084,12 +1091,12 @@ function export_pdf() {
         $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
-        $pdf->Cell($w[1],7,utf8_decode(export_type_label($t['type'])),1);
-        $pdf->Cell($w[2],7,utf8_decode(mb_substr($contact,0,22)),1);
+        $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'])),1);
+        $pdf->Cell($w[2],7,pdf_str(mb_substr($contact,0,22)),1);
         $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
         $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
-        $pdf->Cell($w[5],7,utf8_decode($t['reference']),1);
-        $pdf->Cell($w[6],7,utf8_decode($t['status']),1);
+        $pdf->Cell($w[5],7,pdf_str($t['reference']),1);
+        $pdf->Cell($w[6],7,pdf_str($t['status']),1);
         $pdf->Ln();
     }
 
