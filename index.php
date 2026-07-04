@@ -149,6 +149,7 @@ switch($module) {
     case 'profile':     route_profile($action); break;
     case 'bank':        route_bank($action); break;
     case 'kyc':         route_kyc($action); break;
+    case 'export':      route_export($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
     case 'install':     route_install(); break;
@@ -979,6 +980,123 @@ function kyc_admin_reject() {
     if(!$r) fail('Demande introuvable ou deja traitee',404);
     q("UPDATE kyc_requests SET status='rejected', reviewed_at=NOW() WHERE id=?",[$id]);
     ok(null,'Demande refusee');
+}
+
+// ============================================================
+// EXPORT — historique des transactions en CSV ou PDF
+// ============================================================
+function route_export($action) {
+    match($action) {
+        'csv' => export_csv(),
+        'pdf' => export_pdf(),
+        default => fail('Action inconnue',404)
+    };
+}
+
+// Recupere les lignes d'historique (hors frais, qui sont deja inclus dans
+// chaque transaction via amount-net_amount) pour l'utilisateur connecte.
+function export_get_rows($pl, $period) {
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $sql = "SELECT t.*,
+        CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
+        su.full_name sender_name, su.phone_number sender_phone,
+        ru.full_name receiver_name, ru.phone_number receiver_phone
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'";
+    $params = [$wid,$wid,$wid];
+    if($period==='month'){
+        $sql .= " AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW()) AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())";
+    }
+    $sql .= " ORDER BY t.created_at DESC";
+    return q($sql,$params)->fetchAll();
+}
+
+function export_type_label($type){
+    $map=['transfer'=>'Transfert','payment'=>'Achat','bank_deposit'=>'Depot banque',
+          'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre'];
+    return $map[$type] ?? $type;
+}
+
+function export_csv() {
+    $pl = auth();
+    $period = ($_GET['period']??'month')==='all' ? 'all' : 'month';
+    $rows = export_get_rows($pl, $period);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="rom_money_historique.csv"');
+    echo "\xEF\xBB\xBF"; // BOM UTF-8, pour un affichage correct des accents dans Excel
+    $out = fopen('php://output','w');
+    fputcsv($out, ['Date','Type','Contact','Montant','Frais','Reference','Statut'], ';');
+    foreach($rows as $t){
+        $isDebit = $t['direction']==='debit';
+        $amount = (float)$t['amount'];
+        $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
+        $frais = max(0, $amount - $net);
+        $montant = $isDebit ? -$amount : $net;
+        $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
+        fputcsv($out, [
+            date('d/m/Y H:i', strtotime($t['created_at'])),
+            export_type_label($t['type']),
+            $contact,
+            number_format($montant,0,',',' ').' F',
+            number_format($frais,0,',',' ').' F',
+            $t['reference'],
+            $t['status']
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
+function export_pdf() {
+    $pl = auth();
+    $period = ($_GET['period']??'month')==='all' ? 'all' : 'month';
+    $rows = export_get_rows($pl, $period);
+    $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,utf8_decode('ROM_MONEY - Releve de transactions'),0,1);
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(0,6,utf8_decode('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
+    $pdf->Cell(0,6,utf8_decode('Periode : '.($period==='month'?'Ce mois':'Tout l\'historique')),0,1);
+    $pdf->Cell(0,8,utf8_decode('Genere le '.date('d/m/Y a H:i')),0,1);
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $w = [26,28,42,28,20,32,20];
+    $headers = ['Date','Type','Contact','Montant','Frais','Reference','Statut'];
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,utf8_decode($h),1,0,'C',true); }
+    $pdf->Ln();
+
+    $pdf->SetFont('Arial','',8);
+    foreach($rows as $t){
+        $isDebit = $t['direction']==='debit';
+        $amount = (float)$t['amount'];
+        $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
+        $frais = max(0, $amount - $net);
+        $montant = $isDebit ? -$amount : $net;
+        $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
+
+        $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
+        $pdf->Cell($w[1],7,utf8_decode(export_type_label($t['type'])),1);
+        $pdf->Cell($w[2],7,utf8_decode(mb_substr($contact,0,22)),1);
+        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
+        $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
+        $pdf->Cell($w[5],7,utf8_decode($t['reference']),1);
+        $pdf->Cell($w[6],7,utf8_decode($t['status']),1);
+        $pdf->Ln();
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_money_releve.pdf"');
+    echo $pdf->Output('S');
+    exit;
 }
 
 // INSTALL
