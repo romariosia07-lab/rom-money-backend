@@ -1071,7 +1071,7 @@ function export_pdf() {
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(0,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
     $pdf->Cell(0,6,pdf_str('Periode : '.($period==='month'?'Ce mois':'Tout l\'historique')),0,1);
-    $pdf->Cell(0,8,pdf_str('Genere le '.date('d/m/Y a H:i')),0,1);
+    $pdf->Cell(0,8,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
     $pdf->Ln(4);
 
     $pdf->SetFont('Arial','B',9);
