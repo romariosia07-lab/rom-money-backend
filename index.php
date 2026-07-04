@@ -59,7 +59,33 @@ function auth() {
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
 function uid() { return bin2hex(random_bytes(8)); }
 
-const PIN_MAX_ATTEMPTS = 5;
+const RECEIVE_LIMIT_UNVERIFIED = 2000000;
+const RECEIVE_LIMIT_VERIFIED   = 100000000;
+
+// Verifie que creditier $userId de $incomingNet ne depasse pas son plafond
+// mensuel de reception (remis a zero chaque mois calendaire, comme les stats).
+// Bloque avec fail() si le plafond serait depasse. $selfFacing indique si la
+// personne qui appelle l'API est elle-meme le destinataire (Encaisser, Depot
+// bancaire) ou une autre personne (Envoyer -> le message s'adresse a l'emetteur).
+function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
+    $u = q("SELECT is_kyc FROM users WHERE id=?",[$userId])->fetch();
+    $limit = ($u && $u['is_kyc']) ? RECEIVE_LIMIT_VERIFIED : RECEIVE_LIMIT_UNVERIFIED;
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$userId])->fetchColumn();
+    $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
+        WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
+        AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
+        AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",[$wid])->fetch();
+    $currentTotal = (float)($row['total'] ?? 0);
+    if($currentTotal + $incomingNet > $limit){
+        if($selfFacing){
+            fail('Vous avez atteint votre plafond mensuel. Faites-vous identifier pour deplafonner.', 403);
+        } else {
+            fail('Echec : votre destinataire a atteint son plafond mensuel.', 403);
+        }
+    }
+}
+
+
 const PIN_LOCK_MINUTES = 60;
 
 // Verifies $pin against $hash for $userId, with attempt counting + temporary lockout.
@@ -429,6 +455,7 @@ function tx_send() {
     $recv = q("SELECT u.id,u.full_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
     if(!$recv) fail('Destinataire introuvable');
     if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
+    check_receive_limit($recv['id'], $net, false);
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
@@ -495,6 +522,7 @@ function tx_collect() {
     }
     if($net<=0) fail('Montant invalide');
     if((float)$payer['balance'] < $brut) fail('Solde du payeur insuffisant');
+    check_receive_limit($pl['sub'], $net);
 
     $mw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if(!$mw) fail('Wallet marchand introuvable');
@@ -820,6 +848,7 @@ function bank_deposit() {
     if(!$default) fail('Aucune banque liee');
     $sw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if(!$sw) fail('Wallet introuvable');
+    check_receive_limit($pl['sub'], $amount);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
