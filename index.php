@@ -995,8 +995,23 @@ function route_export($action) {
 
 // Recupere les lignes d'historique (hors frais, qui sont deja inclus dans
 // chaque transaction via amount-net_amount) pour l'utilisateur connecte.
-function export_get_rows($pl, $period) {
+function export_get_rows($pl, $period, $from=null, $to=null) {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $where = "(t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'";
+    $params = [$wid,$wid];
+    if($period==='month'){
+        $where .= " AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW()) AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())";
+    } elseif($period==='custom' && preg_match('/^\d{4}-\d{2}$/',(string)$from) && preg_match('/^\d{4}-\d{2}$/',(string)$to)){
+        $where .= " AND t.created_at >= ?::date AND t.created_at < (date_trunc('month', ?::date) + interval '1 month')";
+        $params[] = $from.'-01';
+        $params[] = $to.'-01';
+    }
+    // 'all' (ou periode personnalisee invalide) : aucun filtre de date supplementaire
+
+    $countRow = q("SELECT COUNT(*) cnt FROM transactions t WHERE $where",$params)->fetch();
+    $total = (int)($countRow['cnt']??0);
+
+    $LIMIT = 5000; // plafond de securite, quelle que soit la periode choisie
     $sql = "SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
         su.full_name sender_name, su.phone_number sender_phone,
@@ -1004,13 +1019,9 @@ function export_get_rows($pl, $period) {
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
-        WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'";
-    $params = [$wid,$wid,$wid];
-    if($period==='month'){
-        $sql .= " AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW()) AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())";
-    }
-    $sql .= " ORDER BY t.created_at DESC";
-    return q($sql,$params)->fetchAll();
+        WHERE $where ORDER BY t.created_at DESC LIMIT $LIMIT";
+    $rows = q($sql, array_merge([$wid],$params))->fetchAll();
+    return ['rows'=>$rows, 'total'=>$total, 'truncated'=>$total>$LIMIT, 'limit'=>$LIMIT];
 }
 
 function export_type_label($type){
@@ -1021,13 +1032,24 @@ function export_type_label($type){
 
 function export_csv() {
     $pl = auth();
-    $period = ($_GET['period']??'month')==='all' ? 'all' : 'month';
-    $rows = export_get_rows($pl, $period);
+    $periodRaw = $_GET['period']??'month';
+    $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
+    $from = $_GET['from']??null;
+    $to = $_GET['to']??null;
+    $res = export_get_rows($pl, $period, $from, $to);
+    $rows = $res['rows'];
 
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="rom_money_historique.csv"');
+    header('Access-Control-Expose-Headers: X-Export-Truncated, X-Export-Total, X-Export-Limit');
+    header('X-Export-Truncated: '.($res['truncated']?'1':'0'));
+    header('X-Export-Total: '.$res['total']);
+    header('X-Export-Limit: '.$res['limit']);
     echo "\xEF\xBB\xBF"; // BOM UTF-8, pour un affichage correct des accents dans Excel
     $out = fopen('php://output','w');
+    if($res['truncated']){
+        fputcsv($out, ['Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total. Choisissez une periode plus precise pour tout voir.'], ';');
+    }
     fputcsv($out, ['Date','Type','Contact','Montant','Frais','Reference','Statut'], ';');
     foreach($rows as $t){
         $isDebit = $t['direction']==='debit';
@@ -1059,9 +1081,17 @@ function pdf_str($s) {
 
 function export_pdf() {
     $pl = auth();
-    $period = ($_GET['period']??'month')==='all' ? 'all' : 'month';
-    $rows = export_get_rows($pl, $period);
+    $periodRaw = $_GET['period']??'month';
+    $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
+    $from = $_GET['from']??null;
+    $to = $_GET['to']??null;
+    $res = export_get_rows($pl, $period, $from, $to);
+    $rows = $res['rows'];
     $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
+
+    $periodeLabel = 'Ce mois';
+    if($period==='all') $periodeLabel = "Tout l'historique";
+    elseif($period==='custom') $periodeLabel = $from.' a '.$to;
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
@@ -1070,8 +1100,13 @@ function export_pdf() {
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Releve de transactions'),0,1);
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(0,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
-    $pdf->Cell(0,6,pdf_str('Periode : '.($period==='month'?'Ce mois':'Tout l\'historique')),0,1);
-    $pdf->Cell(0,8,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    $pdf->Cell(0,6,pdf_str('Periode : '.$periodeLabel),0,1);
+    $pdf->Cell(0,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    if($res['truncated']){
+        $pdf->SetTextColor(200,0,0);
+        $pdf->Cell(0,6,pdf_str('Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total. Choisissez une periode plus precise pour tout voir.'),0,1);
+        $pdf->SetTextColor(0,0,0);
+    }
     $pdf->Ln(4);
 
     $pdf->SetFont('Arial','B',9);
@@ -1092,7 +1127,7 @@ function export_pdf() {
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'])),1);
-        $pdf->Cell($w[2],7,pdf_str(mb_substr($contact,0,22)),1);
+        $pdf->Cell($w[2],7,substr(pdf_str($contact),0,22),1);
         $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
         $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
         $pdf->Cell($w[5],7,pdf_str($t['reference']),1);
