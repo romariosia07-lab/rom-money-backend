@@ -9,6 +9,7 @@ define('DB_USER',    getenv('DB_USER')    ?: 'root');
 define('DB_PASS',    getenv('DB_PASS')    ?: '');
 define('DB_PORT',    getenv('DB_PORT')    ?: '5432');
 define('JWT_SECRET', getenv('JWT_SECRET') ?: 'RomMoney2024SecretKey!@#$%');
+define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: 'JRB-Rom@rios07');
 define('JWT_EXPIRY', 86400);
 define('APP_ENV',    getenv('APP_ENV')    ?: 'development');
 define('APP_DEBUG',  APP_ENV === 'development');
@@ -147,11 +148,12 @@ switch($module) {
     case 'transactions':route_tx($action); break;
     case 'profile':     route_profile($action); break;
     case 'bank':        route_bank($action); break;
+    case 'kyc':         route_kyc($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
     case 'install':     route_install(); break;
     default:
-        ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/bank','/health','/install']]);
+        ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/bank','/kyc','/health','/install']]);
 }
 
 // AUTH
@@ -883,6 +885,84 @@ function bank_withdraw() {
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec retrait',500); }
 }
 
+// ============================================================
+// KYC — verification d'identite (parcours basique + admin manuel)
+// L'utilisateur soumet recto + verso de sa piece d'identite.
+// Un admin (protege par un mot de passe simple, pas un vrai systeme
+// de comptes admin) approuve ou refuse manuellement. Approuver met
+// users.is_kyc=1, deplafonnant le compte.
+// ============================================================
+function route_kyc($action) {
+    match($action) {
+        'submit'        => kyc_submit(),
+        'status'        => kyc_status(),
+        'admin_list'    => kyc_admin_list(),
+        'admin_approve' => kyc_admin_approve(),
+        'admin_reject'  => kyc_admin_reject(),
+        default         => fail('Action inconnue',404)
+    };
+}
+
+function check_admin_password($b) {
+    if(!isset($b['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$b['admin_password'])) {
+        fail('Mot de passe admin incorrect',401);
+    }
+}
+
+function kyc_submit() {
+    $pl = auth(); $b = body();
+    $recto = trim($b['photo_recto']??'');
+    $verso = trim($b['photo_verso']??'');
+    if(!$recto || !$verso) fail('Recto et verso requis');
+
+    $existing = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$pl['sub']])->fetch();
+    if($existing) fail('Une demande est deja en attente de verification');
+
+    $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
+
+    $id = uid();
+    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,'pending')",
+      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$recto,$verso]);
+    ok(['id'=>$id],'Demande envoyee, en attente de verification');
+}
+
+function kyc_status() {
+    $pl = auth();
+    $r = q("SELECT status,created_at,reviewed_at FROM kyc_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 1",[$pl['sub']])->fetch();
+    ok(['request'=>$r?:null]);
+}
+
+function kyc_admin_list() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT id,user_id,phone_number,full_name,photo_recto,photo_verso,status,created_at
+        FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
+    ok(['requests'=>$rows]);
+}
+
+function kyc_admin_approve() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['id']??'');
+    if(!$id) fail('ID requis');
+    $r = q("SELECT user_id FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    if(!$r) fail('Demande introuvable ou deja traitee',404);
+    q("UPDATE kyc_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
+    q("UPDATE users SET is_kyc=1 WHERE id=?",[$r['user_id']]);
+    ok(null,'Compte verifie avec succes');
+}
+
+function kyc_admin_reject() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['id']??'');
+    if(!$id) fail('ID requis');
+    $r = q("SELECT id FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    if(!$r) fail('Demande introuvable ou deja traitee',404);
+    q("UPDATE kyc_requests SET status='rejected', reviewed_at=NOW() WHERE id=?",[$id]);
+    ok(null,'Demande refusee');
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -938,6 +1018,17 @@ function route_install() {
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_tx BOOLEAN DEFAULT true",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_promo BOOLEAN DEFAULT true",
+    "CREATE TABLE IF NOT EXISTS kyc_requests (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        phone_number VARCHAR(20),
+        full_name VARCHAR(150),
+        photo_recto TEXT,
+        photo_verso TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP
+    )",
     "CREATE TABLE IF NOT EXISTS linked_banks (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
