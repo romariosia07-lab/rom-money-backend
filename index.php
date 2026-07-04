@@ -59,7 +59,7 @@ function auth() {
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
 function uid() { return bin2hex(random_bytes(8)); }
 
-const RECEIVE_LIMIT_UNVERIFIED = 50000; // TEMPORAIRE POUR TEST - remettre a 2000000 apres validation
+const RECEIVE_LIMIT_UNVERIFIED = 2000000;
 const RECEIVE_LIMIT_VERIFIED   = 100000000;
 
 // Verifie que creditier $userId de $incomingNet ne depasse pas son plafond
@@ -80,7 +80,7 @@ function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
         if($selfFacing){
             fail('Vous avez atteint votre plafond mensuel. Faites-vous identifier pour deplafonner.', 403);
         } else {
-            fail('Echec : votre destinataire a atteint son plafond mensuel.', 403);
+            fail('Votre destinataire a atteint son plafond mensuel.', 403);
         }
     }
 }
