@@ -1156,6 +1156,11 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_sender ON transactions(sender_wallet_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_receiver ON transactions(receiver_wallet_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_created_at ON transactions(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_status ON transactions(status)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_type ON transactions(type)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_attempts SMALLINT DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMP",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT",
@@ -1181,6 +1186,9 @@ function route_install() {
         is_default BOOLEAN DEFAULT false,
         linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "CREATE INDEX IF NOT EXISTS idx_kyc_user ON kyc_requests(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc_requests(status)",
+    "CREATE INDEX IF NOT EXISTS idx_banks_user ON linked_banks(user_id)",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
