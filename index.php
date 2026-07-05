@@ -1091,17 +1091,28 @@ function export_pdf() {
 
     $periodeLabel = 'Ce mois';
     if($period==='all') $periodeLabel = "Tout l'historique";
-    elseif($period==='custom') $periodeLabel = $from.' a '.$to;
+    elseif($period==='custom'){
+        $fmtYm = function($ym){ $p=explode('-',(string)$ym); return count($p)===2 ? $p[1].'-'.$p[0] : $ym; };
+        $periodeLabel = 'du '.$fmtYm($from).' au '.$fmtYm($to);
+    }
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
     $pdf->AddPage();
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Releve de transactions'),0,1);
+    $infoTopY = $pdf->GetY();
+    $logoPath = __DIR__.'/logo.png';
+    if(file_exists($logoPath)){
+        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+    }
     $pdf->SetFont('Arial','',10);
-    $pdf->Cell(0,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
-    $pdf->Cell(0,6,pdf_str('Periode : '.$periodeLabel),0,1);
-    $pdf->Cell(0,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    $pdf->Cell(150,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
+    $pdf->Cell(150,6,pdf_str('Periode : '.$periodeLabel),0,1);
+    $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    if(file_exists($logoPath)){
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+    }
     if($res['truncated']){
         $pdf->SetTextColor(200,0,0);
         $pdf->Cell(0,6,pdf_str('Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total. Choisissez une periode plus precise pour tout voir.'),0,1);
