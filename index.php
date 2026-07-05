@@ -87,7 +87,39 @@ function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
 }
 
 
+const PIN_MAX_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 60;
+const REFERRAL_BONUS_PCT = 0.30;
+
+// Verse au parrain 30% des frais generes par la PREMIERE transaction a frais
+// (>= 4000 F) de son filleul. Ne se declenche qu'une seule fois par filleul
+// (verifie via referral_bonuses). Le lien de parrainage etant fixe a
+// l'inscription (users.referred_by, jamais modifiable ensuite), un compte
+// deja existant ne peut jamais devenir "parraine" retroactivement.
+function apply_referral_bonus($senderId, $fee) {
+    if($fee <= 0) return;
+    $u = q("SELECT referred_by FROM users WHERE id=?",[$senderId])->fetch();
+    if(!$u || !$u['referred_by']) return;
+    $referrerId = $u['referred_by'];
+
+    $already = q("SELECT id FROM referral_bonuses WHERE referee_id=?",[$senderId])->fetch();
+    if($already) return;
+
+    $bonus = round($fee * REFERRAL_BONUS_PCT);
+    if($bonus <= 0) return;
+
+    $referrerWid = q("SELECT id FROM wallets WHERE user_id=?",[$referrerId])->fetchColumn();
+    if(!$referrerWid) return;
+
+    $bonusId = uid(); $txid = uid(); $ref = ref();
+    q("INSERT INTO referral_bonuses (id,referrer_id,referee_id,transaction_id,bonus_amount) VALUES (?,?,?,?,?)",
+      [$bonusId,$referrerId,$senderId,$txid,$bonus]);
+    q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'referral_bonus','completed',?,'Bonus de parrainage')",
+      [$txid,null,$referrerWid,$bonus,$ref]);
+    q("UPDATE wallets SET balance=balance+? WHERE id=?",[$bonus,$referrerWid]);
+}
+
+
 
 // Verifies $pin against $hash for $userId, with attempt counting + temporary lockout.
 // Stops execution via fail() if locked or incorrect; resets the counter on success.
@@ -168,6 +200,14 @@ function route_auth($action) {
     };
 }
 
+function generate_referral_code() {
+    do {
+        $code = 'ROM'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
+        $exists = q("SELECT id FROM users WHERE referral_code=?",[$code])->fetch();
+    } while($exists);
+    return $code;
+}
+
 function auth_register() {
     $b = body();
     $name  = trim($b['full_name'] ?? '');
@@ -175,11 +215,21 @@ function auth_register() {
     $pin   = trim($b['pin']       ?? '');
     $email = trim($b['email']     ?? '');
     $op    = trim($b['operator']  ?? '');
+    $refCodeInput = trim($b['referral_code'] ?? '');
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
     $exist = q("SELECT id FROM users WHERE phone_number=?", [$phone])->fetch();
     if($exist) fail('Ce numero est deja enregistre');
+
+    // Parrainage : uniquement resolu a l'inscription, jamais modifiable apres coup
+    // (un compte deja existant ne peut donc jamais devenir "parraine" retroactivement).
+    $referredBy = null;
+    if($refCodeInput){
+        $referrer = q("SELECT id FROM users WHERE referral_code=?",[strtoupper($refCodeInput)])->fetch();
+        if($referrer) $referredBy = $referrer['id'];
+    }
+
     db()->beginTransaction();
     try {
         $uid    = uid();
@@ -187,13 +237,14 @@ function auth_register() {
         $qrseed = strtoupper(bin2hex(random_bytes(5)));
         $pinh   = password_hash($pin, PASSWORD_BCRYPT);
         $passh  = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
-        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash) VALUES (?,?,?,?,?,?,?)",
-          [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh]);
+        $myReferralCode = generate_referral_code();
+        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash,referral_code,referred_by) VALUES (?,?,?,?,?,?,?,?,?)",
+          [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh,$myReferralCode,$referredBy]);
         q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,'FCFA',?)",
           [$wid,$uid,$qrseed]);
         $token = jwt_make(['sub'=>$uid,'phone'=>$phone]);
         db()->commit();
-        ok(['token'=>$token,'user_id'=>$uid,'name'=>$name,'phone'=>$phone,'qr_seed'=>$qrseed],'Compte cree', 201);
+        ok(['token'=>$token,'user_id'=>$uid,'name'=>$name,'phone'=>$phone,'qr_seed'=>$qrseed,'referral_code'=>$myReferralCode],'Compte cree', 201);
     } catch(Exception $e) {
         db()->rollBack();
         fail(APP_DEBUG ? $e->getMessage() : 'Erreur creation compte', 500);
@@ -501,6 +552,7 @@ function tx_send() {
                 q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
             }
         }
+        apply_referral_bonus($pl['sub'], $fee);
 
         db()->commit();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
@@ -569,6 +621,7 @@ function tx_collect() {
                 q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
             }
         }
+        apply_referral_bonus($payer['id'], $fee);
 
         db()->commit();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
@@ -688,8 +741,23 @@ function route_profile($action) {
         'toggle-bio'     => profile_bio(),
         'waitlist'       => profile_waitlist(),
         'waitlist-stats' => profile_waitlist_stats(),
+        'referral-status'=> profile_referral_status(),
         default          => fail('Action inconnue',404)
     };
+}
+
+function profile_referral_status() {
+    $pl = auth();
+    $u = q("SELECT referral_code FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $code = $u['referral_code'] ?? null;
+    if(!$code){
+        // Compte cree avant l'existence du parrainage : on lui attribue un code maintenant
+        $code = generate_referral_code();
+        q("UPDATE users SET referral_code=? WHERE id=?",[$code,$pl['sub']]);
+    }
+    $referredCount = (int)(q("SELECT COUNT(*) c FROM users WHERE referred_by=?",[$pl['sub']])->fetch()['c']??0);
+    $totalEarned = (float)(q("SELECT COALESCE(SUM(bonus_amount),0) t FROM referral_bonuses WHERE referrer_id=?",[$pl['sub']])->fetch()['t']??0);
+    ok(['referral_code'=>$code,'referred_count'=>$referredCount,'total_earned'=>$totalEarned]);
 }
 
 function profile_get() {
@@ -1026,7 +1094,8 @@ function export_get_rows($pl, $period, $from=null, $to=null) {
 
 function export_type_label($type){
     $map=['transfer'=>'Transfert','payment'=>'Achat','bank_deposit'=>'Depot banque',
-          'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre'];
+          'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre',
+          'referral_bonus'=>'Bonus parrainage'];
     return $map[$type] ?? $type;
 }
 
@@ -1212,6 +1281,19 @@ function route_install() {
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_tx BOOLEAN DEFAULT true",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_promo BOOLEAN DEFAULT true",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code VARCHAR(20)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by VARCHAR(36)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code)",
+    "CREATE TABLE IF NOT EXISTS referral_bonuses (
+        id VARCHAR(36) PRIMARY KEY,
+        referrer_id VARCHAR(36) NOT NULL,
+        referee_id VARCHAR(36) NOT NULL,
+        transaction_id VARCHAR(36),
+        bonus_amount DECIMAL(15,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_refbonus_referrer ON referral_bonuses(referrer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_refbonus_referee ON referral_bonuses(referee_id)",
     "CREATE TABLE IF NOT EXISTS kyc_requests (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
