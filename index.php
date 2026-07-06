@@ -1092,8 +1092,9 @@ function export_get_rows($pl, $period, $from=null, $to=null) {
     return ['rows'=>$rows, 'total'=>$total, 'truncated'=>$total>$LIMIT, 'limit'=>$LIMIT];
 }
 
-function export_type_label($type){
-    $map=['transfer'=>'Transfert','payment'=>'Achat','bank_deposit'=>'Depot banque',
+function export_type_label($type, $isDebit=false){
+    if($type==='transfer') return $isDebit ? 'Transfert envoye' : 'Transfert recu';
+    $map=['payment'=>'Achat','bank_deposit'=>'Depot banque',
           'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre',
           'referral_bonus'=>'Bonus parrainage'];
     return $map[$type] ?? $type;
@@ -1129,7 +1130,7 @@ function export_csv() {
         $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
         fputcsv($out, [
             date('d/m/Y H:i', strtotime($t['created_at'])),
-            export_type_label($t['type']),
+            export_type_label($t['type'], $isDebit),
             $contact,
             number_format($montant,0,',',' ').' F',
             number_format($frais,0,',',' ').' F',
@@ -1206,7 +1207,7 @@ function export_pdf() {
         $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
-        $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'])),1);
+        $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit)),1);
         $pdf->Cell($w[2],7,substr(pdf_str($contact),0,22),1);
         $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
         $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
