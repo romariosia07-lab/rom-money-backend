@@ -181,6 +181,7 @@ switch($module) {
     case 'profile':     route_profile($action); break;
     case 'bank':        route_bank($action); break;
     case 'kyc':         route_kyc($action); break;
+    case 'announce':    route_announce($action); break;
     case 'export':      route_export($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
@@ -1222,6 +1223,45 @@ function export_pdf() {
     exit;
 }
 
+// ============================================================
+// ANNONCES — messages pousses par l'admin (mises a jour / promos)
+// Les "update" sont toujours renvoyees. Les "promo" ne sont renvoyees
+// que si l'utilisateur a active "Offres et promotions" dans ses reglages.
+// ============================================================
+function route_announce($action) {
+    match($action) {
+        'list'         => announce_list(),
+        'admin-create' => announce_admin_create(),
+        default        => fail('Action inconnue',404)
+    };
+}
+
+function announce_list() {
+    $pl = auth();
+    $u = q("SELECT notif_promo FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $allowPromo = (bool)($u['notif_promo'] ?? true);
+    if($allowPromo){
+        $rows = q("SELECT id,title,message,type,created_at FROM announcements
+            WHERE created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+    } else {
+        $rows = q("SELECT id,title,message,type,created_at FROM announcements
+            WHERE type='update' AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+    }
+    ok(['announcements'=>$rows]);
+}
+
+function announce_admin_create() {
+    $b = body();
+    check_admin_password($b);
+    $title = trim($b['title']??'');
+    $message = trim($b['message']??'');
+    $type = ($b['type']??'update')==='promo' ? 'promo' : 'update';
+    if(!$title || !$message) fail('Titre et message requis');
+    $id = uid();
+    q("INSERT INTO announcements (id,title,message,type) VALUES (?,?,?,?)",[$id,$title,$message,$type]);
+    ok(['id'=>$id],'Annonce envoyee');
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -1318,6 +1358,14 @@ function route_install() {
     "CREATE INDEX IF NOT EXISTS idx_kyc_user ON kyc_requests(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc_requests(status)",
     "CREATE INDEX IF NOT EXISTS idx_banks_user ON linked_banks(user_id)",
+    "CREATE TABLE IF NOT EXISTS announcements (
+        id VARCHAR(36) PRIMARY KEY,
+        title VARCHAR(150) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(20) DEFAULT 'update',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
