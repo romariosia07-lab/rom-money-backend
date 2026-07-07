@@ -182,6 +182,7 @@ switch($module) {
     case 'bank':        route_bank($action); break;
     case 'kyc':         route_kyc($action); break;
     case 'announce':    route_announce($action); break;
+    case 'admin':       route_admin($action); break;
     case 'export':      route_export($action); break;
     case 'health':
         ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
@@ -1262,6 +1263,118 @@ function announce_admin_create() {
     ok(['id'=>$id],'Annonce envoyee');
 }
 
+// ============================================================
+// ADMIN — outils reserves (protege par mot de passe, cf check_admin_password)
+// Chaque action sensible est journalisee dans audit_logs.
+// ============================================================
+function route_admin($action) {
+    match($action) {
+        'reset-pin'   => admin_reset_pin(),
+        'search-tx'   => admin_search_tx(),
+        'late-cancel' => admin_late_cancel(),
+        'audit-list'  => admin_audit_list(),
+        default       => fail('Action inconnue',404)
+    };
+}
+
+function admin_log($action, $result, $targetPhone, $details) {
+    q("INSERT INTO audit_logs (action,result,target_phone,details) VALUES (?,?,?,?)",
+      [$action,$result,$targetPhone,$details]);
+}
+
+function admin_reset_pin() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    $newPin = trim($b['new_pin']??'');
+    $reason = trim($b['reason']??'');
+    if(!preg_match('/^\d{6}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 6 chiffres');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u){
+        admin_log('pin_reset','failed',$phone,'Compte introuvable - '.$reason);
+        fail('Compte introuvable',404);
+    }
+    q("UPDATE users SET pin_hash=?, pin_attempts=0, pin_locked_until=NULL WHERE id=?",
+      [password_hash($newPin,PASSWORD_BCRYPT), $u['id']]);
+    admin_log('pin_reset','success',$phone,$reason);
+    ok(null,'PIN reinitialise avec succes (verrou anti-fraude aussi leve)');
+}
+
+function admin_search_tx() {
+    $b = body();
+    check_admin_password($b);
+    $ref = trim($b['reference']??'');
+    if(!$ref) fail('Reference requise');
+    $tx = q("SELECT t.*,
+        su.full_name sender_name, su.phone_number sender_phone,
+        ru.full_name receiver_name, ru.phone_number receiver_phone
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE t.reference=?",[$ref])->fetch();
+    if(!$tx) fail('Transaction introuvable',404);
+    ok(['transaction'=>$tx]);
+}
+
+// Annulation tardive - reserve admin, distincte de l'annulation utilisateur
+// (5 minutes, deja existante ailleurs). Limite stricte a 2 jours, meme pour
+// l'admin, et verifie que le destinataire a toujours le solde necessaire.
+function admin_late_cancel() {
+    $b = body();
+    check_admin_password($b);
+    $ref = trim($b['reference']??'');
+    $reason = trim($b['reason']??'');
+    if(!$ref) fail('Reference requise');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+
+    $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
+    if(!$tx){
+        admin_log('late_cancel','failed',null,'Ref introuvable: '.$ref.' - '.$reason);
+        fail('Transaction introuvable',404);
+    }
+    if($tx['status']!=='completed'){
+        admin_log('late_cancel','failed',null,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
+        fail('Cette transaction n\'est pas au statut "completed" (deja annulee ou en attente)');
+    }
+    if($tx['type']==='fee'){
+        fail('Impossible d\'annuler directement une ligne de frais');
+    }
+    if((time() - strtotime($tx['created_at'])) > 2*24*3600){
+        admin_log('late_cancel','failed',null,'Ref '.$ref.' - delai 2j depasse - '.$reason);
+        fail('Delai de 2 jours depasse : annulation tardive impossible, meme pour un admin');
+    }
+    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    if(!$sw || !$rw){
+        fail('Transaction sans les deux portefeuilles (depot/retrait banque) : annulation manuelle requise, pas via cet outil');
+    }
+    $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
+    if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
+        admin_log('late_cancel','failed',null,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
+        fail('Le destinataire n\'a plus assez de solde pour annuler automatiquement cette transaction');
+    }
+
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason='admin_late_cancel' WHERE id=?",[$tx['id']]);
+        admin_log('late_cancel','success',null,'Ref '.$ref.' - '.$reason);
+        db()->commit();
+        ok(null,'Transaction annulee avec succes');
+    } catch(Exception $e) {
+        db()->rollBack();
+        fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500);
+    }
+}
+
+function admin_audit_list() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")->fetchAll();
+    ok(['logs'=>$rows]);
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -1366,6 +1479,8 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
