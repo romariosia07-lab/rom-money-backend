@@ -1269,11 +1269,12 @@ function announce_admin_create() {
 // ============================================================
 function route_admin($action) {
     match($action) {
-        'reset-pin'   => admin_reset_pin(),
-        'search-tx'   => admin_search_tx(),
-        'late-cancel' => admin_late_cancel(),
-        'audit-list'  => admin_audit_list(),
-        default       => fail('Action inconnue',404)
+        'reset-pin'    => admin_reset_pin(),
+        'search-tx'    => admin_search_tx(),
+        'search-phone' => admin_search_by_phone(),
+        'late-cancel'  => admin_late_cancel(),
+        'audit-list'   => admin_audit_list(),
+        default        => fail('Action inconnue',404)
     };
 }
 
@@ -1315,6 +1316,30 @@ function admin_search_tx() {
         WHERE t.reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     ok(['transaction'=>$tx]);
+}
+
+// Liste les dernieres transactions d'un compte (par numero de telephone),
+// avec nom+numero du contact de chaque cote - permet de verifier que ce que
+// le client decrit au telephone correspond bien a une vraie transaction,
+// avant de chercher/annuler par reference.
+function admin_search_by_phone() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    if(!$phone) fail('Numero requis');
+    $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Compte introuvable',404);
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetchColumn();
+    $rows = q("SELECT t.*,
+        CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
+        su.full_name sender_name, su.phone_number sender_phone,
+        ru.full_name receiver_name, ru.phone_number receiver_phone
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'
+        ORDER BY t.created_at DESC LIMIT 30",[$wid,$wid,$wid])->fetchAll();
+    ok(['account_name'=>$u['full_name'],'transactions'=>$rows]);
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
