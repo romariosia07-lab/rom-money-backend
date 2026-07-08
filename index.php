@@ -1279,6 +1279,7 @@ function announce_admin_create() {
 // ============================================================
 function route_admin($action) {
     match($action) {
+        'login'             => admin_login_check(),
         'reset-pin'         => admin_reset_pin(),
         'search-tx'         => admin_search_tx(),
         'search-phone'      => admin_search_by_phone(),
@@ -1294,6 +1295,18 @@ function route_admin($action) {
 function admin_log($action, $result, $targetPhone, $details) {
     q("INSERT INTO audit_logs (action,result,target_phone,details) VALUES (?,?,?,?)",
       [$action,$result,$targetPhone,$details]);
+}
+
+function admin_login_check() {
+    $b = body();
+    $pw = (string)($b['admin_password'] ?? '');
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    if (!hash_equals(ADMIN_PASSWORD, $pw)) {
+        admin_log('admin_login','failed',null,'Tentative de connexion echouee'.($ip?' - IP: '.$ip:''));
+        fail('Mot de passe admin incorrect',401);
+    }
+    admin_log('admin_login','success',null,'Connexion reussie'.($ip?' - IP: '.$ip:''));
+    ok(null,'Connexion reussie');
 }
 
 function admin_reset_pin() {
@@ -1371,15 +1384,19 @@ function admin_late_cancel() {
         admin_log('late_cancel','failed',null,'Ref introuvable: '.$ref.' - '.$reason);
         fail('Transaction introuvable',404);
     }
+    $senderPhone = null;
+    if($tx['sender_wallet_id']){
+        $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() ?: null;
+    }
     if($tx['status']!=='completed'){
-        admin_log('late_cancel','failed',null,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
         fail('Cette transaction n\'est pas au statut "completed" (deja annulee ou en attente)');
     }
     if($tx['type']==='fee'){
         fail('Impossible d\'annuler directement une ligne de frais');
     }
     if((time() - strtotime($tx['created_at'])) > 2*24*3600){
-        admin_log('late_cancel','failed',null,'Ref '.$ref.' - delai 2j depasse - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' - delai 2j depasse - '.$reason);
         fail('Delai de 2 jours depasse : annulation tardive impossible, meme pour un admin');
     }
     $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
@@ -1388,7 +1405,7 @@ function admin_late_cancel() {
     }
     $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
     if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
-        admin_log('late_cancel','failed',null,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
         fail('Le destinataire n\'a plus assez de solde pour annuler automatiquement cette transaction');
     }
 
@@ -1397,7 +1414,7 @@ function admin_late_cancel() {
         q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason='admin_late_cancel' WHERE id=?",[$tx['id']]);
-        admin_log('late_cancel','success',null,'Ref '.$ref.' - '.$reason);
+        admin_log('late_cancel','success',$senderPhone,'Ref '.$ref.' - '.$reason);
         db()->commit();
         ok(null,'Transaction annulee avec succes');
     } catch(Exception $e) {
@@ -1446,7 +1463,7 @@ function admin_audit_get_rows() {
 }
 
 function admin_audit_action_label($a) {
-    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive'];
+    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin'];
     return $labels[$a] ?? $a;
 }
 function admin_audit_result_label($r) {
@@ -1523,18 +1540,50 @@ function admin_dashboard_stats() {
     $b = body();
     check_admin_password($b);
 
+    $period   = trim($b['period'] ?? 'today');
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo   = trim($b['date_to'] ?? '');
+
+    // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
     $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $todayVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
-    $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
+    $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
+
+    // Bloc "Periode selectionnee"
+    $where = "status='completed'";
+    $params = [];
+    if ($period==='7d') {
+        $where .= " AND created_at >= NOW() - INTERVAL '7 days'";
+    } elseif ($period==='month') {
+        $where .= " AND created_at >= date_trunc('month', CURRENT_DATE)";
+    } elseif ($period==='custom' && $dateFrom!=='' && $dateTo!=='') {
+        $where .= " AND created_at >= ? AND created_at <= ?";
+        $params[] = $dateFrom.' 00:00:00';
+        $params[] = $dateTo.' 23:59:59';
+    } elseif ($period==='all') {
+        // pas de condition supplementaire
+    } else {
+        $period = 'today';
+        $where .= " AND created_at >= CURRENT_DATE";
+    }
+
+    $periodVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type!='fee'", $params)->fetchColumn();
+    $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
+
+    $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
     $recentLogs  = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5")->fetchAll();
 
     ok([
-        'today_count'  => (int)$todayCount,
-        'today_volume' => (float)$todayVolume,
-        'total_volume' => (float)$totalVolume,
-        'kyc_pending'  => (int)$kycPending,
-        'recent_logs'  => $recentLogs
+        'today_count'    => (int)$todayCount,
+        'today_volume'   => (float)$todayVolume,
+        'today_fees'     => (float)$todayFees,
+        'kyc_pending'    => (int)$kycPending,
+        'period'         => $period,
+        'period_volume'  => (float)$periodVolume,
+        'period_fees'    => (float)$periodFees,
+        'total_volume'   => (float)$totalVolume,
+        'recent_logs'    => $recentLogs
     ]);
 }
 
