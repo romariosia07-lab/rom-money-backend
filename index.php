@@ -1396,7 +1396,20 @@ function admin_late_cancel() {
 function admin_audit_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")->fetchAll();
+    $actionFilter = trim($b['action_filter'] ?? '');
+    $phoneFilter  = trim($b['phone_filter'] ?? '');
+    $dateFrom     = trim($b['date_from'] ?? '');
+    $dateTo       = trim($b['date_to'] ?? '');
+
+    $sql = "SELECT * FROM audit_logs WHERE 1=1";
+    $params = [];
+    if ($actionFilter !== '') { $sql .= " AND action = ?"; $params[] = $actionFilter; }
+    if ($phoneFilter !== '')  { $sql .= " AND target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
+    if ($dateFrom !== '')     { $sql .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if ($dateTo !== '')       { $sql .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    $sql .= " ORDER BY created_at DESC LIMIT 100";
+
+    $rows = q($sql, $params)->fetchAll();
     ok(['logs'=>$rows]);
 }
 
