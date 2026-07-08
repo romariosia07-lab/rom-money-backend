@@ -55,6 +55,11 @@ function auth() {
     if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
     $pl = jwt_check(substr($h,7));
     if(!$pl) fail('Token invalide ou expire',401);
+    // Verifie le statut du compte a CHAQUE appel authentifie, pas seulement
+    // au login, pour qu'un blocage admin coupe l'acces immediatement meme
+    // si l'utilisateur a deja un token valide en cours de session.
+    $status = q("SELECT status FROM users WHERE id=?",[$pl['sub']])->fetchColumn();
+    if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
     return $pl;
 }
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
@@ -1290,6 +1295,9 @@ function route_admin($action) {
         'audit-export-pdf'  => admin_audit_export_pdf(),
         'countries-list'    => admin_countries_list(),
         'country-toggle'    => admin_country_toggle(),
+        'account-status'    => admin_account_status(),
+        'block-account'     => admin_block_account(),
+        'unblock-account'   => admin_unblock_account(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -1465,7 +1473,7 @@ function admin_audit_get_rows() {
 }
 
 function admin_audit_action_label($a) {
-    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin','country_toggle'=>'Pays actif/inactif'];
+    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin','country_toggle'=>'Pays actif/inactif','account_block'=>'Blocage de compte','account_unblock'=>'Deblocage de compte'];
     return $labels[$a] ?? $a;
 }
 function admin_audit_result_label($r) {
@@ -1607,6 +1615,56 @@ function admin_country_toggle() {
     q("UPDATE active_countries SET is_active=?, updated_at=NOW() WHERE name=?",[$newStatus,$name]);
     admin_log('country_toggle','success',null,($newStatus?'Activation':'Désactivation').' pays : '.$name);
     ok(['name'=>$name,'is_active'=>(bool)$newStatus],'Statut du pays mis a jour');
+}
+
+function admin_account_status() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone'] ?? '');
+    if(!$phone) fail('Telephone requis');
+    $u = q("SELECT status FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Compte introuvable',404);
+    ok(['phone'=>$phone,'status'=>$u['status']]);
+}
+
+function admin_block_account() {
+    $b = body();
+    check_admin_password($b);
+    $phone  = trim($b['phone'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$phone || !$reason) fail('Telephone et raison requis');
+    $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u){
+        admin_log('account_block','failed',$phone,'Compte introuvable');
+        fail('Compte introuvable',404);
+    }
+    if($u['status']==='blocked'){
+        admin_log('account_block','failed',$phone,'Deja bloque - '.$reason);
+        fail('Ce compte est deja bloque');
+    }
+    q("UPDATE users SET status='blocked' WHERE id=?",[$u['id']]);
+    admin_log('account_block','success',$phone,$reason);
+    ok(null,'Compte bloque avec succes');
+}
+
+function admin_unblock_account() {
+    $b = body();
+    check_admin_password($b);
+    $phone  = trim($b['phone'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$phone || !$reason) fail('Telephone et raison requis');
+    $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u){
+        admin_log('account_unblock','failed',$phone,'Compte introuvable');
+        fail('Compte introuvable',404);
+    }
+    if($u['status']==='active'){
+        admin_log('account_unblock','failed',$phone,'Deja actif - '.$reason);
+        fail('Ce compte est deja actif');
+    }
+    q("UPDATE users SET status='active' WHERE id=?",[$u['id']]);
+    admin_log('account_unblock','success',$phone,$reason);
+    ok(null,'Compte debloque avec succes');
 }
 
 // INSTALL
