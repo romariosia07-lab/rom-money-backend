@@ -1009,12 +1009,16 @@ function kyc_submit() {
     $pl = auth(); $b = body();
     $recto = trim($b['photo_recto']??'');
     $verso = trim($b['photo_verso']??'');
-    $legalName = trim($b['legal_name']??'');
+    $legalPrenom = trim($b['legal_prenom']??'');
+    $legalNom = trim($b['legal_nom']??'');
     $legalBirthdate = trim($b['legal_birthdate']??'');
-    $ocrName = trim($b['ocr_name']??'');
+    $ocrPrenom = trim($b['ocr_prenom']??'');
+    $ocrNom = trim($b['ocr_nom']??'');
     $ocrBirthdate = trim($b['ocr_birthdate']??'');
     if(!$recto || !$verso) fail('Recto et verso requis');
-    if(!$legalName) fail('Le nom complet exact (piece d\'identite) est requis');
+    if(!$legalPrenom || !$legalNom) fail('Le prenom et le nom exacts (piece d\'identite) sont requis');
+    $legalName = trim($legalPrenom.' '.$legalNom);
+    $ocrName = trim($ocrPrenom.' '.$ocrNom);
 
     $existing = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$pl['sub']])->fetch();
     if($existing) fail('Une demande est deja en attente de verification');
@@ -1022,8 +1026,8 @@ function kyc_submit() {
     $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
 
     $id = uid();
-    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_birthdate,ocr_name,ocr_birthdate,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,'pending')",
-      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalBirthdate?:null,$ocrName?:null,$ocrBirthdate?:null,$recto,$verso]);
+    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
+      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,$recto,$verso]);
     ok(['id'=>$id],'Demande envoyee, en attente de verification');
 }
 
@@ -1036,7 +1040,7 @@ function kyc_status() {
 function kyc_admin_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_birthdate,ocr_name,ocr_birthdate,photo_recto,photo_verso,status,created_at
+    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status,created_at
         FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
     ok(['requests'=>$rows]);
 }
@@ -1761,8 +1765,12 @@ function route_install() {
         reviewed_at TIMESTAMP
     )",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS legal_name VARCHAR(150)",
+    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS legal_prenom VARCHAR(100)",
+    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS legal_nom VARCHAR(100)",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS legal_birthdate VARCHAR(20)",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_name VARCHAR(150)",
+    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_prenom VARCHAR(100)",
+    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_nom VARCHAR(100)",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_birthdate VARCHAR(20)",
     "CREATE TABLE IF NOT EXISTS linked_banks (
         id VARCHAR(36) PRIMARY KEY,
