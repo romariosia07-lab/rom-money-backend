@@ -1288,6 +1288,8 @@ function route_admin($action) {
         'dashboard-stats'   => admin_dashboard_stats(),
         'audit-export-csv'  => admin_audit_export_csv(),
         'audit-export-pdf'  => admin_audit_export_pdf(),
+        'countries-list'    => admin_countries_list(),
+        'country-toggle'    => admin_country_toggle(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -1463,7 +1465,7 @@ function admin_audit_get_rows() {
 }
 
 function admin_audit_action_label($a) {
-    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin'];
+    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin','country_toggle'=>'Pays actif/inactif'];
     return $labels[$a] ?? $a;
 }
 function admin_audit_result_label($r) {
@@ -1585,6 +1587,26 @@ function admin_dashboard_stats() {
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs
     ]);
+}
+
+function admin_countries_list() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT name,is_active FROM active_countries ORDER BY is_active DESC, name ASC")->fetchAll();
+    ok(['countries'=>$rows]);
+}
+
+function admin_country_toggle() {
+    $b = body();
+    check_admin_password($b);
+    $name = trim($b['name'] ?? '');
+    if(!$name) fail('Pays requis');
+    $row = q("SELECT is_active FROM active_countries WHERE name=?",[$name])->fetch();
+    if(!$row) fail('Pays introuvable',404);
+    $newStatus = $row['is_active'] ? 0 : 1;
+    q("UPDATE active_countries SET is_active=?, updated_at=NOW() WHERE name=?",[$newStatus,$name]);
+    admin_log('country_toggle','success',null,($newStatus?'Activation':'Désactivation').' pays : '.$name);
+    ok(['name'=>$name,'is_active'=>(bool)$newStatus],'Statut du pays mis a jour');
 }
 
 // INSTALL
@@ -1715,6 +1737,12 @@ function route_install() {
         pays VARCHAR(100) NOT NULL,
         email VARCHAR(150),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS active_countries (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        is_active SMALLINT DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"
     ];
 
@@ -1728,5 +1756,25 @@ function route_install() {
             fail('Erreur SQL: '.$e->getMessage(), 500);
         }
     }
+
+    // Peuple la liste des pays (seule la Cote d'Ivoire active au depart).
+    // Idempotent grace a ON CONFLICT DO NOTHING : ne touche pas aux pays
+    // deja actives manuellement par l'admin lors des installs suivants.
+    $allCountries = [
+        "Côte d'Ivoire",'Sénégal','Mali','Burkina Faso','Niger','Togo','Bénin',
+        'Guinée-Bissau','Cameroun','Congo-Brazzaville','Gabon','Centrafrique','Tchad',
+        'Guinée Équatoriale','Comores','Algérie','Angola','Burundi','Botswana',
+        'Congo-Kinshasa','Djibouti','Égypte','Érythrée','Éthiopie','Ghana',
+        'Guinée Conakry','Kenya','Lesotho','Liberia','Libye','Madagascar','Malawi',
+        'Mauritanie','Maurice','Maroc','Mozambique','Namibie','Nigeria','Rwanda',
+        'São Tomé','Seychelles','Sierra Leone','Somalie','Afrique du Sud',
+        'Soudan du Sud','Soudan','Eswatini','Tanzanie','Tunisie','Ouganda','Zambie',
+        'Zimbabwe'
+    ];
+    foreach($allCountries as $c){
+        $isActive = ($c === "Côte d'Ivoire") ? 1 : 0;
+        q("INSERT INTO active_countries (name,is_active) VALUES (?,?) ON CONFLICT (name) DO NOTHING",[$c,$isActive]);
+    }
+
     ok(['tables_created'=>$created],'Installation terminee ! Toutes les tables ont ete creees.');
 }
