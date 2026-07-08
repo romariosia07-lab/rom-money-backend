@@ -702,8 +702,8 @@ function tx_history() {
     elseif($fil==='cancelled'){$where.=" AND t.status='cancelled'";}
     $txs = db()->prepare("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
-        su.full_name sender_name, su.phone_number sender_phone,
-        ru.full_name receiver_name, ru.phone_number receiver_phone
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
@@ -769,12 +769,13 @@ function profile_referral_status() {
 
 function profile_get() {
     $pl = auth();
-    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,u.verified_name,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
     if(!$u) fail('Introuvable',404);
     ok(['id'=>$u['id'],'name'=>$u['full_name'],'phone'=>$u['phone_number'],'email'=>$u['email'],
         'operator'=>$u['operator'],'bio_enabled'=>(bool)$u['bio_enabled'],'is_kyc'=>(bool)$u['is_kyc'],
         'status'=>$u['status'],'member_since'=>$u['created_at'],'wallet_id'=>$u['wid'],'photo_url'=>$u['photo_url'],
-        'notif_tx'=>(bool)($u['notif_tx']??true),'notif_promo'=>(bool)($u['notif_promo']??true)]);
+        'notif_tx'=>(bool)($u['notif_tx']??true),'notif_promo'=>(bool)($u['notif_promo']??true),
+        'legal_name'=>$u['verified_name']]);
 }
 
 function profile_update() {
@@ -1008,7 +1009,9 @@ function kyc_submit() {
     $pl = auth(); $b = body();
     $recto = trim($b['photo_recto']??'');
     $verso = trim($b['photo_verso']??'');
+    $legalName = trim($b['legal_name']??'');
     if(!$recto || !$verso) fail('Recto et verso requis');
+    if(!$legalName) fail('Le nom complet exact (piece d\'identite) est requis');
 
     $existing = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$pl['sub']])->fetch();
     if($existing) fail('Une demande est deja en attente de verification');
@@ -1016,8 +1019,8 @@ function kyc_submit() {
     $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
 
     $id = uid();
-    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,'pending')",
-      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$recto,$verso]);
+    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,'pending')",
+      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$recto,$verso]);
     ok(['id'=>$id],'Demande envoyee, en attente de verification');
 }
 
@@ -1030,7 +1033,7 @@ function kyc_status() {
 function kyc_admin_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,user_id,phone_number,full_name,photo_recto,photo_verso,status,created_at
+    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,photo_recto,photo_verso,status,created_at
         FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
     ok(['requests'=>$rows]);
 }
@@ -1049,10 +1052,10 @@ function kyc_admin_approve() {
     check_admin_password($b);
     $id = trim($b['id']??'');
     if(!$id) fail('ID requis');
-    $r = q("SELECT user_id FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    $r = q("SELECT user_id,legal_name FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
     q("UPDATE kyc_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
-    q("UPDATE users SET is_kyc=1 WHERE id=?",[$r['user_id']]);
+    q("UPDATE users SET is_kyc=1, verified_name=? WHERE id=?",[$r['legal_name'],$r['user_id']]);
     ok(null,'Compte verifie avec succes');
 }
 
@@ -1099,8 +1102,8 @@ function export_get_rows($pl, $period, $from=null, $to=null) {
     $LIMIT = 5000; // plafond de securite, quelle que soit la periode choisie
     $sql = "SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
-        su.full_name sender_name, su.phone_number sender_phone,
-        ru.full_name receiver_name, ru.phone_number receiver_phone
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
@@ -1144,7 +1147,7 @@ function export_csv() {
         $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
         $frais = max(0, $amount - $net);
         $montant = $isDebit ? -$amount : $net;
-        $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
+        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
         fputcsv($out, [
             date('d/m/Y H:i', strtotime($t['created_at'])),
             export_type_label($t['type'], $isDebit),
@@ -1174,7 +1177,7 @@ function export_pdf() {
     $to = $_GET['to']??null;
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
-    $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE id=?",[$pl['sub']])->fetch();
 
     $periodeLabel = 'Ce mois';
     if($period==='all') $periodeLabel = "Tout l'historique";
@@ -1194,7 +1197,7 @@ function export_pdf() {
         $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
     }
     $pdf->SetFont('Arial','',10);
-    $pdf->Cell(150,6,pdf_str('Titulaire : '.($u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
+    $pdf->Cell(150,6,pdf_str('Titulaire : '.($u['verified_name']?:$u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
     $pdf->Cell(150,6,pdf_str('Periode : '.$periodeLabel),0,1);
     $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
     if(file_exists($logoPath)){
@@ -1221,7 +1224,7 @@ function export_pdf() {
         $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
         $frais = max(0, $amount - $net);
         $montant = $isDebit ? -$amount : $net;
-        $contact = $isDebit ? ($t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_name']?:$t['sender_phone']?:'-');
+        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit)),1);
@@ -1344,8 +1347,8 @@ function admin_search_tx() {
     $ref = trim($b['reference']??'');
     if(!$ref) fail('Reference requise');
     $tx = q("SELECT t.*,
-        su.full_name sender_name, su.phone_number sender_phone,
-        ru.full_name receiver_name, ru.phone_number receiver_phone
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
@@ -1363,19 +1366,19 @@ function admin_search_by_phone() {
     check_admin_password($b);
     $phone = trim($b['phone']??'');
     if(!$phone) fail('Numero requis');
-    $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,full_name,verified_name FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetchColumn();
     $rows = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
-        su.full_name sender_name, su.phone_number sender_phone,
-        ru.full_name receiver_name, ru.phone_number receiver_phone
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'
         ORDER BY t.created_at DESC LIMIT 30",[$wid,$wid,$wid])->fetchAll();
-    ok(['account_name'=>$u['full_name'],'transactions'=>$rows]);
+    ok(['account_name'=>$u['verified_name']?:$u['full_name'],'account_verified'=>!empty($u['verified_name']),'transactions'=>$rows]);
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
@@ -1729,6 +1732,7 @@ function route_install() {
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_promo BOOLEAN DEFAULT true",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code VARCHAR(20)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by VARCHAR(36)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_name VARCHAR(150)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code)",
     "CREATE TABLE IF NOT EXISTS referral_bonuses (
         id VARCHAR(36) PRIMARY KEY,
@@ -1745,12 +1749,14 @@ function route_install() {
         user_id VARCHAR(36) NOT NULL,
         phone_number VARCHAR(20),
         full_name VARCHAR(150),
+        legal_name VARCHAR(150),
         photo_recto TEXT,
         photo_verso TEXT,
         status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         reviewed_at TIMESTAMP
     )",
+    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS legal_name VARCHAR(150)",
     "CREATE TABLE IF NOT EXISTS linked_banks (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
