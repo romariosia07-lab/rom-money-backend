@@ -983,12 +983,13 @@ function bank_withdraw() {
 // ============================================================
 function route_kyc($action) {
     match($action) {
-        'submit'        => kyc_submit(),
-        'status'        => kyc_status(),
-        'admin_list'    => kyc_admin_list(),
-        'admin_approve' => kyc_admin_approve(),
-        'admin_reject'  => kyc_admin_reject(),
-        default         => fail('Action inconnue',404)
+        'submit'             => kyc_submit(),
+        'status'             => kyc_status(),
+        'admin_list'         => kyc_admin_list(),
+        'admin_approve'      => kyc_admin_approve(),
+        'admin_reject'       => kyc_admin_reject(),
+        'admin_pending_count'=> kyc_pending_count(),
+        default              => fail('Action inconnue',404)
     };
 }
 
@@ -1027,6 +1028,15 @@ function kyc_admin_list() {
     $rows = q("SELECT id,user_id,phone_number,full_name,photo_recto,photo_verso,status,created_at
         FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
     ok(['requests'=>$rows]);
+}
+
+// Route legere dediee au comptage, pour le badge de notification admin -
+// evite de retelecharger toutes les photos recto/verso a chaque poll.
+function kyc_pending_count() {
+    $b = body();
+    check_admin_password($b);
+    $count = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
+    ok(['count'=>(int)$count]);
 }
 
 function kyc_admin_approve() {
@@ -1269,12 +1279,15 @@ function announce_admin_create() {
 // ============================================================
 function route_admin($action) {
     match($action) {
-        'reset-pin'    => admin_reset_pin(),
-        'search-tx'    => admin_search_tx(),
-        'search-phone' => admin_search_by_phone(),
-        'late-cancel'  => admin_late_cancel(),
-        'audit-list'   => admin_audit_list(),
-        default        => fail('Action inconnue',404)
+        'reset-pin'         => admin_reset_pin(),
+        'search-tx'         => admin_search_tx(),
+        'search-phone'      => admin_search_by_phone(),
+        'late-cancel'       => admin_late_cancel(),
+        'audit-list'        => admin_audit_list(),
+        'dashboard-stats'   => admin_dashboard_stats(),
+        'audit-export-csv'  => admin_audit_export_csv(),
+        'audit-export-pdf'  => admin_audit_export_pdf(),
+        default             => fail('Action inconnue',404)
     };
 }
 
@@ -1411,6 +1424,118 @@ function admin_audit_list() {
 
     $rows = q($sql, $params)->fetchAll();
     ok(['logs'=>$rows]);
+}
+
+function admin_audit_get_rows() {
+    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
+        fail('Mot de passe admin incorrect',401);
+    }
+    $actionFilter = trim($_GET['action_filter'] ?? '');
+    $phoneFilter  = trim($_GET['phone_filter'] ?? '');
+    $dateFrom     = trim($_GET['date_from'] ?? '');
+    $dateTo       = trim($_GET['date_to'] ?? '');
+
+    $sql = "SELECT * FROM audit_logs WHERE 1=1";
+    $params = [];
+    if ($actionFilter !== '') { $sql .= " AND action = ?"; $params[] = $actionFilter; }
+    if ($phoneFilter !== '')  { $sql .= " AND target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
+    if ($dateFrom !== '')     { $sql .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if ($dateTo !== '')       { $sql .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    $sql .= " ORDER BY created_at DESC LIMIT 100";
+    return q($sql, $params)->fetchAll();
+}
+
+function admin_audit_action_label($a) {
+    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive'];
+    return $labels[$a] ?? $a;
+}
+function admin_audit_result_label($r) {
+    $labels = ['success'=>'Succes','failed'=>'Echec'];
+    return $labels[$r] ?? $r;
+}
+
+function admin_audit_export_csv() {
+    $rows = admin_audit_get_rows();
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="rom_money_journal_audit.csv"');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output','w');
+    fputcsv($out, ['Date','Action','Resultat','Compte','Details'], ';');
+    foreach($rows as $l){
+        fputcsv($out, [
+            date('d/m/Y H:i', strtotime($l['created_at'])),
+            admin_audit_action_label($l['action']),
+            admin_audit_result_label($l['result']),
+            $l['target_phone'] ?: '-',
+            $l['details'] ?: ''
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
+function admin_audit_export_pdf() {
+    $rows = admin_audit_get_rows();
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,pdf_str('ROM_MONEY - Journal d\'audit admin'),0,1);
+    $infoTopY = $pdf->GetY();
+    $logoPath = __DIR__.'/logo.png';
+    if(file_exists($logoPath)){
+        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+    }
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    $pdf->Cell(150,6,pdf_str($rows ? count($rows).' action(s) journalisee(s)' : 'Aucune action'),0,1);
+    if(file_exists($logoPath)){
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+    }
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $w = [26,38,22,30,74];
+    $headers = ['Date','Action','Resultat','Compte','Details'];
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
+    $pdf->Ln();
+
+    $pdf->SetFont('Arial','',8);
+    foreach($rows as $l){
+        $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($l['created_at'])),1);
+        $pdf->Cell($w[1],7,pdf_str(admin_audit_action_label($l['action'])),1);
+        $pdf->Cell($w[2],7,pdf_str(admin_audit_result_label($l['result'])),1);
+        $pdf->Cell($w[3],7,pdf_str($l['target_phone'] ?: '-'),1);
+        $pdf->Cell($w[4],7,substr(pdf_str($l['details'] ?: ''),0,58),1);
+        $pdf->Ln();
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_money_journal_audit.pdf"');
+    echo $pdf->Output('S');
+    exit;
+}
+
+function admin_dashboard_stats() {
+    $b = body();
+    check_admin_password($b);
+
+    $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
+    $todayVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
+    $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
+    $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
+    $recentLogs  = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5")->fetchAll();
+
+    ok([
+        'today_count'  => (int)$todayCount,
+        'today_volume' => (float)$todayVolume,
+        'total_volume' => (float)$totalVolume,
+        'kyc_pending'  => (int)$kycPending,
+        'recent_logs'  => $recentLogs
+    ]);
 }
 
 // INSTALL
