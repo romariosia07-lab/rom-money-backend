@@ -991,6 +991,7 @@ function route_kyc($action) {
     match($action) {
         'submit'             => kyc_submit(),
         'status'             => kyc_status(),
+        'ocr-extract'        => kyc_ocr_extract(),
         'admin_list'         => kyc_admin_list(),
         'admin_approve'      => kyc_admin_approve(),
         'admin_reject'       => kyc_admin_reject(),
@@ -1015,7 +1016,6 @@ function kyc_submit() {
     $ocrPrenom = trim($b['ocr_prenom']??'');
     $ocrNom = trim($b['ocr_nom']??'');
     $ocrBirthdate = trim($b['ocr_birthdate']??'');
-    $ocrRawText = trim($b['ocr_raw_text']??'');
     if(!$recto || !$verso) fail('Recto et verso requis');
     if(!$legalPrenom || !$legalNom) fail('Le prenom et le nom exacts (piece d\'identite) sont requis');
     $legalName = trim($legalPrenom.' '.$legalNom);
@@ -1027,8 +1027,8 @@ function kyc_submit() {
     $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
 
     $id = uid();
-    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,ocr_raw_text,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
-      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,$ocrRawText?:null,$recto,$verso]);
+    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
+      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,$recto,$verso]);
     ok(['id'=>$id],'Demande envoyee, en attente de verification');
 }
 
@@ -1038,10 +1038,143 @@ function kyc_status() {
     ok(['request'=>$r?:null]);
 }
 
+// ═══════════════════════════════════════════
+// KYC - OCR via Google Cloud Vision (lecture de la CNI)
+// ═══════════════════════════════════════════
+function google_vision_ocr($imageBase64) {
+    $apiKey = getenv('GOOGLE_VISION_API_KEY');
+    if(!$apiKey) return null;
+    if(strpos($imageBase64, 'base64,') !== false) {
+        $imageBase64 = substr($imageBase64, strpos($imageBase64, 'base64,')+7);
+    }
+    $payload = json_encode([
+        'requests' => [[
+            'image' => ['content' => $imageBase64],
+            'features' => [['type' => 'DOCUMENT_TEXT_DETECTION']],
+            'imageContext' => ['languageHints' => ['fr']]
+        ]]
+    ]);
+    $ch = curl_init('https://vision.googleapis.com/v1/images:annotate?key='.$apiKey);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+    if($curlErr || !$response || $httpCode !== 200) return null;
+    $data = json_decode($response, true);
+    return $data['responses'][0]['fullTextAnnotation']['text'] ?? null;
+}
+
+// --- Logique d'extraction portee depuis la version JS (Tesseract.js),
+// affinee sur de vrais textes OCR reels au fil de plusieurs iterations :
+// tolerance aux deformations de "Prenom(s)", recherche du "Nom" totalement
+// independante (au cas ou le prenom n'ait pas ete localise), nettoyage du
+// bruit court colle devant les valeurs, et date de naissance filtree par
+// plausibilite pour ne jamais confondre avec la date d'expiration.
+function kyc_clean_chunk($s) {
+    $s = str_replace("\n", ' ', $s ?? '');
+    $s = preg_replace('/[^A-Za-zÀ-ÿ\'\s-]/u', ' ', $s);
+    $s = preg_replace('/\s+/', ' ', $s);
+    return trim($s ?? '');
+}
+function kyc_strip_leading_noise($s) {
+    $words = array_values(array_filter(explode(' ', $s), fn($w)=>$w!==''));
+    while(count($words) > 1 && mb_strlen(preg_replace('/[^A-Za-zÀ-ÿ]/u', '', $words[0])) <= 2) {
+        array_shift($words);
+    }
+    return implode(' ', $words);
+}
+function kyc_capture_after($t, $fromIdx, $endPattern, $maxLen=25) {
+    $windowEnd = min(strlen($t), $fromIdx + $maxLen);
+    $rest = substr($t, $fromIdx, max(0,$windowEnd - $fromIdx));
+    if(preg_match($endPattern, $rest, $m, PREG_OFFSET_CAPTURE)) {
+        return ['value'=>substr($rest,0,$m[0][1]), 'nextIdx'=>$fromIdx+$m[0][1]+strlen($m[0][0]), 'found'=>true];
+    }
+    $firstNl = strpos($rest, "\n");
+    if($firstNl === false) return ['value'=>trim($rest), 'nextIdx'=>$fromIdx+strlen($rest), 'found'=>false];
+    $afterFirstLine = substr($rest, $firstNl+1);
+    $secondNl = strpos($afterFirstLine, "\n");
+    $value = $secondNl !== false ? substr($afterFirstLine,0,$secondNl) : $afterFirstLine;
+    $nextIdx = $fromIdx + $firstNl + 1 + ($secondNl !== false ? $secondNl : strlen($afterFirstLine));
+    return ['value'=>$value, 'nextIdx'=>$nextIdx, 'found'=>false];
+}
+function kyc_find_standalone_nom($t) {
+    if(preg_match_all('/\bnom\b/iu', $t, $matches, PREG_OFFSET_CAPTURE)) {
+        foreach($matches[0] as $m) {
+            $idx=$m[1];
+            $before=mb_strtolower(substr($t, max(0,$idx-3), min(3,$idx)));
+            if(preg_match('/pr[ée]$/u', $before)) continue;
+            return ['index'=>$idx, 'length'=>strlen($m[0])];
+        }
+    }
+    return null;
+}
+function kyc_pad_date($d) {
+    if(!$d) return $d;
+    $p=explode('/',$d);
+    if(count($p)!==3) return $d;
+    return str_pad($p[0],2,'0',STR_PAD_LEFT).'/'.str_pad($p[1],2,'0',STR_PAD_LEFT).'/'.$p[2];
+}
+function kyc_extract_birthdate($t) {
+    if(preg_match('/naissance[\s\S]{0,45}?(\d{1,2}\/\d{1,2}\/\d{4})/iu', $t, $m)) return kyc_pad_date($m[1]);
+    if(!preg_match_all('/\d{1,2}\/\d{1,2}\/\d{4}/', $t, $matches, PREG_OFFSET_CAPTURE)) return null;
+    if(empty($matches[0])) return null;
+    $expIdx=null;
+    if(preg_match('/expiration/iu', $t, $em, PREG_OFFSET_CAPTURE)) $expIdx=$em[0][1];
+    $currentYear=(int)date('Y');
+    foreach($matches[0] as $dm){
+        $val=$dm[0]; $idx=$dm[1];
+        $parts=explode('/',$val);
+        $year=(int)$parts[2];
+        $tooRecent=$year>=$currentYear-5;
+        $afterExpiration=$expIdx!==null && $idx>=$expIdx;
+        if(!$tooRecent && !$afterExpiration) return kyc_pad_date($val);
+    }
+    return null;
+}
+function kyc_parse_cni_text($text) {
+    $norm = preg_replace('/[\\\\_|~]/', ' ', $text);
+    $prenom=null; $nom=null;
+    if(preg_match('/pr[ée]n[o0]r?m\W*f?s?\)?/iu', $norm, $pm, PREG_OFFSET_CAPTURE)) {
+        $pmIdx=$pm[0][1]+strlen($pm[0][0]);
+        $res1=kyc_capture_after($norm, $pmIdx, '/\bnom\b/iu', 25);
+        $prenom=kyc_strip_leading_noise(mb_strtoupper(kyc_clean_chunk($res1['value'])));
+        if($res1['found']){
+            $res2=kyc_capture_after($norm, $res1['nextIdx'], '/date\s*de\s*naissance|sexe|nationalit/iu', 25);
+            $nom=kyc_strip_leading_noise(mb_strtoupper(kyc_clean_chunk($res2['value'])));
+        }
+    }
+    $sm=kyc_find_standalone_nom($norm);
+    if($sm){
+        $res3=kyc_capture_after($norm, $sm['index']+$sm['length'], '/date\s*de\s*naissance|sexe|nationalit/iu', 25);
+        $standaloneNom=kyc_strip_leading_noise(mb_strtoupper(kyc_clean_chunk($res3['value'])));
+        if(strlen($standaloneNom)>($nom?strlen($nom):0)) $nom=$standaloneNom;
+    }
+    $birthdate=kyc_extract_birthdate($text);
+    return ['prenom'=>$prenom?:null, 'nom'=>$nom?:null, 'birthdate'=>$birthdate];
+}
+function kyc_ocr_extract() {
+    auth();
+    $b = body();
+    $recto = trim($b['photo_recto'] ?? '');
+    if(!$recto) fail('Photo recto requise');
+    $rawText = google_vision_ocr($recto);
+    if(!$rawText) {
+        ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>''], 'OCR indisponible pour le moment, saisie manuelle requise');
+        return;
+    }
+    $parsed = kyc_parse_cni_text($rawText);
+    ok(['prenom'=>$parsed['prenom'],'nom'=>$parsed['nom'],'birthdate'=>$parsed['birthdate'],'raw_text'=>$rawText]);
+}
+
 function kyc_admin_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,ocr_raw_text,photo_recto,photo_verso,status,created_at
+    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status,created_at
         FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
     ok(['requests'=>$rows]);
 }
@@ -1773,7 +1906,6 @@ function route_install() {
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_prenom VARCHAR(100)",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_nom VARCHAR(100)",
     "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_birthdate VARCHAR(20)",
-    "ALTER TABLE kyc_requests ADD COLUMN IF NOT EXISTS ocr_raw_text TEXT",
     "CREATE TABLE IF NOT EXISTS linked_banks (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
