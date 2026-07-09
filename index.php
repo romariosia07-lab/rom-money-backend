@@ -1043,7 +1043,7 @@ function kyc_status() {
 // ═══════════════════════════════════════════
 function google_vision_ocr($imageBase64) {
     $apiKey = getenv('GOOGLE_VISION_API_KEY');
-    if(!$apiKey) return null;
+    if(!$apiKey) return ['text'=>null, 'error'=>'GOOGLE_VISION_API_KEY absente des variables d\'environnement'];
     if(strpos($imageBase64, 'base64,') !== false) {
         $imageBase64 = substr($imageBase64, strpos($imageBase64, 'base64,')+7);
     }
@@ -1064,9 +1064,16 @@ function google_vision_ocr($imageBase64) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr = curl_error($ch);
     curl_close($ch);
-    if($curlErr || !$response || $httpCode !== 200) return null;
+    if($curlErr) return ['text'=>null, 'error'=>'Erreur cURL: '.$curlErr];
+    if(!$response) return ['text'=>null, 'error'=>'Reponse vide de Google Vision (HTTP '.$httpCode.')'];
+    if($httpCode !== 200) return ['text'=>null, 'error'=>'HTTP '.$httpCode.' - '.substr($response,0,500)];
     $data = json_decode($response, true);
-    return $data['responses'][0]['fullTextAnnotation']['text'] ?? null;
+    if(isset($data['responses'][0]['error'])) {
+        return ['text'=>null, 'error'=>'Erreur Vision API: '.json_encode($data['responses'][0]['error'])];
+    }
+    $text = $data['responses'][0]['fullTextAnnotation']['text'] ?? null;
+    if(!$text) return ['text'=>null, 'error'=>'Aucun texte detecte. Reponse brute: '.substr($response,0,500)];
+    return ['text'=>$text, 'error'=>null];
 }
 
 // --- Logique d'extraction portee depuis la version JS (Tesseract.js),
@@ -1162,13 +1169,13 @@ function kyc_ocr_extract() {
     $b = body();
     $recto = trim($b['photo_recto'] ?? '');
     if(!$recto) fail('Photo recto requise');
-    $rawText = google_vision_ocr($recto);
-    if(!$rawText) {
-        ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>''], 'OCR indisponible pour le moment, saisie manuelle requise');
+    $result = google_vision_ocr($recto);
+    if(!$result['text']) {
+        ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>'[DIAGNOSTIC] '.($result['error']?:'Erreur inconnue')], 'OCR indisponible pour le moment, saisie manuelle requise');
         return;
     }
-    $parsed = kyc_parse_cni_text($rawText);
-    ok(['prenom'=>$parsed['prenom'],'nom'=>$parsed['nom'],'birthdate'=>$parsed['birthdate'],'raw_text'=>$rawText]);
+    $parsed = kyc_parse_cni_text($result['text']);
+    ok(['prenom'=>$parsed['prenom'],'nom'=>$parsed['nom'],'birthdate'=>$parsed['birthdate'],'raw_text'=>$result['text']]);
 }
 
 function kyc_admin_list() {
