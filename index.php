@@ -203,8 +203,17 @@ function route_auth($action) {
         'login'      => auth_login(),
         'logout'     => auth_logout(),
         'change-pin' => auth_change_pin(),
+        'countries'  => auth_active_countries(),
         default      => fail('Action inconnue',404)
     };
+}
+
+// Route publique (pas d'authentification requise) : liste des pays actifs,
+// utilisee pour le formulaire d'inscription avant que l'utilisateur ait un
+// compte, et aussi reutilisable pour l'ecran Transfert Afrique une fois connecte.
+function auth_active_countries() {
+    $rows = q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll();
+    ok(['countries' => array_column($rows, 'name')]);
 }
 
 function generate_referral_code() {
@@ -222,10 +231,14 @@ function auth_register() {
     $pin   = trim($b['pin']       ?? '');
     $email = trim($b['email']     ?? '');
     $op    = trim($b['operator']  ?? '');
+    $country = trim($b['country'] ?? '');
     $refCodeInput = trim($b['referral_code'] ?? '');
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
+    if(!$country) fail('Le pays est requis');
+    $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+    if(!$countryRow || !$countryRow['is_active']) fail('ROM_MONEY n\'est pas encore disponible dans ce pays');
     $exist = q("SELECT id FROM users WHERE phone_number=?", [$phone])->fetch();
     if($exist) fail('Ce numero est deja enregistre');
 
@@ -245,8 +258,8 @@ function auth_register() {
         $pinh   = password_hash($pin, PASSWORD_BCRYPT);
         $passh  = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
         $myReferralCode = generate_referral_code();
-        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash,referral_code,referred_by) VALUES (?,?,?,?,?,?,?,?,?)",
-          [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh,$myReferralCode,$referredBy]);
+        q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash,referral_code,referred_by,country) VALUES (?,?,?,?,?,?,?,?,?,?)",
+          [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh,$myReferralCode,$referredBy,$country]);
         q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,'FCFA',?)",
           [$wid,$uid,$qrseed]);
         $token = jwt_make(['sub'=>$uid,'phone'=>$phone]);
@@ -509,31 +522,56 @@ function tx_send() {
     $to     = trim($b['receiver_phone']??'');
     $amount = (float)($b['amount']??0);
     $mode   = ($b['mode']??'net')==='brut' ? 'brut' : 'net'; // default 'net' for backward compatibility
+    $channel= ($b['channel']??'national')==='africa' ? 'africa' : 'national';
     $pin = trim($b['pin']??'');
     $desc= trim($b['description']??'');
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $to))) fail('Numero invalide');
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $user = q("SELECT pin_hash,country FROM users WHERE id=?",[$pl['sub']])->fetch();
     pin_check($pl['sub'], $pin, $user['pin_hash']);
-    // Calculate fee (1% over 4000 F, single calculation matching frontend - direction
-    // depends on which field (brut or net) the user actually filled in)
-    if($mode==='brut'){
-        $brut = $amount;
-        $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
-        $net  = $brut - $fee;
+
+    $recv = q("SELECT u.id,u.full_name,u.country,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
+    if(!$recv) fail('Destinataire introuvable');
+    if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
+
+    // Le canal "national" (bouton Envoyer classique) est reserve aux envois
+    // a l'interieur du meme pays. Un envoi vers un autre pays doit passer
+    // par Transfert Afrique (channel=africa), qui applique le vrai tarif
+    // international - ca ferme la possibilite de contourner ce tarif en
+    // utilisant simplement le bouton d'envoi national.
+    if($channel==='national' && $user['country'] && $recv['country'] && $user['country']!==$recv['country']){
+        fail('CROSS_COUNTRY: Ce destinataire est dans un autre pays ('.$recv['country'].'). Utilise Transfert Afrique pour cet envoi.', 422);
+    }
+
+    // Calcul du frais : national = 1% avec gratuite sous 4000 F (inchange).
+    // Africa = 1,5% sans palier de gratuite, aligne sur le tarif international
+    // reel de Wave (verifie), quel que soit le montant.
+    if($channel==='africa'){
+        if($mode==='brut'){
+            $brut = $amount;
+            $fee  = round($brut * 0.015);
+            $net  = $brut - $fee;
+        } else {
+            $net  = $amount;
+            $fee  = round($net * 0.015);
+            $brut = $net + $fee;
+        }
     } else {
-        $net  = $amount;
-        $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
-        $brut = $net + $fee; // Total amount debited from sender
+        if($mode==='brut'){
+            $brut = $amount;
+            $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
+            $net  = $brut - $fee;
+        } else {
+            $net  = $amount;
+            $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
+            $brut = $net + $fee; // Total amount debited from sender
+        }
     }
     if($net<=0) fail('Montant invalide');
 
     $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$sw['balance']<$brut) fail('Solde insuffisant');
-    $recv = q("SELECT u.id,u.full_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
-    if(!$recv) fail('Destinataire introuvable');
-    if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
     check_receive_limit($recv['id'], $net, false);
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
@@ -554,8 +592,9 @@ function tx_send() {
             $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
             if($fee_recv && $fee_recv['id'] !== $pl['sub']){
                 $fee_txid = uid(); $fee_ref = ref();
-                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_MONEY 1%')",
-                  [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref]);
+                $feeLabel = $channel==='africa' ? 'Frais ROM_MONEY 1.5% (Transfert Afrique)' : 'Frais ROM_MONEY 1%';
+                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
+                  [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref,$feeLabel]);
                 q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
             }
         }
@@ -769,13 +808,13 @@ function profile_referral_status() {
 
 function profile_get() {
     $pl = auth();
-    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,u.verified_name,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,u.verified_name,u.country,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
     if(!$u) fail('Introuvable',404);
     ok(['id'=>$u['id'],'name'=>$u['full_name'],'phone'=>$u['phone_number'],'email'=>$u['email'],
         'operator'=>$u['operator'],'bio_enabled'=>(bool)$u['bio_enabled'],'is_kyc'=>(bool)$u['is_kyc'],
         'status'=>$u['status'],'member_since'=>$u['created_at'],'wallet_id'=>$u['wid'],'photo_url'=>$u['photo_url'],
         'notif_tx'=>(bool)($u['notif_tx']??true),'notif_promo'=>(bool)($u['notif_promo']??true),
-        'legal_name'=>$u['verified_name']]);
+        'legal_name'=>$u['verified_name'],'country'=>$u['country']]);
 }
 
 function profile_update() {
@@ -1449,6 +1488,7 @@ function route_admin($action) {
         'account-status'    => admin_account_status(),
         'block-account'     => admin_block_account(),
         'unblock-account'   => admin_unblock_account(),
+        'update-country'    => admin_update_country(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -1624,7 +1664,7 @@ function admin_audit_get_rows() {
 }
 
 function admin_audit_action_label($a) {
-    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin','country_toggle'=>'Pays actif/inactif','account_block'=>'Blocage de compte','account_unblock'=>'Deblocage de compte'];
+    $labels = ['pin_reset'=>'Reinitialisation PIN','late_cancel'=>'Annulation tardive','admin_login'=>'Connexion admin','country_toggle'=>'Pays actif/inactif','account_block'=>'Blocage de compte','account_unblock'=>'Deblocage de compte','update_country'=>'Modification du pays'];
     return $labels[$a] ?? $a;
 }
 function admin_audit_result_label($r) {
@@ -1818,6 +1858,29 @@ function admin_unblock_account() {
     ok(null,'Compte debloque avec succes');
 }
 
+function admin_update_country() {
+    $b = body();
+    check_admin_password($b);
+    $phone   = trim($b['phone'] ?? '');
+    $country = trim($b['country'] ?? '');
+    $reason  = trim($b['reason'] ?? '');
+    if(!$phone || !$country || !$reason) fail('Telephone, pays et raison requis');
+    $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u){
+        admin_log('update_country','failed',$phone,'Compte introuvable');
+        fail('Compte introuvable',404);
+    }
+    $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+    if(!$countryRow || !$countryRow['is_active']){
+        admin_log('update_country','failed',$phone,'Pays non actif: '.$country.' - '.$reason);
+        fail('Ce pays n\'est pas actif sur ROM_MONEY');
+    }
+    $oldCountry = $u['country'];
+    q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
+    admin_log('update_country','success',$phone,'De "'.($oldCountry?:'-').'" vers "'.$country.'" - '.$reason);
+    ok(null,'Pays mis a jour avec succes');
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -1882,6 +1945,7 @@ function route_install() {
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by VARCHAR(36)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_name VARCHAR(150)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_birthdate VARCHAR(20)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT 'Côte d''Ivoire'",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code)",
     "CREATE TABLE IF NOT EXISTS referral_bonuses (
         id VARCHAR(36) PRIMARY KEY,
@@ -1995,6 +2059,10 @@ function route_install() {
         $isActive = ($c === "Côte d'Ivoire") ? 1 : 0;
         q("INSERT INTO active_countries (name,is_active) VALUES (?,?) ON CONFLICT (name) DO NOTHING",[$c,$isActive]);
     }
+
+    // Filet de securite : les comptes existants sans pays renseigne (avant
+    // l'ajout de ce champ) sont rattaches a la Cote d'Ivoire par defaut.
+    q("UPDATE users SET country='Côte d''Ivoire' WHERE country IS NULL");
 
     ok(['tables_created'=>$created],'Installation terminee ! Toutes les tables ont ete creees.');
 }
