@@ -2027,7 +2027,17 @@ function route_install() {
         name VARCHAR(100) NOT NULL UNIQUE,
         is_active SMALLINT DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )"
+    )",
+    // Filet de securite : sur certaines bases restaurees (ex: migration
+    // interrompue vers Neon), la contrainte UNIQUE peut manquer meme si la
+    // colonne existe. On la rajoute ici si absente, sans jamais planter.
+    "DO $$ BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'active_countries_name_unique'
+        ) THEN
+            ALTER TABLE active_countries ADD CONSTRAINT active_countries_name_unique UNIQUE (name);
+        END IF;
+    END $$;"
     ];
 
     $created = [];
