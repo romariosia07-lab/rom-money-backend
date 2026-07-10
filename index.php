@@ -2030,7 +2030,16 @@ function route_install() {
     )",
     // Filet de securite : sur certaines bases restaurees (ex: migration
     // interrompue vers Neon), la contrainte UNIQUE peut manquer meme si la
-    // colonne existe. On la rajoute ici si absente, sans jamais planter.
+    // colonne existe, ce qui a permis des doublons de s'accumuler lors des
+    // tentatives d'installation precedentes. On nettoie ces doublons (en
+    // gardant la version active s'il y en a une) avant de recreer la
+    // contrainte, sans jamais planter.
+    "DELETE FROM active_countries
+     WHERE id NOT IN (
+         SELECT DISTINCT ON (name) id
+         FROM active_countries
+         ORDER BY name, is_active DESC, id ASC
+     )",
     "DO $$ BEGIN
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint WHERE conname = 'active_countries_name_unique'
