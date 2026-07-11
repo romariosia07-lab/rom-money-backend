@@ -773,7 +773,8 @@ function tx_detail() {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
-        su.full_name sender_name, ru.full_name receiver_name
+        su.full_name sender_name, su.country sender_country,
+        ru.full_name receiver_name, ru.country receiver_country
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
