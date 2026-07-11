@@ -1535,8 +1535,8 @@ function admin_search_tx() {
     $ref = trim($b['reference']??'');
     if(!$ref) fail('Reference requise');
     $tx = q("SELECT t.*,
-        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name, su.operator sender_operator,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name, ru.operator receiver_operator
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
@@ -1554,7 +1554,7 @@ function admin_search_by_phone() {
     check_admin_password($b);
     $phone = trim($b['phone']??'');
     if(!$phone) fail('Numero requis');
-    $u = q("SELECT id,full_name,verified_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,full_name,verified_name,operator FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetchColumn();
     $rows = q("SELECT t.*,
@@ -1566,7 +1566,7 @@ function admin_search_by_phone() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'
         ORDER BY t.created_at DESC LIMIT 30",[$wid,$wid,$wid])->fetchAll();
-    ok(['account_name'=>$u['verified_name']?:$u['full_name'],'account_verified'=>!empty($u['verified_name']),'transactions'=>$rows]);
+    ok(['account_name'=>$u['verified_name']?:$u['full_name'],'account_verified'=>!empty($u['verified_name']),'account_operator'=>$u['operator'],'transactions'=>$rows]);
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
@@ -1774,6 +1774,7 @@ function admin_dashboard_stats() {
 
     $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
     $recentLogs  = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5")->fetchAll();
+    $operatorBreakdown = q("SELECT COALESCE(NULLIF(operator,''),'Non renseigné') AS operator, COUNT(*) AS total FROM users GROUP BY operator ORDER BY total DESC")->fetchAll();
 
     ok([
         'today_count'    => (int)$todayCount,
@@ -1783,6 +1784,7 @@ function admin_dashboard_stats() {
         'period'         => $period,
         'period_volume'  => (float)$periodVolume,
         'period_fees'    => (float)$periodFees,
+        'operator_breakdown' => $operatorBreakdown,
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs
     ]);
