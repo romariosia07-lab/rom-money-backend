@@ -249,7 +249,7 @@ function auth_register() {
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
-    $validOperators = ['Orange CI','MTN CI','Moov Africa CI','Wave'];
+    $validOperators = ['Orange CI','MTN CI','Moov Africa CI'];
     if(!in_array($op, $validOperators, true)) fail('Operateur invalide');
     if(!$country) fail('Le pays est requis');
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
@@ -838,7 +838,7 @@ function profile_update() {
     if(!empty($b['full_name'])){$sets[]="full_name=?";$vals[]=$b['full_name'];}
     if(!empty($b['email'])){$sets[]="email=?";$vals[]=$b['email'];}
     if(!empty($b['operator'])){
-        $validOperators = ['Orange CI','MTN CI','Moov Africa CI','Wave'];
+        $validOperators = ['Orange CI','MTN CI','Moov Africa CI'];
         if(!in_array($b['operator'], $validOperators, true)) fail('Operateur invalide');
         $sets[]="operator=?";$vals[]=$b['operator'];
     }
@@ -1793,7 +1793,14 @@ function admin_dashboard_stats() {
 
     $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
     $recentLogs  = q("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5")->fetchAll();
-    $operatorBreakdown = q("SELECT COALESCE(NULLIF(operator,''),'Non renseigné') AS operator, COUNT(*) AS total FROM users GROUP BY operator ORDER BY total DESC")->fetchAll();
+    $operatorBreakdown = q("SELECT COALESCE(NULLIF(operator,''),'Non renseigné') AS operator, COUNT(*) AS total
+        FROM users GROUP BY operator
+        ORDER BY CASE COALESCE(NULLIF(operator,''),'Non renseigné')
+            WHEN 'Orange CI' THEN 1
+            WHEN 'MTN CI' THEN 2
+            WHEN 'Moov Africa CI' THEN 3
+            ELSE 4
+        END")->fetchAll();
 
     ok([
         'today_count'    => (int)$todayCount,
