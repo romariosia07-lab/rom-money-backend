@@ -199,13 +199,26 @@ switch($module) {
 // AUTH
 function route_auth($action) {
     match($action) {
-        'register'   => auth_register(),
-        'login'      => auth_login(),
-        'logout'     => auth_logout(),
-        'change-pin' => auth_change_pin(),
-        'countries'  => auth_active_countries(),
-        default      => fail('Action inconnue',404)
+        'register'    => auth_register(),
+        'login'       => auth_login(),
+        'logout'      => auth_logout(),
+        'change-pin'  => auth_change_pin(),
+        'countries'   => auth_active_countries(),
+        'check-phone' => auth_check_phone(),
+        default       => fail('Action inconnue',404)
     };
+}
+
+// Route publique legere : verifie juste si un numero est deja associe a un
+// compte, sans rien creer - utilisee des l'etape 1 de l'inscription pour
+// avertir immediatement au lieu de laisser l'utilisateur traverser tout le
+// flux (PIN, biometrie) avant de decouvrir le doublon a la toute fin.
+function auth_check_phone() {
+    $b = body();
+    $phone = trim($b['phone'] ?? '');
+    if(!$phone) fail('Telephone requis');
+    $exists = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    ok(['exists' => (bool)$exists]);
 }
 
 // Route publique (pas d'authentification requise) : liste des pays actifs,
@@ -236,6 +249,8 @@ function auth_register() {
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
+    $validOperators = ['Orange CI','MTN CI','Moov Africa CI','Wave'];
+    if(!in_array($op, $validOperators, true)) fail('Operateur invalide');
     if(!$country) fail('Le pays est requis');
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']) fail('ROM_MONEY n\'est pas encore disponible dans ce pays');
@@ -822,7 +837,11 @@ function profile_update() {
     $sets=[]; $vals=[];
     if(!empty($b['full_name'])){$sets[]="full_name=?";$vals[]=$b['full_name'];}
     if(!empty($b['email'])){$sets[]="email=?";$vals[]=$b['email'];}
-    if(!empty($b['operator'])){$sets[]="operator=?";$vals[]=$b['operator'];}
+    if(!empty($b['operator'])){
+        $validOperators = ['Orange CI','MTN CI','Moov Africa CI','Wave'];
+        if(!in_array($b['operator'], $validOperators, true)) fail('Operateur invalide');
+        $sets[]="operator=?";$vals[]=$b['operator'];
+    }
     if(array_key_exists('photo_url',$b)){$sets[]="photo_url=?";$vals[]=$b['photo_url'];}
     if(array_key_exists('notif_tx',$b)){$sets[]="notif_tx=?";$vals[]=$b['notif_tx']?'t':'f';}
     if(array_key_exists('notif_promo',$b)){$sets[]="notif_promo=?";$vals[]=$b['notif_promo']?'t':'f';}
@@ -2084,6 +2103,15 @@ function route_install() {
     // Filet de securite : les comptes existants sans pays renseigne (avant
     // l'ajout de ce champ) sont rattaches a la Cote d'Ivoire par defaut.
     q("UPDATE users SET country='Côte d''Ivoire' WHERE country IS NULL");
+
+    // Nettoyage des anciennes valeurs "sales" du champ operateur (ex: "mtn",
+    // "orange" en minuscules, saisies avant que ce champ soit verrouille a
+    // un menu deroulant a choix fixes) - on les fait correspondre aux 4
+    // valeurs officielles actuelles.
+    q("UPDATE users SET operator='MTN CI' WHERE LOWER(TRIM(operator)) IN ('mtn','mtn ci')");
+    q("UPDATE users SET operator='Orange CI' WHERE LOWER(TRIM(operator)) IN ('orange','orange ci')");
+    q("UPDATE users SET operator='Moov Africa CI' WHERE LOWER(TRIM(operator)) IN ('moov','moov africa','moov africa ci','moov ci')");
+    q("UPDATE users SET operator='Wave' WHERE LOWER(TRIM(operator)) IN ('wave','wave ci')");
 
     ok(['tables_created'=>$created],'Installation terminee ! Toutes les tables ont ete creees.');
 }
