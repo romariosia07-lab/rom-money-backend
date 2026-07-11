@@ -169,13 +169,14 @@ function db(): PDO {
 }
 
 function q($sql, $params=[]) {
-    $s = db()->prepare($sql);
     try {
+        $s = db()->prepare($sql);
         $s->execute($params);
     } catch (PDOException $e) {
         error_log('[SQL ERROR] '.$sql.' | params='.json_encode($params).' | '.$e->getMessage());
         throw $e;
     }
+    error_log('[SQL OK] '.$sql);
     return $s;
 }
 
