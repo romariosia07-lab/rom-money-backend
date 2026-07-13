@@ -457,7 +457,10 @@ function wallet_stats_full() {
     $byMonth = [];
     foreach($rows as $r){ $byMonth[$r['ym']] = $r; }
 
-    $labels = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
+    $labels = $lang==='en'
+        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        : ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
     $year = date('Y');
     $months = [];
     for($m=1;$m<=12;$m++){
