@@ -1319,11 +1319,46 @@ function export_get_rows($pl, $period, $from=null, $to=null) {
     return ['rows'=>$rows, 'total'=>$total, 'truncated'=>$total>$LIMIT, 'limit'=>$LIMIT];
 }
 
-function export_type_label($type, $isDebit=false){
-    if($type==='transfer') return $isDebit ? 'Transfert envoye' : 'Transfert recu';
-    $map=['payment'=>'Achat','bank_deposit'=>'Depot banque',
-          'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre',
-          'referral_bonus'=>'Bonus parrainage'];
+// Petit dictionnaire de traduction pour l'export CSV/PDF (fr/en), independant
+// du systeme i18n du frontend puisque ces fichiers sont generes cote serveur.
+function export_t($key, $lang) {
+    $dict = [
+        'title'        => ['fr'=>'ROM_MONEY - Releve de transactions', 'en'=>'ROM_MONEY - Transaction Statement'],
+        'holder'       => ['fr'=>'Titulaire : ', 'en'=>'Account holder: '],
+        'period'       => ['fr'=>'Periode : ', 'en'=>'Period: '],
+        'period_month' => ['fr'=>'Ce mois', 'en'=>'This month'],
+        'period_all'   => ['fr'=>"Tout l'historique", 'en'=>'Entire history'],
+        'period_from'  => ['fr'=>'du ', 'en'=>'from '],
+        'period_to'    => ['fr'=>' au ', 'en'=>' to '],
+        'generated'    => ['fr'=>'Genere le ', 'en'=>'Generated on '],
+        'generated_at' => ['fr'=>' a ', 'en'=>' at '],
+        'truncated'    => ['fr'=>'Limite aux {limit} dernieres transactions sur {total} au total. Choisissez une periode plus precise pour tout voir.',
+                            'en'=>'Limited to the last {limit} transactions out of {total} total. Choose a more precise period to see everything.'],
+        'col_date'     => ['fr'=>'Date', 'en'=>'Date'],
+        'col_type'     => ['fr'=>'Type', 'en'=>'Type'],
+        'col_contact'  => ['fr'=>'Contact', 'en'=>'Contact'],
+        'col_amount'   => ['fr'=>'Montant', 'en'=>'Amount'],
+        'col_fee'      => ['fr'=>'Frais', 'en'=>'Fee'],
+        'col_ref'      => ['fr'=>'Reference', 'en'=>'Reference'],
+        'col_status'   => ['fr'=>'Statut', 'en'=>'Status'],
+    ];
+    $row = $dict[$key] ?? null;
+    if(!$row) return $key;
+    return $row[$lang] ?? $row['fr'];
+}
+
+function export_type_label($type, $isDebit=false, $lang='fr'){
+    if($type==='transfer'){
+        if($lang==='en') return $isDebit ? 'Transfer sent' : 'Transfer received';
+        return $isDebit ? 'Transfert envoye' : 'Transfert recu';
+    }
+    $map = $lang==='en'
+        ? ['payment'=>'Purchase','bank_deposit'=>'Bank deposit',
+           'bank_withdraw'=>'Bank withdrawal','deposit'=>'Deposit','vault_deposit'=>'Vault',
+           'referral_bonus'=>'Referral bonus']
+        : ['payment'=>'Achat','bank_deposit'=>'Depot banque',
+           'bank_withdraw'=>'Retrait banque','deposit'=>'Depot','vault_deposit'=>'Coffre',
+           'referral_bonus'=>'Bonus parrainage'];
     return $map[$type] ?? $type;
 }
 
@@ -1333,6 +1368,7 @@ function export_csv() {
     $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
     $from = $_GET['from']??null;
     $to = $_GET['to']??null;
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
 
@@ -1345,9 +1381,13 @@ function export_csv() {
     echo "\xEF\xBB\xBF"; // BOM UTF-8, pour un affichage correct des accents dans Excel
     $out = fopen('php://output','w');
     if($res['truncated']){
-        fputcsv($out, ['Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total. Choisissez une periode plus precise pour tout voir.'], ';');
+        $msg = str_replace(['{limit}','{total}'], [$res['limit'],$res['total']], export_t('truncated',$lang));
+        fputcsv($out, [$msg], ';');
     }
-    fputcsv($out, ['Date','Type','Contact','Montant','Frais','Reference','Statut'], ';');
+    fputcsv($out, [
+        export_t('col_date',$lang), export_t('col_type',$lang), export_t('col_contact',$lang),
+        export_t('col_amount',$lang), export_t('col_fee',$lang), export_t('col_ref',$lang), export_t('col_status',$lang)
+    ], ';');
     foreach($rows as $t){
         $isDebit = $t['direction']==='debit';
         $amount = (float)$t['amount'];
@@ -1357,7 +1397,7 @@ function export_csv() {
         $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
         fputcsv($out, [
             date('d/m/Y H:i', strtotime($t['created_at'])),
-            export_type_label($t['type'], $isDebit),
+            export_type_label($t['type'], $isDebit, $lang),
             $contact,
             number_format($montant,0,',',' ').' F',
             number_format($frais,0,',',' ').' F',
@@ -1382,37 +1422,39 @@ function export_pdf() {
     $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
     $from = $_GET['from']??null;
     $to = $_GET['to']??null;
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
     $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE id=?",[$pl['sub']])->fetch();
 
-    $periodeLabel = 'Ce mois';
-    if($period==='all') $periodeLabel = "Tout l'historique";
+    $periodeLabel = export_t('period_month',$lang);
+    if($period==='all') $periodeLabel = export_t('period_all',$lang);
     elseif($period==='custom'){
         $fmtYm = function($ym){ $p=explode('-',(string)$ym); return count($p)===2 ? $p[1].'-'.$p[0] : $ym; };
-        $periodeLabel = 'du '.$fmtYm($from).' au '.$fmtYm($to);
+        $periodeLabel = export_t('period_from',$lang).$fmtYm($from).export_t('period_to',$lang).$fmtYm($to);
     }
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
     $pdf->AddPage();
     $pdf->SetFont('Arial','B',14);
-    $pdf->Cell(0,10,pdf_str('ROM_MONEY - Releve de transactions'),0,1);
+    $pdf->Cell(0,10,pdf_str(export_t('title',$lang)),0,1);
     $infoTopY = $pdf->GetY();
     $logoPath = __DIR__.'/logo.png';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
     }
     $pdf->SetFont('Arial','',10);
-    $pdf->Cell(150,6,pdf_str('Titulaire : '.($u['verified_name']?:$u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
-    $pdf->Cell(150,6,pdf_str('Periode : '.$periodeLabel),0,1);
-    $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    $pdf->Cell(150,6,pdf_str(export_t('holder',$lang).($u['verified_name']?:$u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
+    $pdf->Cell(150,6,pdf_str(export_t('period',$lang).$periodeLabel),0,1);
+    $pdf->Cell(150,6,pdf_str(export_t('generated',$lang).date('d/m/Y').export_t('generated_at',$lang).date('H:i')),0,1);
     if(file_exists($logoPath)){
         $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
     }
     if($res['truncated']){
         $pdf->SetTextColor(200,0,0);
-        $pdf->Cell(0,6,pdf_str('Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total. Choisissez une periode plus precise pour tout voir.'),0,1);
+        $msg = str_replace(['{limit}','{total}'], [$res['limit'],$res['total']], export_t('truncated',$lang));
+        $pdf->Cell(0,6,pdf_str($msg),0,1);
         $pdf->SetTextColor(0,0,0);
     }
     $pdf->Ln(4);
@@ -1420,7 +1462,8 @@ function export_pdf() {
     $pdf->SetFont('Arial','B',9);
     $pdf->SetFillColor(230,241,251);
     $w = [26,28,42,28,20,32,20];
-    $headers = ['Date','Type','Contact','Montant','Frais','Reference','Statut'];
+    $headers = [export_t('col_date',$lang), export_t('col_type',$lang), export_t('col_contact',$lang),
+        export_t('col_amount',$lang), export_t('col_fee',$lang), export_t('col_ref',$lang), export_t('col_status',$lang)];
     foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
     $pdf->Ln();
 
@@ -1434,7 +1477,7 @@ function export_pdf() {
         $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
-        $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit)),1);
+        $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit,$lang)),1);
         $pdf->Cell($w[2],7,substr(pdf_str($contact),0,22),1);
         $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
         $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
