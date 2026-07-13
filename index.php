@@ -1507,16 +1507,29 @@ function route_announce($action) {
 
 function announce_list() {
     $pl = auth();
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
     $u = q("SELECT notif_promo FROM users WHERE id=?",[$pl['sub']])->fetch();
     $allowPromo = (bool)($u['notif_promo'] ?? true);
     if($allowPromo){
-        $rows = q("SELECT id,title,message,type,created_at FROM announcements
+        $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
             WHERE created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
     } else {
-        $rows = q("SELECT id,title,message,type,created_at FROM announcements
+        $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
             WHERE type='update' AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
     }
-    ok(['announcements'=>$rows]);
+    // Resout la bonne langue cote serveur : si une traduction EN existe et que le
+    // client la demande, on la sert ; sinon on retombe sur le francais (langue
+    // de saisie par defaut de l'admin).
+    $resolved = array_map(function($r) use ($lang){
+        return [
+            'id' => $r['id'],
+            'title' => ($lang==='en' && !empty($r['title_en'])) ? $r['title_en'] : $r['title'],
+            'message' => ($lang==='en' && !empty($r['message_en'])) ? $r['message_en'] : $r['message'],
+            'type' => $r['type'],
+            'created_at' => $r['created_at']
+        ];
+    }, $rows);
+    ok(['announcements'=>$resolved]);
 }
 
 function announce_admin_create() {
@@ -1524,10 +1537,13 @@ function announce_admin_create() {
     check_admin_password($b);
     $title = trim($b['title']??'');
     $message = trim($b['message']??'');
+    $titleEn = trim($b['title_en']??'');
+    $messageEn = trim($b['message_en']??'');
     $type = ($b['type']??'update')==='promo' ? 'promo' : 'update';
     if(!$title || !$message) fail('Titre et message requis');
     $id = uid();
-    q("INSERT INTO announcements (id,title,message,type) VALUES (?,?,?,?)",[$id,$title,$message,$type]);
+    q("INSERT INTO announcements (id,title,message,title_en,message_en,type) VALUES (?,?,?,?,?,?)",
+        [$id,$title,$message,$titleEn?:null,$messageEn?:null,$type]);
     ok(['id'=>$id],'Annonce envoyee');
 }
 
@@ -2068,6 +2084,8 @@ function route_install() {
         type VARCHAR(20) DEFAULT 'update',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS title_en VARCHAR(150)",
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS message_en TEXT",
     "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
