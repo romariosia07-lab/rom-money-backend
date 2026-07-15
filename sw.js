@@ -56,8 +56,16 @@ self.addEventListener('fetch', function(event){
 
   event.respondWith(
     fetch(req).then(function(res){
-      var resClone = res.clone();
-      caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+      // Ne met en cache que les reponses completes et valides (200 OK).
+      // Une coupure reseau en plein telechargement (ex: mode avion reactive
+      // trop vite) peut produire une reponse tronquee/corrompue : la mettre
+      // en cache remplacerait la derniere bonne version par une version
+      // cassee, rendant l'app figee et non-interactive au prochain chargement
+      // hors ligne. On protege donc le cache contre ce cas.
+      if(res && res.ok && res.status===200){
+        var resClone = res.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+      }
       return res;
     }).catch(function(){
       return caches.match(req).then(function(cached){
