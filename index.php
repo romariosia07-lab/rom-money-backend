@@ -1798,6 +1798,7 @@ function route_admin($action) {
         'update-country'    => admin_update_country(),
         'delete-kyc'        => admin_delete_kyc(),
         'list-users'        => admin_list_users(),
+        'list-alerts'       => admin_list_alerts(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2293,6 +2294,28 @@ function admin_list_users() {
                FROM users WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
 
     ok(['users'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+}
+
+// Flux centralise des connexions "nouvel appareil" recentes, tous comptes
+// confondus. Exclut volontairement le tout premier appareil de chaque
+// compte (celui de l'inscription, qui n'a rien de suspect) : ne montre que
+// les appareils ajoutes APRES le premier, exactement le meme critere que
+// celui qui declenche deja la notification push d'alerte au moment de la
+// connexion. Fenetre fixe de 30 jours, plafonnee a 50 entrees.
+function admin_list_alerts() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT kd.device_id, kd.user_agent, kd.first_seen,
+                      u.id AS user_id, u.full_name, u.verified_name, u.phone_number
+               FROM known_devices kd
+               JOIN users u ON u.id = kd.user_id
+               WHERE kd.first_seen >= NOW() - INTERVAL '30 days'
+                 AND kd.first_seen > (
+                     SELECT MIN(kd2.first_seen) FROM known_devices kd2 WHERE kd2.user_id = kd.user_id
+                 )
+               ORDER BY kd.first_seen DESC
+               LIMIT 50")->fetchAll();
+    ok(['alerts'=>$rows]);
 }
 
 // INSTALL
