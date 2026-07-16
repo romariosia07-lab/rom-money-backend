@@ -105,7 +105,8 @@ self.addEventListener('push', function(event){
     icon: './icon-192.png',
     badge: './icon-192.png',
     data: { url: data.url || './' },
-    vibrate: [100, 50, 100]
+    vibrate: [100, 50, 100],
+    requireInteraction: true
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
