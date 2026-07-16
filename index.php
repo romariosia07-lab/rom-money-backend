@@ -1797,6 +1797,7 @@ function route_admin($action) {
         'unblock-account'   => admin_unblock_account(),
         'update-country'    => admin_update_country(),
         'delete-kyc'        => admin_delete_kyc(),
+        'list-users'        => admin_list_users(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2258,6 +2259,40 @@ function admin_delete_kyc() {
     q("DELETE FROM kyc_requests WHERE ctid = ?::tid", [$k['ctid']]);
     admin_log('delete_kyc','success',$k['phone_number'],'Demande KYC '.$id.' supprimee (ligne unique)');
     ok(null,'Demande KYC supprimee');
+}
+
+// Liste/recherche globale des comptes, avec filtres combinables (texte,
+// statut KYC, statut du compte, plage de dates d'inscription) et pagination.
+function admin_list_users() {
+    $b = body();
+    check_admin_password($b);
+    $search = trim($b['search'] ?? '');
+    $kycFilter = trim($b['kyc'] ?? '');
+    $statusFilter = trim($b['status'] ?? '');
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+
+    $where = "1=1"; $params = [];
+    if($search){
+        $where .= " AND (full_name ILIKE ? OR phone_number ILIKE ? OR COALESCE(verified_name,'') ILIKE ?)";
+        $like = '%'.$search.'%';
+        $params[] = $like; $params[] = $like; $params[] = $like;
+    }
+    if($kycFilter==='verified'){ $where .= " AND is_kyc=1"; }
+    elseif($kycFilter==='unverified'){ $where .= " AND is_kyc=0"; }
+    if($statusFilter==='active'){ $where .= " AND status='active'"; }
+    elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
+    if($dateFrom){ $where .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if($dateTo){ $where .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+
+    $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
+    $rows = q("SELECT id,full_name,verified_name,phone_number,operator,status,is_kyc,created_at
+               FROM users WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+
+    ok(['users'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
 
 // INSTALL
