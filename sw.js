@@ -1,25 +1,34 @@
 // ═══════════════════════════════════════════
 // SERVICE WORKER — ROM_MONEY
-// Met en cache uniquement la coquille de l'app (index.html, manifest.json)
-// pour qu'elle puisse se charger meme sans connexion. N'intercepte JAMAIS
-// les appels vers le backend PHP (autre origine) : les donnees financieres
-// ne sont jamais mises en cache par ce fichier.
+// Met en cache la coquille de l'app (index.html, manifest.json) ainsi que
+// les quelques bibliotheques externes statiques necessaires au QR code
+// (generation + scan), pour qu'elles marchent aussi hors connexion, comme
+// pour Wave. N'intercepte JAMAIS les appels vers le backend PHP : les
+// donnees financieres ne sont jamais mises en cache par ce fichier.
 // Strategie : reseau prioritaire, repli sur le cache seulement en cas
 // d'echec reseau. Le cache se met a jour a chaque chargement en ligne
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v1';
+var CACHE_NAME = 'rommoney-shell-v2';
 var SHELL_FILES = ['./', './index.html', './manifest.json'];
+// Bibliotheques CDN externes (autre origine) explicitement autorisees en
+// cache : uniquement du JS statique et sans risque pour le QR code. Toute
+// autre requete cross-origine (notamment le backend API) reste exclue.
+var CDN_SHELL_FILES = [
+  'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+  'https://cdn.jsdelivr.net/npm/jsqr@1.3.1/dist/jsQR.min.js'
+];
 
 self.addEventListener('install', function(event){
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
       // Chaque fichier est mis en cache independamment : si l'un d'eux
-      // echoue (ex: manifest.json absent a cet emplacement), ca ne bloque
-      // pas la mise en cache des autres (notamment index.html, essentiel).
-      return Promise.all(SHELL_FILES.map(function(url){
+      // echoue (ex: manifest.json absent a cet emplacement, ou CDN
+      // temporairement indisponible), ca ne bloque pas la mise en cache
+      // des autres (notamment index.html, essentiel).
+      return Promise.all(SHELL_FILES.concat(CDN_SHELL_FILES).map(function(url){
         return cache.add(url).catch(function(){});
       }));
     })
@@ -38,16 +47,19 @@ self.addEventListener('activate', function(event){
 self.addEventListener('fetch', function(event){
   var req = event.request;
   var url = new URL(req.url);
+  var isKnownCdnLib = CDN_SHELL_FILES.indexOf(req.url) !== -1;
 
-  // Ne jamais intercepter les requetes vers une autre origine (le backend
-  // PHP notamment) : elles doivent toujours passer par le reseau, jamais
-  // par un cache local.
-  if(url.origin !== self.location.origin) return;
+  // Ne jamais intercepter les requetes vers une autre origine, SAUF les
+  // bibliotheques CDN explicitement autorisees ci-dessus. Le backend PHP
+  // (autre origine lui aussi) continue donc de toujours passer par le
+  // reseau, jamais par un cache local.
+  if(url.origin !== self.location.origin && !isKnownCdnLib) return;
 
-  // Seule la coquille de l'app (chargement de page + manifest) beneficie
-  // du mode hors ligne. Reseau prioritaire ; si indisponible, repli sur
-  // la derniere version mise en cache avec succes.
-  var isShellRequest = req.mode === 'navigate'
+  // Coquille de l'app (chargement de page + manifest) et bibliotheques QR :
+  // reseau prioritaire ; si indisponible, repli sur la derniere version
+  // mise en cache avec succes.
+  var isShellRequest = isKnownCdnLib
+    || req.mode === 'navigate'
     || url.pathname.endsWith('index.html')
     || url.pathname.endsWith('manifest.json')
     || url.pathname.endsWith('/');
@@ -56,20 +68,22 @@ self.addEventListener('fetch', function(event){
 
   event.respondWith(
     fetch(req).then(function(res){
-      // Ne met en cache que les reponses completes et valides (200 OK).
-      // Une coupure reseau en plein telechargement (ex: mode avion reactive
-      // trop vite) peut produire une reponse tronquee/corrompue : la mettre
-      // en cache remplacerait la derniere bonne version par une version
-      // cassee, rendant l'app figee et non-interactive au prochain chargement
-      // hors ligne. On protege donc le cache contre ce cas.
-      if(res && res.ok && res.status===200){
+      // Ne met en cache que les reponses completes et valides (200 OK pour
+      // le meme-origine, ou opaque pour les CDN cross-origine sans header
+      // CORS explicite). Une coupure reseau en plein telechargement peut
+      // produire une reponse tronquee/corrompue : la mettre en cache
+      // remplacerait la derniere bonne version par une version cassee,
+      // rendant l'app figee et non-interactive au prochain chargement hors
+      // ligne. On protege donc le cache contre ce cas.
+      if(res && (res.type==='opaque' || (res.ok && res.status===200))){
         var resClone = res.clone();
         caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
       }
       return res;
     }).catch(function(){
       return caches.match(req).then(function(cached){
-        return cached || caches.match('./index.html');
+        if(cached) return cached;
+        return req.mode==='navigate' ? caches.match('./index.html') : undefined;
       });
     })
   );
