@@ -1799,7 +1799,7 @@ function route_admin($action) {
         'delete-kyc'        => admin_delete_kyc(),
         'list-users'        => admin_list_users(),
         'list-alerts'       => admin_list_alerts(),
-        'dashboard-export-csv' => admin_dashboard_export_csv(),
+        'dashboard-export-xlsx' => admin_dashboard_export_xlsx(),
         'dashboard-export-pdf' => admin_dashboard_export_pdf(),
         default             => fail('Action inconnue',404)
     };
@@ -2179,7 +2179,143 @@ function admin_dashboard_stats() {
     ok(admin_dashboard_get_data($period, $dateFrom, $dateTo));
 }
 
-function admin_dashboard_export_csv() {
+// ============================================================
+// GENERATEUR XLSX MINIMAL — construit un vrai fichier Excel (.xlsx) en PHP
+// pur, sans dependance a l'extension `zip` ni a aucune librairie externe
+// (coherent avec le reste du projet : FPDF est deja utilise de la meme
+// facon pour les PDF). Un .xlsx est en realite une archive ZIP contenant
+// plusieurs fichiers XML (format Office Open XML) : on construit le ZIP a
+// la main avec des entrees non compressees ("stored"), format valide et
+// verifie avec succes (unzip + openpyxl) avant integration.
+// ============================================================
+
+// Construit une archive ZIP brute (methode "stored", sans compression) a
+// partir d'un tableau [chemin => contenu]. N'utilise que des fonctions du
+// coeur PHP (pack, crc32) : fonctionne sur n'importe quel serveur PHP,
+// meme sans extension zip/zlib.
+function zip_create($files) {
+    $localParts = [];
+    $centralParts = [];
+    $offset = 0;
+    foreach ($files as $name => $content) {
+        $crc = crc32($content);
+        $len = strlen($content);
+        $nameLen = strlen($name);
+        $localHeader = pack('VvvvvvVVVvv', 0x04034b50, 20, 0, 0, 0, 0, $crc, $len, $len, $nameLen, 0) . $name;
+        $localParts[] = $localHeader . $content;
+        $centralHeader = pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, 0, 0, 0, $crc, $len, $len, $nameLen, 0, 0, 0, 0, 0, $offset) . $name;
+        $centralParts[] = $centralHeader;
+        $offset += strlen($localHeader) + $len;
+    }
+    $localData = implode('', $localParts);
+    $centralData = implode('', $centralParts);
+    $endRecord = pack('VvvvvVVv', 0x06054b50, 0, 0, count($files), count($files), strlen($centralData), strlen($localData), 0);
+    return $localData . $centralData . $endRecord;
+}
+
+function xlsx_col_letter($idx) {
+    $letter = ''; $idx++;
+    while ($idx > 0) {
+        $mod = ($idx - 1) % 26;
+        $letter = chr(65 + $mod) . $letter;
+        $idx = intval(($idx - $mod) / 26);
+    }
+    return $letter;
+}
+function xlsx_esc($s) { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML1, 'UTF-8'); }
+
+// $rows = [ [ [valeur, styleIdx, type] | null, ... ], ... ]  type: 'n' (nombre) ou 's' (texte inline)
+// Une cellule null est simplement omise (case vide).
+function xlsx_build_sheet($rows) {
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . '<cols><col min="1" max="1" width="6"/><col min="2" max="2" width="26"/><col min="3" max="3" width="18"/><col min="4" max="4" width="16"/><col min="5" max="5" width="16"/></cols>'
+        . '<sheetData>';
+    foreach ($rows as $r => $cells) {
+        $rowNum = $r + 1;
+        $xml .= '<row r="'.$rowNum.'">';
+        foreach ($cells as $c => $cell) {
+            if ($cell === null) continue;
+            list($value, $style, $type) = $cell;
+            $ref = xlsx_col_letter($c).$rowNum;
+            if ($type === 's') {
+                $xml .= '<c r="'.$ref.'" s="'.$style.'" t="inlineStr"><is><t xml:space="preserve">'.xlsx_esc($value).'</t></is></c>';
+            } else {
+                $xml .= '<c r="'.$ref.'" s="'.$style.'"><v>'.xlsx_esc($value).'</v></c>';
+            }
+        }
+        $xml .= '</row>';
+    }
+    $xml .= '</sheetData></worksheet>';
+    return $xml;
+}
+
+function xlsx_styles_xml() {
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    . '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts>'
+    . '<fonts count="4">'
+    . '<font><sz val="11"/><name val="Calibri"/></font>'
+    . '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>'
+    . '<font><b/><sz val="14"/><name val="Calibri"/></font>'
+    . '<font><b/><sz val="12"/><color rgb="FF085041"/><name val="Calibri"/></font>'
+    . '</fonts>'
+    . '<fills count="3">'
+    . '<fill><patternFill patternType="none"/></fill>'
+    . '<fill><patternFill patternType="gray125"/></fill>'
+    . '<fill><patternFill patternType="solid"><fgColor rgb="FF085041"/><bgColor indexed="64"/></patternFill></fill>'
+    . '</fills>'
+    . '<borders count="2">'
+    . '<border><left/><right/><top/><bottom/><diagonal/></border>'
+    . '<border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border>'
+    . '</borders>'
+    . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    . '<cellXfs count="6">'
+    . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    . '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+    . '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+    . '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
+    . '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    . '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    . '</cellXfs>'
+    . '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+    . '</styleSheet>';
+}
+
+function xlsx_build($sheetXml) {
+    $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+        . '</Types>';
+    $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        . '</Relationships>';
+    $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        . '<sheets><sheet name="Dashboard" sheetId="1" r:id="rId1"/></sheets>'
+        . '</workbook>';
+    $workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        . '</Relationships>';
+    $files = [
+        '[Content_Types].xml' => $contentTypes,
+        '_rels/.rels' => $rootRels,
+        'xl/workbook.xml' => $workbook,
+        'xl/_rels/workbook.xml.rels' => $workbookRels,
+        'xl/styles.xml' => xlsx_styles_xml(),
+        'xl/worksheets/sheet1.xml' => $sheetXml,
+    ];
+    return zip_create($files);
+}
+
+function admin_dashboard_export_xlsx() {
     if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
         fail('Mot de passe admin incorrect',401);
     }
@@ -2188,45 +2324,50 @@ function admin_dashboard_export_csv() {
     $dateTo   = trim($_GET['date_to'] ?? '');
     $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="rom_money_dashboard.csv"');
-    echo "\xEF\xBB\xBF";
-    $out = fopen('php://output','w');
+    // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde,
+    // 3=nombre borde (separateur de milliers), 4=titre, 5=sous-titre section
+    $rows = [];
+    $rows[] = [[ 'ROM_MONEY - Tableau de bord', 4, 's' ]];
+    $rows[] = [[ 'Genere le '.date('d/m/Y').' a '.date('H:i'), 0, 's' ]];
+    $rows[] = [];
 
-    fputcsv($out, ['ROM_MONEY - Tableau de bord'], ';');
-    fputcsv($out, ['Genere le', date('d/m/Y H:i')], ';');
-    fputcsv($out, [], ';');
-    fputcsv($out, ['Resume'], ';');
-    fputcsv($out, ['Transactions aujourd\'hui', $d['today_count']], ';');
-    fputcsv($out, ['Volume aujourd\'hui', $d['today_volume']], ';');
-    fputcsv($out, ['Gains aujourd\'hui', $d['today_fees']], ';');
-    fputcsv($out, ['KYC en attente', $d['kyc_pending']], ';');
-    fputcsv($out, ['Volume periode ('.$d['period'].')', $d['period_volume']], ';');
-    fputcsv($out, ['Gains periode', $d['period_fees']], ';');
-    fputcsv($out, ['Volume total cumule', $d['total_volume']], ';');
-    fputcsv($out, [], ';');
+    $rows[] = [[ 'Resume', 5, 's' ]];
+    $rows[] = [[ 'Transactions aujourd\'hui', 2, 's' ], [ $d['today_count'], 3, 'n' ]];
+    $rows[] = [[ 'Volume aujourd\'hui', 2, 's' ], [ $d['today_volume'], 3, 'n' ]];
+    $rows[] = [[ 'Gains aujourd\'hui', 2, 's' ], [ $d['today_fees'], 3, 'n' ]];
+    $rows[] = [[ 'KYC en attente', 2, 's' ], [ $d['kyc_pending'], 3, 'n' ]];
+    $rows[] = [[ 'Volume periode ('.$d['period'].')', 2, 's' ], [ $d['period_volume'], 3, 'n' ]];
+    $rows[] = [[ 'Gains periode', 2, 's' ], [ $d['period_fees'], 3, 'n' ]];
+    $rows[] = [[ 'Volume total cumule', 2, 's' ], [ $d['total_volume'], 3, 'n' ]];
+    $rows[] = [];
 
-    fputcsv($out, ['Evolution quotidienne (14 jours)'], ';');
-    fputcsv($out, ['Date','Transactions','Volume'], ';');
+    $rows[] = [[ 'Evolution quotidienne (14 jours)', 5, 's' ]];
+    $rows[] = [[ 'Date',1,'s' ], [ 'Transactions',1,'s' ], [ 'Volume',1,'s' ]];
     foreach($d['daily_volume'] as $row){
-        fputcsv($out, [$row['day'], $row['count'], $row['volume']], ';');
+        $rows[] = [[ date('d/m/Y',strtotime($row['day'])), 2, 's' ], [ $row['count'], 3, 'n' ], [ $row['volume'], 3, 'n' ]];
     }
-    fputcsv($out, [], ';');
+    $rows[] = [];
 
-    fputcsv($out, ['Top 10 utilisateurs'], ';');
-    fputcsv($out, ['Rang','Nom','Telephone','Volume total','Transactions'], ';');
+    $rows[] = [[ 'Top 10 utilisateurs', 5, 's' ]];
+    $rows[] = [[ 'Rang',1,'s' ], [ 'Nom',1,'s' ], [ 'Telephone',1,'s' ], [ 'Volume total',1,'s' ], [ 'Transactions',1,'s' ]];
     foreach($d['top_users'] as $i=>$u){
-        fputcsv($out, [$i+1, $u['name'], $u['phone_number'], $u['total_volume'], $u['tx_count']], ';');
+        $rows[] = [[ $i+1, 3, 'n' ], [ $u['name'], 2, 's' ], [ $u['phone_number'], 2, 's' ], [ $u['total_volume'], 3, 'n' ], [ $u['tx_count'], 3, 'n' ]];
     }
-    fputcsv($out, [], ';');
+    $rows[] = [];
 
-    fputcsv($out, ['Repartition par operateur'], ';');
-    fputcsv($out, ['Operateur','Nombre de comptes'], ';');
+    $rows[] = [[ 'Repartition par operateur', 5, 's' ]];
+    $rows[] = [[ 'Operateur',1,'s' ], [ 'Nombre de comptes',1,'s' ]];
     foreach($d['operator_breakdown'] as $o){
-        fputcsv($out, [$o['operator'], $o['total']], ';');
+        $rows[] = [[ $o['operator'], 2, 's' ], [ $o['total'], 3, 'n' ]];
     }
 
-    fclose($out);
+    $sheetXml = xlsx_build_sheet($rows);
+    $xlsxData = xlsx_build($sheetXml);
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_money_dashboard.xlsx"');
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
     exit;
 }
 
