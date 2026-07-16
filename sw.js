@@ -88,3 +88,38 @@ self.addEventListener('fetch', function(event){
     })
   );
 });
+
+// ═══════════════════════════════════════════
+// NOTIFICATIONS PUSH REELLES — reception et affichage d'une notification
+// meme quand l'app est fermee (ou en arriere-plan), et ouverture de l'app
+// au clic dessus. Le contenu (titre/texte) est fourni par le backend au
+// moment de l'envoi, chiffre selon RFC 8291 et dechiffre automatiquement
+// par le navigateur avant d'arriver ici.
+// ═══════════════════════════════════════════
+self.addEventListener('push', function(event){
+  var data = {};
+  try{ data = event.data ? event.data.json() : {}; }catch(e){}
+  var title = data.title || 'ROM_MONEY';
+  var options = {
+    body: data.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: data.url || './' },
+    vibrate: [100, 50, 100]
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function(event){
+  event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList){
+      for(var i=0; i<clientList.length; i++){
+        var c = clientList[i];
+        if('focus' in c) return c.focus();
+      }
+      if(clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
