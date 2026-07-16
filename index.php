@@ -452,10 +452,32 @@ function auth_login() {
     $b = body();
     $phone = trim($b['phone'] ?? '');
     $pin   = trim($b['pin']   ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
     if(!$phone || !$pin) fail('Telephone et PIN requis');
     $user = q("SELECT u.*,w.id wid,w.balance,w.vault_balance,w.vault_locked,w.vault_lock_date,w.qr_seed FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?", [$phone])->fetch();
     if(!$user || !password_verify($pin, $user['pin_hash'])) fail('Numero ou PIN incorrect', 401);
     if($user['status'] !== 'active') fail('Compte suspendu', 403);
+
+    // Alerte "nouvel appareil" : si cet identifiant d'appareil n'a jamais ete
+    // vu pour ce compte, on notifie l'utilisateur (sur ses AUTRES appareils
+    // deja connus, via push) puis on enregistre celui-ci comme connu.
+    if($deviceId){
+        $known = q("SELECT 1 FROM known_devices WHERE user_id=? AND device_id=?", [$user['id'], $deviceId])->fetch();
+        if(!$known){
+            $hasOtherDevices = q("SELECT 1 FROM known_devices WHERE user_id=?", [$user['id']])->fetch();
+            if($hasOtherDevices){
+                web_push_send_to_user($user['id'], 'ROM_MONEY',
+                    'Nouvelle connexion detectee sur votre compte depuis un appareil non reconnu.');
+            }
+            $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+            q("INSERT INTO known_devices (user_id,device_id,user_agent) VALUES (?,?,?)
+               ON CONFLICT (user_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP",
+              [$user['id'], $deviceId, $ua]);
+        } else {
+            q("UPDATE known_devices SET last_seen=CURRENT_TIMESTAMP WHERE user_id=? AND device_id=?", [$user['id'], $deviceId]);
+        }
+    }
+
     $token = jwt_make(['sub'=>$user['id'],'phone'=>$phone]);
     ok(['token'=>$token,'user_id'=>$user['id'],'name'=>$user['full_name'],'phone'=>$user['phone_number'],
         'wallet_id'=>$user['wid'],'balance'=>(float)$user['balance'],'vault_balance'=>(float)$user['vault_balance'],
@@ -2351,6 +2373,15 @@ function route_install() {
         auth_key TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, endpoint)
+    )",
+    "CREATE TABLE IF NOT EXISTS known_devices (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        device_id VARCHAR(64) NOT NULL,
+        user_agent TEXT,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, device_id)
     )"
     ];
 
