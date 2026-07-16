@@ -226,9 +226,6 @@ function web_push_send_to_user($userId, $title, $body, $extra = []) {
     } catch(Exception $e) {}
 }
 
-const RECEIVE_LIMIT_UNVERIFIED = 2000000;
-const RECEIVE_LIMIT_VERIFIED   = 100000000;
-
 // Verifie que creditier $userId de $incomingNet ne depasse pas son plafond
 // mensuel de reception (remis a zero chaque mois calendaire, comme les stats).
 // Bloque avec fail() si le plafond serait depasse. $selfFacing indique si la
@@ -236,7 +233,7 @@ const RECEIVE_LIMIT_VERIFIED   = 100000000;
 // bancaire) ou une autre personne (Envoyer -> le message s'adresse a l'emetteur).
 function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
     $u = q("SELECT is_kyc FROM users WHERE id=?",[$userId])->fetch();
-    $limit = ($u && $u['is_kyc']) ? RECEIVE_LIMIT_VERIFIED : RECEIVE_LIMIT_UNVERIFIED;
+    $limit = ($u && $u['is_kyc']) ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$userId])->fetchColumn();
     $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
         WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
@@ -512,8 +509,18 @@ function route_wallet($action) {
         'stats'          => wallet_stats(),
         'stats-full'     => wallet_stats_full(),
         'limit-status'   => wallet_limit_status(),
+        'fee-config'     => wallet_fee_config(),
         default          => fail('Action inconnue',404)
     };
+}
+
+// Expose les taux de frais actuels (authentifie, pas besoin du mot de passe
+// admin) : permet a l'app de calculer un apercu des frais TOUJOURS identique
+// au montant reellement debite cote serveur, meme si l'admin a modifie ces
+// taux depuis le panneau de reglages.
+function wallet_fee_config() {
+    auth();
+    ok(get_public_settings());
 }
 
 function wallet_balance() {
@@ -615,7 +622,7 @@ function wallet_limit_status() {
     $pl = auth();
     $u = q("SELECT is_kyc FROM users WHERE id=?",[$pl['sub']])->fetch();
     $isKyc = (bool)($u['is_kyc']??false);
-    $limit = $isKyc ? RECEIVE_LIMIT_VERIFIED : RECEIVE_LIMIT_UNVERIFIED;
+    $limit = $isKyc ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
         WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
@@ -746,27 +753,30 @@ function tx_send() {
         fail('CROSS_COUNTRY: Ce destinataire est dans un autre pays ('.$recv['country'].'). Utilise Transfert Afrique pour cet envoi.', 422);
     }
 
-    // Calcul du frais : national = 1% avec gratuite sous 4000 F (inchange).
-    // Africa = 1,5% sans palier de gratuite, aligne sur le tarif international
-    // reel de Wave (verifie), quel que soit le montant.
+    // Calcul du frais : national = taux configurable avec gratuite sous seuil
+    // configurable. Africa = taux configurable sans palier de gratuite,
+    // aligne par defaut sur le tarif international reel de Wave (verifie).
+    $rateNational = (float)get_setting('fee_rate_national', 0.01);
+    $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
+    $rateAfrica = (float)get_setting('fee_rate_africa', 0.015);
     if($channel==='africa'){
         if($mode==='brut'){
             $brut = $amount;
-            $fee  = round($brut * 0.015);
+            $fee  = round($brut * $rateAfrica);
             $net  = $brut - $fee;
         } else {
             $net  = $amount;
-            $fee  = round($net * 0.015);
+            $fee  = round($net * $rateAfrica);
             $brut = $net + $fee;
         }
     } else {
         if($mode==='brut'){
             $brut = $amount;
-            $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
+            $fee  = ($brut >= $freeThreshold) ? round($brut * $rateNational) : 0;
             $net  = $brut - $fee;
         } else {
             $net  = $amount;
-            $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
+            $fee  = ($net >= $freeThreshold) ? round($net * $rateNational) : 0;
             $brut = $net + $fee; // Total amount debited from sender
         }
     }
@@ -836,13 +846,15 @@ function tx_collect() {
     // anti-bruteforce lockout since this account is identified by phone, not by token.
     pin_check($payer['id'], $pin, $payer['pin_hash']);
 
+    $rateNational = (float)get_setting('fee_rate_national', 0.01);
+    $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
     if($mode==='brut'){
         $brut = $amount;
-        $fee  = ($brut >= 4000) ? round($brut * 0.01) : 0;
+        $fee  = ($brut >= $freeThreshold) ? round($brut * $rateNational) : 0;
         $net  = $brut - $fee;
     } else {
         $net  = $amount;
-        $fee  = ($net >= 4000) ? round($net * 0.01) : 0;
+        $fee  = ($net >= $freeThreshold) ? round($net * $rateNational) : 0;
         $brut = $net + $fee;
     }
     if($net<=0) fail('Montant invalide');
@@ -1258,6 +1270,35 @@ function check_admin_password($b) {
     if(!isset($b['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$b['admin_password'])) {
         fail('Mot de passe admin incorrect',401);
     }
+}
+
+// ============================================================
+// REGLAGES DYNAMIQUES — taux de frais et plafonds, modifiables depuis
+// l'admin sans redeploiement. Tant qu'un reglage n'a jamais ete modifie,
+// la valeur par defaut ci-dessous s'applique (comportement identique a
+// avant l'introduction de ce systeme).
+// ============================================================
+function get_setting($key, $default) {
+    static $cache = [];
+    if(array_key_exists($key, $cache)) return $cache[$key];
+    $row = q("SELECT value FROM app_settings WHERE setting_key=?", [$key])->fetch();
+    $cache[$key] = ($row && $row['value']!=='') ? $row['value'] : $default;
+    return $cache[$key];
+}
+function set_setting($key, $value) {
+    q("INSERT INTO app_settings (setting_key, value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)
+       ON CONFLICT (setting_key) DO UPDATE SET value=EXCLUDED.value, updated_at=CURRENT_TIMESTAMP",
+      [$key, $value]);
+}
+// Reglages exposes publiquement (utilisateurs connectes, pas seulement
+// l'admin) : necessaires pour que l'apercu des frais cote app corresponde
+// toujours exactement au montant reellement debite cote serveur.
+function get_public_settings() {
+    return [
+        'fee_rate_national' => (float)get_setting('fee_rate_national', 0.01),
+        'fee_free_threshold_national' => (float)get_setting('fee_free_threshold_national', 4000),
+        'fee_rate_africa' => (float)get_setting('fee_rate_africa', 0.015),
+    ];
 }
 
 function kyc_submit() {
@@ -1805,6 +1846,8 @@ function route_admin($action) {
         'list-users'        => admin_list_users(),
         'list-alerts'       => admin_list_alerts(),
         'dashboard-export-xlsx' => admin_dashboard_export_xlsx(),
+        'get-settings'      => admin_get_settings(),
+        'update-settings'   => admin_update_settings(),
         'dashboard-export-pdf' => admin_dashboard_export_pdf(),
         default             => fail('Action inconnue',404)
     };
@@ -2380,6 +2423,44 @@ function admin_dashboard_export_xlsx() {
     exit;
 }
 
+// Cle => [valeur par defaut, libelle pour le journal d'audit]
+const APP_SETTINGS_DEFS = [
+    'fee_rate_national'           => [0.01, 'Taux de frais national'],
+    'fee_free_threshold_national' => [4000, 'Seuil de gratuite national'],
+    'fee_rate_africa'             => [0.015, 'Taux de frais Transfert Afrique'],
+    'limit_unverified'            => [2000000, 'Plafond mensuel non verifie'],
+    'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
+];
+
+function admin_get_settings() {
+    $b = body();
+    check_admin_password($b);
+    $out = [];
+    foreach(APP_SETTINGS_DEFS as $key => $def){
+        $out[$key] = (float)get_setting($key, $def[0]);
+    }
+    ok($out);
+}
+
+function admin_update_settings() {
+    $b = body();
+    check_admin_password($b);
+    $changes = [];
+    foreach(APP_SETTINGS_DEFS as $key => $def){
+        if(!isset($b[$key])) continue;
+        $val = (float)$b[$key];
+        if($val < 0) fail('Valeur invalide pour '.$def[1]);
+        // Les taux (fee_rate_*) sont des proportions : rejette toute valeur
+        // absurde (> 1 = plus de 100%), garde-fou simple contre une erreur
+        // de saisie (ex: 15 au lieu de 0.15).
+        if(strpos($key,'fee_rate_')===0 && $val > 1) fail($def[1].' doit etre une proportion entre 0 et 1 (ex: 0.01 pour 1%)');
+        set_setting($key, (string)$val);
+        $changes[] = $def[1].' = '.$val;
+    }
+    admin_log('update_settings','success',null, implode(', ', $changes) ?: 'Aucun changement');
+    ok(null,'Reglages mis a jour');
+}
+
 function admin_dashboard_export_pdf() {
     if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
         fail('Mot de passe admin incorrect',401);
@@ -2827,6 +2908,11 @@ function route_install() {
         first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, device_id)
+    )",
+    "CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key VARCHAR(50) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )"
     ];
 
