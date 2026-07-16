@@ -1477,7 +1477,7 @@ function kyc_admin_reject() {
 // ============================================================
 function route_export($action) {
     match($action) {
-        'csv' => export_csv(),
+        'xlsx' => export_xlsx(),
         'pdf' => export_pdf(),
         default => fail('Action inconnue',404)
     };
@@ -1557,7 +1557,7 @@ function export_type_label($type, $isDebit=false, $lang='fr'){
     return $map[$type] ?? $type;
 }
 
-function export_csv() {
+function export_xlsx() {
     $pl = auth();
     $periodRaw = $_GET['period']??'month';
     $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
@@ -1567,22 +1567,16 @@ function export_csv() {
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="rom_money_historique.csv"');
-    header('Access-Control-Expose-Headers: X-Export-Truncated, X-Export-Total, X-Export-Limit');
-    header('X-Export-Truncated: '.($res['truncated']?'1':'0'));
-    header('X-Export-Total: '.$res['total']);
-    header('X-Export-Limit: '.$res['limit']);
-    echo "\xEF\xBB\xBF"; // BOM UTF-8, pour un affichage correct des accents dans Excel
-    $out = fopen('php://output','w');
+    // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde
+    $data = [];
     if($res['truncated']){
         $msg = str_replace(['{limit}','{total}'], [$res['limit'],$res['total']], export_t('truncated',$lang));
-        fputcsv($out, [$msg], ';');
+        $data[] = [[ $msg, 0, 's' ]];
     }
-    fputcsv($out, [
-        export_t('col_date',$lang), export_t('col_type',$lang), export_t('col_contact',$lang),
-        export_t('col_amount',$lang), export_t('col_fee',$lang), export_t('col_ref',$lang), export_t('col_status',$lang)
-    ], ';');
+    $data[] = [
+        [ export_t('col_date',$lang), 1, 's' ], [ export_t('col_type',$lang), 1, 's' ], [ export_t('col_contact',$lang), 1, 's' ],
+        [ export_t('col_amount',$lang), 1, 's' ], [ export_t('col_fee',$lang), 1, 's' ], [ export_t('col_ref',$lang), 1, 's' ], [ export_t('col_status',$lang), 1, 's' ]
+    ];
     foreach($rows as $t){
         $isDebit = $t['direction']==='debit';
         $amount = (float)$t['amount'];
@@ -1590,17 +1584,28 @@ function export_csv() {
         $frais = max(0, $amount - $net);
         $montant = $isDebit ? -$amount : $net;
         $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
-        fputcsv($out, [
-            date('d/m/Y H:i', strtotime($t['created_at'])),
-            export_type_label($t['type'], $isDebit, $lang),
-            $contact,
-            number_format($montant,0,',',' ').' F',
-            number_format($frais,0,',',' ').' F',
-            $t['reference'],
-            $t['status']
-        ], ';');
+        $data[] = [
+            [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
+            [ export_type_label($t['type'], $isDebit, $lang), 2, 's' ],
+            [ $contact, 2, 's' ],
+            [ number_format($montant,0,',',' ').' F', 2, 's' ],
+            [ number_format($frais,0,',',' ').' F', 2, 's' ],
+            [ $t['reference'], 2, 's' ],
+            [ $t['status'], 2, 's' ]
+        ];
     }
-    fclose($out);
+
+    $sheetXml = xlsx_build_sheet($data);
+    $xlsxData = xlsx_build($sheetXml);
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_money_historique.xlsx"');
+    header('Access-Control-Expose-Headers: X-Export-Truncated, X-Export-Total, X-Export-Limit');
+    header('X-Export-Truncated: '.($res['truncated']?'1':'0'));
+    header('X-Export-Total: '.$res['total']);
+    header('X-Export-Limit: '.$res['limit']);
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
     exit;
 }
 
@@ -1788,7 +1793,7 @@ function route_admin($action) {
         'late-cancel'       => admin_late_cancel(),
         'audit-list'        => admin_audit_list(),
         'dashboard-stats'   => admin_dashboard_stats(),
-        'audit-export-csv'  => admin_audit_export_csv(),
+        'audit-export-xlsx' => admin_audit_export_xlsx(),
         'audit-export-pdf'  => admin_audit_export_pdf(),
         'countries-list'    => admin_countries_list(),
         'country-toggle'    => admin_country_toggle(),
@@ -2019,24 +2024,28 @@ function admin_audit_result_label($r) {
     return $labels[$r] ?? $r;
 }
 
-function admin_audit_export_csv() {
+function admin_audit_export_xlsx() {
     $rows = admin_audit_get_rows();
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="rom_money_journal_audit.csv"');
-    echo "\xEF\xBB\xBF";
-    $out = fopen('php://output','w');
-    fputcsv($out, ['Date','Action','Resultat','Compte','Details'], ';');
+    $data = [];
+    $data[] = [[ 'Date',1,'s' ], [ 'Action',1,'s' ], [ 'Resultat',1,'s' ], [ 'Compte',1,'s' ], [ 'Details',1,'s' ]];
     foreach($rows as $l){
-        fputcsv($out, [
-            date('d/m/Y H:i', strtotime($l['created_at'])),
-            admin_audit_action_label($l['action']),
-            admin_audit_result_label($l['result']),
-            $l['target_phone'] ?: '-',
-            $l['details'] ?: ''
-        ], ';');
+        $data[] = [
+            [ date('d/m/Y H:i', strtotime($l['created_at'])), 2, 's' ],
+            [ admin_audit_action_label($l['action']), 2, 's' ],
+            [ admin_audit_result_label($l['result']), 2, 's' ],
+            [ $l['target_phone'] ?: '-', 2, 's' ],
+            [ $l['details'] ?: '', 2, 's' ]
+        ];
     }
-    fclose($out);
+
+    $sheetXml = xlsx_build_sheet($data);
+    $xlsxData = xlsx_build($sheetXml);
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_money_journal_audit.xlsx"');
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
     exit;
 }
 
