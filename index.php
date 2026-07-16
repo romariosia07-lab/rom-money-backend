@@ -1796,6 +1796,7 @@ function route_admin($action) {
         'block-account'     => admin_block_account(),
         'unblock-account'   => admin_unblock_account(),
         'update-country'    => admin_update_country(),
+        'delete-kyc'        => admin_delete_kyc(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2230,6 +2231,24 @@ function admin_update_country() {
     q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
     admin_log('update_country','success',$phone,'De "'.($oldCountry?:'-').'" vers "'.$country.'" - '.$reason);
     ok(null,'Pays mis a jour avec succes');
+}
+
+// Nettoyage manuel d'une demande KYC redondante/obsolete (ex: doublons issus
+// de vieux tests). Reservee au nettoyage de donnees, jamais utilisee pour
+// annuler une verification legitime deja approuvee.
+function admin_delete_kyc() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['id'] ?? '');
+    if(!$id) fail('Identifiant de la demande requis');
+    $k = q("SELECT id,phone_number FROM kyc_requests WHERE id=?",[$id])->fetch();
+    if(!$k){
+        admin_log('delete_kyc','failed',null,'Demande introuvable: '.$id);
+        fail('Demande introuvable',404);
+    }
+    q("DELETE FROM kyc_requests WHERE id=?",[$id]);
+    admin_log('delete_kyc','success',$k['phone_number'],'Demande KYC '.$id.' supprimee');
+    ok(null,'Demande KYC supprimee');
 }
 
 // INSTALL
