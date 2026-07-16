@@ -1799,6 +1799,8 @@ function route_admin($action) {
         'delete-kyc'        => admin_delete_kyc(),
         'list-users'        => admin_list_users(),
         'list-alerts'       => admin_list_alerts(),
+        'dashboard-export-csv' => admin_dashboard_export_csv(),
+        'dashboard-export-pdf' => admin_dashboard_export_pdf(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2082,14 +2084,7 @@ function admin_audit_export_pdf() {
     exit;
 }
 
-function admin_dashboard_stats() {
-    $b = body();
-    check_admin_password($b);
-
-    $period   = trim($b['period'] ?? 'today');
-    $dateFrom = trim($b['date_from'] ?? '');
-    $dateTo   = trim($b['date_to'] ?? '');
-
+function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
     $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $todayVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
@@ -2159,7 +2154,7 @@ function admin_dashboard_stats() {
         ORDER BY total_volume DESC
         LIMIT 10")->fetchAll();
 
-    ok([
+    return [
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
         'today_fees'     => (float)$todayFees,
@@ -2172,7 +2167,153 @@ function admin_dashboard_stats() {
         'recent_logs'    => $recentLogs,
         'daily_volume'   => $dailyVolume,
         'top_users'      => $topUsers
-    ]);
+    ];
+}
+
+function admin_dashboard_stats() {
+    $b = body();
+    check_admin_password($b);
+    $period   = trim($b['period'] ?? 'today');
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo   = trim($b['date_to'] ?? '');
+    ok(admin_dashboard_get_data($period, $dateFrom, $dateTo));
+}
+
+function admin_dashboard_export_csv() {
+    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
+        fail('Mot de passe admin incorrect',401);
+    }
+    $period   = trim($_GET['period'] ?? 'today');
+    $dateFrom = trim($_GET['date_from'] ?? '');
+    $dateTo   = trim($_GET['date_to'] ?? '');
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="rom_money_dashboard.csv"');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output','w');
+
+    fputcsv($out, ['ROM_MONEY - Tableau de bord'], ';');
+    fputcsv($out, ['Genere le', date('d/m/Y H:i')], ';');
+    fputcsv($out, [], ';');
+    fputcsv($out, ['Resume'], ';');
+    fputcsv($out, ['Transactions aujourd\'hui', $d['today_count']], ';');
+    fputcsv($out, ['Volume aujourd\'hui', $d['today_volume']], ';');
+    fputcsv($out, ['Gains aujourd\'hui', $d['today_fees']], ';');
+    fputcsv($out, ['KYC en attente', $d['kyc_pending']], ';');
+    fputcsv($out, ['Volume periode ('.$d['period'].')', $d['period_volume']], ';');
+    fputcsv($out, ['Gains periode', $d['period_fees']], ';');
+    fputcsv($out, ['Volume total cumule', $d['total_volume']], ';');
+    fputcsv($out, [], ';');
+
+    fputcsv($out, ['Evolution quotidienne (14 jours)'], ';');
+    fputcsv($out, ['Date','Transactions','Volume'], ';');
+    foreach($d['daily_volume'] as $row){
+        fputcsv($out, [$row['day'], $row['count'], $row['volume']], ';');
+    }
+    fputcsv($out, [], ';');
+
+    fputcsv($out, ['Top 10 utilisateurs'], ';');
+    fputcsv($out, ['Rang','Nom','Telephone','Volume total','Transactions'], ';');
+    foreach($d['top_users'] as $i=>$u){
+        fputcsv($out, [$i+1, $u['name'], $u['phone_number'], $u['total_volume'], $u['tx_count']], ';');
+    }
+    fputcsv($out, [], ';');
+
+    fputcsv($out, ['Repartition par operateur'], ';');
+    fputcsv($out, ['Operateur','Nombre de comptes'], ';');
+    foreach($d['operator_breakdown'] as $o){
+        fputcsv($out, [$o['operator'], $o['total']], ';');
+    }
+
+    fclose($out);
+    exit;
+}
+
+function admin_dashboard_export_pdf() {
+    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
+        fail('Mot de passe admin incorrect',401);
+    }
+    $period   = trim($_GET['period'] ?? 'today');
+    $dateFrom = trim($_GET['date_from'] ?? '');
+    $dateTo   = trim($_GET['date_to'] ?? '');
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,pdf_str('ROM_MONEY - Tableau de bord'),0,1);
+    $infoTopY = $pdf->GetY();
+    $logoPath = __DIR__.'/logo.png';
+    if(file_exists($logoPath)){
+        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+    }
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    if(file_exists($logoPath)){
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+    }
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',11);
+    $pdf->Cell(0,8,pdf_str('Resume'),0,1);
+    $pdf->SetFont('Arial','',9);
+    $pdf->Cell(0,6,pdf_str('Transactions aujourd\'hui : '.$d['today_count'].'  -  Volume : '.number_format($d['today_volume'],0,',',' ').' F  -  Gains : '.number_format($d['today_fees'],0,',',' ').' F'),0,1);
+    $pdf->Cell(0,6,pdf_str('Periode ('.$d['period'].') : Volume '.number_format($d['period_volume'],0,',',' ').' F  -  Gains '.number_format($d['period_fees'],0,',',' ').' F'),0,1);
+    $pdf->Cell(0,6,pdf_str('Volume total cumule : '.number_format($d['total_volume'],0,',',' ').' F  -  KYC en attente : '.$d['kyc_pending']),0,1);
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',11);
+    $pdf->Cell(0,8,pdf_str('Evolution quotidienne (14 jours)'),0,1);
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $pdf->Cell(50,7,pdf_str('Date'),1,0,'C',true);
+    $pdf->Cell(50,7,pdf_str('Transactions'),1,0,'C',true);
+    $pdf->Cell(50,7,pdf_str('Volume'),1,1,'C',true);
+    $pdf->SetFont('Arial','',9);
+    foreach($d['daily_volume'] as $row){
+        $pdf->Cell(50,6,date('d/m/Y',strtotime($row['day'])),1);
+        $pdf->Cell(50,6,(string)$row['count'],1);
+        $pdf->Cell(50,6,number_format($row['volume'],0,',',' ').' F',1,1);
+    }
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',11);
+    $pdf->Cell(0,8,pdf_str('Top 10 utilisateurs'),0,1);
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $pdf->Cell(10,7,pdf_str('#'),1,0,'C',true);
+    $pdf->Cell(60,7,pdf_str('Nom'),1,0,'C',true);
+    $pdf->Cell(45,7,pdf_str('Telephone'),1,0,'C',true);
+    $pdf->Cell(40,7,pdf_str('Volume'),1,0,'C',true);
+    $pdf->Cell(35,7,pdf_str('Tx'),1,1,'C',true);
+    $pdf->SetFont('Arial','',9);
+    foreach($d['top_users'] as $i=>$u){
+        $pdf->Cell(10,6,(string)($i+1),1);
+        $pdf->Cell(60,6,pdf_str(substr($u['name'],0,32)),1);
+        $pdf->Cell(45,6,$u['phone_number'],1);
+        $pdf->Cell(40,6,number_format($u['total_volume'],0,',',' ').' F',1);
+        $pdf->Cell(35,6,(string)$u['tx_count'],1,1);
+    }
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',11);
+    $pdf->Cell(0,8,pdf_str('Repartition par operateur'),0,1);
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $pdf->Cell(90,7,pdf_str('Operateur'),1,0,'C',true);
+    $pdf->Cell(90,7,pdf_str('Nombre de comptes'),1,1,'C',true);
+    $pdf->SetFont('Arial','',9);
+    foreach($d['operator_breakdown'] as $o){
+        $pdf->Cell(90,6,pdf_str($o['operator']),1);
+        $pdf->Cell(90,6,(string)$o['total'],1,1);
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_money_dashboard.pdf"');
+    echo $pdf->Output('S');
+    exit;
 }
 
 function admin_countries_list() {
