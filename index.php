@@ -2128,6 +2128,37 @@ function admin_dashboard_stats() {
             ELSE 4
         END")->fetchAll();
 
+    // Evolution quotidienne (14 derniers jours), independante du filtre de
+    // periode ci-dessus : sert a visualiser une tendance recente, pas a
+    // cumuler sur une longue duree.
+    $dailyRows = q("SELECT DATE(created_at) AS day, COUNT(*) AS count, COALESCE(SUM(amount),0) AS volume
+        FROM transactions
+        WHERE status='completed' AND type!='fee' AND created_at >= NOW() - INTERVAL '14 days'
+        GROUP BY DATE(created_at) ORDER BY day")->fetchAll();
+    // Comble les jours sans transaction (absents du GROUP BY) avec des zeros,
+    // pour un graphique continu sur 14 jours consecutifs.
+    $dailyByDate = [];
+    foreach($dailyRows as $r){ $dailyByDate[$r['day']] = $r; }
+    $dailyVolume = [];
+    for($i=13; $i>=0; $i--){
+        $day = date('Y-m-d', strtotime("-$i days"));
+        $row = $dailyByDate[$day] ?? null;
+        $dailyVolume[] = ['day'=>$day, 'count'=>(int)($row['count']??0), 'volume'=>(float)($row['volume']??0)];
+    }
+
+    // Classement des utilisateurs les plus actifs (somme des montants ou ils
+    // sont emetteur OU destinataire, tous statuts de transaction confondus
+    // hors frais), pour reperer les comptes les plus utilises.
+    $topUsers = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
+            SUM(t.amount) AS total_volume, COUNT(*) AS tx_count
+        FROM users u
+        JOIN wallets w ON w.user_id = u.id
+        JOIN transactions t ON (t.sender_wallet_id = w.id OR t.receiver_wallet_id = w.id)
+        WHERE t.status='completed' AND t.type != 'fee'
+        GROUP BY u.id, name, u.phone_number
+        ORDER BY total_volume DESC
+        LIMIT 10")->fetchAll();
+
     ok([
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
@@ -2138,7 +2169,9 @@ function admin_dashboard_stats() {
         'period_fees'    => (float)$periodFees,
         'operator_breakdown' => $operatorBreakdown,
         'total_volume'   => (float)$totalVolume,
-        'recent_logs'    => $recentLogs
+        'recent_logs'    => $recentLogs,
+        'daily_volume'   => $dailyVolume,
+        'top_users'      => $topUsers
     ]);
 }
 
