@@ -1861,9 +1861,13 @@ function admin_search_by_phone() {
     check_admin_password($b);
     $phone = trim($b['phone']??'');
     if(!$phone) fail('Numero requis');
-    $u = q("SELECT id,full_name,verified_name,operator FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,full_name,verified_name,verified_birthdate,phone_number,email,operator,status,is_kyc,country,created_at,referral_code
+            FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
-    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetchColumn();
+
+    $w = q("SELECT id,balance,vault_balance,vault_locked,vault_lock_date FROM wallets WHERE user_id=?",[$u['id']])->fetch();
+    $wid = $w['id'] ?? null;
+
     $rows = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
@@ -1873,7 +1877,38 @@ function admin_search_by_phone() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'
         ORDER BY t.created_at DESC LIMIT 30",[$wid,$wid,$wid])->fetchAll();
-    ok(['account_name'=>$u['verified_name']?:$u['full_name'],'account_verified'=>!empty($u['verified_name']),'account_operator'=>$u['operator'],'transactions'=>$rows]);
+
+    // Historique complet des demandes KYC (pas seulement la plus recente), pour
+    // pouvoir revoir les photos recto/verso meme longtemps apres validation.
+    $kycHistory = q("SELECT id,legal_name,legal_birthdate,photo_recto,photo_verso,status,created_at,reviewed_at
+        FROM kyc_requests WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+
+    $devices = q("SELECT device_id,user_agent,first_seen,last_seen FROM known_devices WHERE user_id=? ORDER BY last_seen DESC",[$u['id']])->fetchAll();
+
+    $banks = q("SELECT bank_name,account_last4,is_default,linked_at FROM linked_banks WHERE user_id=? ORDER BY linked_at DESC",[$u['id']])->fetchAll();
+
+    $referredCount = (int)(q("SELECT COUNT(*) c FROM users WHERE referred_by=?",[$u['id']])->fetch()['c']??0);
+    $referralEarned = (float)(q("SELECT COALESCE(SUM(bonus_amount),0) t FROM referral_bonuses WHERE referrer_id=?",[$u['id']])->fetch()['t']??0);
+
+    ok([
+        'account_name'=>$u['verified_name']?:$u['full_name'],
+        'account_verified'=>!empty($u['verified_name']),
+        'account_operator'=>$u['operator'],
+        'profile'=>[
+            'full_name'=>$u['full_name'],'verified_name'=>$u['verified_name'],'verified_birthdate'=>$u['verified_birthdate'],
+            'phone'=>$u['phone_number'],'email'=>$u['email'],'operator'=>$u['operator'],'status'=>$u['status'],
+            'is_kyc'=>(bool)$u['is_kyc'],'country'=>$u['country'],'created_at'=>$u['created_at'],'referral_code'=>$u['referral_code']
+        ],
+        'wallet'=>[
+            'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
+            'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null
+        ],
+        'kyc_history'=>$kycHistory,
+        'known_devices'=>$devices,
+        'linked_banks'=>$banks,
+        'referral'=>['referred_count'=>$referredCount,'total_earned'=>$referralEarned],
+        'transactions'=>$rows
+    ]);
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
