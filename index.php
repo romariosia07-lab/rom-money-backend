@@ -2423,20 +2423,27 @@ function admin_dashboard_export_xlsx() {
     exit;
 }
 
-// Cle => [valeur par defaut, libelle pour le journal d'audit]
-const APP_SETTINGS_DEFS = [
-    'fee_rate_national'           => [0.01, 'Taux de frais national'],
-    'fee_free_threshold_national' => [4000, 'Seuil de gratuite national'],
-    'fee_rate_africa'             => [0.015, 'Taux de frais Transfert Afrique'],
-    'limit_unverified'            => [2000000, 'Plafond mensuel non verifie'],
-    'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
-];
+// Cle => [valeur par defaut, libelle pour le journal d'audit]. Fonction
+// plutot que const : les fonctions sont hissees par PHP quel que soit leur
+// emplacement dans le fichier, contrairement a `const` au niveau racine qui
+// doit avoir ete atteinte dans l'ordre sequentiel du script pour exister -
+// une const declaree ici serait indisponible pour le code de routage place
+// plus haut dans le fichier, provoquant une erreur fatale.
+function app_settings_defs() {
+    return [
+        'fee_rate_national'           => [0.01, 'Taux de frais national'],
+        'fee_free_threshold_national' => [4000, 'Seuil de gratuite national'],
+        'fee_rate_africa'             => [0.015, 'Taux de frais Transfert Afrique'],
+        'limit_unverified'            => [2000000, 'Plafond mensuel non verifie'],
+        'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
+    ];
+}
 
 function admin_get_settings() {
     $b = body();
     check_admin_password($b);
     $out = [];
-    foreach(APP_SETTINGS_DEFS as $key => $def){
+    foreach(app_settings_defs() as $key => $def){
         $out[$key] = (float)get_setting($key, $def[0]);
     }
     ok($out);
@@ -2446,7 +2453,7 @@ function admin_update_settings() {
     $b = body();
     check_admin_password($b);
     $changes = [];
-    foreach(APP_SETTINGS_DEFS as $key => $def){
+    foreach(app_settings_defs() as $key => $def){
         if(!isset($b[$key])) continue;
         $val = (float)$b[$key];
         if($val < 0) fail('Valeur invalide pour '.$def[1]);
