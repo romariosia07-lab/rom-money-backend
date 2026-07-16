@@ -2287,7 +2287,7 @@ function admin_dashboard_export_pdf() {
     $pdf->Cell(60,7,pdf_str('Nom'),1,0,'C',true);
     $pdf->Cell(45,7,pdf_str('Telephone'),1,0,'C',true);
     $pdf->Cell(40,7,pdf_str('Volume'),1,0,'C',true);
-    $pdf->Cell(35,7,pdf_str('Tx'),1,1,'C',true);
+    $pdf->Cell(35,7,pdf_str('Transactions'),1,1,'C',true);
     $pdf->SetFont('Arial','',9);
     foreach($d['top_users'] as $i=>$u){
         $pdf->Cell(10,6,(string)($i+1),1);
