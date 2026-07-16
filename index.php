@@ -2236,18 +2236,27 @@ function admin_update_country() {
 // Nettoyage manuel d'une demande KYC redondante/obsolete (ex: doublons issus
 // de vieux tests). Reservee au nettoyage de donnees, jamais utilisee pour
 // annuler une verification legitime deja approuvee.
+// Utilise ctid (identifiant physique de ligne PostgreSQL, TOUJOURS unique)
+// plutot que id seul : d'anciennes lignes de test peuvent partager le meme
+// id si la contrainte d'unicite n'a jamais ete appliquee retroactivement a
+// la table existante (CREATE TABLE IF NOT EXISTS ne modifie jamais une
+// table deja presente). Sans cette precaution, supprimer "par id" risquerait
+// de supprimer plusieurs lignes en meme temps au lieu d'une seule.
 function admin_delete_kyc() {
     $b = body();
     check_admin_password($b);
     $id = trim($b['id'] ?? '');
+    $createdAt = trim($b['created_at'] ?? '');
     if(!$id) fail('Identifiant de la demande requis');
-    $k = q("SELECT id,phone_number FROM kyc_requests WHERE id=?",[$id])->fetch();
+    $where = "id=?"; $params = [$id];
+    if($createdAt){ $where .= " AND created_at=?"; $params[] = $createdAt; }
+    $k = q("SELECT ctid, phone_number FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
     if(!$k){
         admin_log('delete_kyc','failed',null,'Demande introuvable: '.$id);
         fail('Demande introuvable',404);
     }
-    q("DELETE FROM kyc_requests WHERE id=?",[$id]);
-    admin_log('delete_kyc','success',$k['phone_number'],'Demande KYC '.$id.' supprimee');
+    q("DELETE FROM kyc_requests WHERE ctid = ?::tid", [$k['ctid']]);
+    admin_log('delete_kyc','success',$k['phone_number'],'Demande KYC '.$id.' supprimee (ligne unique)');
     ok(null,'Demande KYC supprimee');
 }
 
