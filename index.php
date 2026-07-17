@@ -21,7 +21,7 @@ if (!JWT_SECRET || !ADMIN_PASSWORD) {
     echo json_encode(['success'=>false,'message'=>'Configuration serveur incomplete : JWT_SECRET et/ou ADMIN_PASSWORD non definis sur Render.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
-define('JWT_EXPIRY', 86400);
+define('JWT_EXPIRY', 43200); // 12h (etait 24h/86400s)
 define('APP_ENV',    getenv('APP_ENV')    ?: 'development');
 define('APP_DEBUG',  APP_ENV === 'development');
 define('CANCEL_MINS', 5);
@@ -487,6 +487,19 @@ function generate_referral_code() {
     return $code;
 }
 
+// PIN faibles interdits : chiffres identiques (000000, 111111...) et
+// suites logiques evidentes (croissantes ou decroissantes). Reste un code
+// a 6 chiffres classique pour l'utilisateur, sans nouvelle contrainte de
+// lecture - juste quelques combinaisons trop simples ecartees.
+function is_weak_pin($pin) {
+    if (preg_match('/^(\d)\1{5}$/', $pin)) return true; // 000000, 111111, ...
+    $sequencesUp = '01234567890123456789';
+    $sequencesDown = '98765432109876543210';
+    if (strpos($sequencesUp, $pin) !== false) return true;   // 123456, 234567, ...
+    if (strpos($sequencesDown, $pin) !== false) return true; // 987654, 654321, ...
+    return false;
+}
+
 function auth_register() {
     rate_limit_check('register', 10, 60);
     $b = body();
@@ -500,6 +513,7 @@ function auth_register() {
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
+    if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     $validOperators = ['Orange CI','MTN CI','Moov Africa CI'];
     if(!in_array($op, $validOperators, true)) fail('Operateur invalide');
     if(!$country) fail('Le pays est requis');
@@ -545,7 +559,11 @@ function auth_login() {
     $deviceId = trim($b['device_id'] ?? '');
     if(!$phone || !$pin) fail('Telephone et PIN requis');
     $user = q("SELECT u.*,w.id wid,w.balance,w.vault_balance,w.vault_locked,w.vault_lock_date,w.qr_seed FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?", [$phone])->fetch();
-    if(!$user || !password_verify($pin, $user['pin_hash'])) fail('Numero ou PIN incorrect', 401);
+    if(!$user) fail('Numero ou PIN incorrect', 401);
+    // Meme verrou que pour les confirmations de transfert : 5 tentatives puis
+    // blocage de 60 min. Avant, la connexion elle-meme n'avait aucune limite
+    // par compte (seulement la limite generale par IP ajoutee plus tot).
+    pin_check($user['id'], $pin, $user['pin_hash']);
     if($user['status'] !== 'active') fail('Compte suspendu', 403);
 
     // Alerte "nouvel appareil" : si cet identifiant d'appareil n'a jamais ete
@@ -583,6 +601,7 @@ function auth_change_pin() {
     $new = trim($b['new_pin']     ?? '');
     if(!preg_match('/^\d{6}$/',$cur)) fail('PIN actuel invalide');
     if(!preg_match('/^\d{6}$/',$new)) fail('Nouveau PIN invalide');
+    if(is_weak_pin($new)) fail('Ce code est trop simple, choisissez une autre combinaison');
     $user = q("SELECT pin_hash FROM users WHERE id=?", [$pl['sub']])->fetch();
     if(!password_verify($cur, $user['pin_hash'])) fail('PIN actuel incorrect', 401);
     q("UPDATE users SET pin_hash=? WHERE id=?", [password_hash($new,PASSWORD_BCRYPT), $pl['sub']]);
@@ -2262,6 +2281,7 @@ function admin_reset_pin() {
     $newPin = trim($b['new_pin']??'');
     $reason = trim($b['reason']??'');
     if(!preg_match('/^\d{6}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 6 chiffres');
+    if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
