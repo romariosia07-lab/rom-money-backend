@@ -2278,6 +2278,7 @@ function route_admin($action) {
         '2fa-regenerate-codes' => admin_2fa_regenerate_codes(),
         'kyc-migrate-encrypt'  => admin_kyc_migrate_encrypt(),
         'backfill-verified-names' => admin_backfill_verified_names(),
+        'delete-account' => admin_delete_account(),
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         default             => fail('Action inconnue',404)
@@ -3289,6 +3290,50 @@ function admin_unblock_account() {
     q("UPDATE users SET status='active' WHERE id=?",[$u['id']]);
     admin_log('account_unblock','success',$phone,$reason);
     ok(null,'Compte debloque avec succes');
+}
+
+// ============================================================
+// SUPPRESSION COMPLETE D'UN COMPTE — irreversible. Reserve aux comptes de
+// test/erreurs d'inscription : supprime TOUT ce qui identifie ce compte
+// (utilisateur, portefeuille, historique KYC, appareils connus, banques
+// liees, notifications, abonnements push) de sorte que le numero de
+// telephone redevient totalement libre, comme s'il n'avait jamais existe.
+// Les transactions DEJA EFFECTUEES ne sont PAS supprimees : les toucher
+// fausserait l'historique comptable de l'autre partie impliquee (quelqu'un
+// a reellement recu ou envoye cet argent). Seul le compte disparait ; ces
+// transactions resteront visibles cote destinataire/expediteur, juste sans
+// nom associe pour ce compte supprime.
+// ============================================================
+function admin_delete_account() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone'] ?? '');
+    $confirmPhone = trim($b['confirm_phone'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$phone || !$reason) fail('Telephone et raison requis');
+    if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
+
+    $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u){
+        admin_log('account_delete','failed',$phone,'Compte introuvable');
+        fail('Compte introuvable',404);
+    }
+    $uid = $u['id'];
+
+    q("DELETE FROM kyc_requests WHERE user_id=?",[$uid]);
+    q("DELETE FROM known_devices WHERE user_id=?",[$uid]);
+    q("DELETE FROM push_subscriptions WHERE user_id=?",[$uid]);
+    q("DELETE FROM linked_banks WHERE user_id=?",[$uid]);
+    q("DELETE FROM notifications WHERE user_id=?",[$uid]);
+    q("DELETE FROM referral_bonuses WHERE referrer_id=? OR referee_id=?",[$uid,$uid]);
+    // Debarrasse les autres comptes de la reference a ce parrain supprime,
+    // sans les toucher autrement (ils gardent leur propre historique intact).
+    q("UPDATE users SET referred_by=NULL WHERE referred_by=?",[$uid]);
+    q("DELETE FROM wallets WHERE user_id=?",[$uid]);
+    q("DELETE FROM users WHERE id=?",[$uid]);
+
+    admin_log('account_delete','success',$phone,'Compte "'.($u['full_name']?:'?').'" supprime definitivement - '.$reason);
+    ok(null,'Compte supprime definitivement');
 }
 
 function admin_update_country() {

@@ -985,6 +985,22 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <input class="finput" id="cty-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
       </div>
       <button class="btn-g" onclick="adminUpdateCountry()">Mettre à jour le pays</button>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px;color:var(--re)">⚠ Supprimer définitivement un compte</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Action <b>irréversible</b>. Supprime le compte, le portefeuille, l'historique KYC et tout ce qui lui est associé — le numéro redevient totalement disponible pour une nouvelle inscription, comme s'il n'avait jamais existé. Réservé aux comptes de test ou erreurs d'inscription. Les transactions déjà effectuées restent visibles côté destinataire/expéditeur (jamais supprimées, pour ne pas fausser leur historique).</div>
+      <div class="frow"><label class="flabel">Numéro de téléphone à supprimer</label><input class="finput" id="del-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel">Retape le même numéro pour confirmer</label><input class="finput" id="del-phone-confirm" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+        <select class="finput" id="del-reason-sel" onchange="toggleReasonCustom('del')">
+          <option value="">— Choisir une raison —</option>
+          <option value="Compte de test">Compte de test</option>
+          <option value="Erreur de saisie a l'inscription">Erreur de saisie à l'inscription</option>
+          <option value="Demande du client">Demande du client</option>
+          <option value="__other__">Autre raison (préciser)</option>
+        </select>
+        <input class="finput" id="del-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+      </div>
+      <button style="width:100%;padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminDeleteAccount()">Supprimer définitivement ce compte</button>
     </div>
 
     <div id="admin-panel-tx" class="admin-panel" style="display:none">
@@ -1793,7 +1809,7 @@ var scanStream=null,scanData=null;
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
+var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
@@ -2649,6 +2665,25 @@ function adminUpdateCountry(){
       document.getElementById('cty-phone').value='';
       document.getElementById('cty-country').value='';
       resetReasonField('cty');
+    } else {
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+
+function adminDeleteAccount(){
+  var phone=document.getElementById('del-phone').value.trim();
+  var confirmPhone=document.getElementById('del-phone-confirm').value.trim();
+  var reason=getReasonValue('del');
+  if(!phone||!confirmPhone||!reason){ toast('Numéro (x2) et raison requis', true); return; }
+  if(phone!==confirmPhone){ toast('Les deux numéros ne correspondent pas', true); return; }
+  if(!confirm('⚠ DERNIÈRE CONFIRMATION ⚠\n\nSupprimer DÉFINITIVEMENT le compte '+phone+' ?\n\nCette action est IRRÉVERSIBLE. Le compte, son portefeuille et son historique KYC seront perdus pour toujours. Le numéro redeviendra disponible pour une nouvelle inscription.')) return;
+  apiCall('/admin?action=delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
+    if(res&&res.success){
+      toast('Compte supprimé définitivement');
+      document.getElementById('del-phone').value='';
+      document.getElementById('del-phone-confirm').value='';
+      resetReasonField('del');
     } else {
       toast((res&&res.message)||'Erreur', true);
     }
