@@ -274,6 +274,15 @@ function web_push_send_to_user($userId, $title, $body, $extra = []) {
     } catch(Exception $e) {}
 }
 
+// Alerte push vers TOI (admin), pour les actions les plus sensibles - pour
+// ne pas devoir aller consulter le journal d'audit pour t'en rendre compte.
+function web_push_send_to_admin($title, $body, $extra = []) {
+    try {
+        $subs = q("SELECT * FROM admin_push_subscriptions")->fetchAll();
+        foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
+    } catch(Exception $e) {}
+}
+
 // Verifie que creditier $userId de $incomingNet ne depasse pas son plafond
 // mensuel de reception (remis a zero chaque mois calendaire, comme les stats).
 // Bloque avec fail() si le plafond serait depasse. $selfFacing indique si la
@@ -834,8 +843,33 @@ function route_tx($action) {
         'history' => tx_history(),
         'detail'  => tx_detail(),
         'resolve' => tx_resolve(),
+        'check-new-recipient' => tx_check_new_recipient(),
         default   => fail('Action inconnue',404)
     };
+}
+
+// Verification LEGERE, sans effet de bord (aucune ecriture), utilisee par
+// le frontend AVANT l'envoi pour savoir s'il faut afficher un avertissement
+// dans le meme ecran de confirmation par PIN (pas une etape en plus).
+// Reutilise volontairement le meme seuil que la detection de fraude
+// (fraud_new_recipient_min_amount) pour rester coherent entre ce qui est
+// montre a l'utilisateur et ce qui remonte en alerte admin.
+function tx_check_new_recipient() {
+    $pl = auth(); $b = body();
+    $receiverPhone = trim($b['receiver_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    if (!$receiverPhone || $amount <= 0) { ok(['warn'=>false]); return; }
+    $newRecipientMin = (float)get_setting('fraud_new_recipient_min_amount', 50000);
+    if ($amount < $newRecipientMin) { ok(['warn'=>false]); return; }
+    $sw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    if (!$sw) { ok(['warn'=>false]); return; }
+    $prior = q("SELECT COUNT(*) c FROM transactions t
+                JOIN wallets rw ON rw.id=t.receiver_wallet_id
+                JOIN users ru ON ru.id=rw.user_id
+                WHERE t.sender_wallet_id=? AND ru.phone_number=? AND t.status='completed'",
+                [$sw['id'], $receiverPhone])->fetch();
+    $isNew = $prior && (int)$prior['c'] === 0;
+    ok(['warn' => $isNew]);
 }
 
 // ============================================================
@@ -1546,6 +1580,42 @@ function get_public_settings() {
     ];
 }
 
+// ============================================================
+// CHIFFREMENT DES PHOTOS KYC — les pieces d'identite (recto/verso) sont
+// parmi les donnees les plus sensibles de l'app. Chiffrees avec AES-256-GCM
+// (chiffrement authentifie : toute alteration des donnees est detectee, pas
+// seulement empechee de se lire) avant d'etre stockees, avec une cle separee
+// de JWT_SECRET/ADMIN_PASSWORD (KYC_ENCRYPTION_KEY, variable d'environnement
+// Render). Ainsi, meme en cas de fuite de la seule base de donnees, les
+// photos restent illisibles sans cette cle.
+// Le marqueur "ENC1:" en prefixe permet de reconnaitre les donnees deja
+// chiffrees et de rester compatible avec d'eventuelles anciennes demandes
+// KYC deja en base avant la mise en place de ce chiffrement (non chiffrees,
+// lues telles quelles).
+// ============================================================
+function kyc_encrypt($plaintext) {
+    $key = getenv('KYC_ENCRYPTION_KEY');
+    if (!$key) fail('Configuration serveur incomplete : KYC_ENCRYPTION_KEY non definie sur Render.', 500);
+    $rawKey = hash('sha256', $key, true);
+    $iv = random_bytes(12);
+    $tag = '';
+    $ciphertext = openssl_encrypt($plaintext, 'aes-256-gcm', $rawKey, OPENSSL_RAW_DATA, $iv, $tag);
+    return 'ENC1:'.base64_encode($iv.$tag.$ciphertext);
+}
+function kyc_decrypt($stored) {
+    if (!is_string($stored) || strpos($stored, 'ENC1:') !== 0) return $stored; // donnee ancienne non chiffree
+    $key = getenv('KYC_ENCRYPTION_KEY');
+    if (!$key) return null; // impossible a dechiffrer sans la cle
+    $rawKey = hash('sha256', $key, true);
+    $raw = base64_decode(substr($stored, 5));
+    if (strlen($raw) < 28) return null;
+    $iv = substr($raw, 0, 12);
+    $tag = substr($raw, 12, 16);
+    $ciphertext = substr($raw, 28);
+    $plain = openssl_decrypt($ciphertext, 'aes-256-gcm', $rawKey, OPENSSL_RAW_DATA, $iv, $tag);
+    return $plain !== false ? $plain : null;
+}
+
 function kyc_submit() {
     $pl = auth(); $b = body();
     $recto = trim($b['photo_recto']??'');
@@ -1568,7 +1638,7 @@ function kyc_submit() {
 
     $id = uid();
     q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
-      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,$recto,$verso]);
+      [$id,$pl['sub'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,kyc_encrypt($recto),kyc_encrypt($verso)]);
     ok(['id'=>$id],'Demande envoyee, en attente de verification');
 }
 
@@ -1723,6 +1793,8 @@ function kyc_admin_list() {
     check_admin_password($b);
     $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,photo_recto,photo_verso,status,created_at
         FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
+    foreach($rows as &$r){ $r['photo_recto']=kyc_decrypt($r['photo_recto']); $r['photo_verso']=kyc_decrypt($r['photo_verso']); }
+    unset($r);
     ok(['requests'=>$rows]);
 }
 
@@ -2012,6 +2084,35 @@ function route_push($action) {
             ok(null, 'Notifications push desactivees');
             break;
         }
+        // Abonnement push cote ADMIN : distinct du systeme utilisateur
+        // ci-dessus (protege par mot de passe admin, pas par jeton JWT
+        // utilisateur, puisque l'admin n'a pas de compte "utilisateur").
+        case 'admin-subscribe': {
+            $b = body();
+            check_admin_password($b);
+            $endpoint = trim($b['endpoint'] ?? '');
+            $p256dh   = trim($b['p256dh'] ?? '');
+            $authKey  = trim($b['auth'] ?? '');
+            if(!$endpoint || !$p256dh || !$authKey) fail('Abonnement push invalide');
+            q("INSERT INTO admin_push_subscriptions (endpoint,p256dh_key,auth_key)
+               VALUES (?,?,?)
+               ON CONFLICT (endpoint) DO UPDATE SET p256dh_key=EXCLUDED.p256dh_key, auth_key=EXCLUDED.auth_key",
+              [$endpoint, $p256dh, $authKey]);
+            ok(null, 'Notifications push admin activees');
+            break;
+        }
+        case 'admin-unsubscribe': {
+            $b = body();
+            check_admin_password($b);
+            $endpoint = trim($b['endpoint'] ?? '');
+            if($endpoint){
+                q("DELETE FROM admin_push_subscriptions WHERE endpoint=?", [$endpoint]);
+            } else {
+                q("DELETE FROM admin_push_subscriptions");
+            }
+            ok(null, 'Notifications push admin desactivees');
+            break;
+        }
         default: fail('Action inconnue', 404);
     }
 }
@@ -2099,6 +2200,7 @@ function route_admin($action) {
         '2fa-confirm'       => admin_2fa_confirm(),
         '2fa-disable'       => admin_2fa_disable(),
         '2fa-regenerate-codes' => admin_2fa_regenerate_codes(),
+        'kyc-migrate-encrypt'  => admin_kyc_migrate_encrypt(),
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         default             => fail('Action inconnue',404)
@@ -2113,6 +2215,29 @@ function admin_log($action, $result, $targetPhone, $details) {
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
     q("INSERT INTO audit_logs (action,result,target_phone,details,ip_address,user_agent) VALUES (?,?,?,?,?,?)",
       [$action,$result,$targetPhone,$details,$ip,$ua]);
+    admin_notify_if_sensitive($action, $result, $targetPhone, $details, $ip);
+}
+
+// Liste volontairement courte : seulement les actions ou une notification
+// immediate a une vraie valeur (savoir tout de suite plutot qu'en consultant
+// le journal plus tard). Trop d'alertes = alertes ignorees, donc on reste
+// concentre sur l'essentiel : connexion admin (toute connexion reussie,
+// meme legitime - c'est justement le principe), et les actions qui bougent
+// de l'argent ou changent la protection du compte.
+function admin_notify_if_sensitive($action, $result, $targetPhone, $details, $ip) {
+    if ($result !== 'success') return;
+    $sensitive = ['admin_login','account_block','pin_reset','late_cancel','2fa_disable'];
+    if (!in_array($action, $sensitive, true)) return;
+    $labels = [
+        'admin_login'   => 'Connexion admin reussie',
+        'account_block' => 'Compte utilisateur bloque',
+        'pin_reset'     => 'PIN utilisateur reinitialise',
+        'late_cancel'   => 'Transaction annulee (apres coup)',
+        '2fa_disable'   => 'Double authentification admin desactivee',
+    ];
+    $title = $labels[$action] ?? 'Action admin sensible';
+    $body = ($targetPhone ? 'Compte '.$targetPhone.' — ' : '').($ip ? 'IP '.$ip : '');
+    web_push_send_to_admin($title, $body ?: 'Voir le journal d\'audit pour le detail');
 }
 
 // Anti brute-force : bloque les tentatives de mot de passe admin apres N
@@ -2274,6 +2399,29 @@ function admin_2fa_regenerate_codes() {
     ok(['recovery_codes'=>$recoveryCodesPlain],'Nouveaux codes generes');
 }
 
+// Migration a usage unique : chiffre les photos KYC deja en base AVANT la
+// mise en place du chiffrement (donc encore en texte brut). Sans effet sur
+// les demandes deja chiffrees (marqueur ENC1: detecte, ignorees). Peut etre
+// relance sans risque plusieurs fois - les entrees deja migrees sont
+// simplement ignorees a chaque fois.
+function admin_kyc_migrate_encrypt() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT id, photo_recto, photo_verso FROM kyc_requests")->fetchAll();
+    $migrated = 0;
+    foreach ($rows as $r) {
+        $needsRecto = $r['photo_recto'] && strpos($r['photo_recto'], 'ENC1:') !== 0;
+        $needsVerso = $r['photo_verso'] && strpos($r['photo_verso'], 'ENC1:') !== 0;
+        if (!$needsRecto && !$needsVerso) continue;
+        $newRecto = $needsRecto ? kyc_encrypt($r['photo_recto']) : $r['photo_recto'];
+        $newVerso = $needsVerso ? kyc_encrypt($r['photo_verso']) : $r['photo_verso'];
+        q("UPDATE kyc_requests SET photo_recto=?, photo_verso=? WHERE id=?", [$newRecto, $newVerso, $r['id']]);
+        $migrated++;
+    }
+    admin_log('kyc_migrate_encrypt','success',null,$migrated.' demande(s) KYC migree(s) vers le chiffrement');
+    ok(['migrated'=>$migrated],'Migration terminee');
+}
+
 function admin_reset_pin() {
     $b = body();
     check_admin_password($b);
@@ -2340,6 +2488,8 @@ function admin_search_by_phone() {
     // pouvoir revoir les photos recto/verso meme longtemps apres validation.
     $kycHistory = q("SELECT id,legal_name,legal_birthdate,photo_recto,photo_verso,status,created_at,reviewed_at
         FROM kyc_requests WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+    foreach($kycHistory as &$kh){ $kh['photo_recto']=kyc_decrypt($kh['photo_recto']); $kh['photo_verso']=kyc_decrypt($kh['photo_verso']); }
+    unset($kh);
 
     $devices = q("SELECT device_id,user_agent,first_seen,last_seen FROM known_devices WHERE user_id=? ORDER BY last_seen DESC",[$u['id']])->fetchAll();
 
@@ -3344,6 +3494,13 @@ function route_install() {
         auth_key TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, endpoint)
+    )",
+    "CREATE TABLE IF NOT EXISTS admin_push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh_key TEXT NOT NULL,
+        auth_key TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE TABLE IF NOT EXISTS known_devices (
         id SERIAL PRIMARY KEY,

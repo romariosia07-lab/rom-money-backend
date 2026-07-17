@@ -77,7 +77,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 #s-pin,#s-pinconfirm,#s-lock,#s-login{background:var(--gdd);align-items:center;justify-content:center;padding:32px 24px}
 .pin-av{width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin-bottom:12px}
 .pin-title{font-size:20px;font-weight:700;color:#fff;text-align:center;margin-bottom:6px}
-.pin-sub{font-size:14px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:32px}
+.pin-sub{font-size:14px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:32px;white-space:pre-line}
 .dots{display:flex;gap:16px;justify-content:center;margin-bottom:36px}
 .dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.45);background:transparent;transition:all .15s}
 .dot.on{background:#fff;border-color:#fff}
@@ -876,6 +876,20 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
             <div id="admin-2fa-regen-codes" style="font-family:monospace;font-size:13px;color:var(--t1);line-height:1.8"></div>
           </div>
         </div>
+      </div>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
+        <div class="admin-stitle">🔔 Alertes push</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Reçois une notification directement sur cet appareil dès qu'une action sensible se produit (connexion admin, blocage de compte, réinitialisation de PIN...), sans avoir à consulter le journal d'audit.</div>
+        <div id="admin-push-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)">Chargement...</div>
+        <button class="btn-g" id="admin-push-toggle-btn" onclick="adminTogglePush()">Activer les alertes push</button>
+      </div>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
+        <div class="admin-stitle">🔒 Chiffrement des photos KYC</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.</div>
+        <button class="btn-g" onclick="adminMigrateKycEncrypt()">Chiffrer les anciennes photos KYC</button>
+        <div id="admin-kyc-migrate-status" style="margin-top:10px;font-size:12px;color:var(--t2)"></div>
       </div>
     </div>
 
@@ -3048,6 +3062,7 @@ function adminLoadSettings(){
     }
   }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">Erreur réseau</div>'; });
   admin2faLoadStatus();
+  adminLoadPushStatus();
 }
 
 function adminSaveSettings(){
@@ -3081,6 +3096,82 @@ function adminSaveSettings(){
 // ═══════════════════════════════════════════
 // ADMIN - Double authentification (2FA TOTP)
 // ═══════════════════════════════════════════
+function adminMigrateKycEncrypt(){
+  var statusBox = document.getElementById('admin-kyc-migrate-status');
+  if(!confirm('Chiffrer toutes les anciennes photos KYC non encore chiffrées ?')) return;
+  if(statusBox) statusBox.textContent = 'Migration en cours...';
+  apiCall('/admin?action=kyc-migrate-encrypt','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success){
+      var n = (res.data&&res.data.migrated!==undefined) ? res.data.migrated : 0;
+      if(statusBox) statusBox.textContent = n>0 ? (n+' demande(s) KYC chiffrée(s) avec succès.') : 'Aucune ancienne photo à chiffrer — tout est déjà à jour.';
+      toast('Migration terminée');
+    } else {
+      if(statusBox) statusBox.textContent = '';
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+}
+
+// ═══════════════════════════════════════════
+// ADMIN - Alertes push (actions sensibles)
+// ═══════════════════════════════════════════
+function adminLoadPushStatus(){
+  var statusBox = document.getElementById('admin-push-status-box');
+  var btn = document.getElementById('admin-push-toggle-btn');
+  var enabled = localStorage.getItem('admin_push_enabled') === '1';
+  if(statusBox) statusBox.innerHTML = enabled ? '✓ Alertes activées sur cet appareil' : 'Alertes désactivées sur cet appareil';
+  if(btn) btn.textContent = enabled ? 'Désactiver les alertes push' : 'Activer les alertes push';
+}
+function adminTogglePush(){
+  var enabled = localStorage.getItem('admin_push_enabled') === '1';
+  if(enabled){ adminDisablePush(); } else { adminEnablePush(); }
+}
+function adminEnablePush(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    toast('Notifications non supportées sur cet appareil', true); return;
+  }
+  navigator.serviceWorker.ready.then(function(reg){
+    return Notification.requestPermission().then(function(perm){
+      if(perm !== 'granted'){ toast('Autorisation refusée', true); throw new Error('denied'); }
+      return reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    });
+  }).then(function(sub){
+    var json = sub.toJSON();
+    return apiCall('/push?action=admin-subscribe','POST',{
+      admin_password: window._adminPw,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth
+    }, '');
+  }).then(function(res){
+    if(res && res.success){
+      localStorage.setItem('admin_push_enabled','1');
+      adminLoadPushStatus();
+      toast('Alertes push activées');
+    } else {
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){});
+}
+function adminDisablePush(){
+  navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription();
+  }).then(function(sub){
+    var endpoint = sub ? sub.endpoint : '';
+    return apiCall('/push?action=admin-unsubscribe','POST',{admin_password:window._adminPw, endpoint:endpoint}, '');
+  }).then(function(){
+    localStorage.setItem('admin_push_enabled','0');
+    adminLoadPushStatus();
+    toast('Alertes push désactivées');
+  }).catch(function(){
+    localStorage.setItem('admin_push_enabled','0');
+    adminLoadPushStatus();
+  });
+}
+
 function admin2faLoadStatus(){
   var statusBox=document.getElementById('admin-2fa-status-box');
   apiCall('/admin?action=2fa-status','POST',{admin_password:window._adminPw},'').then(function(res){
@@ -5079,7 +5170,17 @@ function doSend(){
     toast(t('send_err_account_not_found'), true); return;
   }
 
-  requirePin(t('send_pin_confirm').replace('{amt}',fmt(net)).replace('{name}',receiverName)+(frais>0?t('send_pin_confirm_fee').replace('{fee}',fmt(frais)):''), function(){
+  var confirmMsg = t('send_pin_confirm').replace('{amt}',fmt(net)).replace('{name}',receiverName)+(frais>0?t('send_pin_confirm_fee').replace('{fee}',fmt(frais)):'');
+  var tok0 = getToken();
+  apiCall('/transactions?action=check-new-recipient','POST',{receiver_phone:phone,amount:intent.amount},tok0)
+    .then(function(chk){
+      if(chk && chk.success && chk.data && chk.data.warn){
+        confirmMsg = '⚠️ Première fois que vous envoyez à ce numéro. Vérifiez bien que c\'est la bonne personne.\n\n'+confirmMsg;
+      }
+    })
+    .catch(function(){ /* verification best-effort : en cas d'echec, on continue sans avertissement plutot que de bloquer l'envoi */ })
+    .then(function(){
+      requirePin(confirmMsg, function(){
     var tok=getToken(); toast(t('toast_sending'));
     apiCall('/transactions?action=send','POST',{
       receiver_phone: phone,
@@ -5106,6 +5207,7 @@ function doSend(){
       } else { toast((res&&res.message)||t('send_err_generic'),true); }
     });
   });
+    });
 }
 function showCrossCountryPrompt(message){
   window._crossCountryMsg = message;
@@ -6829,7 +6931,17 @@ function doTransfertCFA(pays){
   if(receiverName===t('transfert_number_not_found')||!receiverName){
     toast(t('transfert_number_not_on_app'),true); return;
   }
-  requirePin(t('transfert_pin_confirm').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays).replace('{net}',fmt(intent.net)), function(){
+  var confirmMsgAfrica = t('transfert_pin_confirm').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays).replace('{net}',fmt(intent.net));
+  var tokChk = getToken();
+  apiCall('/transactions?action=check-new-recipient','POST',{receiver_phone:phone,amount:intent.amount},tokChk)
+    .then(function(chk){
+      if(chk && chk.success && chk.data && chk.data.warn){
+        confirmMsgAfrica = '⚠️ Première fois que vous envoyez à ce numéro. Vérifiez bien que c\'est la bonne personne.\n\n'+confirmMsgAfrica;
+      }
+    })
+    .catch(function(){})
+    .then(function(){
+  requirePin(confirmMsgAfrica, function(){
     var tok=getToken(); toast(t('toast_sending'));
     apiCall('/transactions?action=send','POST',{
       receiver_phone:phone, amount:intent.amount, mode:intent.mode, channel:'africa', pin:APP.pin,
@@ -6845,6 +6957,7 @@ function doTransfertCFA(pays){
       } else { toast((res&&res.message)||t('send_err_generic'),true); }
     });
   });
+    });
 }
 
 function selPaysWaitlist(el){
