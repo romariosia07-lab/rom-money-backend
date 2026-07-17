@@ -2390,16 +2390,25 @@ function adminLogin(){
 }
 
 function adminLoadRequests(){
+  document.getElementById('admin-login-box').style.display='none';
+  document.getElementById('admin-main-box').style.display='block';
+  adminStartInactivityTimer();
+  adminTab('dashboard');
+  adminStartKycPolling();
+  adminRefreshFraudBadge();
+  adminLoadKycList();
+}
+
+// Separee de adminLoadRequests() (qui ne s'execute qu'une fois, a la
+// connexion) pour pouvoir etre rappelee a chaque fois que necessaire :
+// changement d'onglet vers "Identités", et apres une approbation/refus -
+// sans forcer un retour sur l'onglet "Vue d'ensemble" a chaque fois.
+function adminLoadKycList(){
   apiCall('/kyc?action=admin_list','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success){
-      document.getElementById('admin-login-box').style.display='none';
-      document.getElementById('admin-main-box').style.display='block';
-      adminStartInactivityTimer();
-      adminTab('dashboard');
       adminUpdateKycBadge(res.data.requests?res.data.requests.length:0);
-      adminStartKycPolling();
-      adminRefreshFraudBadge();
       var box=document.getElementById('admin-list-box');
+      if(!box) return;
       var reqs=res.data.requests||[];
       if(reqs.length===0){
         box.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Aucune demande en attente</div>';
@@ -2492,7 +2501,7 @@ function adminApprove(id){
   if(!prenom||!nom){ toast('Prénom et nom requis', true); return; }
   if(!confirm('Approuver cette demande avec le nom "'+prenom+' '+nom+'" ? Le compte sera vérifié.')) return;
   apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id,legal_prenom:prenom,legal_nom:nom,legal_birthdate:bd},'').then(function(res){
-    if(res&&res.success){ toast('Compte vérifié'); adminLoadRequests(); }
+    if(res&&res.success){ toast('Compte vérifié'); adminLoadKycList(); }
     else toast((res&&res.message)||'Erreur', true);
   });
 }
@@ -2500,7 +2509,7 @@ function adminApprove(id){
 function adminReject(id){
   if(!confirm('Refuser cette demande ?')) return;
   apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
-    if(res&&res.success){ toast('Demande refusée'); adminLoadRequests(); }
+    if(res&&res.success){ toast('Demande refusée'); adminLoadKycList(); }
     else toast((res&&res.message)||'Erreur', true);
   });
 }
@@ -2518,6 +2527,7 @@ function adminTab(name){
   });
   if(name==='audit') adminLoadAuditLog();
   if(name==='dashboard') adminLoadDashboard();
+  if(name==='kyc') adminLoadKycList();
   if(name==='countries') adminLoadCountries();
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
