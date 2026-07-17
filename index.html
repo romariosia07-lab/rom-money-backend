@@ -746,8 +746,20 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   <div class="admin-header"><span class="adot"></span><span class="atitle">Admin ROM_MONEY</span><span class="asub">Espace sécurisé</span><button id="admin-theme-toggle" onclick="toggleAdminTheme()" style="background:none;border:1px solid var(--bord);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0" aria-label="Basculer le theme"></button></div>
   <div id="admin-login-box">
     <div class="frow"><label class="flabel">Mot de passe admin</label>
-    <input class="finput" id="admin-pw" type="password" placeholder="Mot de passe"></div>
+    <input class="finput" id="admin-pw" type="password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')adminLogin()"></div>
     <button class="btn-g" onclick="adminLogin()">Se connecter</button>
+  </div>
+  <div id="admin-2fa-box" style="display:none">
+    <div style="text-align:center;margin-bottom:14px;color:var(--t2);font-size:13px">Ouvrez votre application d'authentification (Google Authenticator, Authy...) et entrez le code a 6 chiffres.</div>
+    <div class="frow"><label class="flabel">Code de verification</label>
+    <input class="finput" id="admin-2fa-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')adminLogin()" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
+    <button class="btn-g" onclick="adminLogin()">Valider</button>
+    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:10px;cursor:pointer" onclick="adminToggleRecoveryMode()" id="admin-2fa-recovery-toggle">J'ai perdu mon telephone — utiliser un code de recuperation</button>
+    <div id="admin-2fa-recovery-row" class="frow" style="display:none">
+      <label class="flabel">Code de recuperation</label>
+      <input class="finput" id="admin-recovery-code" type="text" placeholder="Ex: A1B2C3D4" onkeydown="if(event.key==='Enter')adminLogin()">
+    </div>
+    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:6px;cursor:pointer" onclick="adminCancel2fa()">Annuler</button>
   </div>
   <div id="admin-main-box" style="display:none">
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px;white-space:nowrap">
@@ -816,8 +828,40 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow"><label class="flabel">Plafond mensuel non verifie KYC (F)</label><input class="finput" id="set-limit-unverified" type="number" step="1000" min="0"></div>
       <div class="frow"><label class="flabel">Plafond mensuel verifie KYC (F)</label><input class="finput" id="set-limit-verified" type="number" step="1000" min="0"></div>
 
+      <div class="frow"><label class="flabel">Tentatives admin avant blocage</label><input class="finput" id="set-bf-attempts" type="number" step="1" min="1"></div>
+      <div class="frow"><label class="flabel">Duree du blocage admin (minutes)</label><input class="finput" id="set-bf-minutes" type="number" step="1" min="1"></div>
+
       <button class="btn-g" onclick="adminSaveSettings()">Enregistrer les réglages</button>
       <div id="settings-status-box" style="margin-top:12px"></div>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
+        <div class="admin-stitle">🔒 Double authentification (2FA)</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Protege l'acces admin avec un second code, en plus du mot de passe, genere par une application comme Google Authenticator ou Authy.</div>
+        <div id="admin-2fa-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)">Chargement...</div>
+        <div id="admin-2fa-off-box" style="display:none">
+          <button class="btn-g" onclick="admin2faStartSetup()">Activer la double authentification</button>
+        </div>
+        <div id="admin-2fa-setup-box" style="display:none">
+          <div style="text-align:center;margin:14px 0">
+            <div id="admin-2fa-qr" style="display:inline-block;background:#fff;padding:10px;border-radius:10px"></div>
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:10px;text-align:center">Scannez ce QR code avec Google Authenticator ou Authy, puis entrez le code affiché pour confirmer.</div>
+          <div class="frow"><label class="flabel">Code affiché dans l'application</label>
+          <input class="finput" id="admin-2fa-confirm-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
+          <button class="btn-g" onclick="admin2faConfirmSetup()">Confirmer et activer</button>
+          <div id="admin-2fa-recovery-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
+            <div style="font-weight:700;color:var(--t1);margin-bottom:6px">⚠ Codes de récupération — à noter maintenant</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Chacun ne fonctionne qu'une seule fois. Conservez-les en lieu sûr (ils ne seront plus jamais affichés en entier).</div>
+            <div id="admin-2fa-recovery-codes" style="font-family:monospace;font-size:13px;color:var(--t1);line-height:1.8"></div>
+          </div>
+        </div>
+        <div id="admin-2fa-on-box" style="display:none">
+          <div style="color:var(--su,#1a8);font-size:13px;margin-bottom:10px">✓ Double authentification active</div>
+          <div class="frow"><label class="flabel">Code de votre application (pour désactiver)</label>
+          <input class="finput" id="admin-2fa-disable-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
+          <button style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()">Désactiver la double authentification</button>
+        </div>
+      </div>
     </div>
 
     <div id="admin-panel-alerts" class="admin-panel" style="display:none">
@@ -1709,7 +1753,7 @@ var scanStream=null,scanData=null;
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays'};
+var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
@@ -2257,15 +2301,56 @@ window.addEventListener('load', function(){
 // ADMIN KYC — accessible via #admin dans l'URL, mot de passe simple
 // ═══════════════════════════════════════════
 window._adminPw='';
+window._admin2faPending=false;
+function adminToggleRecoveryMode(){
+  var row=document.getElementById('admin-2fa-recovery-row');
+  var codeField=document.getElementById('admin-2fa-code');
+  var toggle=document.getElementById('admin-2fa-recovery-toggle');
+  var showingRecovery = row.style.display!=='none';
+  row.style.display = showingRecovery ? 'none' : 'block';
+  codeField.style.display = showingRecovery ? 'block' : 'none';
+  toggle.textContent = showingRecovery ? "J'ai perdu mon telephone — utiliser un code de recuperation" : 'Utiliser plutot le code de mon application';
+}
+function adminCancel2fa(){
+  window._adminPw='';
+  window._admin2faPending=false;
+  document.getElementById('admin-2fa-box').style.display='none';
+  document.getElementById('admin-login-box').style.display='block';
+  document.getElementById('admin-2fa-code').value='';
+  document.getElementById('admin-recovery-code').value='';
+  document.getElementById('admin-pw').value='';
+}
 function adminLogin(){
-  var pw=document.getElementById('admin-pw').value.trim();
-  if(!pw){ toast('Mot de passe requis', true); return; }
-  window._adminPw=pw;
-  apiCall('/admin?action=login','POST',{admin_password:pw},'').then(function(res){
+  var payload;
+  if(window._admin2faPending){
+    var totpCode=document.getElementById('admin-2fa-code').value.trim();
+    var recoveryCode=document.getElementById('admin-recovery-code').value.trim();
+    if(!totpCode && !recoveryCode){ toast('Entrez le code de verification', true); return; }
+    payload={admin_password:window._adminPw, totp_code:totpCode, recovery_code:recoveryCode};
+  } else {
+    var pw=document.getElementById('admin-pw').value.trim();
+    if(!pw){ toast('Mot de passe requis', true); return; }
+    window._adminPw=pw;
+    payload={admin_password:pw};
+  }
+  apiCall('/admin?action=login','POST',payload,'').then(function(res){
     if(res&&res.success){
+      window._admin2faPending=false;
+      document.getElementById('admin-2fa-box').style.display='none';
+      if(res.data&&res.data.recovery_used){
+        toast('Connecté avec un code de récupération — pensez à en regénérer de nouveaux dans Réglages');
+      }
       adminLoadRequests();
+    } else if(res&&res.need_2fa){
+      window._admin2faPending=true;
+      document.getElementById('admin-login-box').style.display='none';
+      document.getElementById('admin-2fa-box').style.display='block';
+      document.getElementById('admin-2fa-code').focus();
     } else {
       window._adminPw='';
+      window._admin2faPending=false;
+      document.getElementById('admin-2fa-box').style.display='none';
+      document.getElementById('admin-login-box').style.display='block';
       toast((res&&res.message)||'Mot de passe admin incorrect', true);
     }
   }).catch(function(){ toast('Erreur réseau', true); });
@@ -2764,6 +2849,7 @@ function adminLoadAuditLog(){
           +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR[l.action]||l.action)+'</b>'+resultPill(l.result)+'</div>'
           +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">Compte : '+l.target_phone+'</div>':'')
           +'<div style="color:var(--t2);margin-top:2px">'+(l.details||'')+'</div>'
+          +(l.ip_address?'<div style="color:var(--t3);font-size:10px;margin-top:3px">IP : '+l.ip_address+(l.user_agent?' — '+parseUserAgent(l.user_agent):'')+'</div>':'')
           +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
           +'</div>';
       }).join('');
@@ -2880,11 +2966,14 @@ function adminLoadSettings(){
       document.getElementById('set-fee-africa').value = d.fee_rate_africa;
       document.getElementById('set-limit-unverified').value = d.limit_unverified;
       document.getElementById('set-limit-verified').value = d.limit_verified;
+      document.getElementById('set-bf-attempts').value = d.admin_bf_max_attempts;
+      document.getElementById('set-bf-minutes').value = d.admin_bf_block_minutes;
       if(statusBox) statusBox.innerHTML='';
     } else {
       if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
   }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">Erreur réseau</div>'; });
+  admin2faLoadStatus();
 }
 
 function adminSaveSettings(){
@@ -2895,7 +2984,9 @@ function adminSaveSettings(){
     fee_free_threshold_national: document.getElementById('set-fee-threshold').value,
     fee_rate_africa: document.getElementById('set-fee-africa').value,
     limit_unverified: document.getElementById('set-limit-unverified').value,
-    limit_verified: document.getElementById('set-limit-verified').value
+    limit_verified: document.getElementById('set-limit-verified').value,
+    admin_bf_max_attempts: document.getElementById('set-bf-attempts').value,
+    admin_bf_block_minutes: document.getElementById('set-bf-minutes').value
   };
   if(!confirm('Confirmer la mise a jour de ces reglages ? Ca affecte immediatement tous les utilisateurs.')) return;
   apiCall('/admin?action=update-settings','POST',payload,'').then(function(res){
@@ -2904,6 +2995,72 @@ function adminSaveSettings(){
       if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">Enregistré avec succès</div>';
     } else {
       toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+
+// ═══════════════════════════════════════════
+// ADMIN - Double authentification (2FA TOTP)
+// ═══════════════════════════════════════════
+function admin2faLoadStatus(){
+  var statusBox=document.getElementById('admin-2fa-status-box');
+  apiCall('/admin?action=2fa-status','POST',{admin_password:window._adminPw},'').then(function(res){
+    document.getElementById('admin-2fa-off-box').style.display='none';
+    document.getElementById('admin-2fa-setup-box').style.display='none';
+    document.getElementById('admin-2fa-on-box').style.display='none';
+    if(res&&res.success&&res.data){
+      if(statusBox) statusBox.innerHTML='';
+      if(res.data.enabled){
+        document.getElementById('admin-2fa-on-box').style.display='block';
+      } else {
+        document.getElementById('admin-2fa-off-box').style.display='block';
+      }
+    } else {
+      if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">Impossible de charger le statut 2FA</div>';
+    }
+  }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">Erreur réseau</div>'; });
+}
+function admin2faStartSetup(){
+  apiCall('/admin?action=2fa-setup','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data){
+      document.getElementById('admin-2fa-off-box').style.display='none';
+      document.getElementById('admin-2fa-setup-box').style.display='block';
+      document.getElementById('admin-2fa-recovery-display').style.display='none';
+      var qrEl=document.getElementById('admin-2fa-qr');
+      qrEl.innerHTML='';
+      try{ new QRCode(qrEl,{text:res.data.otpauth_uri,width:180,height:180,colorDark:'#0F6E56',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      window._admin2faSetupRecoveryCodes = res.data.recovery_codes||[];
+    } else {
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+function admin2faConfirmSetup(){
+  var code=document.getElementById('admin-2fa-confirm-code').value.trim();
+  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  apiCall('/admin?action=2fa-confirm','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
+    if(res&&res.success){
+      var codes=window._admin2faSetupRecoveryCodes||[];
+      var disp=document.getElementById('admin-2fa-recovery-display');
+      document.getElementById('admin-2fa-recovery-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
+      disp.style.display='block';
+      toast('Double authentification activée');
+    } else {
+      toast((res&&res.message)||'Code incorrect', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+function admin2faDisable(){
+  var code=document.getElementById('admin-2fa-disable-code').value.trim();
+  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  if(!confirm('Désactiver la double authentification admin ? La connexion ne demandera plus que le mot de passe.')) return;
+  apiCall('/admin?action=2fa-disable','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
+    if(res&&res.success){
+      toast('Double authentification désactivée');
+      document.getElementById('admin-2fa-disable-code').value='';
+      admin2faLoadStatus();
+    } else {
+      toast((res&&res.message)||'Code incorrect', true);
     }
   }).catch(function(){ toast('Erreur réseau', true); });
 }

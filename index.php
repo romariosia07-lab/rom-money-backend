@@ -1273,6 +1273,73 @@ function check_admin_password($b) {
 }
 
 // ============================================================
+// 2FA ADMIN (TOTP, RFC 6238) — meme principe que Google Authenticator /
+// Authy. Implemente ici a la main (pas de librairie externe / Composer,
+// coherent avec le reste du projet) : c'est un algorithme standard et
+// court (HMAC-SHA1 sur un compteur de temps par pas de 30s).
+// Le secret et les codes de recuperation sont stockes via app_settings
+// (table cle/valeur deja existante), pas besoin de nouvelle table.
+// ============================================================
+function totp_base32_encode($bin) {
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $bits = '';
+    for($i=0; $i<strlen($bin); $i++) $bits .= str_pad(decbin(ord($bin[$i])), 8, '0', STR_PAD_LEFT);
+    $out = '';
+    foreach(str_split($bits, 5) as $chunk) {
+        $chunk = str_pad($chunk, 5, '0', STR_PAD_RIGHT);
+        $out .= $alphabet[bindec($chunk)];
+    }
+    return $out;
+}
+function totp_base32_decode($b32) {
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $b32 = strtoupper(preg_replace('/[^A-Z2-7]/','', $b32));
+    $bits = '';
+    for($i=0; $i<strlen($b32); $i++) $bits .= str_pad(decbin(strpos($alphabet, $b32[$i])), 5, '0', STR_PAD_LEFT);
+    $bytes = '';
+    foreach(str_split($bits, 8) as $chunk) {
+        if(strlen($chunk) < 8) continue;
+        $bytes .= chr(bindec($chunk));
+    }
+    return $bytes;
+}
+function totp_generate_secret() {
+    return totp_base32_encode(random_bytes(20)); // secret 160 bits, standard
+}
+function totp_code_at($secret, $timeSlice) {
+    $key = totp_base32_decode($secret);
+    $time = pack('N*', 0) . pack('N*', $timeSlice); // 8 octets big-endian
+    $hash = hash_hmac('sha1', $time, $key, true);
+    $offset = ord($hash[19]) & 0x0F;
+    $part = ((ord($hash[$offset]) & 0x7F) << 24)
+          | ((ord($hash[$offset+1]) & 0xFF) << 16)
+          | ((ord($hash[$offset+2]) & 0xFF) << 8)
+          | (ord($hash[$offset+3]) & 0xFF);
+    return str_pad((string)($part % 1000000), 6, '0', STR_PAD_LEFT);
+}
+// Tolerance : accepte le code actuel + celui d'avant/d'apres (fenetre de
+// +/-30s), pour absorber le decalage naturel entre le moment ou l'admin
+// lit le code et celui ou il le tape (~60-90s de marge en pratique),
+// sans changer le pas standard de 30s (necessaire pour rester compatible
+// avec Google Authenticator / Authy, qui l'imposent).
+function totp_verify($secret, $code) {
+    $code = preg_replace('/\D/', '', (string)$code);
+    if(strlen($code) !== 6) return false;
+    $slice = (int)floor(time() / 30);
+    for($i=-1; $i<=1; $i++) {
+        if(hash_equals(totp_code_at($secret, $slice + $i), $code)) return true;
+    }
+    return false;
+}
+function totp_generate_recovery_codes($count = 10) {
+    $codes = [];
+    for($i=0; $i<$count; $i++) {
+        $codes[] = strtoupper(bin2hex(random_bytes(4))); // ex: A1B2C3D4
+    }
+    return $codes;
+}
+
+// ============================================================
 // REGLAGES DYNAMIQUES — taux de frais et plafonds, modifiables depuis
 // l'admin sans redeploiement. Tant qu'un reglage n'a jamais ete modifie,
 // la valeur par defaut ci-dessous s'applique (comportement identique a
@@ -1849,25 +1916,158 @@ function route_admin($action) {
         'get-settings'      => admin_get_settings(),
         'update-settings'   => admin_update_settings(),
         'dashboard-export-pdf' => admin_dashboard_export_pdf(),
+        '2fa-status'        => admin_2fa_status(),
+        '2fa-setup'         => admin_2fa_setup(),
+        '2fa-confirm'       => admin_2fa_confirm(),
+        '2fa-disable'       => admin_2fa_disable(),
         default             => fail('Action inconnue',404)
     };
 }
 
+// Capture automatiquement l'IP et l'appareil/navigateur (user-agent) sur
+// CHAQUE action journalisee, sans que les ~20 fonctions qui appellent deja
+// admin_log() n'aient besoin d'etre modifiees une par une.
 function admin_log($action, $result, $targetPhone, $details) {
-    q("INSERT INTO audit_logs (action,result,target_phone,details) VALUES (?,?,?,?)",
-      [$action,$result,$targetPhone,$details]);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
+    q("INSERT INTO audit_logs (action,result,target_phone,details,ip_address,user_agent) VALUES (?,?,?,?,?,?)",
+      [$action,$result,$targetPhone,$details,$ip,$ua]);
 }
+
+// Anti brute-force : bloque les tentatives de mot de passe admin apres N
+// echecs recents (fenetre glissante basee sur audit_logs, pas besoin de
+// nouvelle table). Seuil et duree modifiables par l'admin lui-meme dans
+// Reglages, sans redeploiement (memes principes que fee_rate_* etc.).
+function admin_bruteforce_check() {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $maxAttempts = (int)get_setting('admin_bf_max_attempts', 3);
+    $blockMinutes = (int)get_setting('admin_bf_block_minutes', 60);
+    $row = q("SELECT COUNT(*) c FROM audit_logs
+              WHERE action='admin_login' AND result='failed' AND ip_address=?
+              AND created_at > NOW() - (?::text || ' minutes')::interval",
+              [$ip, $blockMinutes])->fetch();
+    if($row && (int)$row['c'] >= $maxAttempts) {
+        fail('Trop de tentatives echouees depuis cette adresse. Reessayez dans '.$blockMinutes.' minutes.', 429);
+    }
+}
+
+function admin_2fa_enabled() { return get_setting('admin_2fa_enabled','0') === '1'; }
 
 function admin_login_check() {
     $b = body();
     $pw = (string)($b['admin_password'] ?? '');
-    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    admin_bruteforce_check();
     if (!hash_equals(ADMIN_PASSWORD, $pw)) {
-        admin_log('admin_login','failed',null,'Tentative de connexion echouee'.($ip?' - IP: '.$ip:''));
+        admin_log('admin_login','failed',null,'Mot de passe incorrect');
         fail('Mot de passe admin incorrect',401);
     }
-    admin_log('admin_login','success',null,'Connexion reussie'.($ip?' - IP: '.$ip:''));
+    if (admin_2fa_enabled()) {
+        $totpCode = trim((string)($b['totp_code'] ?? ''));
+        $recoveryCode = trim((string)($b['recovery_code'] ?? ''));
+        if ($totpCode === '' && $recoveryCode === '') {
+            // Mot de passe correct mais code 2FA pas encore fourni : ce
+            // n'est pas un echec (pas de log 'failed', pas de decompte
+            // brute-force), juste une etape supplementaire attendue par
+            // le frontend.
+            http_response_code(200);
+            echo json_encode(['success'=>false,'need_2fa'=>true,'message'=>'Code de verification requis'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $secret = get_setting('admin_2fa_secret', '');
+        $verified = false;
+        $usedRecovery = false;
+        if ($totpCode !== '' && $secret !== '' && totp_verify($secret, $totpCode)) {
+            $verified = true;
+        } elseif ($recoveryCode !== '') {
+            $codes = json_decode(get_setting('admin_2fa_recovery_codes', '[]'), true) ?: [];
+            $recoveryCode = strtoupper(preg_replace('/[^A-Z0-9]/','', $recoveryCode));
+            foreach ($codes as $idx => $hashed) {
+                if (password_verify($recoveryCode, $hashed)) {
+                    $verified = true;
+                    $usedRecovery = true;
+                    unset($codes[$idx]); // code a usage unique
+                    set_setting('admin_2fa_recovery_codes', json_encode(array_values($codes)));
+                    break;
+                }
+            }
+        }
+        if (!$verified) {
+            admin_log('admin_login','failed',null,'Code 2FA invalide');
+            fail('Code de verification incorrect',401);
+        }
+        if ($usedRecovery) {
+            admin_log('admin_login','success',null,'Connexion reussie (code de recuperation utilise - il ne pourra plus resservir)');
+            ok(['recovery_used'=>true],'Connexion reussie');
+            return;
+        }
+    }
+    admin_log('admin_login','success',null,'Connexion reussie');
     ok(null,'Connexion reussie');
+}
+
+function admin_2fa_status() {
+    $b = body();
+    check_admin_password($b);
+    ok(['enabled' => admin_2fa_enabled()]);
+}
+
+// Etape 1 : genere un nouveau secret + QR code (URI otpauth://) + codes de
+// recuperation. Rien n'est active tant que l'admin n'a pas prouve, via
+// 2fa-confirm, qu'il a bien configure son application (Google Authenticator
+// etc.) avec ce secret — evite de se retrouver bloque hors de l'admin par
+// une mauvaise manipulation.
+function admin_2fa_setup() {
+    $b = body();
+    check_admin_password($b);
+    $secret = totp_generate_secret();
+    $recoveryCodesPlain = totp_generate_recovery_codes(10);
+    $recoveryCodesHashed = array_map(fn($c) => password_hash($c, PASSWORD_BCRYPT), $recoveryCodesPlain);
+    // Stocke en "pending" tant que non confirme (cle separee de la cle active)
+    set_setting('admin_2fa_secret_pending', $secret);
+    set_setting('admin_2fa_recovery_codes_pending', json_encode($recoveryCodesHashed));
+    $otpauth = 'otpauth://totp/ROM-MONEY%20Admin?secret='.$secret.'&issuer=ROM-MONEY&period=30&digits=6';
+    admin_log('2fa_setup_started','success',null,'Generation d\'un nouveau secret 2FA (non encore active)');
+    ok(['secret'=>$secret, 'otpauth_uri'=>$otpauth, 'recovery_codes'=>$recoveryCodesPlain]);
+}
+
+// Etape 2 : l'admin scanne le QR et tape le code affiche par son
+// application pour prouver que la configuration fonctionne AVANT que le
+// 2FA ne devienne obligatoire a la connexion.
+function admin_2fa_confirm() {
+    $b = body();
+    check_admin_password($b);
+    $code = trim((string)($b['totp_code'] ?? ''));
+    $secret = get_setting('admin_2fa_secret_pending', '');
+    if ($secret === '') fail('Aucune configuration 2FA en attente. Relancez la generation du QR code.');
+    if (!totp_verify($secret, $code)) {
+        admin_log('2fa_setup_confirm','failed',null,'Code de confirmation incorrect');
+        fail('Code incorrect. Verifiez l\'heure de votre telephone et reessayez.',401);
+    }
+    set_setting('admin_2fa_secret', $secret);
+    set_setting('admin_2fa_recovery_codes', get_setting('admin_2fa_recovery_codes_pending','[]'));
+    set_setting('admin_2fa_enabled', '1');
+    set_setting('admin_2fa_secret_pending', '');
+    set_setting('admin_2fa_recovery_codes_pending', '');
+    admin_log('2fa_setup_confirm','success',null,'Double authentification activee');
+    ok(null,'Double authentification activee avec succes');
+}
+
+function admin_2fa_disable() {
+    $b = body();
+    check_admin_password($b);
+    if (admin_2fa_enabled()) {
+        $code = trim((string)($b['totp_code'] ?? ''));
+        $secret = get_setting('admin_2fa_secret', '');
+        if (!totp_verify($secret, $code)) {
+            admin_log('2fa_disable','failed',null,'Code de confirmation incorrect');
+            fail('Code incorrect',401);
+        }
+    }
+    set_setting('admin_2fa_enabled', '0');
+    set_setting('admin_2fa_secret', '');
+    set_setting('admin_2fa_recovery_codes', '[]');
+    admin_log('2fa_disable','success',null,'Double authentification desactivee');
+    ok(null,'Double authentification desactivee');
 }
 
 function admin_reset_pin() {
@@ -2436,6 +2636,8 @@ function app_settings_defs() {
         'fee_rate_africa'             => [0.015, 'Taux de frais Transfert Afrique'],
         'limit_unverified'            => [2000000, 'Plafond mensuel non verifie'],
         'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
+        'admin_bf_max_attempts'       => [3, 'Tentatives admin avant blocage'],
+        'admin_bf_block_minutes'      => [60, 'Duree du blocage admin (minutes)'],
     ];
 }
 
@@ -2461,6 +2663,8 @@ function admin_update_settings() {
         // absurde (> 1 = plus de 100%), garde-fou simple contre une erreur
         // de saisie (ex: 15 au lieu de 0.15).
         if(strpos($key,'fee_rate_')===0 && $val > 1) fail($def[1].' doit etre une proportion entre 0 et 1 (ex: 0.01 pour 1%)');
+        if($key==='admin_bf_max_attempts' && $val < 1) fail('Le nombre de tentatives avant blocage doit etre au moins 1');
+        if($key==='admin_bf_block_minutes' && $val < 1) fail('La duree de blocage doit etre d\'au moins 1 minute');
         set_setting($key, (string)$val);
         $changes[] = $def[1].' = '.$val;
     }
@@ -2850,6 +3054,7 @@ function route_install() {
     "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
