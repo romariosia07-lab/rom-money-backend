@@ -389,20 +389,27 @@ function q($sql, $params=[]) {
 // (inscription, verification de numero, etc.) qui n'avait aucune limite.
 // ============================================================
 function rate_limit_check($bucket, $maxRequests, $windowSeconds) {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    // Nettoyage opportuniste (1% de chance par appel), pour eviter que la
-    // table grossisse indefiniment sans avoir besoin d'une tache planifiee.
-    if (mt_rand(1, 100) === 1) {
-        q("DELETE FROM rate_limit_hits WHERE created_at < NOW() - INTERVAL '1 hour'");
-    }
-    $row = q("SELECT COUNT(*) c FROM rate_limit_hits
-              WHERE bucket=? AND ip_address=?
-              AND created_at > NOW() - (?::text || ' seconds')::interval",
-              [$bucket, $ip, $windowSeconds])->fetch();
-    if ($row && (int)$row['c'] >= $maxRequests) {
-        fail('Trop de requetes depuis cette adresse. Reessayez dans quelques instants.', 429);
-    }
-    q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES (?,?)", [$bucket, $ip]);
+    // Cette protection ne doit JAMAIS pouvoir mettre l'app hors service.
+    // Si la table n'existe pas encore (avant le tout premier /install) ou
+    // pour toute autre erreur imprevue, on laisse simplement passer la
+    // requete plutot que de faire planter l'app entiere (echec silencieux
+    // et sans consequence, contrairement a un echec qui bloquerait tout).
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        // Nettoyage opportuniste (1% de chance par appel), pour eviter que la
+        // table grossisse indefiniment sans avoir besoin d'une tache planifiee.
+        if (mt_rand(1, 100) === 1) {
+            q("DELETE FROM rate_limit_hits WHERE created_at < NOW() - INTERVAL '1 hour'");
+        }
+        $row = q("SELECT COUNT(*) c FROM rate_limit_hits
+                  WHERE bucket=? AND ip_address=?
+                  AND created_at > NOW() - (?::text || ' seconds')::interval",
+                  [$bucket, $ip, $windowSeconds])->fetch();
+        if ($row && (int)$row['c'] >= $maxRequests) {
+            fail('Trop de requetes depuis cette adresse. Reessayez dans quelques instants.', 429);
+        }
+        q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES (?,?)", [$bucket, $ip]);
+    } catch (PDOException $e) { /* table pas encore prete : on laisse passer */ }
 }
 
 $uri    = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
