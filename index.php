@@ -726,6 +726,67 @@ function route_tx($action) {
     };
 }
 
+// ============================================================
+// DETECTION DE FRAUDE — analyse chaque transaction APRES qu'elle soit
+// executee (jamais avant : on ne bloque personne, cf decision produit).
+// Trois signaux independants, chacun ajoute sa propre raison si declenche :
+//  1) Velocite   : trop de transactions envoyees en peu de temps
+//  2) Montant inhabituel : tres superieur a la moyenne habituelle de ce compte
+//  3) Nouveau destinataire + montant eleve : jamais envoye a ce numero avant
+// Les seuils sont modifiables par l'admin (Reglages) sans redeploiement.
+// Toute erreur ici est avalee (try/catch) : la detection ne doit JAMAIS
+// faire echouer un transfert qui a deja reussi.
+// ============================================================
+function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid, $reference) {
+    try {
+        $reasons = [];
+
+        $velocityCount   = (int)get_setting('fraud_velocity_count', 5);
+        $velocityMinutes = (int)get_setting('fraud_velocity_minutes', 10);
+        $vc = q("SELECT COUNT(*) c FROM transactions
+                 WHERE sender_wallet_id=? AND type='transfer' AND status='completed'
+                 AND created_at > NOW() - (?::text || ' minutes')::interval",
+                 [$senderWalletId, $velocityMinutes])->fetch();
+        if ($vc && (int)$vc['c'] >= $velocityCount) {
+            $reasons[] = (int)$vc['c']." transactions en {$velocityMinutes} min (seuil: {$velocityCount})";
+        }
+
+        $unusualMultiplier = (float)get_setting('fraud_unusual_multiplier', 5);
+        $unusualMinAmount  = (float)get_setting('fraud_unusual_min_amount', 20000);
+        if ($amount >= $unusualMinAmount) {
+            $avgRow = q("SELECT AVG(amount) a, COUNT(*) c FROM (
+                            SELECT amount FROM transactions
+                            WHERE sender_wallet_id=? AND type='transfer' AND status='completed' AND id!=?
+                            ORDER BY created_at DESC LIMIT 20
+                         ) sub", [$senderWalletId, $txid])->fetch();
+            if ($avgRow && (int)$avgRow['c'] >= 3 && (float)$avgRow['a'] > 0) {
+                $avg = (float)$avgRow['a'];
+                if ($amount >= $avg * $unusualMultiplier) {
+                    $reasons[] = 'Montant '.number_format($amount,0,',',' ').' F, tres superieur a la moyenne habituelle ('.number_format($avg,0,',',' ').' F)';
+                }
+            }
+        }
+
+        $newRecipientMin = (float)get_setting('fraud_new_recipient_min_amount', 50000);
+        if ($amount >= $newRecipientMin) {
+            $prior = q("SELECT COUNT(*) c FROM transactions t
+                        JOIN wallets rw ON rw.id=t.receiver_wallet_id
+                        JOIN users ru ON ru.id=rw.user_id
+                        WHERE t.sender_wallet_id=? AND ru.phone_number=? AND t.status='completed' AND t.id!=?",
+                        [$senderWalletId, $receiverPhone, $txid])->fetch();
+            if ($prior && (int)$prior['c'] === 0) {
+                $reasons[] = 'Premier envoi a ce destinataire, montant eleve ('.number_format($amount,0,',',' ').' F)';
+            }
+        }
+
+        if (!empty($reasons)) {
+            $senderPhone = q("SELECT u.phone_number FROM users u JOIN wallets w ON w.user_id=u.id WHERE w.id=?",[$senderWalletId])->fetchColumn();
+            q("INSERT INTO fraud_alerts (transaction_id,reference,sender_phone,receiver_phone,amount,reasons) VALUES (?,?,?,?,?,?)",
+              [$txid, $reference, $senderPhone, $receiverPhone, $amount, implode(' | ', $reasons)]);
+        }
+    } catch (Exception $e) { /* la detection ne doit jamais casser un transfert deja reussi */ }
+}
+
 function tx_send() {
     $pl = auth(); $b = body();
     $to     = trim($b['receiver_phone']??'');
@@ -814,6 +875,8 @@ function tx_send() {
 
         db()->commit();
 
+        fraud_check_transaction($sw['id'], $to, $brut, $txid, $reference);
+
         web_push_send_to_user($recv['id'], 'ROM_MONEY',
             'Vous avez recu '.number_format($net,0,',',' ').' F de '.($user['full_name']?:'un utilisateur'));
 
@@ -888,6 +951,9 @@ function tx_collect() {
         apply_referral_bonus($payer['id'], $fee);
 
         db()->commit();
+
+        $merchantPhone = q("SELECT phone_number FROM users WHERE id=?",[$pl['sub']])->fetchColumn();
+        fraud_check_transaction($payer['wid'], $merchantPhone, $brut, $txid, $reference);
 
         web_push_send_to_user($pl['sub'], 'ROM_MONEY',
             'Vous avez recu '.number_format($net,0,',',' ').' F de '.($payer['full_name']?:'un client'));
@@ -1921,6 +1987,8 @@ function route_admin($action) {
         '2fa-confirm'       => admin_2fa_confirm(),
         '2fa-disable'       => admin_2fa_disable(),
         '2fa-regenerate-codes' => admin_2fa_regenerate_codes(),
+        'list-fraud-alerts'    => admin_list_fraud_alerts(),
+        'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2662,6 +2730,11 @@ function app_settings_defs() {
         'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
         'admin_bf_max_attempts'       => [3, 'Tentatives admin avant blocage'],
         'admin_bf_block_minutes'      => [60, 'Duree du blocage admin (minutes)'],
+        'fraud_velocity_count'        => [5, 'Nb transactions suspect (velocite)'],
+        'fraud_velocity_minutes'      => [10, 'Fenetre de velocite (minutes)'],
+        'fraud_unusual_multiplier'    => [5, 'Multiplicateur montant inhabituel'],
+        'fraud_unusual_min_amount'    => [20000, 'Montant plancher (inhabituel)'],
+        'fraud_new_recipient_min_amount' => [50000, 'Montant plancher (nouveau destinataire)'],
     ];
 }
 
@@ -2689,6 +2762,9 @@ function admin_update_settings() {
         if(strpos($key,'fee_rate_')===0 && $val > 1) fail($def[1].' doit etre une proportion entre 0 et 1 (ex: 0.01 pour 1%)');
         if($key==='admin_bf_max_attempts' && $val < 1) fail('Le nombre de tentatives avant blocage doit etre au moins 1');
         if($key==='admin_bf_block_minutes' && $val < 1) fail('La duree de blocage doit etre d\'au moins 1 minute');
+        if($key==='fraud_velocity_count' && $val < 2) fail('Le seuil de velocite doit etre d\'au moins 2 transactions');
+        if($key==='fraud_velocity_minutes' && $val < 1) fail('La fenetre de velocite doit etre d\'au moins 1 minute');
+        if($key==='fraud_unusual_multiplier' && $val < 2) fail('Le multiplicateur doit etre d\'au moins 2');
         set_setting($key, (string)$val);
         $changes[] = $def[1].' = '.$val;
     }
@@ -2958,6 +3034,26 @@ function admin_list_alerts() {
     ok(['alerts'=>$rows]);
 }
 
+// Transactions signalees par fraud_check_transaction() (velocite, montant
+// inhabituel, nouveau destinataire + montant eleve). Non-reviewees d'abord,
+// puis les plus recentes. Plafonne a 100 entrees.
+function admin_list_fraud_alerts() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT * FROM fraud_alerts ORDER BY reviewed ASC, created_at DESC LIMIT 100")->fetchAll();
+    $unreviewed = (int)q("SELECT COUNT(*) FROM fraud_alerts WHERE reviewed=false")->fetchColumn();
+    ok(['alerts'=>$rows, 'unreviewed_count'=>$unreviewed]);
+}
+
+function admin_mark_fraud_reviewed() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    if(!$id) fail('Alerte introuvable');
+    q("UPDATE fraud_alerts SET reviewed=true WHERE id=?",[$id]);
+    ok(null,'Alerte marquee comme verifiee');
+}
+
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
@@ -3145,6 +3241,19 @@ function route_install() {
         last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, device_id)
     )",
+    "CREATE TABLE IF NOT EXISTS fraud_alerts (
+        id SERIAL PRIMARY KEY,
+        transaction_id VARCHAR(36),
+        reference VARCHAR(50),
+        sender_phone VARCHAR(20),
+        receiver_phone VARCHAR(20),
+        amount DECIMAL(15,2),
+        reasons TEXT,
+        reviewed BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created ON fraud_alerts(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_reviewed ON fraud_alerts(reviewed)",
     "CREATE TABLE IF NOT EXISTS app_settings (
         setting_key VARCHAR(50) PRIMARY KEY,
         value TEXT NOT NULL,

@@ -767,7 +767,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('announce')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Annonces</button>
       <button class="admin-tab-btn" onclick="adminTab('kyc')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Identités<span id="admin-kyc-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('settings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚙ Réglages</button>
-      <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚠ Alertes</button>
+      <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚠ Alertes<span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Utilisateurs</button>
       <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Compte</button>
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Transaction</button>
@@ -831,6 +831,15 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow"><label class="flabel">Tentatives admin avant blocage</label><input class="finput" id="set-bf-attempts" type="number" step="1" min="1"></div>
       <div class="frow"><label class="flabel">Duree du blocage admin (minutes)</label><input class="finput" id="set-bf-minutes" type="number" step="1" min="1"></div>
 
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bord)">
+        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px">🚩 Seuils de détection de fraude</div>
+        <div class="frow"><label class="flabel">Nb transactions suspect (vélocité)</label><input class="finput" id="set-fraud-velocity-count" type="number" step="1" min="2"></div>
+        <div class="frow"><label class="flabel">Fenêtre de vélocité (minutes)</label><input class="finput" id="set-fraud-velocity-minutes" type="number" step="1" min="1"></div>
+        <div class="frow"><label class="flabel">Multiplicateur montant inhabituel (x fois la moyenne)</label><input class="finput" id="set-fraud-unusual-multiplier" type="number" step="1" min="2"></div>
+        <div class="frow"><label class="flabel">Montant plancher — inhabituel (F)</label><input class="finput" id="set-fraud-unusual-min" type="number" step="1000" min="0"></div>
+        <div class="frow"><label class="flabel">Montant plancher — nouveau destinataire (F)</label><input class="finput" id="set-fraud-newrecipient-min" type="number" step="1000" min="0"></div>
+      </div>
+
       <button class="btn-g" onclick="adminSaveSettings()">Enregistrer les réglages</button>
       <div id="settings-status-box" style="margin-top:12px"></div>
 
@@ -871,7 +880,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-alerts" class="admin-panel" style="display:none">
-      <div class="admin-stitle">⚠ Nouveaux appareils détectés (30 derniers jours)</div>
+      <div class="admin-stitle">🚩 Transactions suspectes</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Signalées automatiquement selon 3 critères : trop de transactions en peu de temps, montant très supérieur aux habitudes du compte, ou premier envoi à ce destinataire avec un montant élevé. Aucune transaction n'est bloquée — c'est une alerte à vérifier, pas un blocage. Seuils modifiables dans Réglages.</div>
+      <div id="fraud-alerts-box"><div class="admin-empty">Chargement...</div></div>
+
+      <div class="admin-stitle" style="margin-top:28px">⚠ Nouveaux appareils détectés (30 derniers jours)</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Ne montre que les connexions depuis un appareil non reconnu sur un compte déjà utilisé ailleurs (le tout premier appareil d'un compte, à l'inscription, n'apparaît jamais ici). La plupart sont légitimes (changement de téléphone) — utile pour investiguer rapidement en cas de doute ou de signalement client.</div>
       <div id="alerts-list-box"><div class="admin-empty">Chargement...</div></div>
     </div>
@@ -2371,6 +2384,7 @@ function adminLoadRequests(){
       adminTab('dashboard');
       adminUpdateKycBadge(res.data.requests?res.data.requests.length:0);
       adminStartKycPolling();
+      adminRefreshFraudBadge();
       var box=document.getElementById('admin-list-box');
       var reqs=res.data.requests||[];
       if(reqs.length===0){
@@ -2935,7 +2949,56 @@ function adminOpenUserFromList(phone){
   adminSearchByPhone();
 }
 
+// ═══════════════════════════════════════════
+// ADMIN - Transactions suspectes (detection de fraude)
+// ═══════════════════════════════════════════
+function adminRefreshFraudBadge(){
+  apiCall('/admin?action=list-fraud-alerts','POST',{admin_password:window._adminPw},'').then(function(res){
+    var b=document.getElementById('admin-fraud-badge');
+    if(!b) return;
+    var count=(res&&res.success&&res.data)?(res.data.unreviewed_count||0):0;
+    if(count>0){ b.textContent=count; b.style.display='inline-block'; }
+    else { b.style.display='none'; }
+  }).catch(function(){});
+}
+function adminLoadFraudAlerts(){
+  var box = document.getElementById('fraud-alerts-box');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  apiCall('/admin?action=list-fraud-alerts','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var alerts = res.data.alerts||[];
+      adminRefreshFraudBadge();
+      if(alerts.length===0){
+        box.innerHTML='<div class="admin-empty">Aucune transaction suspecte détectée</div>';
+        return;
+      }
+      var html='';
+      alerts.forEach(function(a){
+        var reviewed = a.reviewed===true || a.reviewed==='t' || a.reviewed===1;
+        html+='<div class="admin-tx-card" style="border-left:3px solid '+(reviewed?'var(--t3)':'var(--re)')+';'+(reviewed?'opacity:.6':'')+'">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+(reviewed?'':'🚩 ')+(a.amount?Number(a.amount).toLocaleString('fr-FR')+' F':'')+'</b>'
+          +(reviewed?'<span style="font-size:10px;color:var(--t3)">Vérifiée</span>':'<button onclick="adminMarkFraudReviewed('+a.id+')" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--t2)">Marquer vérifiée</button>')
+          +'</div>'
+          +'<div style="color:var(--t3);margin-top:3px">De '+(a.sender_phone||'?')+' vers '+(a.receiver_phone||'?')+'</div>'
+          +'<div style="color:var(--t2);margin-top:4px;font-size:11px">'+(a.reasons||'').split(' | ').join('<br>')+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">Réf : '+(a.reference||'-')+' — '+new Date(a.created_at).toLocaleString()+'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+}
+function adminMarkFraudReviewed(id){
+  apiCall('/admin?action=mark-fraud-reviewed','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
+    if(res&&res.success){ adminLoadFraudAlerts(); }
+    else { toast((res&&res.message)||'Erreur', true); }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
 function adminLoadAlerts(){
+  adminLoadFraudAlerts();
   var box = document.getElementById('alerts-list-box');
   if(!box) return;
   box.innerHTML='<div class="admin-empty">Chargement...</div>';
@@ -2974,6 +3037,11 @@ function adminLoadSettings(){
       document.getElementById('set-limit-verified').value = d.limit_verified;
       document.getElementById('set-bf-attempts').value = d.admin_bf_max_attempts;
       document.getElementById('set-bf-minutes').value = d.admin_bf_block_minutes;
+      document.getElementById('set-fraud-velocity-count').value = d.fraud_velocity_count;
+      document.getElementById('set-fraud-velocity-minutes').value = d.fraud_velocity_minutes;
+      document.getElementById('set-fraud-unusual-multiplier').value = d.fraud_unusual_multiplier;
+      document.getElementById('set-fraud-unusual-min').value = d.fraud_unusual_min_amount;
+      document.getElementById('set-fraud-newrecipient-min').value = d.fraud_new_recipient_min_amount;
       if(statusBox) statusBox.innerHTML='';
     } else {
       if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+((res&&res.message)||'Erreur de chargement')+'</div>';
@@ -2992,7 +3060,12 @@ function adminSaveSettings(){
     limit_unverified: document.getElementById('set-limit-unverified').value,
     limit_verified: document.getElementById('set-limit-verified').value,
     admin_bf_max_attempts: document.getElementById('set-bf-attempts').value,
-    admin_bf_block_minutes: document.getElementById('set-bf-minutes').value
+    admin_bf_block_minutes: document.getElementById('set-bf-minutes').value,
+    fraud_velocity_count: document.getElementById('set-fraud-velocity-count').value,
+    fraud_velocity_minutes: document.getElementById('set-fraud-velocity-minutes').value,
+    fraud_unusual_multiplier: document.getElementById('set-fraud-unusual-multiplier').value,
+    fraud_unusual_min_amount: document.getElementById('set-fraud-unusual-min').value,
+    fraud_new_recipient_min_amount: document.getElementById('set-fraud-newrecipient-min').value
   };
   if(!confirm('Confirmer la mise a jour de ces reglages ? Ca affecte immediatement tous les utilisateurs.')) return;
   apiCall('/admin?action=update-settings','POST',payload,'').then(function(res){
