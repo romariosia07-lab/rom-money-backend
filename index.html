@@ -5142,7 +5142,7 @@ function resolvePhone(){
     .then(function(res){
       if(res && res.success && res.data){
         var name = res.data.full_name || res.data.name || phone;
-        if(srn) srn.textContent = name;
+        if(srn) srn.textContent = name + (res.data.is_verified ? ' ✓' : '');
       } else if(res && res.offline){
         if(srn) srn.textContent = t('offline_unavailable');
       } else {
@@ -6904,7 +6904,7 @@ function resolveTransfertPhone(){
   apiCall('/transactions?action=resolve&phone='+encodeURIComponent(phone),'GET',null,tok)
     .then(function(res){
       if(res&&res.success&&res.data){
-        nm.textContent = res.data.full_name||res.data.name||'';
+        nm.textContent = (res.data.full_name||res.data.name||'') + (res.data.is_verified ? ' ✓' : '');
         nm.style.color = 'var(--g)';
       } else if(res && res.offline){
         nm.textContent = t('offline_unavailable');

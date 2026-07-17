@@ -1208,9 +1208,20 @@ function tx_resolve() {
     $pl = auth();
     $phone = $_GET['phone']??'';
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
-    $u = q("SELECT full_name,phone_number,is_kyc FROM users WHERE phone_number=? AND id!=?",[$phone,$pl['sub']])->fetch();
+    $u = q("SELECT full_name,phone_number,is_kyc,verified_name FROM users WHERE phone_number=? AND id!=?",[$phone,$pl['sub']])->fetch();
     if(!$u) fail('Aucun compte trouve',404);
-    ok($u,'Compte trouve');
+    // Priorite au nom verifie KYC (comme partout ailleurs dans l'app : historique,
+    // recus PDF, panneau admin) plutot qu'au seul nom de profil, librement
+    // modifiable par n'importe qui vers n'importe quoi. Avant ce correctif,
+    // c'etait la seule fonction de toute l'app a ne pas suivre cette regle -
+    // exactement l'endroit ou ca compte le plus, puisque c'est le nom que
+    // l'expediteur voit juste avant de confirmer l'envoi de son argent.
+    ok([
+        'full_name'   => $u['verified_name'] ?: $u['full_name'],
+        'phone_number'=> $u['phone_number'],
+        'is_kyc'      => $u['is_kyc'],
+        'is_verified' => !empty($u['verified_name']),
+    ], 'Compte trouve');
 }
 
 // PROFILE
