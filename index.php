@@ -2277,6 +2277,7 @@ function route_admin($action) {
         '2fa-disable'       => admin_2fa_disable(),
         '2fa-regenerate-codes' => admin_2fa_regenerate_codes(),
         'kyc-migrate-encrypt'  => admin_kyc_migrate_encrypt(),
+        'backfill-verified-names' => admin_backfill_verified_names(),
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         default             => fail('Action inconnue',404)
@@ -2496,6 +2497,29 @@ function admin_kyc_migrate_encrypt() {
     }
     admin_log('kyc_migrate_encrypt','success',null,$migrated.' demande(s) KYC migree(s) vers le chiffrement');
     ok(['migrated'=>$migrated],'Migration terminee');
+}
+
+// Migration a usage unique : corrige les comptes marques "verifie" (is_kyc=1)
+// mais dont verified_name est reste vide - typiquement des comptes approuves
+// AVANT que cette colonne n'existe dans le schema. Pour chacun, va chercher
+// sa demande KYC approuvee la plus recente (source la plus fiable : le nom
+// legal qu'il avait soumis) ; a defaut, se rabat sur le nom de profil actuel
+// (mieux que rien). Sans effet sur les comptes deja corrects - peut etre
+// relance sans risque plusieurs fois.
+function admin_backfill_verified_names() {
+    $b = body();
+    check_admin_password($b);
+    $users = q("SELECT id, full_name FROM users WHERE is_kyc=1 AND (verified_name IS NULL OR verified_name='')")->fetchAll();
+    $fixed = 0;
+    foreach ($users as $u) {
+        $kyc = q("SELECT legal_name, legal_birthdate FROM kyc_requests WHERE user_id=? AND status='approved' ORDER BY reviewed_at DESC NULLS LAST, created_at DESC LIMIT 1", [$u['id']])->fetch();
+        $verifiedName = ($kyc && $kyc['legal_name']) ? $kyc['legal_name'] : $u['full_name'];
+        $verifiedBirthdate = $kyc ? ($kyc['legal_birthdate'] ?: null) : null;
+        q("UPDATE users SET verified_name=?, verified_birthdate=? WHERE id=?", [$verifiedName, $verifiedBirthdate, $u['id']]);
+        $fixed++;
+    }
+    admin_log('backfill_verified_names','success',null,$fixed.' compte(s) deja verifie(s) corrige(s)');
+    ok(['fixed'=>$fixed],'Migration terminee');
 }
 
 function admin_reset_pin() {
