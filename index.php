@@ -8,8 +8,19 @@ define('DB_NAME',    getenv('DB_NAME')    ?: 'rom_money_db');
 define('DB_USER',    getenv('DB_USER')    ?: 'root');
 define('DB_PASS',    getenv('DB_PASS')    ?: '');
 define('DB_PORT',    getenv('DB_PORT')    ?: '5432');
-define('JWT_SECRET', getenv('JWT_SECRET') ?: 'RomMoney2024SecretKey!@#$%');
-define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: 'JRB-Rom@rios07');
+define('JWT_SECRET', getenv('JWT_SECRET') ?: null);
+define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
+// Aucune valeur de repli codee en dur pour ces deux secrets : un secret
+// visible dans le code source (donc dans l'historique Git, ici public)
+// n'est plus un secret. Si l'une de ces deux variables d'environnement
+// n'est pas configuree sur Render, l'app s'arrete immediatement plutot que
+// de se rabattre silencieusement sur une valeur compromise.
+if (!JWT_SECRET || !ADMIN_PASSWORD) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success'=>false,'message'=>'Configuration serveur incomplete : JWT_SECRET et/ou ADMIN_PASSWORD non definis sur Render.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 define('JWT_EXPIRY', 86400);
 define('APP_ENV',    getenv('APP_ENV')    ?: 'development');
 define('APP_DEBUG',  APP_ENV === 'development');
