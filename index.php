@@ -947,7 +947,7 @@ function tx_send() {
     $user = q("SELECT pin_hash,country,full_name FROM users WHERE id=?",[$pl['sub']])->fetch();
     pin_check($pl['sub'], $pin, $user['pin_hash']);
 
-    $recv = q("SELECT u.id,u.full_name,u.country,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,u.country,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
     if(!$recv) fail('Destinataire introuvable');
     if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
 
@@ -1027,7 +1027,7 @@ function tx_send() {
             'Vous avez recu '.number_format($net,0,',',' ').' F de '.($user['full_name']?:'un utilisateur'));
 
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
-            'receiver_name'=>$recv['full_name'],'cancel_before'=>$deadline,
+            'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
             'new_balance'=>(float)$sw['balance']-$brut],'Transfert effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
 }
@@ -1047,7 +1047,7 @@ function tx_collect() {
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
 
-    $payer = q("SELECT u.id,u.full_name,u.pin_hash,w.id wid,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
+    $payer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
     if(!$payer) fail('Payeur introuvable');
     if($payer['id']===$pl['sub']) fail('Encaissement de soi-meme impossible');
 
@@ -1105,7 +1105,7 @@ function tx_collect() {
             'Vous avez recu '.number_format($net,0,',',' ').' F de '.($payer['full_name']?:'un client'));
 
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
-            'payer_name'=>$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
+            'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
 }
 
@@ -1192,8 +1192,8 @@ function tx_detail() {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
-        su.full_name sender_name, su.country sender_country,
-        ru.full_name receiver_name, ru.country receiver_country
+        su.full_name sender_name, su.verified_name sender_verified_name, su.country sender_country,
+        ru.full_name receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
