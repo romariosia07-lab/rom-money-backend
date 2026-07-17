@@ -1786,7 +1786,7 @@ var scanStream=null,scanData=null;
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',update_settings:'Modification des réglages'};
+var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
@@ -2411,19 +2411,21 @@ function adminLoadRequests(){
         var mismatchNom = r.ocr_nom && r.legal_nom && r.ocr_nom.trim().toLowerCase()!==r.legal_nom.trim().toLowerCase();
         var mismatchBirthdate = r.ocr_birthdate && r.legal_birthdate && r.ocr_birthdate!==r.legal_birthdate;
         var anyMismatch = mismatchPrenom || mismatchNom || mismatchBirthdate;
-        function kycCompareRow(label, legalVal, ocrVal, mismatch){
-          return '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:'+(mismatch?'var(--rl)':'var(--gl)')+';border-radius:10px;padding:10px;margin-bottom:6px">'
+        function kycEditRow(label, fieldKey, legalVal, ocrVal, mismatch){
+          var inputId='kyc-edit-'+fieldKey+'-'+r.id;
+          return '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:'+(mismatch?'var(--rl)':'var(--gl)')+';border-radius:10px;padding:10px;margin-bottom:6px;align-items:center">'
             +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">'+label+'</div><div style="font-size:9px;color:var(--t3)">Champ</div></div>'
-            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Confirmé</div><div style="font-size:11px;font-weight:700;color:var(--accent-text)">'+(legalVal||'-')+'</div></div>'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Confirmé (modifiable)</div><input id="'+inputId+'" value="'+(legalVal?String(legalVal).replace(/"/g,'&quot;'):'')+'" style="width:100%;font-size:11px;font-weight:700;color:var(--accent-text);border:1px solid var(--bord);border-radius:6px;padding:4px 6px;background:var(--card);box-sizing:border-box"></div>'
             +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">OCR</div><div style="font-size:11px;font-weight:700;color:'+(ocrVal?'var(--gdd)':'var(--t3)')+'">'+(ocrVal||'Non détecté')+'</div></div>'
             +'</div>';
         }
         html+='<div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px;margin-bottom:14px">'
           +'<div style="font-size:14px;font-weight:700;margin-bottom:2px">'+(r.full_name||'Sans nom')+'</div>'
           +'<div style="font-size:12px;color:var(--t3);margin-bottom:10px">'+(r.phone_number||'')+' · '+new Date(r.created_at).toLocaleString()+'</div>'
-          +kycCompareRow('Prénom(s)', r.legal_prenom, r.ocr_prenom, mismatchPrenom)
-          +kycCompareRow('Nom', r.legal_nom, r.ocr_nom, mismatchNom)
-          +kycCompareRow('Date de naissance', r.legal_birthdate, r.ocr_birthdate, mismatchBirthdate)
+          +kycEditRow('Prénom(s)', 'prenom', r.legal_prenom, r.ocr_prenom, mismatchPrenom)
+          +kycEditRow('Nom', 'nom', r.legal_nom, r.ocr_nom, mismatchNom)
+          +kycEditRow('Date de naissance', 'bd', r.legal_birthdate, r.ocr_birthdate, mismatchBirthdate)
+          +'<div style="font-size:10px;color:var(--t3);margin-bottom:10px">✎ Compare avec la photo ci-dessous et corrige si besoin avant d\'approuver — c\'est ce nom corrigé qui deviendra le nom vérifié du compte.</div>'
           +(!r.ocr_prenom && !r.ocr_nom && r.ocr_error?'<div style="font-size:10px;color:var(--t3);margin-bottom:10px;padding:8px;background:var(--gl);border-radius:8px">🛈 Raison de l\'échec OCR : '+r.ocr_error+'</div>':'')
           +(anyMismatch?'<div style="font-size:10px;color:var(--rd);font-weight:700;margin-bottom:10px">⚠ Au moins une information confirmée par l\'utilisateur diffère de la lecture automatique — vérifie bien avant d\'approuver</div>':'')
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'
@@ -2481,8 +2483,15 @@ function adminSendAnnouncement(){
 }
 
 function adminApprove(id){
-  if(!confirm('Approuver cette demande ? Le compte sera vérifié.')) return;
-  apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
+  var prenomEl=document.getElementById('kyc-edit-prenom-'+id);
+  var nomEl=document.getElementById('kyc-edit-nom-'+id);
+  var bdEl=document.getElementById('kyc-edit-bd-'+id);
+  var prenom=prenomEl?prenomEl.value.trim():'';
+  var nom=nomEl?nomEl.value.trim():'';
+  var bd=bdEl?bdEl.value.trim():'';
+  if(!prenom||!nom){ toast('Prénom et nom requis', true); return; }
+  if(!confirm('Approuver cette demande avec le nom "'+prenom+' '+nom+'" ? Le compte sera vérifié.')) return;
+  apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id,legal_prenom:prenom,legal_nom:nom,legal_birthdate:bd},'').then(function(res){
     if(res&&res.success){ toast('Compte vérifié'); adminLoadRequests(); }
     else toast((res&&res.message)||'Erreur', true);
   });

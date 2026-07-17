@@ -1698,6 +1698,48 @@ function google_vision_ocr($imageBase64) {
     return ['text'=>$text, 'error'=>null];
 }
 
+// Fournisseur alternatif a Google Vision : OCR.space, gratuit (25 000
+// requetes/mois) SANS carte bancaire ni compte de facturation - juste une
+// cle obtenue par email sur ocr.space/ocrapi/freekey. Meme format de retour
+// (text/error) que google_vision_ocr(), donc le reste du pipeline (parsing,
+// comparaison OCR vs saisie utilisateur, diagnostic visible en admin)
+// fonctionne a l'identique quel que soit le fournisseur actif.
+function ocrspace_ocr($imageBase64) {
+    $apiKey = getenv('OCR_SPACE_API_KEY');
+    if(!$apiKey) return ['text'=>null, 'error'=>'OCR_SPACE_API_KEY absente des variables d\'environnement'];
+    if(strpos($imageBase64, 'data:image') !== 0) {
+        $imageBase64 = 'data:image/jpeg;base64,'.$imageBase64;
+    }
+    $payload = http_build_query([
+        'apikey' => $apiKey,
+        'base64Image' => $imageBase64,
+        'language' => 'fre',
+        'OCREngine' => 2,
+        'isOverlayRequired' => 'false',
+    ]);
+    $ch = curl_init('https://api.ocr.space/parse/image');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+    if($curlErr) return ['text'=>null, 'error'=>'Erreur cURL: '.$curlErr];
+    if(!$response) return ['text'=>null, 'error'=>'Reponse vide de OCR.space (HTTP '.$httpCode.')'];
+    $data = json_decode($response, true);
+    if(!$data) return ['text'=>null, 'error'=>'Reponse invalide de OCR.space: '.substr($response,0,300)];
+    if(!empty($data['IsErroredOnProcessing'])) {
+        $msg = is_array($data['ErrorMessage']??null) ? implode(', ',$data['ErrorMessage']) : ($data['ErrorMessage'] ?? 'Erreur inconnue');
+        return ['text'=>null, 'error'=>'Erreur OCR.space: '.$msg];
+    }
+    $text = $data['ParsedResults'][0]['ParsedText'] ?? null;
+    if(!$text || trim($text)==='') return ['text'=>null, 'error'=>'Aucun texte detecte par OCR.space'];
+    return ['text'=>$text, 'error'=>null];
+}
+
 // --- Logique d'extraction portee depuis la version JS (Tesseract.js),
 // affinee sur de vrais textes OCR reels au fil de plusieurs iterations :
 // tolerance aux deformations de "Prenom(s)", recherche du "Nom" totalement
@@ -1791,7 +1833,11 @@ function kyc_ocr_extract() {
     $b = body();
     $recto = trim($b['photo_recto'] ?? '');
     if(!$recto) fail('Photo recto requise');
-    $result = google_vision_ocr($recto);
+    // Priorite a OCR.space (gratuit, sans carte bancaire) si sa cle est
+    // configuree ; sinon repli sur Google Vision si SA cle existe. Les deux
+    // fonctions renvoient exactement le meme format, donc rien d'autre a
+    // adapter selon le fournisseur actif.
+    $result = getenv('OCR_SPACE_API_KEY') ? ocrspace_ocr($recto) : google_vision_ocr($recto);
     if(!$result['text']) {
         ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>'[DIAGNOSTIC] '.($result['error']?:'Erreur inconnue')], 'OCR indisponible pour le moment, saisie manuelle requise');
         return;
@@ -1824,10 +1870,28 @@ function kyc_admin_approve() {
     check_admin_password($b);
     $id = trim($b['id']??'');
     if(!$id) fail('ID requis');
-    $r = q("SELECT user_id,legal_name,legal_birthdate FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    $r = q("SELECT user_id,phone_number,legal_prenom,legal_nom,legal_birthdate FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
-    q("UPDATE kyc_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
-    q("UPDATE users SET is_kyc=1, verified_name=?, verified_birthdate=? WHERE id=?",[$r['legal_name'],$r['legal_birthdate'],$r['user_id']]);
+
+    // L'admin peut corriger le prenom/nom/date de naissance juste avant de
+    // valider (ex: faute de frappe de l'utilisateur a la soumission, ou
+    // lecture OCR erronee qu'il corrige en comparant visuellement a la
+    // photo de la piece). Si rien n'est envoye depuis l'admin, on garde
+    // simplement ce que l'utilisateur avait soumis - comportement identique
+    // a avant ce correctif.
+    $prenom = trim($b['legal_prenom'] ?? '') ?: $r['legal_prenom'];
+    $nom = trim($b['legal_nom'] ?? '') ?: $r['legal_nom'];
+    $birthdate = trim($b['legal_birthdate'] ?? '') ?: $r['legal_birthdate'];
+    if(!$prenom || !$nom) fail('Prenom et nom requis');
+    $legalName = trim($prenom.' '.$nom);
+    $wasCorrected = ($prenom !== $r['legal_prenom']) || ($nom !== $r['legal_nom']) || ($birthdate !== $r['legal_birthdate']);
+
+    q("UPDATE kyc_requests SET status='approved', reviewed_at=NOW(), legal_prenom=?, legal_nom=?, legal_name=?, legal_birthdate=? WHERE id=?",
+      [$prenom, $nom, $legalName, $birthdate?:null, $id]);
+    q("UPDATE users SET is_kyc=1, verified_name=?, verified_birthdate=? WHERE id=?",[$legalName, $birthdate?:null, $r['user_id']]);
+    if($wasCorrected){
+        admin_log('kyc_approve_corrected','success',$r['phone_number'],'Nom/date corrige(s) par l\'admin avant validation KYC');
+    }
     ok(null,'Compte verifie avec succes');
 }
 
