@@ -35,10 +35,47 @@ define('VAPID_PUBLIC_KEY',  getenv('VAPID_PUBLIC_KEY')  ?: 'BKdX0VYx7EkhmZmKkErh
 define('VAPID_PRIVATE_KEY', getenv('VAPID_PRIVATE_KEY') ?: 'd_bCbqnSxZAhmDatuvpxxrfUrhic778mfV4oGJW2LCo');
 define('VAPID_SUBJECT',     getenv('VAPID_SUBJECT')     ?: 'mailto:supportrommoney@gmail.com');
 
-header("Access-Control-Allow-Origin: *");
+// CORS restreint : seules les origines listees ici peuvent appeler l'API
+// directement depuis un navigateur. Avant, "*" autorisait n'importe quel
+// site au monde a faire des requetes vers cette API depuis le navigateur
+// d'un visiteur. Les appels hors-navigateur (curl, Postman, l'endpoint
+// /install ouvert directement) ne sont pas concernes par le CORS - cette
+// restriction ne protege que contre les appels caches depuis un site tiers.
+$ALLOWED_ORIGINS = [
+    'https://romariosia07-lab.github.io',
+    // A ajouter ici le jour ou l'app Android (Capacitor) est publiee, si
+    // elle appelle l'API depuis un contexte WebView avec un Origin distinct
+    // (ex: 'capacitor://localhost' ou 'https://localhost').
+];
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($requestOrigin, $ALLOWED_ORIGINS, true)) {
+    header("Access-Control-Allow-Origin: $requestOrigin");
+} elseif (APP_ENV === 'development') {
+    header("Access-Control-Allow-Origin: *"); // confort en developpement local uniquement
+}
+header("Vary: Origin");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=utf-8");
+// En-tetes de securite standards (defense en profondeur, cout nul) :
+// - nosniff : empeche le navigateur de deviner un type de fichier different
+//   de celui declare, ce qui peut etre detourne pour executer du contenu
+//   inattendu.
+// - X-Frame-Options DENY : empeche que cette API (ou une reponse HTML
+//   d'erreur) soit chargee cachee dans un <iframe> sur un site tiers
+//   (technique de clickjacking).
+// - Referrer-Policy : evite de divulguer l'URL complete (potentiellement
+//   avec des parametres sensibles) au site suivant lors d'une navigation.
+// - Strict-Transport-Security : indique au navigateur de ne plus jamais
+//   essayer cette API en HTTP non chiffre, meme si quelqu'un tente de le
+//   forcer plus tard.
+// - Permissions-Policy : cette API ne renvoie que du JSON/PDF, jamais de
+//   page utilisant camera/micro/localisation - autant le déclarer.
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: DENY");
+header("Referrer-Policy: strict-origin-when-cross-origin");
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+header("Permissions-Policy: geolocation=(), camera=(), microphone=()");
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 function ok($data = null, $msg = 'OK', $code = 200) {
@@ -343,10 +380,45 @@ function q($sql, $params=[]) {
     return $s;
 }
 
+// ============================================================
+// LIMITATION DE DEBIT (rate limiting) — filet de securite generique par IP,
+// utilisable pour n'importe quel endpoint via un "bucket" (nom arbitraire).
+// Complementaire, pas redondant, avec les protections deja en place :
+// le PIN a deja son propre verrou par COMPTE (pin_check), l'admin a deja
+// son verrou par IP (admin_bruteforce_check) - ceci couvre tout le reste
+// (inscription, verification de numero, etc.) qui n'avait aucune limite.
+// ============================================================
+function rate_limit_check($bucket, $maxRequests, $windowSeconds) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    // Nettoyage opportuniste (1% de chance par appel), pour eviter que la
+    // table grossisse indefiniment sans avoir besoin d'une tache planifiee.
+    if (mt_rand(1, 100) === 1) {
+        q("DELETE FROM rate_limit_hits WHERE created_at < NOW() - INTERVAL '1 hour'");
+    }
+    $row = q("SELECT COUNT(*) c FROM rate_limit_hits
+              WHERE bucket=? AND ip_address=?
+              AND created_at > NOW() - (?::text || ' seconds')::interval",
+              [$bucket, $ip, $windowSeconds])->fetch();
+    if ($row && (int)$row['c'] >= $maxRequests) {
+        fail('Trop de requetes depuis cette adresse. Reessayez dans quelques instants.', 429);
+    }
+    q("INSERT INTO rate_limit_hits (bucket, ip_address) VALUES (?,?)", [$bucket, $ip]);
+}
+
 $uri    = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 $parts  = explode('/', $uri);
 $module = $parts[1] ?? ($parts[0] ?? '');
 $action = $_GET['action'] ?? '';
+
+// Filet de securite general : large marge (120 requetes/min/IP) pour ne
+// jamais genrer un utilisateur normal, mais qui bloque un script qui
+// bombarderait l'API. Les endpoints les plus sensibles a l'enumeration
+// (verification de numero, inscription, connexion) ont en plus leur PROPRE
+// limite, plus stricte, directement dans leur fonction. "health" est exclu
+// car utilise par les outils de supervision Render, potentiellement souvent.
+if ($module !== 'health') {
+    rate_limit_check('global', 120, 60);
+}
 
 switch($module) {
     case 'auth':        route_auth($action); break;
@@ -384,6 +456,7 @@ function route_auth($action) {
 // avertir immediatement au lieu de laisser l'utilisateur traverser tout le
 // flux (PIN, biometrie) avant de decouvrir le doublon a la toute fin.
 function auth_check_phone() {
+    rate_limit_check('check_phone', 20, 60);
     $b = body();
     $phone = trim($b['phone'] ?? '');
     if(!$phone) fail('Telephone requis');
@@ -408,6 +481,7 @@ function generate_referral_code() {
 }
 
 function auth_register() {
+    rate_limit_check('register', 10, 60);
     $b = body();
     $name  = trim($b['full_name'] ?? '');
     $phone = trim($b['phone']     ?? '');
@@ -457,6 +531,7 @@ function auth_register() {
 }
 
 function auth_login() {
+    rate_limit_check('login', 15, 60);
     $b = body();
     $phone = trim($b['phone'] ?? '');
     $pin   = trim($b['pin']   ?? '');
@@ -3265,6 +3340,13 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created ON fraud_alerts(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_reviewed ON fraud_alerts(reviewed)",
+    "CREATE TABLE IF NOT EXISTS rate_limit_hits (
+        id SERIAL PRIMARY KEY,
+        bucket VARCHAR(50) NOT NULL,
+        ip_address VARCHAR(45) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON rate_limit_hits(bucket, ip_address, created_at)",
     "CREATE TABLE IF NOT EXISTS app_settings (
         setting_key VARCHAR(50) PRIMARY KEY,
         value TEXT NOT NULL,
