@@ -10,8 +10,11 @@
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v2';
-var SHELL_FILES = ['./', './index.html', './manifest.json'];
+var CACHE_NAME = 'rommoney-shell-v3';
+var SHELL_FILES = ['./', './index.html', './manifest.json',
+  './favicon.png', './apple-touch-icon.png', './header-bg.png',
+  './icon-envoyer.png', './icon-payer.png', './icon-encaisser.png',
+  './icon-banque.png', './wallet-icon.png', './logo.png'];
 // Bibliotheques CDN externes (autre origine) explicitement autorisees en
 // cache : uniquement du JS statique et sans risque pour le QR code. Toute
 // autre requete cross-origine (notamment le backend API) reste exclue.
