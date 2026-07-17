@@ -857,9 +857,15 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         </div>
         <div id="admin-2fa-on-box" style="display:none">
           <div style="color:var(--su,#1a8);font-size:13px;margin-bottom:10px">✓ Double authentification active</div>
-          <div class="frow"><label class="flabel">Code de votre application (pour désactiver)</label>
+          <div class="frow"><label class="flabel">Code de votre application</label>
           <input class="finput" id="admin-2fa-disable-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
+          <button class="btn-g" onclick="admin2faRegenerateCodes()" style="margin-bottom:10px">Régénérer mes codes de récupération</button>
           <button style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()">Désactiver la double authentification</button>
+          <div id="admin-2fa-regen-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
+            <div style="font-weight:700;color:var(--t1);margin-bottom:6px">⚠ Nouveaux codes de récupération — à noter maintenant</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Les anciens codes ne fonctionnent plus. Ceux-ci ne seront plus jamais affichés en entier.</div>
+            <div id="admin-2fa-regen-codes" style="font-family:monospace;font-size:13px;color:var(--t1);line-height:1.8"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1753,7 +1759,7 @@ var scanStream=null,scanData=null;
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation',update_settings:'Modification des réglages'};
+var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
@@ -3045,6 +3051,22 @@ function admin2faConfirmSetup(){
       document.getElementById('admin-2fa-recovery-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
       disp.style.display='block';
       toast('Double authentification activée');
+    } else {
+      toast((res&&res.message)||'Code incorrect', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+function admin2faRegenerateCodes(){
+  var code=document.getElementById('admin-2fa-disable-code').value.trim();
+  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  if(!confirm('Régénérer les codes de récupération ? Les 10 codes actuels ne fonctionneront plus.')) return;
+  apiCall('/admin?action=2fa-regenerate-codes','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
+    if(res&&res.success&&res.data){
+      document.getElementById('admin-2fa-disable-code').value='';
+      var codes=res.data.recovery_codes||[];
+      document.getElementById('admin-2fa-regen-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
+      document.getElementById('admin-2fa-regen-display').style.display='block';
+      toast('Nouveaux codes de récupération générés');
     } else {
       toast((res&&res.message)||'Code incorrect', true);
     }

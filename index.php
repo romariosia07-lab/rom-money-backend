@@ -1920,6 +1920,7 @@ function route_admin($action) {
         '2fa-setup'         => admin_2fa_setup(),
         '2fa-confirm'       => admin_2fa_confirm(),
         '2fa-disable'       => admin_2fa_disable(),
+        '2fa-regenerate-codes' => admin_2fa_regenerate_codes(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2068,6 +2069,29 @@ function admin_2fa_disable() {
     set_setting('admin_2fa_recovery_codes', '[]');
     admin_log('2fa_disable','success',null,'Double authentification desactivee');
     ok(null,'Double authentification desactivee');
+}
+
+// Regenere les 10 codes de recuperation SANS toucher au secret ni
+// desactiver le 2FA (donc aucune interruption d'acces). Exige un code TOTP
+// valide (pas juste le mot de passe) : ca prouve que l'admin a toujours son
+// telephone en main, ce qui est precisement le but recherche puisque ces
+// codes servent en cas de perte du telephone. Les anciens codes deviennent
+// immediatement invalides (ils sont remplaces, pas ajoutes).
+function admin_2fa_regenerate_codes() {
+    $b = body();
+    check_admin_password($b);
+    if (!admin_2fa_enabled()) fail('La double authentification n\'est pas activee');
+    $code = trim((string)($b['totp_code'] ?? ''));
+    $secret = get_setting('admin_2fa_secret', '');
+    if (!totp_verify($secret, $code)) {
+        admin_log('2fa_regenerate_codes','failed',null,'Code de confirmation incorrect');
+        fail('Code incorrect',401);
+    }
+    $recoveryCodesPlain = totp_generate_recovery_codes(10);
+    $recoveryCodesHashed = array_map(fn($c) => password_hash($c, PASSWORD_BCRYPT), $recoveryCodesPlain);
+    set_setting('admin_2fa_recovery_codes', json_encode($recoveryCodesHashed));
+    admin_log('2fa_regenerate_codes','success',null,'Nouveaux codes de recuperation generes (les anciens sont invalides)');
+    ok(['recovery_codes'=>$recoveryCodesPlain],'Nouveaux codes generes');
 }
 
 function admin_reset_pin() {
