@@ -10,7 +10,7 @@
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v3';
+var CACHE_NAME = 'rommoney-shell-v4';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './header-bg.png',
   './icon-envoyer.png', './icon-payer.png', './icon-encaisser.png',
@@ -60,12 +60,20 @@ self.addEventListener('fetch', function(event){
 
   // Coquille de l'app (chargement de page + manifest) et bibliotheques QR :
   // reseau prioritaire ; si indisponible, repli sur la derniere version
-  // mise en cache avec succes.
+  // mise en cache avec succes. Inclut aussi les 9 images extraites du
+  // fichier principal (favicon, header, icones, logo) : sans cette ligne,
+  // elles etaient bien stockees en cache a l'installation mais JAMAIS lues
+  // depuis ce cache au chargement suivant - retelechargees a chaque fois,
+  // sans aucun benefice, d'ou lenteur/icones cassees sur reseau faible.
+  var isShellImage = SHELL_FILES.some(function(f){
+    return f !== './' && f !== './index.html' && url.pathname.endsWith(f.replace('./',''));
+  });
   var isShellRequest = isKnownCdnLib
     || req.mode === 'navigate'
     || url.pathname.endsWith('index.html')
     || url.pathname.endsWith('manifest.json')
-    || url.pathname.endsWith('/');
+    || url.pathname.endsWith('/')
+    || isShellImage;
 
   if(!isShellRequest) return;
 
