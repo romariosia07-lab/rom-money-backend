@@ -570,7 +570,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           </div>
                               <div class="w-center" onclick="openQRMenu()">
             <div class="w-main-ico" style="background:transparent;border:none;box-shadow:0 0 0 4px rgba(245,166,35,.2),0 4px 24px rgba(0,0,0,.4);overflow:hidden">
-              <img src="./wallet-icon.png" style="width:100%;height:100%;object-fit:cover" alt="Mon Wallet">
+              <img src="./wallet-icon.jpg" style="width:100%;height:100%;object-fit:cover" alt="Mon Wallet">
             </div>
             <div class="w-main-lbl" data-i18n="home_my_wallet">Mon Wallet</div>
           </div>
@@ -1099,7 +1099,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 // inscription, PDF QR, PDF facture) au lieu d'etre duplique 4 fois dans le
 // fichier (gain d'environ 3 Mo). Injecte dans les balises <img> juste apres,
 // puisque le DOM correspondant est deja present a ce point du script.
-var APP_LOGO_B64='./logo.png';
+var APP_LOGO_B64='./logo.jpg';
 (function(){
   ['splash-logo-img','register-logo-img'].forEach(function(id){
     var el=document.getElementById(id);
@@ -7418,7 +7418,7 @@ function imprimerQR(){
       // ── PAGE 1 ── (small)
       var y = 20;
       // Logo 20x20 centered
-      doc.addImage(logoData,"PNG",cx-10,y,20,20); y+=24;
+      doc.addImage(logoData,"JPEG",cx-10,y,20,20); y+=24;
       // Title
       doc.setFont("helvetica","bold");
       doc.setFontSize(10);
@@ -7439,7 +7439,7 @@ function imprimerQR(){
       doc.addPage("a5");
       var y2 = 14;
       // Logo 35x35 centered
-      doc.addImage(logoData,"PNG",cx-17.5,y2,35,35); y2+=40;
+      doc.addImage(logoData,"JPEG",cx-17.5,y2,35,35); y2+=40;
       // Title 2x
       doc.setFont("helvetica","bold");
       doc.setFontSize(18);
@@ -7668,7 +7668,7 @@ function genererFacture(id){
     if(!jsPDF){toast(t('invoice_jspdf_not_loaded'),true);return;}
     var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
     var pw=148,cx=74,y=12;
-    doc.addImage(ld,'PNG',cx-15,y,30,30);y+=34;
+    doc.addImage(ld,'JPEG',cx-15,y,30,30);y+=34;
     doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(8,80,65);
     doc.text(t('invoice_title'),cx,y,{align:'center'});y+=7;
     if(tx.ref){doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('invoice_ref_prefix')+tx.ref,cx,y,{align:'center'});y+=5;}
