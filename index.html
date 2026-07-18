@@ -2295,7 +2295,13 @@ function toggleAdminTheme(){
 // ═══════════════════════════════════════════
 // DÉMARRAGE
 // ═══════════════════════════════════════════
-window.addEventListener('load', function(){
+// IMPORTANT : on utilise DOMContentLoaded (structure de la page prete) et
+// non 'load' (qui attend EN PLUS le telechargement complet de toutes les
+// images, y compris header-bg.png ~2 Mo, meme si elles ne sont pas encore
+// visibles a l'ecran). Sur une connexion lente, attendre 'load' pouvait
+// bloquer l'ecran de demarrage plus d'une minute pour rien : aucune de ces
+// images n'est necessaire pour afficher l'ecran de connexion/inscription.
+document.addEventListener('DOMContentLoaded', function(){
   // Applique le theme immediatement (avant le delai du splash) pour eviter un flash
   try{
     var raw=localStorage.getItem('mmci');
