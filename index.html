@@ -238,6 +238,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .tx-badge.pend{background:var(--al);color:var(--gold-text);}
 .tx-cancel-btn{font-size:10px;color:var(--re);border:.5px solid rgba(226,75,74,.35);padding:2px 7px;border-radius:4px;cursor:pointer;background:none;font-family:'DM Sans',sans-serif;}
 .badge-ann{font-size:10px;background:var(--rl);color:var(--rd);padding:2px 6px;border-radius:4px;margin-left:4px;}
+.badge-frozen{font-size:10px;background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:4px;margin-left:4px;}
 .tx-empty{text-align:center;padding:28px;color:var(--t3);font-size:13px;}
 
 /* ═══ NAV BAR ═══ */
@@ -342,6 +343,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .status-pill.st-ok{background:var(--gl);color:var(--accent-text);}
 .status-pill.st-cancel{background:var(--rl);color:var(--rd);}
 .status-pill.st-pending{background:#FFF3D6;color:#8A6100;}
+.status-pill.st-frozen{background:#E3F2FD;color:#1565C0;}
 .result-pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;}
 .result-pill.res-ok{background:var(--gl);color:var(--accent-text);}
 .result-pill.res-fail{background:var(--rl);color:var(--rd);}
@@ -1816,11 +1818,11 @@ var scanStream=null,scanData=null;
 // UTILITAIRES
 // ═══════════════════════════════════════════
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
-var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
+var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée',frozen:'❄ En vérification'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
 var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
-function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
+function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':(s==='frozen'?'st-frozen':'st-pending')); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
 function toggleReasonCustom(prefix){
   var sel=document.getElementById(prefix+'-reason-sel');
@@ -2094,7 +2096,7 @@ function ini(n){
 var AVC=[['#E1F5EE','#085041'],['#E6F1FB','#0C447C'],['#FBEAF0','#72243E'],['#FAEEDA','#633806'],['#EAF3DE','#27500A']];
 function avc(n){ return AVC[n.charCodeAt(0)%AVC.length]; }
 
-function canAnn(tx){ return !tx.ann && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && tx.cat!=='QR' && tx.cat!=='Encaissement'; }
+function canAnn(tx){ return !tx.ann && !tx.frozen && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && tx.cat!=='QR' && tx.cat!=='Encaissement'; }
 
 function toast(msg, err){
   var el=document.getElementById('toast');
@@ -4125,7 +4127,7 @@ function launchApp(){
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', ref:t.reference, motif:t.description||''
+            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', ref:t.reference, motif:t.description||''
           };
         });
         renderTx('home'); save();
@@ -6453,7 +6455,7 @@ function refreshTxList(){
           legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
           type:t.direction, amt:displayAmt,
           cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-          ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', ref:t.reference, motif:t.description||''
+          ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', ref:t.reference, motif:t.description||''
         };
       });
     }
@@ -7673,11 +7675,11 @@ function renderTx(target, filter){
   var h='';
   for(var i=0;i<list.length;i++){
     var tx=list[i];
-    var isCr=tx.type==='credit', isAnn=!!tx.ann;
+    var isCr=tx.type==='credit', isAnn=!!tx.ann, isFrozen=!!tx.frozen;
     var c=avc(tx.name);
-    var amtColor=isAnn?'var(--t3)':isCr?'var(--g)':'var(--t1)';
+    var amtColor=isAnn?'var(--t3)':isFrozen?'#1565C0':isCr?'var(--g)':'var(--t1)';
     var amtText=isAnn?'---':(isCr?'+':'-')+fmt(tx.amt);
-    var annBadge=isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':'';
+    var annBadge=isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':(isFrozen?'<span class="badge-frozen">❄ En vérification</span>':'');
     var cancelBtn=canAnn(tx)?'<button class="tx-cancel-btn" onclick="event.stopPropagation();askCancel(window._renderTxList['+i+'].id)">'+t('tx_btn_cancel')+'</button>':'';
     var catLabel = (tx.cat==='Transfert') ? ('Transfert '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'))) : tx.cat;
     h+='<div class="tx-row" onclick="openTxDetail(window._renderTxList['+i+'].id)" style="opacity:'+(isAnn?'.5':'1')+'">'
@@ -7724,8 +7726,8 @@ function openTxDetail(id){
   var sign=dir==='debit'?'-':'+';
   var color=dir==='debit'?'#e53e3e':'#38a169';
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
-  var statut=tx.ann?t('tx_badge_cancelled'):t('tx_status_complete');
-  var statutColor=tx.ann?'#e53e3e':'#38a169';
+  var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'❄ En vérification':t('tx_status_complete'));
+  var statutColor=tx.ann?'#e53e3e':(tx.frozen?'#1565C0':'#38a169');
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
   var bg=document.getElementById('sh-bg');
@@ -7780,7 +7782,7 @@ function genererFacture(id){
   if(!tx){toast(t('tx_not_found'));return;}
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
   var dir=tx.type==='debit'?'debit':'credit';
-  var statut=tx.ann?t('tx_badge_cancelled'):t('tx_status_complete');
+  var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
   var sign=dir==='debit'?'-':'+';
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
