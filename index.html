@@ -1082,6 +1082,30 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   </div>
 </div>
 
+<!-- MODALE DE CONFIRMATION ADMIN — remplace les popups natifs du navigateur
+     (confirm()/prompt()), qui s'affichent collés a la barre d'adresse et ne
+     peuvent pas etre stylees. Reutilisable pour toute action admin sensible :
+     titre + message personnalises, raison optionnelle (liste deroulante +
+     "Autre" avec saisie libre, meme systeme que Annuler/Geler), ou simple
+     confirmation. Centree a l'ecran, par-dessus tout le reste. -->
+<div id="admin-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card,#16231e);border:1px solid var(--bord);border-radius:16px;padding:22px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div id="admin-confirm-icon" style="font-size:28px;margin-bottom:8px"></div>
+    <div id="admin-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px"></div>
+    <div id="admin-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.5;white-space:pre-line"></div>
+    <div id="admin-confirm-reason-box" style="display:none;margin-bottom:16px">
+      <select class="finput" id="admin-confirm-reason-sel" onchange="toggleReasonCustom('admin-confirm')" style="margin-bottom:8px">
+        <option value="">— Choisir une raison —</option>
+      </select>
+      <input class="finput" id="admin-confirm-reason-custom" placeholder="Précisez la raison" style="display:none">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="adminCloseConfirmModal()" style="padding:12px;background:none;border:1px solid var(--bord);border-radius:10px;color:var(--t2);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button id="admin-confirm-btn" onclick="adminConfirmModalSubmit()" style="padding:12px;background:var(--re);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
+    </div>
+  </div>
+</div>
+
 <!-- SHEET -->
 <div id="sh-bg" onclick="closeSheet()"></div>
 <div id="sh"><div class="sh-handle"></div><div class="sh-title" id="sh-title"></div><div class="sh-body" id="sh-body"></div></div>
@@ -1840,6 +1864,47 @@ function resetReasonField(prefix){
   document.getElementById(prefix+'-reason-sel').value='';
   var custom=document.getElementById(prefix+'-reason-custom');
   custom.style.display='none'; custom.value='';
+}
+
+// ═══════════════════════════════════════════
+// ADMIN - Modale de confirmation stylee (remplace confirm()/prompt() natifs)
+// ═══════════════════════════════════════════
+var _adminConfirmCallback = null;
+function adminOpenConfirmModal(config){
+  document.getElementById('admin-confirm-icon').textContent = config.icon || '⚠️';
+  document.getElementById('admin-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('admin-confirm-message').textContent = config.message || '';
+  var reasonBox = document.getElementById('admin-confirm-reason-box');
+  var sel = document.getElementById('admin-confirm-reason-sel');
+  if(config.needsReason){
+    reasonBox.style.display='block';
+    sel.innerHTML = '<option value="">— Choisir une raison —</option>'
+      + (config.reasonOptions||[]).map(function(o){ return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>'; }).join('')
+      + '<option value="__other__">Autre raison (préciser)</option>';
+    resetReasonField('admin-confirm');
+  } else {
+    reasonBox.style.display='none';
+  }
+  var btn = document.getElementById('admin-confirm-btn');
+  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.style.background = config.confirmColor || 'var(--re)';
+  _adminConfirmCallback = config.onConfirm;
+  document.getElementById('admin-confirm-overlay').style.display='flex';
+}
+function adminCloseConfirmModal(){
+  document.getElementById('admin-confirm-overlay').style.display='none';
+  _adminConfirmCallback = null;
+}
+function adminConfirmModalSubmit(){
+  var reasonBox = document.getElementById('admin-confirm-reason-box');
+  var reason = '';
+  if(reasonBox.style.display!=='none'){
+    reason = getReasonValue('admin-confirm');
+    if(!reason){ toast('Raison requise', true); return; }
+  }
+  var cb = _adminConfirmCallback;
+  adminCloseConfirmModal();
+  if(cb) cb(reason);
 }
 
 // ═══════════════════════════════════════════
@@ -2931,33 +2996,45 @@ function adminLateCancel(){
   var ref=document.getElementById('cncl-ref').value.trim();
   var reason=getReasonValue('cncl');
   if(!ref||!reason){ toast('Référence et raison requises', true); return; }
-  if(!confirm('Annuler definitivement la transaction '+ref+' ?\nCette action deplace reellement de l\'argent.')) return;
-  apiCall('/admin?action=late-cancel','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast('Transaction annulée avec succès');
-      document.getElementById('cncl-ref').value='';
-      resetReasonField('cncl');
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'🚫', title:'Annuler définitivement ?',
+    message:'Transaction '+ref+'\nCette action déplace réellement de l\'argent et ne peut pas être annulée après coup.',
+    needsReason:false, confirmLabel:'Oui, annuler', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=late-cancel','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Transaction annulée avec succès');
+          document.getElementById('cncl-ref').value='';
+          resetReasonField('cncl');
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminFreezeTx(){
   var ref=document.getElementById('cncl-ref').value.trim();
   var reason=getReasonValue('cncl');
   if(!ref||!reason){ toast('Référence et raison requises', true); return; }
-  if(!confirm('Geler la transaction '+ref+' ?\nL\'argent revient temporairement à l\'expéditeur, réversible depuis la liste des transactions gelées.')) return;
-  apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast('Transaction gelée avec succès');
-      document.getElementById('cncl-ref').value='';
-      resetReasonField('cncl');
-      adminLoadFrozenTx();
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'❄', title:'Geler cette transaction ?',
+    message:'Transaction '+ref+'\nL\'argent revient temporairement à l\'expéditeur, le temps de ta vérification. Réversible depuis la liste des transactions gelées.',
+    needsReason:false, confirmLabel:'Oui, geler', confirmColor:'#f5a623',
+    onConfirm:function(){
+      apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Transaction gelée avec succès');
+          document.getElementById('cncl-ref').value='';
+          resetReasonField('cncl');
+          adminLoadFrozenTx();
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminLoadFrozenTx(){
@@ -2994,21 +3071,33 @@ function adminLoadFrozenTx(){
 }
 
 function adminUnfreezeTx(ref){
-  if(!confirm('Débloquer la transaction '+ref+' ? Elle redeviendra normale, comme si elle n\'avait jamais été gelée.')) return;
-  apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
-    if(res&&res.success){ toast('Transaction débloquée'); adminLoadFrozenTx(); }
-    else toast((res&&res.message)||'Erreur', true);
-  }).catch(function(){ toast('Erreur réseau', true); });
+  adminOpenConfirmModal({
+    icon:'✅', title:'Débloquer cette transaction ?',
+    message:'Réf. '+ref+'\nElle redeviendra normale, comme si elle n\'avait jamais été gelée.',
+    needsReason:false, confirmLabel:'Oui, débloquer', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
+        if(res&&res.success){ toast('Transaction débloquée'); adminLoadFrozenTx(); }
+        else toast((res&&res.message)||'Erreur', true);
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
 }
 
 function adminConfirmCancelFrozen(ref){
-  var reason = prompt('Raison de l\'annulation définitive (journalisée) :');
-  if(!reason || !reason.trim()){ toast('Raison requise', true); return; }
-  if(!confirm('Confirmer l\'annulation DÉFINITIVE de '+ref+' ? Cette action est irréversible.')) return;
-  apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason.trim()},'').then(function(res){
-    if(res&&res.success){ toast('Annulation confirmée'); adminLoadFrozenTx(); }
-    else toast((res&&res.message)||'Erreur', true);
-  }).catch(function(){ toast('Erreur réseau', true); });
+  adminOpenConfirmModal({
+    icon:'🚫', title:'Confirmer l\'annulation définitive ?',
+    message:'Réf. '+ref+'\nCette action est IRRÉVERSIBLE. L\'argent, déjà revenu à l\'expéditeur pendant le gel, y reste définitivement.',
+    needsReason:true,
+    reasonOptions:['Erreur de destinataire confirmée','Montant incorrect envoyé par erreur','Double envoi par le client','Transaction frauduleuse confirmée','Erreur technique de l\'application'],
+    confirmLabel:'Confirmer l\'annulation', confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast('Annulation confirmée'); adminLoadFrozenTx(); }
+        else toast((res&&res.message)||'Erreur', true);
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
 }
 
 function adminLoadAuditLog(){
