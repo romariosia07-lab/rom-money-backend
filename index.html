@@ -1108,6 +1108,23 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
 <!-- SHEET -->
 <div id="sh-bg" onclick="closeSheet()"></div>
+
+<!-- MODALE DE CONFIRMATION UTILISATEUR — meme principe que la modale admin
+     (remplace confirm() natif, colle a la barre d'adresse), mais avec les
+     variables de theme utilisateur (s'adapte automatiquement au mode
+     clair/sombre choisi dans Profil > Apparence, contrairement a l'admin
+     qui reste toujours sombre). -->
+<div id="user-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--bord);border-radius:18px;padding:24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div id="user-confirm-icon" style="font-size:32px;margin-bottom:10px;text-align:center"></div>
+    <div id="user-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;text-align:center"></div>
+    <div id="user-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;text-align:center;white-space:pre-line"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button id="user-confirm-btn" onclick="userConfirmModalSubmit()" style="padding:13px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
+    </div>
+  </div>
+</div>
 <div id="sh"><div class="sh-handle"></div><div class="sh-title" id="sh-title"></div><div class="sh-body" id="sh-body"></div></div>
 
 <!-- TOAST -->
@@ -1905,6 +1922,30 @@ function adminConfirmModalSubmit(){
   var cb = _adminConfirmCallback;
   adminCloseConfirmModal();
   if(cb) cb(reason);
+}
+
+// ═══════════════════════════════════════════
+// UTILISATEUR - Modale de confirmation stylee (remplace confirm() natif)
+// ═══════════════════════════════════════════
+var _userConfirmCallback = null;
+function userOpenConfirmModal(config){
+  document.getElementById('user-confirm-icon').textContent = config.icon || '⚠️';
+  document.getElementById('user-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('user-confirm-message').textContent = config.message || '';
+  var btn = document.getElementById('user-confirm-btn');
+  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.style.background = config.confirmColor || 'var(--re)';
+  _userConfirmCallback = config.onConfirm;
+  document.getElementById('user-confirm-overlay').style.display='flex';
+}
+function userCloseConfirmModal(){
+  document.getElementById('user-confirm-overlay').style.display='none';
+  _userConfirmCallback = null;
+}
+function userConfirmModalSubmit(){
+  var cb = _userConfirmCallback;
+  userCloseConfirmModal();
+  if(cb) cb();
 }
 
 // ═══════════════════════════════════════════
@@ -3960,8 +4001,11 @@ function confirmRemoveAccount(ev, key){
   var accounts = getAccountsStore();
   var acc = accounts[key];
   var n = (acc && acc.name) || t('account_switch_default_name');
-  if(!confirm(t('account_switch_remove_confirm').replace('{name}',n))) return;
-  removeAccountAndHandleUI(key);
+  userOpenConfirmModal({
+    icon:'👤', title:'Retirer ce compte ?', message:t('account_switch_remove_confirm').replace('{name}',n),
+    confirmLabel:'Retirer', confirmColor:'var(--re)',
+    onConfirm:function(){ removeAccountAndHandleUI(key); }
+  });
 }
 
 // Retire un compte du registre de l'appareil. Si ce n'etait pas le compte
@@ -4142,10 +4186,14 @@ function lgBio(){
 }
 
 function resetApp(){
-  if(confirm('Effacer le compte et recommencer ?')){
-    try{ localStorage.removeItem('mmci'); localStorage.removeItem('rom_token'); clearActiveAccountFromStore(); }catch(e){}
-    goto('s-register-welcome');
-  }
+  userOpenConfirmModal({
+    icon:'🔄', title:'Effacer le compte et recommencer ?', message:'Toutes les données locales de ce compte seront effacées de cet appareil.',
+    confirmLabel:'Effacer', confirmColor:'var(--re)',
+    onConfirm:function(){
+      try{ localStorage.removeItem('mmci'); localStorage.removeItem('rom_token'); clearActiveAccountFromStore(); }catch(e){}
+      goto('s-register-welcome');
+    }
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -4557,10 +4605,15 @@ function findSubVault(id){
 function deleteSubVault(id){
   var sv=findSubVault(id);
   if(!sv) return;
-  if(!confirm(t('vault_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)))) return;
-  APP.vaultBal += sv.amt;
-  APP.subVaults = APP.subVaults.filter(function(s){ return s.id!==id; });
-  save(); renderVault(); updateBalDisplay(); toast(t('vault_deleted_toast'));
+  userOpenConfirmModal({
+    icon:'🔓', title:'Supprimer ce coffre ?', message:t('vault_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)),
+    confirmLabel:'Supprimer', confirmColor:'var(--re)',
+    onConfirm:function(){
+      APP.vaultBal += sv.amt;
+      APP.subVaults = APP.subVaults.filter(function(s){ return s.id!==id; });
+      save(); renderVault(); updateBalDisplay(); toast(t('vault_deleted_toast'));
+    }
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -4785,8 +4838,11 @@ function renderProfile(){
       {ico:'lang',lbl:t('lang_settings_title'),col:'var(--bl)',fn:function(){ openSheet('language-settings'); }},
       {ico:'addacc',lbl:t('profile_add_account'),col:'var(--bl)',fn:function(){ startAddAccount(); }},
       {ico:'logout',lbl:t('profile_logout'),col:'var(--re)',fn:function(){
-        if(!confirm(t('profile_logout_confirm'))) return;
-        removeAccountAndHandleUI(getActivePhoneKey());
+        userOpenConfirmModal({
+          icon:'🚪', title:t('profile_logout'), message:t('profile_logout_confirm'),
+          confirmLabel:t('profile_logout'), confirmColor:'var(--re)',
+          onConfirm:function(){ removeAccountAndHandleUI(getActivePhoneKey()); }
+        });
       }}
     ];
     var html='';
