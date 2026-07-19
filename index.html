@@ -3409,6 +3409,13 @@ function updatePhonePlaceholder(){
   var country = countrySel.value;
   phoneEl.placeholder = COUNTRY_PHONE_EXAMPLE[country] || '+225 07 XX XX XX XX';
 }
+// Extrait juste l'indicatif (ex: "+225") a partir de l'exemple complet
+// deja present dans COUNTRY_PHONE_EXAMPLE (ex: "+225 07 XX XX XX XX").
+function getCountryDialCode(country){
+  var example = COUNTRY_PHONE_EXAMPLE[country] || '';
+  var m = example.match(/^\+\d+/);
+  return m ? m[0] : '';
+}
 function loadRegCountries(){
   var sel=document.getElementById('r-country');
   if(!sel || sel.getAttribute('data-loaded')==='1') return;
@@ -6990,13 +6997,14 @@ function selPaysTransfert(el){
   var pays = el.getAttribute('data-name');
   var form = document.getElementById('transfert-form');
   if(!form) return;
+  var dialCode = getCountryDialCode(pays);
   form.style.display = 'block';
   form.innerHTML = '<div style="background:var(--gl);border-radius:12px;padding:14px;margin-bottom:14px;border:.5px solid var(--gm)">'
     +'<div style="font-size:13px;font-weight:700;color:var(--accent-text)">'+t('transfert_to_prefix')+pays+'</div>'
     +'<div style="font-size:11px;color:var(--t2);margin-top:2px">'+t('transfert_instant_fee_note')+'</div>'
     +'</div>'
     +'<div class="frow"><label class="flabel">'+t('transfert_label_recipient_number')+'</label>'
-    +'<input class="finput" id="transfert-to" type="tel" placeholder="+221 XX XXX XX XX" oninput="resolveTransfertPhone()"></div>'
+    +'<input class="finput" id="transfert-to" type="tel" value="'+(dialCode?dialCode+' ':'')+'" oninput="resolveTransfertPhone()"></div>'
     +'<div id="transfert-name" style="font-size:13px;font-weight:700;color:var(--accent-text);margin:-8px 0 10px;min-height:18px"></div>'
     +'<div class="frow"><label class="flabel">'+t('transfert_label_gross')+'</label>'
     +'<div class="amt-row"><input class="finput" id="transfert-amt" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt\',\'transfert-amt-net\',\'brut\',\'transfert-frais\')"><span class="amt-f">F</span></div></div>'
@@ -7007,14 +7015,26 @@ function selPaysTransfert(el){
     +'<input class="finput" id="transfert-motif" placeholder="'+t('transfert_ph_reason')+'"></div>'
     +'<button class="btn-g" onclick="doTransfertCFA(\''+pays+'\')">'+t('transfert_btn_send_to')+pays+'</button>';
   trackAmtFocusAfrica('transfert-amt','transfert-amt-net');
+  // Curseur place juste apres l'indicatif pre-rempli, pret a taper le reste
+  var toEl = document.getElementById('transfert-to');
+  if(toEl){ toEl.focus(); var len=toEl.value.length; toEl.setSelectionRange(len,len); }
   form.scrollIntoView({behavior:'smooth'});
+}
+
+// Retire l'indicatif pays (+225, +221...) et les espaces qui l'entourent
+// avant d'envoyer le numero au serveur : les numeros sont stockes en base
+// SANS indicatif (format local uniquement, comme partout ailleurs dans
+// l'app - inscription, connexion, envoi national...). Sans cette etape,
+// le numero tape ne correspondrait jamais a aucun compte existant.
+function stripDialCode(rawPhone){
+  return (rawPhone||'').replace(/^\+\d+\s*/, '').replace(/\s+/g,'').trim();
 }
 
 function resolveTransfertPhone(){
   var ph = document.getElementById('transfert-to');
   var nm = document.getElementById('transfert-name');
   if(!ph||!nm) return;
-  var phone = ph.value.trim();
+  var phone = stripDialCode(ph.value);
   if(phone.length < 8){ nm.textContent=''; return; }
   var tok = getToken();
   apiCall('/transactions?action=resolve&phone='+encodeURIComponent(phone),'GET',null,tok)
@@ -7041,7 +7061,7 @@ function doTransfertCFA(pays){
   var intent = getAmountIntentAfrique('transfert-amt','transfert-amt-net');
   if(intent.amount<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(intent.brut>APP.balance){ toast(t('send_err_insufficient_balance'),true); return; }
-  var phone = ph.value.trim();
+  var phone = stripDialCode(ph.value);
   var motif = mo ? mo.value.trim() : '';
   var receiverName = nm ? nm.textContent : phone;
   if(receiverName===t('transfert_number_not_found')||!receiverName){
