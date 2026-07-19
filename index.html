@@ -2582,18 +2582,23 @@ function adminSendAnnouncement(){
   var msgEn=document.getElementById('ann-msg-en').value.trim();
   var type=document.getElementById('ann-type').value;
   if(!title||!msg){ toast('Titre et message requis', true); return; }
-  if(!confirm('Envoyer cette annonce a tous les utilisateurs concernes ?')) return;
-  apiCall('/announce?action=admin-create','POST',{admin_password:window._adminPw,title:title,message:msg,title_en:titleEn,message_en:msgEn,type:type},'').then(function(res){
-    if(res&&res.success){
-      toast('Annonce envoyee');
-      document.getElementById('ann-title').value='';
-      document.getElementById('ann-msg').value='';
-      document.getElementById('ann-title-en').value='';
-      document.getElementById('ann-msg-en').value='';
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'📢', title:'Envoyer cette annonce ?', message:'Elle sera visible par tous les utilisateurs concernés.',
+    needsReason:false, confirmLabel:'Envoyer', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/announce?action=admin-create','POST',{admin_password:window._adminPw,title:title,message:msg,title_en:titleEn,message_en:msgEn,type:type},'').then(function(res){
+        if(res&&res.success){
+          toast('Annonce envoyee');
+          document.getElementById('ann-title').value='';
+          document.getElementById('ann-msg').value='';
+          document.getElementById('ann-title-en').value='';
+          document.getElementById('ann-msg-en').value='';
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminApprove(id){
@@ -2604,18 +2609,28 @@ function adminApprove(id){
   var nom=nomEl?nomEl.value.trim():'';
   var bd=bdEl?bdEl.value.trim():'';
   if(!prenom||!nom){ toast('Prénom et nom requis', true); return; }
-  if(!confirm('Approuver cette demande avec le nom "'+prenom+' '+nom+'" ? Le compte sera vérifié.')) return;
-  apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id,legal_prenom:prenom,legal_nom:nom,legal_birthdate:bd},'').then(function(res){
-    if(res&&res.success){ toast('Compte vérifié'); adminLoadKycList(); }
-    else toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'✓', title:'Approuver cette demande ?', message:'Nom vérifié : "'+prenom+' '+nom+'"\nLe compte sera marqué comme vérifié.',
+    needsReason:false, confirmLabel:'Approuver', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id,legal_prenom:prenom,legal_nom:nom,legal_birthdate:bd},'').then(function(res){
+        if(res&&res.success){ toast('Compte vérifié'); adminLoadKycList(); }
+        else toast((res&&res.message)||'Erreur', true);
+      });
+    }
   });
 }
 
 function adminReject(id){
-  if(!confirm('Refuser cette demande ?')) return;
-  apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
-    if(res&&res.success){ toast('Demande refusée'); adminLoadKycList(); }
-    else toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'✗', title:'Refuser cette demande ?', message:'L\'utilisateur devra soumettre une nouvelle demande KYC.',
+    needsReason:false, confirmLabel:'Refuser', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
+        if(res&&res.success){ toast('Demande refusée'); adminLoadKycList(); }
+        else toast((res&&res.message)||'Erreur', true);
+      });
+    }
   });
 }
 
@@ -2646,17 +2661,22 @@ function adminResetPin(){
   var reason=getReasonValue('rst');
   if(!phone||!newPin||!reason){ toast('Tous les champs sont requis', true); return; }
   if(!/^\d{6}$/.test(newPin)){ toast('Le PIN doit contenir 6 chiffres', true); return; }
-  if(!confirm('Réinitialiser le PIN de '+phone+' ?\nAs-tu bien vérifié son identité ?')) return;
-  apiCall('/admin?action=reset-pin','POST',{admin_password:window._adminPw,phone:phone,new_pin:newPin,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast('PIN réinitialisé avec succès');
-      document.getElementById('rst-phone').value='';
-      document.getElementById('rst-pin').value='';
-      resetReasonField('rst');
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'🔑', title:'Réinitialiser ce PIN ?', message:'Compte '+phone+'\nAs-tu bien vérifié son identité avant de continuer ?',
+    needsReason:false, confirmLabel:'Réinitialiser', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=reset-pin','POST',{admin_password:window._adminPw,phone:phone,new_pin:newPin,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('PIN réinitialisé avec succès');
+          document.getElementById('rst-phone').value='';
+          document.getElementById('rst-pin').value='';
+          resetReasonField('rst');
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -2702,19 +2722,23 @@ function adminBlockOrUnblock(){
   if(!phone||!reason){ toast('Numéro et raison requis', true); return; }
   var isBlocked=(_blkCurrentStatus==='blocked');
   var action=isBlocked?'unblock-account':'block-account';
-  var confirmMsg=isBlocked
-    ? 'Débloquer le compte '+phone+' ?'
-    : 'Bloquer le compte '+phone+' ? Le client ne pourra plus se connecter ni faire d\'opération.';
-  if(!confirm(confirmMsg)) return;
-  apiCall('/admin?action='+action,'POST',{admin_password:window._adminPw,phone:phone,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast(isBlocked?'Compte débloqué avec succès':'Compte bloqué avec succès');
-      resetReasonField('blk');
-      adminCheckAccountStatus();
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:isBlocked?'🔓':'🔒',
+    title:isBlocked?'Débloquer ce compte ?':'Bloquer ce compte ?',
+    message:isBlocked?('Compte '+phone) : ('Compte '+phone+'\nLe client ne pourra plus se connecter ni faire d\'opération.'),
+    needsReason:false, confirmLabel:isBlocked?'Débloquer':'Bloquer', confirmColor:isBlocked?'var(--g)':'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action='+action,'POST',{admin_password:window._adminPw,phone:phone,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(isBlocked?'Compte débloqué avec succès':'Compte bloqué avec succès');
+          resetReasonField('blk');
+          adminCheckAccountStatus();
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -2740,17 +2764,22 @@ function adminUpdateCountry(){
   var country=document.getElementById('cty-country').value;
   var reason=getReasonValue('cty');
   if(!phone||!country||!reason){ toast('Numéro, pays et raison requis', true); return; }
-  if(!confirm('Changer le pays de '+phone+' vers "'+country+'" ?')) return;
-  apiCall('/admin?action=update-country','POST',{admin_password:window._adminPw,phone:phone,country:country,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast('Pays mis à jour avec succès');
-      document.getElementById('cty-phone').value='';
-      document.getElementById('cty-country').value='';
-      resetReasonField('cty');
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'🌍', title:'Changer le pays ?', message:'Compte '+phone+' → "'+country+'"',
+    needsReason:false, confirmLabel:'Confirmer', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=update-country','POST',{admin_password:window._adminPw,phone:phone,country:country,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Pays mis à jour avec succès');
+          document.getElementById('cty-phone').value='';
+          document.getElementById('cty-country').value='';
+          resetReasonField('cty');
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminDeleteAccount(){
@@ -2759,17 +2788,22 @@ function adminDeleteAccount(){
   var reason=getReasonValue('del');
   if(!phone||!confirmPhone||!reason){ toast('Numéro (x2) et raison requis', true); return; }
   if(phone!==confirmPhone){ toast('Les deux numéros ne correspondent pas', true); return; }
-  if(!confirm('⚠ DERNIÈRE CONFIRMATION ⚠\n\nSupprimer DÉFINITIVEMENT le compte '+phone+' ?\n\nCette action est IRRÉVERSIBLE. Le compte, son portefeuille et son historique KYC seront perdus pour toujours. Le numéro redeviendra disponible pour une nouvelle inscription.')) return;
-  apiCall('/admin?action=delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
-    if(res&&res.success){
-      toast('Compte supprimé définitivement');
-      document.getElementById('del-phone').value='';
-      document.getElementById('del-phone-confirm').value='';
-      resetReasonField('del');
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'⚠', title:'DERNIÈRE CONFIRMATION', message:'Supprimer DÉFINITIVEMENT le compte '+phone+' ?\n\nCette action est IRRÉVERSIBLE. Le compte, son portefeuille et son historique KYC seront perdus pour toujours. Le numéro redeviendra disponible pour une nouvelle inscription.',
+    needsReason:false, confirmLabel:'Supprimer définitivement', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Compte supprimé définitivement');
+          document.getElementById('del-phone').value='';
+          document.getElementById('del-phone-confirm').value='';
+          resetReasonField('del');
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminSearchByPhone(){
@@ -2953,15 +2987,20 @@ function renderAdminTxList(){
 }
 
 function adminDeleteKyc(id, createdAt){
-  if(!confirm('Supprimer definitivement cette demande KYC (photos incluses) ?')) return;
-  apiCall('/admin?action=delete-kyc','POST',{admin_password:window._adminPw,id:id,created_at:createdAt},'').then(function(res){
-    if(res&&res.success){
-      toast('Demande KYC supprimée');
-      adminSearchByPhone();
-    } else {
-      toast((res&&res.message)||'Erreur suppression', true);
+  adminOpenConfirmModal({
+    icon:'🗑', title:'Supprimer cette demande KYC ?', message:'Photos incluses. Action irréversible.',
+    needsReason:false, confirmLabel:'Supprimer', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=delete-kyc','POST',{admin_password:window._adminPw,id:id,created_at:createdAt},'').then(function(res){
+        if(res&&res.success){
+          toast('Demande KYC supprimée');
+          adminSearchByPhone();
+        } else {
+          toast((res&&res.message)||'Erreur suppression', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminNameDisplay(name, verifiedName){
@@ -3318,15 +3357,20 @@ function adminSaveSettings(){
     fraud_unusual_min_amount: document.getElementById('set-fraud-unusual-min').value,
     fraud_new_recipient_min_amount: document.getElementById('set-fraud-newrecipient-min').value
   };
-  if(!confirm('Confirmer la mise a jour de ces reglages ? Ca affecte immediatement tous les utilisateurs.')) return;
-  apiCall('/admin?action=update-settings','POST',payload,'').then(function(res){
-    if(res&&res.success){
-      toast('Réglages mis à jour');
-      if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">Enregistré avec succès</div>';
-    } else {
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'⚙', title:'Mettre à jour les réglages ?', message:'Ça affecte immédiatement tous les utilisateurs.',
+    needsReason:false, confirmLabel:'Confirmer', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=update-settings','POST',payload,'').then(function(res){
+        if(res&&res.success){
+          toast('Réglages mis à jour');
+          if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">Enregistré avec succès</div>';
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -3334,34 +3378,44 @@ function adminSaveSettings(){
 // ═══════════════════════════════════════════
 function adminBackfillVerifiedNames(){
   var statusBox = document.getElementById('admin-backfill-status');
-  if(!confirm('Corriger les comptes déjà vérifiés dont le nom légal est manquant ?')) return;
-  if(statusBox) statusBox.textContent = 'Correction en cours...';
-  apiCall('/admin?action=backfill-verified-names','POST',{admin_password:window._adminPw},'').then(function(res){
-    if(res&&res.success){
-      var n = (res.data&&res.data.fixed!==undefined) ? res.data.fixed : 0;
-      if(statusBox) statusBox.textContent = n>0 ? (n+' compte(s) corrigé(s) avec succès.') : 'Aucun compte à corriger — tout est déjà à jour.';
-      toast('Migration terminée');
-    } else {
-      if(statusBox) statusBox.textContent = '';
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'✓', title:'Corriger les comptes déjà vérifiés ?', message:'Retrouve le nom légal manquant pour les comptes déjà marqués "vérifié".',
+    needsReason:false, confirmLabel:'Lancer la correction', confirmColor:'var(--g)',
+    onConfirm:function(){
+      if(statusBox) statusBox.textContent = 'Correction en cours...';
+      apiCall('/admin?action=backfill-verified-names','POST',{admin_password:window._adminPw},'').then(function(res){
+        if(res&&res.success){
+          var n = (res.data&&res.data.fixed!==undefined) ? res.data.fixed : 0;
+          if(statusBox) statusBox.textContent = n>0 ? (n+' compte(s) corrigé(s) avec succès.') : 'Aucun compte à corriger — tout est déjà à jour.';
+          toast('Migration terminée');
+        } else {
+          if(statusBox) statusBox.textContent = '';
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
     }
-  }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+  });
 }
 
 function adminMigrateKycEncrypt(){
   var statusBox = document.getElementById('admin-kyc-migrate-status');
-  if(!confirm('Chiffrer toutes les anciennes photos KYC non encore chiffrées ?')) return;
-  if(statusBox) statusBox.textContent = 'Migration en cours...';
-  apiCall('/admin?action=kyc-migrate-encrypt','POST',{admin_password:window._adminPw},'').then(function(res){
-    if(res&&res.success){
-      var n = (res.data&&res.data.migrated!==undefined) ? res.data.migrated : 0;
-      if(statusBox) statusBox.textContent = n>0 ? (n+' demande(s) KYC chiffrée(s) avec succès.') : 'Aucune ancienne photo à chiffrer — tout est déjà à jour.';
-      toast('Migration terminée');
-    } else {
-      if(statusBox) statusBox.textContent = '';
-      toast((res&&res.message)||'Erreur', true);
+  adminOpenConfirmModal({
+    icon:'🔒', title:'Chiffrer les anciennes photos KYC ?', message:'Toutes les demandes KYC non encore chiffrées seront chiffrées.',
+    needsReason:false, confirmLabel:'Lancer le chiffrement', confirmColor:'var(--g)',
+    onConfirm:function(){
+      if(statusBox) statusBox.textContent = 'Migration en cours...';
+      apiCall('/admin?action=kyc-migrate-encrypt','POST',{admin_password:window._adminPw},'').then(function(res){
+        if(res&&res.success){
+          var n = (res.data&&res.data.migrated!==undefined) ? res.data.migrated : 0;
+          if(statusBox) statusBox.textContent = n>0 ? (n+' demande(s) KYC chiffrée(s) avec succès.') : 'Aucune ancienne photo à chiffrer — tout est déjà à jour.';
+          toast('Migration terminée');
+        } else {
+          if(statusBox) statusBox.textContent = '';
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
     }
-  }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -3475,32 +3529,42 @@ function admin2faConfirmSetup(){
 function admin2faRegenerateCodes(){
   var code=document.getElementById('admin-2fa-disable-code').value.trim();
   if(!code){ toast('Entrez le code affiché par votre application', true); return; }
-  if(!confirm('Régénérer les codes de récupération ? Les 10 codes actuels ne fonctionneront plus.')) return;
-  apiCall('/admin?action=2fa-regenerate-codes','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
-    if(res&&res.success&&res.data){
-      document.getElementById('admin-2fa-disable-code').value='';
-      var codes=res.data.recovery_codes||[];
-      document.getElementById('admin-2fa-regen-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
-      document.getElementById('admin-2fa-regen-display').style.display='block';
-      toast('Nouveaux codes de récupération générés');
-    } else {
-      toast((res&&res.message)||'Code incorrect', true);
+  adminOpenConfirmModal({
+    icon:'🔄', title:'Régénérer les codes de récupération ?', message:'Les 10 codes actuels ne fonctionneront plus.',
+    needsReason:false, confirmLabel:'Régénérer', confirmColor:'#f5a623',
+    onConfirm:function(){
+      apiCall('/admin?action=2fa-regenerate-codes','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
+        if(res&&res.success&&res.data){
+          document.getElementById('admin-2fa-disable-code').value='';
+          var codes=res.data.recovery_codes||[];
+          document.getElementById('admin-2fa-regen-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
+          document.getElementById('admin-2fa-regen-display').style.display='block';
+          toast('Nouveaux codes de récupération générés');
+        } else {
+          toast((res&&res.message)||'Code incorrect', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 function admin2faDisable(){
   var code=document.getElementById('admin-2fa-disable-code').value.trim();
   if(!code){ toast('Entrez le code affiché par votre application', true); return; }
-  if(!confirm('Désactiver la double authentification admin ? La connexion ne demandera plus que le mot de passe.')) return;
-  apiCall('/admin?action=2fa-disable','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
-    if(res&&res.success){
-      toast('Double authentification désactivée');
-      document.getElementById('admin-2fa-disable-code').value='';
-      admin2faLoadStatus();
-    } else {
-      toast((res&&res.message)||'Code incorrect', true);
+  adminOpenConfirmModal({
+    icon:'🔓', title:'Désactiver la double authentification ?', message:'La connexion admin ne demandera plus que le mot de passe.',
+    needsReason:false, confirmLabel:'Désactiver', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=2fa-disable','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
+        if(res&&res.success){
+          toast('Double authentification désactivée');
+          document.getElementById('admin-2fa-disable-code').value='';
+          admin2faLoadStatus();
+        } else {
+          toast((res&&res.message)||'Code incorrect', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  });
 }
 
 function adminLoadCountries(){
