@@ -3576,11 +3576,24 @@ function finishRegister(){
         setToken(res.data.token);
         if(res.data.user_id) APP.userID=res.data.user_id;
         if(res.data.qr_seed) APP.qrSeed=res.data.qr_seed;
+        // Ardoise vraiment vierge : un compte fraichement cree ne doit
+        // JAMAIS heriter de donnees encore en memoire (ex: txList d'un
+        // compte precedent sur ce meme appareil, notamment apres une
+        // suppression de compte puis re-inscription avec le meme numero).
+        txList = [];
+        APP.notifications = [];
+        APP.seenTxIds = {};
         save(); APP._justRegistered = true; launchApp();
       } else {
         apiCall('/auth?action=login','POST',{phone:APP.phone,pin:APP.pin,device_id:getDeviceId()})
           .then(function(r){
-            if(r&&r.success&&r.data){ setToken(r.data.token); if(r.data.user_id) APP.userID=r.data.user_id; if(r.data.qr_seed) APP.qrSeed=r.data.qr_seed; save(); }
+            if(r&&r.success&&r.data){
+              setToken(r.data.token); if(r.data.user_id) APP.userID=r.data.user_id; if(r.data.qr_seed) APP.qrSeed=r.data.qr_seed;
+              txList = [];
+              APP.notifications = [];
+              APP.seenTxIds = {};
+              save();
+            }
             APP._justRegistered = true; launchApp();
           }).catch(function(){ APP._justRegistered = true; launchApp(); });
       }
@@ -3682,6 +3695,11 @@ function switchToAccount(key){
 
   if(isTokenValid(acc.token)){
     for(var k in acc) APP[k]=acc[k];
+    // APP.txList (affecte ci-dessus) n'est PAS la variable lue par renderTx() -
+    // c'est la variable globale txList, separee, qu'il faut donc synchroniser
+    // explicitement. Sans cette ligne, l'historique du compte PRECEDENT reste
+    // affiche jusqu'au prochain rechargement depuis le serveur.
+    txList = acc.txList || [];
     setToken(acc.token); // synchronise la cle localStorage utilisee par getToken()
     setActivePhoneKey(key);
     save();
@@ -3811,6 +3829,9 @@ function lgPin(d){
                 // Compte deja connu sur cet appareil : on restaure ses propres
                 // donnees locales (sous-coffres, favoris, notifications vues...).
                 for(var k in existing) APP[k]=existing[k];
+                // Meme remarque que dans switchToAccount() : la variable globale
+                // txList (utilisee par renderTx) est distincte de APP.txList.
+                txList = existing.txList || [];
               } else {
                 // Nouveau compte sur cet appareil : donnees locales vierges,
                 // pour ne jamais melanger avec celles du compte precedent.
@@ -3821,6 +3842,7 @@ function lgPin(d){
                 APP.legalName=''; APP.country='';
                 APP.balance=0; APP.vaultBal=0; APP.vaultLocked=false; APP.vaultDate=null;
                 APP.subVaults=[]; APP.nextSubVaultId=1;
+                txList = [];
               }
               _addAccountMode = false;
               _switchPrefillPhone = '';
