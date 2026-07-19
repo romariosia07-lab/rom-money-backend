@@ -6850,7 +6850,7 @@ function doOpenAddBank(){
     var html = '<button onclick="renderBankMain(document.getElementById(\'sh-body\'), window._bankList||[])" style="background:none;border:none;color:var(--t2);font-size:13px;margin-bottom:14px;cursor:pointer;padding:0">&#8592; '+t('kyc_btn_back')+'</button>';
     html += '<div style="font-size:12px;color:var(--t3);margin-bottom:12px">'+t('bank_choose_partner_desc')+'</div>';
     partners.forEach(function(p){
-      html += '<div onclick="doSelectPartner(\''+p.id+'\',\''+p.name+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:.5px solid var(--div);cursor:pointer">'
+      html += '<div data-pid="'+String(p.id).replace(/"/g,'&quot;')+'" data-pname="'+(p.name||'').replace(/"/g,'&quot;')+'" onclick="doSelectPartner(this.getAttribute(\'data-pid\'),this.getAttribute(\'data-pname\'))" style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:.5px solid var(--div);cursor:pointer">'
         +'<span style="font-size:20px">'+(p.type==='mobile_money'?'&#128241;':'&#127963;')+'</span>'
         +'<div style="font-size:13px;font-weight:600">'+p.name+'</div>'
         +'</div>';
@@ -6867,7 +6867,7 @@ function doSelectPartner(id, name){
     +'<div class="frow"><label class="flabel">'+t('bank_label_account_number')+'</label>'
     +'<input class="finput" id="bank-acc-num" type="text" inputmode="numeric" placeholder="'+t('bank_ph_account_number')+'"></div>'
     +'<div style="font-size:11px;color:var(--t3);margin-bottom:14px">'+t('bank_no_real_contact_note')+'</div>'
-    +'<button class="btn-g" onclick="doSubmitAddBank(\''+name+'\')">'+t('bank_btn_link')+'</button>';
+    +'<button class="btn-g" data-bname="'+(name||'').replace(/"/g,'&quot;')+'" onclick="doSubmitAddBank(this.getAttribute(\'data-bname\'))">'+t('bank_btn_link')+'</button>';
 }
 
 function doSubmitAddBank(bankName){
@@ -7013,7 +7013,7 @@ function selPaysTransfert(el){
     +'<div id="transfert-frais"></div>'
     +'<div class="frow"><label class="flabel">'+t('send_label_reason')+'</label>'
     +'<input class="finput" id="transfert-motif" placeholder="'+t('transfert_ph_reason')+'"></div>'
-    +'<button class="btn-g" onclick="doTransfertCFA(\''+pays+'\')">'+t('transfert_btn_send_to')+pays+'</button>';
+    +'<button class="btn-g" data-pays="'+pays.replace(/"/g,'&quot;')+'" onclick="doTransfertCFA(this.getAttribute(\'data-pays\'))">'+t('transfert_btn_send_to')+pays+'</button>';
   trackAmtFocusAfrica('transfert-amt','transfert-amt-net');
   // Curseur place juste apres l'indicatif pre-rempli, pret a taper le reste
   var toEl = document.getElementById('transfert-to');
@@ -7115,7 +7115,7 @@ function selPaysWaitlist(el){
     +'<input class="finput" id="wa-phone" value="'+(APP.phone||'')+'" type="tel" readonly style="background:var(--bg);color:var(--t2)"></div>'
     +'<div class="frow"><label class="flabel">'+t('label_email_opt')+'</label>'
     +'<input class="finput" id="wa-email" type="email" placeholder="votre@email.com"></div>'
-    +'<button class="btn-g" onclick="doWaitlistTransfert(\''+pays+'\')">'+t('transfert_btn_waitlist_signup')+pays+'</button>';
+    +'<button class="btn-g" data-pays="'+pays.replace(/"/g,'&quot;')+'" onclick="doWaitlistTransfert(this.getAttribute(\'data-pays\'))">'+t('transfert_btn_waitlist_signup')+pays+'</button>';
   form.scrollIntoView({behavior:'smooth'});
 }
 
