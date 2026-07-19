@@ -4127,7 +4127,7 @@ function launchApp(){
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', ref:t.reference, motif:t.description||''
+            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
           };
         });
         renderTx('home'); save();
@@ -6455,7 +6455,7 @@ function refreshTxList(){
           legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
           type:t.direction, amt:displayAmt,
           cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-          ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', ref:t.reference, motif:t.description||''
+          ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
         };
       });
     }
@@ -7160,7 +7160,7 @@ function doTransfertCFA(pays){
     var tok=getToken(); toast(t('toast_sending'));
     apiCall('/transactions?action=send','POST',{
       receiver_phone:phone, amount:intent.amount, mode:intent.mode, channel:'africa', pin:APP.pin,
-      description:motif||'Transfert Afrique - '+pays
+      description:motif||''
     },tok).then(function(res){
       if(res&&res.success){
         var d=res.data||{};
@@ -7728,6 +7728,10 @@ function openTxDetail(id){
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'❄ En vérification':t('tx_status_complete'));
   var statutColor=tx.ann?'#e53e3e':(tx.frozen?'#1565C0':'#38a169');
+  // Ligne "Type" : distingue National/Afrique pour un transfert, plutot que
+  // le seul libellé generique "Transfert" - independant du motif, qui lui
+  // doit rester purement optionnel et libre.
+  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?'Transfert Afrique':'Transfert National') : (tx.cat||'Transfert');
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
   var bg=document.getElementById('sh-bg');
@@ -7763,7 +7767,7 @@ function openTxDetail(id){
   html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'))+'</span><span style="font-weight:700;font-size:13px">'+(APP.name||APP.phone||t('tx_myself'))+'</span></div>';
   if(tx.ref) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_reference_label')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.ref+'</span></div>';
   if(tx.motif) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('label_motif_word')+'</span><span style="font-weight:600;font-size:13px">'+tx.motif+'</span></div>';
-  html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_type_label')+'</span><span style="font-weight:600;font-size:13px">'+(tx.cat||'Transfert')+'</span></div>';
+  html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_type_label')+'</span><span style="font-weight:600;font-size:13px">'+typeLabel+'</span></div>';
   html2+='<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('tx_status_label')+'</span><span style="font-weight:700;font-size:13px;color:'+statutColor+'">'+statut+'</span></div>';
   html2+='</div>';
   window._detailTxId = id;
@@ -7783,6 +7787,7 @@ function genererFacture(id){
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
   var dir=tx.type==='debit'?'debit':'credit';
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
+  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?'Transfert Afrique':'Transfert National') : (tx.cat||'Transfert');
   var sign=dir==='debit'?'-':'+';
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
@@ -7797,7 +7802,7 @@ function genererFacture(id){
     doc.setTextColor(dir==='debit'?220:34,dir==='debit'?50:139,dir==='debit'?50:34);
     var amtStr=Math.round(tx.amt).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); doc.text(sign+amtStr+' FCFA',cx,y+5,{align:'center'});y+=13;
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
-    var rows=[[t('invoice_date_label'),dateStr],[dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'),(tx.legalName||tx.name||'N/A')],[dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'),APP.legalName||APP.name||APP.phone||t('tx_myself')],[t('tx_type_label'),tx.cat||'Transfert'],[t('tx_status_label'),statut]];
+    var rows=[[t('invoice_date_label'),dateStr],[dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'),(tx.legalName||tx.name||'N/A')],[dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'),APP.legalName||APP.name||APP.phone||t('tx_myself')],[t('tx_type_label'),typeLabel],[t('tx_status_label'),statut]];
     if(tx.motif)rows.push([t('label_motif_word'),tx.motif]);
     if(tx.fee>0)rows.push([t('invoice_fee_label'),fmt(Math.round(tx.fee))]);
     if(tx.senderCountry)rows.push([t('invoice_sender_country_label'),tx.senderCountry]);

@@ -997,8 +997,8 @@ function tx_send() {
     try {
         $txid = uid(); $reference = ref();
         // Record the BRUT amount as the transaction amount (this is what sender sees deducted)
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,'transfer','pending',?,?,?)",
-          [$txid,$sw['id'],$recv['wid'],$brut,$net,$reference,$desc?:null,$deadline]);
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline,channel) VALUES (?,?,?,?,?,'transfer','pending',?,?,?,?)",
+          [$txid,$sw['id'],$recv['wid'],$brut,$net,$reference,$desc?:null,$deadline,$channel]);
         $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$sw["id"],$brut])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
         // Recipient gets NET amount
@@ -3662,6 +3662,7 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMP",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_reason VARCHAR(255)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS channel VARCHAR(20) DEFAULT 'national'",
     "CREATE INDEX IF NOT EXISTS idx_tx_sender ON transactions(sender_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_receiver ON transactions(receiver_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_created_at ON transactions(created_at)",
