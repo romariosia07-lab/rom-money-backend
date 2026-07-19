@@ -1015,8 +1015,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTx()">Rechercher</button>
       <div id="admin-tx-result"></div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Annulation tardive</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Réservé admin uniquement. Limite stricte de 2 jours après la transaction. Vérifie automatiquement que le destinataire a toujours le solde nécessaire.</div>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Annulation tardive / Gel</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l'argent revient temporairement à l'expéditeur le temps de vérifier, puis tu débloques ou confirmes l'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.</div>
       <div class="frow"><label class="flabel">Référence</label><input class="finput" id="cncl-ref" placeholder="REF-20260704-XXXXXX"></div>
       <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="cncl-reason-sel" onchange="toggleReasonCustom('cncl')">
@@ -1026,11 +1026,20 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="Double envoi par le client">Double envoi par le client</option>
           <option value="Transaction frauduleuse suspectée">Transaction frauduleuse suspectée</option>
           <option value="Erreur technique de l'application">Erreur technique de l'application</option>
+          <option value="En cours de verification">En cours de vérification</option>
           <option value="__other__">Autre raison (préciser)</option>
         </select>
         <input class="finput" id="cncl-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
       </div>
-      <button style="width:100%;padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminLateCancel()">Annuler cette transaction</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button style="padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminLateCancel()">Annuler</button>
+        <button style="padding:14px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminFreezeTx()">❄ Geler</button>
+      </div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">❄ Transactions gelées en attente</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Toutes les transactions actuellement gelées, en attente de ta décision finale.</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadFrozenTx()">Actualiser la liste</button>
+      <div id="admin-frozen-box"><div class="admin-empty">Clique sur "Actualiser la liste" pour charger</div></div>
     </div>
 
     <div id="admin-panel-audit" class="admin-panel" style="display:none">
@@ -1809,7 +1818,7 @@ var scanStream=null,scanData=null;
 function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
+var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':'st-pending'); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
@@ -2929,6 +2938,74 @@ function adminLateCancel(){
     } else {
       toast((res&&res.message)||'Erreur', true);
     }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+
+function adminFreezeTx(){
+  var ref=document.getElementById('cncl-ref').value.trim();
+  var reason=getReasonValue('cncl');
+  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  if(!confirm('Geler la transaction '+ref+' ?\nL\'argent revient temporairement à l\'expéditeur, réversible depuis la liste des transactions gelées.')) return;
+  apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+    if(res&&res.success){
+      toast('Transaction gelée avec succès');
+      document.getElementById('cncl-ref').value='';
+      resetReasonField('cncl');
+      adminLoadFrozenTx();
+    } else {
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+
+function adminLoadFrozenTx(){
+  var box=document.getElementById('admin-frozen-box');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  apiCall('/admin?action=list-frozen','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var rows=res.data.frozen||[];
+      if(rows.length===0){
+        box.innerHTML='<div class="admin-empty">Aucune transaction gelée actuellement</div>';
+        return;
+      }
+      var html='';
+      rows.forEach(function(r){
+        var senderName=r.sender_verified_name||r.sender_name||r.sender_phone||'?';
+        var receiverName=r.receiver_verified_name||r.receiver_name||r.receiver_phone||'?';
+        html+='<div class="admin-tx-card" style="border-left:3px solid #f5a623">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+Number(r.amount).toLocaleString('fr-FR')+' F</b><span style="font-size:10px;color:#f5a623;font-weight:700">❄ GELÉE</span></div>'
+          +'<div style="color:var(--t3);margin-top:3px">De '+senderName+' vers '+receiverName+'</div>'
+          +'<div style="color:var(--t2);margin-top:4px;font-size:11px">Raison : '+(r.frozen_reason||'-')+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">Réf : '+(r.reference||'-')+' — gelée le '+new Date(r.frozen_at).toLocaleString()+'</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">'
+          +'<button style="padding:8px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminUnfreezeTx(\''+r.reference+'\')">Débloquer</button>'
+          +'<button style="padding:8px;background:var(--re);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminConfirmCancelFrozen(\''+r.reference+'\')">Confirmer l\'annulation</button>'
+          +'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+}
+
+function adminUnfreezeTx(ref){
+  if(!confirm('Débloquer la transaction '+ref+' ? Elle redeviendra normale, comme si elle n\'avait jamais été gelée.')) return;
+  apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
+    if(res&&res.success){ toast('Transaction débloquée'); adminLoadFrozenTx(); }
+    else toast((res&&res.message)||'Erreur', true);
+  }).catch(function(){ toast('Erreur réseau', true); });
+}
+
+function adminConfirmCancelFrozen(ref){
+  var reason = prompt('Raison de l\'annulation définitive (journalisée) :');
+  if(!reason || !reason.trim()){ toast('Raison requise', true); return; }
+  if(!confirm('Confirmer l\'annulation DÉFINITIVE de '+ref+' ? Cette action est irréversible.')) return;
+  apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason.trim()},'').then(function(res){
+    if(res&&res.success){ toast('Annulation confirmée'); adminLoadFrozenTx(); }
+    else toast((res&&res.message)||'Erreur', true);
   }).catch(function(){ toast('Erreur réseau', true); });
 }
 

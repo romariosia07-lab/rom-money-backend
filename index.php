@@ -1149,6 +1149,15 @@ function tx_cancel() {
     if($tx['status']!=='completed') fail('Transaction non annulable');
     if($tx['cancelled_at']) fail('Deja annulee');
     if(strtotime($tx['cancel_deadline']??'0')<time()) fail('Delai annulation depasse');
+    // Meme protection que l'annulation admin : si le destinataire a deja
+    // depense cet argent (ou une partie), reprendre le montant integral
+    // ferait passer son solde en negatif. On refuse plutot que de risquer ca.
+    if($tx['type']==='transfer' && $tx['receiver_wallet_id']){
+        $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$tx['receiver_wallet_id']])->fetch();
+        if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
+            fail('Le destinataire a deja utilise une partie de ces fonds : annulation impossible automatiquement. Contactez le support.');
+        }
+    }
     db()->beginTransaction();
     try {
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$tx['sender_wallet_id']]);
@@ -2279,6 +2288,10 @@ function route_admin($action) {
         'kyc-migrate-encrypt'  => admin_kyc_migrate_encrypt(),
         'backfill-verified-names' => admin_backfill_verified_names(),
         'delete-account' => admin_delete_account(),
+        'freeze-tx'      => admin_freeze_transaction(),
+        'unfreeze-tx'    => admin_unfreeze_transaction(),
+        'confirm-cancel-frozen' => admin_confirm_cancel_frozen(),
+        'list-frozen'    => admin_list_frozen(),
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         default             => fail('Action inconnue',404)
@@ -2673,6 +2686,141 @@ function admin_late_cancel() {
         db()->rollBack();
         fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500);
     }
+}
+
+// ============================================================
+// GEL DE TRANSACTION — alternative a l'annulation directe : donne le temps
+// de verifier (ex: suite a une alerte de fraude) avant de trancher. Reutilise
+// exactement le meme mouvement de fonds que l'annulation (argent repris au
+// destinataire, redonne a l'expediteur), mais avec un statut 'frozen'
+// distinct de 'cancelled' - reversible via admin_unfreeze_transaction(),
+// ou rendu definitif via admin_confirm_cancel_frozen(). Memes protections
+// contre le solde negatif que l'annulation.
+// ============================================================
+function admin_freeze_transaction() {
+    $b = body();
+    check_admin_password($b);
+    $ref = trim($b['reference']??'');
+    $reason = trim($b['reason']??'');
+    if(!$ref) fail('Reference requise');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+
+    $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
+    if(!$tx){
+        admin_log('tx_freeze','failed',null,'Ref introuvable: '.$ref.' - '.$reason);
+        fail('Transaction introuvable',404);
+    }
+    $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
+    if($tx['status']!=='completed'){
+        admin_log('tx_freeze','failed',$senderPhone,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
+        fail('Seule une transaction "completed" peut etre gelee (statut actuel : '.$tx['status'].')');
+    }
+    if($tx['type']==='fee'){
+        fail('Impossible de geler directement une ligne de frais');
+    }
+    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    if(!$sw || !$rw){
+        fail('Transaction sans les deux portefeuilles (depot/retrait banque) : gel manuel requis, pas via cet outil');
+    }
+    $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
+    if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
+        admin_log('tx_freeze','failed',$senderPhone,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
+        fail('Le destinataire n\'a plus assez de solde pour geler cette transaction');
+    }
+
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE transactions SET status='frozen', frozen_at=NOW(), frozen_reason=? WHERE id=?",[$reason,$tx['id']]);
+        admin_log('tx_freeze','success',$senderPhone,'Ref '.$ref.' - '.$reason);
+        db()->commit();
+        $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
+        $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
+        if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','Une de vos transactions ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        ok(null,'Transaction gelee avec succes');
+    } catch(Exception $e) {
+        db()->rollBack();
+        fail(APP_DEBUG?$e->getMessage():'Echec du gel',500);
+    }
+}
+
+// Debloque une transaction gelee : remet tout exactement comme avant le gel
+// (statut 'completed' restaure). Meme protection dans l'autre sens : si
+// l'expediteur a entre-temps depense l'argent temporairement recredite, on
+// refuse plutot que de le mettre en negatif.
+function admin_unfreeze_transaction() {
+    $b = body();
+    check_admin_password($b);
+    $ref = trim($b['reference']??'');
+    if(!$ref) fail('Reference requise');
+    $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
+    if(!$tx) fail('Transaction introuvable',404);
+    if($tx['status']!=='frozen') fail('Cette transaction n\'est pas geleee (statut actuel : '.$tx['status'].')');
+    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    $senderPhone = $sw ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$sw])->fetchColumn() : null;
+    $senderWallet = q("SELECT balance FROM wallets WHERE id=?",[$sw])->fetch();
+    if(!$senderWallet || (float)$senderWallet['balance'] < (float)$tx['amount']){
+        admin_log('tx_unfreeze','failed',$senderPhone,'Ref '.$ref.' - solde expediteur insuffisant pour debloquer');
+        fail('L\'expediteur n\'a plus assez de solde pour debloquer cette transaction (il a peut-etre depense l\'argent temporairement recredite)');
+    }
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE transactions SET status='completed', frozen_at=NULL, frozen_reason=NULL WHERE id=?",[$tx['id']]);
+        admin_log('tx_unfreeze','success',$senderPhone,'Ref '.$ref.' debloquee');
+        db()->commit();
+        $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
+        $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
+        if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','La verification est terminee : votre transaction ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','La verification est terminee : la transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        ok(null,'Transaction debloquee avec succes');
+    } catch(Exception $e) {
+        db()->rollBack();
+        fail(APP_DEBUG?$e->getMessage():'Echec du deblocage',500);
+    }
+}
+
+// Rend l'annulation definitive pour une transaction gelee. Aucun mouvement
+// de fonds necessaire ici : le gel a deja effectue le mouvement (argent
+// repris au destinataire, rendu a l'expediteur) - il ne reste qu'a changer
+// le statut de 'frozen' a 'cancelled' pour finaliser.
+function admin_confirm_cancel_frozen() {
+    $b = body();
+    check_admin_password($b);
+    $ref = trim($b['reference']??'');
+    $reason = trim($b['reason']??'');
+    if(!$ref) fail('Reference requise');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
+    if(!$tx) fail('Transaction introuvable',404);
+    if($tx['status']!=='frozen') fail('Cette transaction n\'est pas gelee (statut actuel : '.$tx['status'].')');
+    $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
+    q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason=? WHERE id=?",[$reason,$tx['id']]);
+    admin_log('tx_freeze_confirm_cancel','success',$senderPhone,'Ref '.$ref.' - '.$reason);
+    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    $senderUid = $sw ? q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn() : null;
+    $receiverUid = $rw ? q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn() : null;
+    if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','La transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    ok(null,'Annulation confirmee');
+}
+
+// Liste des transactions actuellement gelees, en attente d'une decision -
+// pour ne pas en perdre une de vue.
+function admin_list_frozen() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT t.*,
+        su.phone_number sender_phone, su.full_name sender_name, su.verified_name sender_verified_name,
+        ru.phone_number receiver_phone, ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE t.status='frozen' ORDER BY t.frozen_at ASC")->fetchAll();
+    ok(['frozen'=>$rows]);
 }
 
 function admin_audit_list() {
@@ -3512,6 +3660,8 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount DECIMAL(15,2)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMP",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_reason VARCHAR(255)",
     "CREATE INDEX IF NOT EXISTS idx_tx_sender ON transactions(sender_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_receiver ON transactions(receiver_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_created_at ON transactions(created_at)",
