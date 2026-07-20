@@ -817,7 +817,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-kyc" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Vérifications d'identité en attente</div>
+      <div class="admin-stitle" data-i18n-admin="admin_kyc_pending_title">Vérifications d'identité en attente</div>
       <div id="admin-list-box"></div>
     </div>
 
@@ -918,13 +918,13 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-alerts" class="admin-panel" style="display:none">
-      <div class="admin-stitle">🚩 Transactions suspectes</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Signalées automatiquement selon 3 critères : trop de transactions en peu de temps, montant très supérieur aux habitudes du compte, ou premier envoi à ce destinataire avec un montant élevé. Aucune transaction n'est bloquée — c'est une alerte à vérifier, pas un blocage. Seuils modifiables dans Réglages.</div>
-      <div id="fraud-alerts-box"><div class="admin-empty">Chargement...</div></div>
+      <div class="admin-stitle" data-i18n-admin="admin_alerts_fraud_title">🚩 Transactions suspectes</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_alerts_fraud_desc">Signalées automatiquement selon 3 critères : trop de transactions en peu de temps, montant très supérieur aux habitudes du compte, ou premier envoi à ce destinataire avec un montant élevé. Aucune transaction n'est bloquée — c'est une alerte à vérifier, pas un blocage. Seuils modifiables dans Réglages.</div>
+      <div id="fraud-alerts-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
 
-      <div class="admin-stitle" style="margin-top:28px">⚠ Nouveaux appareils détectés (30 derniers jours)</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Ne montre que les connexions depuis un appareil non reconnu sur un compte déjà utilisé ailleurs (le tout premier appareil d'un compte, à l'inscription, n'apparaît jamais ici). La plupart sont légitimes (changement de téléphone) — utile pour investiguer rapidement en cas de doute ou de signalement client.</div>
-      <div id="alerts-list-box"><div class="admin-empty">Chargement...</div></div>
+      <div class="admin-stitle" style="margin-top:28px" data-i18n-admin="admin_alerts_devices_title">⚠ Nouveaux appareils détectés (30 derniers jours)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_alerts_devices_desc">Ne montre que les connexions depuis un appareil non reconnu sur un compte déjà utilisé ailleurs (le tout premier appareil d'un compte, à l'inscription, n'apparaît jamais ici). La plupart sont légitimes (changement de téléphone) — utile pour investiguer rapidement en cas de doute ou de signalement client.</div>
+      <div id="alerts-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
 
     <div id="admin-panel-users" class="admin-panel" style="display:none">
@@ -1296,6 +1296,36 @@ var I18N = {
   admin_kyc_reject_title: {fr:'Refuser cette demande ?', en:'Reject this request?'},
   admin_kyc_reject_msg: {fr:"L'utilisateur devra soumettre une nouvelle demande KYC.", en:'The user will need to submit a new KYC request.'},
   admin_kyc_rejected_toast: {fr:'Demande refusée', en:'Request rejected'},
+  admin_kyc_pending_title: {fr:"Vérifications d'identité en attente", en:'Pending identity verifications'},
+  admin_kyc_none_pending: {fr:'Aucune demande en attente', en:'No pending request'},
+  admin_kyc_no_name: {fr:'Sans nom', en:'No name'},
+  admin_kyc_field_firstname: {fr:'Prénom(s)', en:'First name(s)'},
+  admin_kyc_field_lastname: {fr:'Nom', en:'Last name'},
+  admin_kyc_field_birthdate: {fr:'Date de naissance', en:'Date of birth'},
+  admin_kyc_field_label: {fr:'Champ', en:'Field'},
+  admin_kyc_confirmed_editable: {fr:'Confirmé (modifiable)', en:'Confirmed (editable)'},
+  admin_kyc_ocr_not_detected: {fr:'Non détecté', en:'Not detected'},
+  admin_kyc_edit_note: {fr:"✎ Compare avec la photo ci-dessous et corrige si besoin avant d'approuver — c'est ce nom corrigé qui deviendra le nom vérifié du compte.", en:"✎ Compare with the photo below and correct if needed before approving — this corrected name will become the account's verified name."},
+  admin_kyc_ocr_fail_reason: {fr:"🛈 Raison de l'échec OCR : {reason}", en:'🛈 OCR failure reason: {reason}'},
+  admin_kyc_mismatch_warning: {fr:"⚠ Au moins une information confirmée par l'utilisateur diffère de la lecture automatique — vérifie bien avant d'approuver", en:"⚠ At least one user-confirmed detail differs from the automatic reading — check carefully before approving"},
+  admin_kyc_recto: {fr:'Recto', en:'Front'},
+  admin_kyc_verso: {fr:'Verso', en:'Back'},
+  admin_alerts_fraud_title: {fr:'🚩 Transactions suspectes', en:'🚩 Suspicious transactions'},
+  admin_alerts_fraud_desc: {fr:"Signalées automatiquement selon 3 critères : trop de transactions en peu de temps, montant très supérieur aux habitudes du compte, ou premier envoi à ce destinataire avec un montant élevé. Aucune transaction n'est bloquée — c'est une alerte à vérifier, pas un blocage. Seuils modifiables dans Réglages.", en:"Automatically flagged by 3 criteria: too many transactions in a short time, an amount far above the account's usual habits, or a first-time high-value transfer to this recipient. No transaction is blocked — it's an alert to review, not a block. Thresholds adjustable in Settings."},
+  admin_alerts_devices_title: {fr:'⚠ Nouveaux appareils détectés (30 derniers jours)', en:'⚠ New devices detected (last 30 days)'},
+  admin_alerts_devices_desc: {fr:"Ne montre que les connexions depuis un appareil non reconnu sur un compte déjà utilisé ailleurs (le tout premier appareil d'un compte, à l'inscription, n'apparaît jamais ici). La plupart sont légitimes (changement de téléphone) — utile pour investiguer rapidement en cas de doute ou de signalement client.", en:"Only shows logins from an unrecognized device on an account already used elsewhere (an account's very first device, at signup, never appears here). Most are legitimate (phone change) — useful for quick investigation in case of doubt or a customer report."},
+  admin_alerts_none_frozen: {fr:'Aucune transaction gelée actuellement', en:'No transaction currently frozen'},
+  admin_alerts_none_fraud: {fr:'Aucune transaction suspecte détectée', en:'No suspicious transaction detected'},
+  admin_alerts_reason_label: {fr:'Raison : {reason}', en:'Reason: {reason}'},
+  admin_alerts_ref_label: {fr:'Réf : {ref} — {date}', en:'Ref: {ref} — {date}'},
+  admin_alerts_verified_badge: {fr:'Vérifiée', en:'Reviewed'},
+  admin_alerts_mark_reviewed: {fr:'Marquer vérifiée', en:'Mark reviewed'},
+  admin_alerts_no_devices: {fr:'Aucune alerte de nouvel appareil récente', en:'No recent new-device alert'},
+  admin_alerts_new_device_label: {fr:'Nouvel appareil', en:'New device'},
+  admin_alerts_from_to: {fr:'De {from} vers {to}', en:'From {from} to {to}'},
+  admin_alerts_none_30d: {fr:'Aucune alerte sur les 30 derniers jours', en:'No alert in the last 30 days'},
+  admin_alerts_new_device_line: {fr:'Nouvel appareil : {device} — {date}', en:'New device: {device} — {date}'},
+  admin_kyc_verified_title: {fr:'Nom vérifié KYC', en:'KYC-verified name'},
   lang_fr: {fr:'Français', en:'French'},
   lang_en: {fr:'Anglais', en:'English'},
   lang_settings_title: {fr:'Langue', en:'Language'},
@@ -2714,7 +2744,7 @@ function adminLoadKycList(){
       if(!box) return;
       var reqs=res.data.requests||[];
       if(reqs.length===0){
-        box.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Aucune demande en attente</div>';
+        box.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+at('admin_kyc_none_pending')+'</div>';
         return;
       }
       var html='';
@@ -2726,35 +2756,35 @@ function adminLoadKycList(){
         function kycEditRow(label, fieldKey, legalVal, ocrVal, mismatch){
           var inputId='kyc-edit-'+fieldKey+'-'+r.id;
           return '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:'+(mismatch?'var(--rl)':'var(--gl)')+';border-radius:10px;padding:10px;margin-bottom:6px;align-items:center">'
-            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">'+label+'</div><div style="font-size:9px;color:var(--t3)">Champ</div></div>'
-            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">Confirmé (modifiable)</div><input id="'+inputId+'" value="'+(legalVal?String(legalVal).replace(/"/g,'&quot;'):'')+'" style="width:100%;font-size:11px;font-weight:700;color:var(--accent-text);border:1px solid var(--bord);border-radius:6px;padding:4px 6px;background:var(--card);box-sizing:border-box"></div>'
-            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">OCR</div><div style="font-size:11px;font-weight:700;color:'+(ocrVal?'var(--gdd)':'var(--t3)')+'">'+(ocrVal||'Non détecté')+'</div></div>'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">'+label+'</div><div style="font-size:9px;color:var(--t3)">'+at('admin_kyc_field_label')+'</div></div>'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">'+at('admin_kyc_confirmed_editable')+'</div><input id="'+inputId+'" value="'+(legalVal?String(legalVal).replace(/"/g,'&quot;'):'')+'" style="width:100%;font-size:11px;font-weight:700;color:var(--accent-text);border:1px solid var(--bord);border-radius:6px;padding:4px 6px;background:var(--card);box-sizing:border-box"></div>'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">OCR</div><div style="font-size:11px;font-weight:700;color:'+(ocrVal?'var(--gdd)':'var(--t3)')+'">'+(ocrVal||at('admin_kyc_ocr_not_detected'))+'</div></div>'
             +'</div>';
         }
         html+='<div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px;margin-bottom:14px">'
-          +'<div style="font-size:14px;font-weight:700;margin-bottom:2px">'+(r.full_name||'Sans nom')+'</div>'
+          +'<div style="font-size:14px;font-weight:700;margin-bottom:2px">'+(r.full_name||at('admin_kyc_no_name'))+'</div>'
           +'<div style="font-size:12px;color:var(--t3);margin-bottom:10px">'+(r.phone_number||'')+' · '+new Date(r.created_at).toLocaleString()+'</div>'
-          +kycEditRow('Prénom(s)', 'prenom', r.legal_prenom, r.ocr_prenom, mismatchPrenom)
-          +kycEditRow('Nom', 'nom', r.legal_nom, r.ocr_nom, mismatchNom)
-          +kycEditRow('Date de naissance', 'bd', r.legal_birthdate, r.ocr_birthdate, mismatchBirthdate)
-          +'<div style="font-size:10px;color:var(--t3);margin-bottom:10px">✎ Compare avec la photo ci-dessous et corrige si besoin avant d\'approuver — c\'est ce nom corrigé qui deviendra le nom vérifié du compte.</div>'
-          +(!r.ocr_prenom && !r.ocr_nom && r.ocr_error?'<div style="font-size:10px;color:var(--t3);margin-bottom:10px;padding:8px;background:var(--gl);border-radius:8px">🛈 Raison de l\'échec OCR : '+r.ocr_error+'</div>':'')
-          +(anyMismatch?'<div style="font-size:10px;color:var(--rd);font-weight:700;margin-bottom:10px">⚠ Au moins une information confirmée par l\'utilisateur diffère de la lecture automatique — vérifie bien avant d\'approuver</div>':'')
+          +kycEditRow(at('admin_kyc_field_firstname'), 'prenom', r.legal_prenom, r.ocr_prenom, mismatchPrenom)
+          +kycEditRow(at('admin_kyc_field_lastname'), 'nom', r.legal_nom, r.ocr_nom, mismatchNom)
+          +kycEditRow(at('admin_kyc_field_birthdate'), 'bd', r.legal_birthdate, r.ocr_birthdate, mismatchBirthdate)
+          +'<div style="font-size:10px;color:var(--t3);margin-bottom:10px">'+at('admin_kyc_edit_note')+'</div>'
+          +(!r.ocr_prenom && !r.ocr_nom && r.ocr_error?'<div style="font-size:10px;color:var(--t3);margin-bottom:10px;padding:8px;background:var(--gl);border-radius:8px">'+at('admin_kyc_ocr_fail_reason').replace('{reason}',r.ocr_error)+'</div>':'')
+          +(anyMismatch?'<div style="font-size:10px;color:var(--rd);font-weight:700;margin-bottom:10px">'+at('admin_kyc_mismatch_warning')+'</div>':'')
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'
-          +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Recto</div><img src="'+r.photo_recto+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
-          +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Verso</div><img src="'+r.photo_verso+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
+          +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+at('admin_kyc_recto')+'</div><img src="'+r.photo_recto+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
+          +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+at('admin_kyc_verso')+'</div><img src="'+r.photo_verso+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
           +'</div>'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-          +'<button style="padding:10px;background:var(--g);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer" onclick="adminApprove(\''+r.id+'\')">Approuver</button>'
-          +'<button style="padding:10px;background:var(--re);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer" onclick="adminReject(\''+r.id+'\')">Refuser</button>'
+          +'<button style="padding:10px;background:var(--g);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer" onclick="adminApprove(\''+r.id+'\')">'+at('admin_btn_approve')+'</button>'
+          +'<button style="padding:10px;background:var(--re);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer" onclick="adminReject(\''+r.id+'\')">'+at('admin_btn_reject')+'</button>'
           +'</div>'
           +'</div>';
       });
       box.innerHTML=html;
     } else {
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||at('admin_error_generic'), true);
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 
 // Traduction automatique FR<->EN pour le formulaire d'annonce admin, via l'API
@@ -3451,13 +3481,13 @@ function adminRefreshFraudBadge(){
 function adminLoadFraudAlerts(){
   var box = document.getElementById('fraud-alerts-box');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=list-fraud-alerts','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data){
       var alerts = res.data.alerts||[];
       adminRefreshFraudBadge();
       if(alerts.length===0){
-        box.innerHTML='<div class="admin-empty">Aucune transaction suspecte détectée</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_alerts_none_fraud')+'</div>';
         return;
       }
       var html='';
@@ -3465,50 +3495,50 @@ function adminLoadFraudAlerts(){
         var reviewed = a.reviewed===true || a.reviewed==='t' || a.reviewed===1;
         html+='<div class="admin-tx-card" style="border-left:3px solid '+(reviewed?'var(--t3)':'var(--re)')+';'+(reviewed?'opacity:.6':'')+'">'
           +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+(reviewed?'':'🚩 ')+(a.amount?fmtCur(a.amount, a.currency):'')+'</b>'
-          +(reviewed?'<span style="font-size:10px;color:var(--t3)">Vérifiée</span>':'<button onclick="adminMarkFraudReviewed('+a.id+')" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--t2)">Marquer vérifiée</button>')
+          +(reviewed?'<span style="font-size:10px;color:var(--t3)">'+at('admin_alerts_verified_badge')+'</span>':'<button onclick="adminMarkFraudReviewed('+a.id+')" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--t2)">'+at('admin_alerts_mark_reviewed')+'</button>')
           +'</div>'
-          +'<div style="color:var(--t3);margin-top:3px">De '+(a.sender_phone||'?')+' vers '+(a.receiver_phone||'?')+'</div>'
+          +'<div style="color:var(--t3);margin-top:3px">'+at('admin_alerts_from_to').replace('{from}',a.sender_phone||'?').replace('{to}',a.receiver_phone||'?')+'</div>'
           +'<div style="color:var(--t2);margin-top:4px;font-size:11px">'+(a.reasons||'').split(' | ').join('<br>')+'</div>'
-          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">Réf : '+(a.reference||'-')+' — '+new Date(a.created_at).toLocaleString()+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">'+at('admin_alerts_ref_label').replace('{ref}',a.reference||'-').replace('{date}',new Date(a.created_at).toLocaleString())+'</div>'
           +'</div>';
       });
       box.innerHTML=html;
     } else {
-      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminMarkFraudReviewed(id){
   apiCall('/admin?action=mark-fraud-reviewed','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
     if(res&&res.success){ adminLoadFraudAlerts(); }
-    else { toast((res&&res.message)||'Erreur', true); }
-  }).catch(function(){ toast('Erreur réseau', true); });
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminLoadAlerts(){
   adminLoadFraudAlerts();
   var box = document.getElementById('alerts-list-box');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=list-alerts','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data){
       var alerts = res.data.alerts||[];
       if(alerts.length===0){
-        box.innerHTML='<div class="admin-empty">Aucune alerte sur les 30 derniers jours</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_alerts_none_30d')+'</div>';
         return;
       }
       var html='';
       alerts.forEach(function(a){
         html+='<div class="admin-tx-card" style="border-left:3px solid var(--am)" onclick="adminOpenUserFromList(\''+a.phone_number+'\')">'
-          +'<div style="display:flex;justify-content:space-between"><b>⚠ '+(a.verified_name||a.full_name)+(a.verified_name?' <span style="color:var(--g)" title="Nom vérifié KYC">✓</span>':'')+'</b></div>'
+          +'<div style="display:flex;justify-content:space-between"><b>⚠ '+(a.verified_name||a.full_name)+(a.verified_name?' <span style="color:var(--g)" title="'+at('admin_kyc_verified_title')+'">✓</span>':'')+'</b></div>'
           +'<div style="color:var(--t3);margin-top:2px">'+a.phone_number+'</div>'
-          +'<div style="color:var(--t3);margin-top:4px">Nouvel appareil : '+parseUserAgent(a.user_agent)+' — '+new Date(a.first_seen).toLocaleString()+'</div>'
+          +'<div style="color:var(--t3);margin-top:4px">'+at('admin_alerts_new_device_line').replace('{device}',parseUserAgent(a.user_agent)).replace('{date}',new Date(a.first_seen).toLocaleString())+'</div>'
           +'</div>';
       });
       box.innerHTML=html;
     } else {
-      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminLoadSettings(){
