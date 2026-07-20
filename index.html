@@ -1664,6 +1664,8 @@ var I18N = {
   ref_code_fallback: {fr:'Code: {code}', en:'Code: {code}'},
 
   cards_coming_desc: {fr:'Les cartes ROM_MONEY (virtuelles et physiques) arrivent prochainement.', en:'ROM_MONEY cards (virtual and physical) are coming soon.'},
+  waitlist_registered_btn: {fr:'✓ Tu seras notifié en priorité', en:'✓ You will be notified first'},
+  waitlist_notify_btn: {fr:'Être notifié en priorité', en:'Notify me first'},
 
   aide_header_title: {fr:"Centre d'Aide ROM_MONEY", en:'ROM_MONEY Help Center'},
   aide_header_subtitle: {fr:'Comment pouvons-nous vous aider ?', en:'How can we help you?'},
@@ -7048,12 +7050,13 @@ function doPayBill2(){
 // qui est un MOCK (aucun vrai partenaire bancaire connecte pour l'instant).
 // Voir commentaire equivalent cote backend (index.php, route_bank).
 function shBanque(b){
-  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">'+t('home_tx_loading')+'</div>';
-  var tok = getToken();
-  apiCall('/bank?action=list','GET',null,tok).then(function(res){
-    var banks = (res && res.success && res.data && res.data.banks) ? res.data.banks : [];
-    renderBankMain(b, banks);
-  }).catch(function(){ renderBankMain(b, []); });
+  var already = (APP.waitlist||[]).some(function(w){ return w.pays==='Banque'; });
+  b.innerHTML = '<div style="text-align:center;padding:50px 20px">'
+    +'<div style="font-size:48px;margin-bottom:16px">🏦</div>'
+    +'<div style="font-size:16px;font-weight:700;margin-bottom:8px">'+t('bank_coming_soon_title')+'</div>'
+    +'<div style="font-size:13px;color:var(--t3);max-width:280px;margin:0 auto 20px">'+t('bank_coming_soon_desc')+'</div>'
+    +'<button class="btn-g" '+(already?'disabled':'')+' onclick="doWaitlistFeature(\'Banque\', this)" style="max-width:260px;margin:0 auto">'+(already?t('waitlist_registered_btn'):t('waitlist_notify_btn'))+'</button>'
+    +'</div>';
 }
 
 function renderBankMain(b, banks){
@@ -7407,6 +7410,33 @@ function selPaysWaitlist(el){
   form.scrollIntoView({behavior:'smooth'});
 }
 
+// Liste d'attente generique pour une fonctionnalite pas encore lancee
+// (Banque, Cartes...), reutilisant exactement le meme systeme que la liste
+// d'attente des pays du Transfert Afrique. Contrairement a celle-ci, aucun
+// formulaire n'est demande : l'utilisateur est deja connecte, son numero
+// (et son email s'il l'a renseigne) sont deja connus - un seul geste
+// suffit, cohérent avec la priorite de simplicite de l'app.
+function doWaitlistFeature(featureName, btnEl){
+  APP.waitlist = APP.waitlist || [];
+  var exists = APP.waitlist.some(function(w){ return w.pays===featureName; });
+  if(exists){ toast(t('transfert_already_registered').replace('{country}',featureName)); return; }
+
+  APP.waitlist.push({phone:APP.phone, pays:featureName, email:APP.email||'', ts:Date.now()});
+  if(APP.waitlist.length>200) APP.waitlist=APP.waitlist.slice(-200);
+  save();
+  if(btnEl){ btnEl.disabled=true; btnEl.textContent=t('waitlist_registered_btn'); }
+
+  var tok=getToken();
+  apiCall('/profile?action=waitlist','POST',{
+    phone:APP.phone, pays:featureName, email:APP.email||''
+  },tok).then(function(res){
+    var total = res&&res.data&&res.data.total_waitlist ? res.data.total_waitlist : '';
+    var totalPart = total ? t('transfert_waitlist_total_suffix').replace('{total}',total) : '';
+    toast(t('transfert_waitlist_success').replace('{country}',featureName).replace('{totalPart}',totalPart));
+  }).catch(function(){
+    toast(t('transfert_waitlist_success_offline').replace('{country}',featureName));
+  });
+}
 function doWaitlistTransfert(pays){
   var phone = document.getElementById('wa-phone');
   var email = document.getElementById('wa-email');
@@ -7489,10 +7519,12 @@ function shareParrainage2(){
 
 // CARTES
 function shCartes(b){
+  var already = (APP.waitlist||[]).some(function(w){ return w.pays==='Cartes'; });
   b.innerHTML = '<div style="text-align:center;padding:50px 20px">'
     +'<div style="font-size:48px;margin-bottom:16px">💳</div>'
     +'<div style="font-size:16px;font-weight:700;margin-bottom:8px">'+t('bank_coming_soon_title')+'</div>'
-    +'<div style="font-size:13px;color:var(--t3);max-width:280px;margin:0 auto">'+t('cards_coming_desc')+'</div>'
+    +'<div style="font-size:13px;color:var(--t3);max-width:280px;margin:0 auto 20px">'+t('cards_coming_desc')+'</div>'
+    +'<button class="btn-g" '+(already?'disabled':'')+' onclick="doWaitlistFeature(\'Cartes\', this)" style="max-width:260px;margin:0 auto">'+(already?t('waitlist_registered_btn'):t('waitlist_notify_btn'))+'</button>'
     +'</div>';
 }
 // Override refreshUI to use new header elements
