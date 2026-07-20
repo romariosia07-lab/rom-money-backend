@@ -448,7 +448,14 @@ switch($module) {
     case 'export':      route_export($action); break;
     case 'push':        route_push($action); break;
     case 'health':
-        ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s')]);
+        // Touche la base de donnees (requete minimale) pour que ce endpoint,
+        // appele regulierement par un service de surveillance externe,
+        // maintienne aussi Neon eveille - pas seulement le serveur PHP sur
+        // Render. Sans ce petit aller-retour, un ping ici ne reveillerait
+        // que la moitie du systeme.
+        $dbOk = true;
+        try { q("SELECT 1"); } catch (Exception $e) { $dbOk = false; }
+        ok(['status'=>'ok','app'=>'Rom_money','version'=>'1.0','time'=>date('Y-m-d H:i:s'),'db'=>$dbOk?'ok':'unreachable']);
     case 'install':     route_install(); break;
     default:
         ok(['app'=>'Rom_money API','version'=>'1.0','routes'=>['/auth','/wallet','/transactions','/profile','/bank','/kyc','/health','/install']]);
