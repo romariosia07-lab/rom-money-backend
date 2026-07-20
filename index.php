@@ -1094,8 +1094,8 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
 
         if (!empty($reasons)) {
             $senderPhone = q("SELECT u.phone_number FROM users u JOIN wallets w ON w.user_id=u.id WHERE w.id=?",[$senderWalletId])->fetchColumn();
-            q("INSERT INTO fraud_alerts (transaction_id,reference,sender_phone,receiver_phone,amount,reasons) VALUES (?,?,?,?,?,?)",
-              [$txid, $reference, $senderPhone, $receiverPhone, $amount, implode(' | ', $reasons)]);
+            q("INSERT INTO fraud_alerts (transaction_id,reference,sender_phone,receiver_phone,amount,reasons,currency) VALUES (?,?,?,?,?,?,?)",
+              [$txid, $reference, $senderPhone, $receiverPhone, $amount, implode(' | ', $reasons), $senderCurrency]);
         }
     } catch (Exception $e) { /* la detection ne doit jamais casser un transfert deja reussi */ }
 }
@@ -1200,14 +1200,40 @@ function tx_send() {
 
         // ── Transfer fees to ROM_MONEY system account
         $fee_phone = '0160629502'; // ROM_MONEY system account
-        if($fee > 0){
-            $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
-            if($fee_recv && $fee_recv['id'] !== $pl['sub']){
-                $fee_txid = uid(); $fee_ref = ref();
-                $feeLabel = $channel==='africa' ? 'Frais ROM_MONEY 1.5% (Transfert Afrique)' : 'Frais ROM_MONEY 1%';
-                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
-                  [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref,$feeLabel]);
-                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+        $fee_recv = null;
+        if($fee > 0 || $fxRateApplied !== null){
+            $fee_recv = q("SELECT u.id,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
+        }
+        if($fee > 0 && $fee_recv && $fee_recv['id'] !== $pl['sub']){
+            $fee_txid = uid(); $fee_ref = ref();
+            $feeLabel = $channel==='africa' ? 'Frais ROM_MONEY 1.5% (Transfert Afrique)' : 'Frais ROM_MONEY 1%';
+            q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
+              [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref,$feeLabel]);
+            q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+        }
+        // ── Marge de change (revenu distinct des frais de transfert) : avant
+        // ce correctif, elle etait simplement perdue - jamais creditee nulle
+        // part. $converted (calcule plus haut, avant application de la
+        // marge) moins $receiverAmount = ce que la marge represente, dans la
+        // devise du DESTINATAIRE. On la convertit vers la devise du compte
+        // systeme avant de la crediter, avec son propre enregistrement pour
+        // que ce revenu soit visible separement des frais de transfert dans
+        // la comptabilite.
+        if($fxRateApplied !== null && $fee_recv && $fee_recv['id'] !== $pl['sub']){
+            $marginInReceiverCurrency = round($converted - $receiverAmount, 2);
+            if($marginInReceiverCurrency > 0){
+                $feeAccountCurrency = $fee_recv['currency'] ?: 'XOF';
+                $marginConverted = $marginInReceiverCurrency;
+                if($feeAccountCurrency !== $receiverCurrency){
+                    $c = convert_currency($marginInReceiverCurrency, $receiverCurrency, $feeAccountCurrency);
+                    if($c !== null) $marginConverted = round($c, 2);
+                }
+                if($marginConverted > 0){
+                    $fxTxid = uid(); $fxRef = ref();
+                    q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fx_margin','completed',?,?)",
+                      [$fxTxid,$sw['id'],$fee_recv['wid'],$marginConverted,$fxRef,'Marge de change (Transfert Afrique '.$senderCurrency.'->'.$receiverCurrency.')']);
+                    q("UPDATE wallets SET balance=balance+? WHERE id=?",[$marginConverted,$fee_recv['wid']]);
+                }
             }
         }
         apply_referral_bonus($pl['sub'], $fee);
@@ -4058,6 +4084,7 @@ function route_install() {
     )",
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created ON fraud_alerts(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_reviewed ON fraud_alerts(reviewed)",
+    "ALTER TABLE fraud_alerts ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'XOF'",
     "CREATE TABLE IF NOT EXISTS rate_limit_hits (
         id SERIAL PRIMARY KEY,
         bucket VARCHAR(50) NOT NULL,
