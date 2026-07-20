@@ -943,8 +943,35 @@ function route_tx($action) {
         'detail'  => tx_detail(),
         'resolve' => tx_resolve(),
         'check-new-recipient' => tx_check_new_recipient(),
+        'fx-preview' => tx_fx_preview(),
         default   => fail('Action inconnue',404)
     };
+}
+
+// Apercu, SANS EFFET DE BORD (aucune ecriture), du montant que recevra le
+// destinataire si les devises different - utilise par le frontend pour
+// afficher "le destinataire recevra environ X" avant meme de confirmer
+// l'envoi. L'estimation applique les memes frais/marge que le vrai envoi
+// utilisera, donc fidele au montant final (a la fluctuation du taux pres,
+// entre l'aperçu et la confirmation reelle quelques secondes plus tard).
+function tx_fx_preview() {
+    $pl = auth(); $b = body();
+    $to = trim($b['receiver_phone']??'');
+    $amount = (float)($b['amount']??0);
+    if(!$to || $amount<=0){ ok(['same_currency'=>true]); return; }
+    $sw = q("SELECT currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $recv = q("SELECT w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
+    if(!$sw || !$recv){ ok(['same_currency'=>true]); return; }
+    $senderCurrency = $sw['currency'] ?: 'XOF';
+    $receiverCurrency = $recv['currency'] ?: 'XOF';
+    if($senderCurrency === $receiverCurrency){ ok(['same_currency'=>true,'currency'=>$senderCurrency]); return; }
+    $rateAfrica = (float)get_setting('fee_rate_africa', 0.015);
+    $net = $amount - round($amount * $rateAfrica);
+    $converted = convert_currency($net, $senderCurrency, $receiverCurrency);
+    if($converted === null){ ok(['same_currency'=>false,'unavailable'=>true]); return; }
+    $fxMargin = (float)get_setting('fx_margin_rate', 0.01);
+    $receiverAmount = round($converted * (1 - $fxMargin), 2);
+    ok(['same_currency'=>false,'sender_currency'=>$senderCurrency,'receiver_currency'=>$receiverCurrency,'receiver_amount_estimate'=>$receiverAmount]);
 }
 
 // Verification LEGERE, sans effet de bord (aucune ecriture), utilisee par
@@ -1046,7 +1073,7 @@ function tx_send() {
     $user = q("SELECT pin_hash,country,full_name FROM users WHERE id=?",[$pl['sub']])->fetch();
     pin_check($pl['sub'], $pin, $user['pin_hash']);
 
-    $recv = q("SELECT u.id,u.full_name,u.verified_name,u.country,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,u.country,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$to])->fetch();
     if(!$recv) fail('Destinataire introuvable');
     if($recv['id']===$pl['sub']) fail('Envoi a soi-meme impossible');
 
@@ -1090,18 +1117,44 @@ function tx_send() {
 
     $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$sw['balance']<$brut) fail('Solde insuffisant');
-    check_receive_limit($recv['id'], $net, false);
+
+    // ── CONVERSION DE DEVISE (Transfert Afrique, pays a devises differentes) ──
+    // $net (calcule ci-dessus) est dans la devise de L'EXPEDITEUR - c'est ce
+    // qu'il paie reellement, frais deja retires. Si le destinataire est dans
+    // un pays a devise differente, on convertit ce montant vers SA devise
+    // avant de le crediter, puis on applique la marge de change (revenu
+    // additionnel, distinct des frais de transfert) reglable dans Reglages.
+    // Le taux effectif utilise est fige sur la transaction elle-meme : il ne
+    // doit JAMAIS etre recalcule apres coup, meme si les taux de marche
+    // bougent ensuite (traçabilite et equite envers l'utilisateur).
+    $senderCurrency = $sw['currency'] ?: 'XOF';
+    $receiverCurrency = $recv['currency'] ?: 'XOF';
+    $fxRateApplied = null;
+    if($channel==='africa' && $senderCurrency !== $receiverCurrency){
+        $converted = convert_currency($net, $senderCurrency, $receiverCurrency);
+        if($converted === null){
+            fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        }
+        $fxMargin = (float)get_setting('fx_margin_rate', 0.01);
+        $receiverAmount = round($converted * (1 - $fxMargin), 2);
+        $fxRateApplied = $net > 0 ? $receiverAmount / $net : null;
+    } else {
+        $receiverAmount = $net;
+    }
+
+    check_receive_limit($recv['id'], $receiverAmount, false);
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
         // Record the BRUT amount as the transaction amount (this is what sender sees deducted)
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline,channel) VALUES (?,?,?,?,?,'transfer','pending',?,?,?,?)",
-          [$txid,$sw['id'],$recv['wid'],$brut,$net,$reference,$desc?:null,$deadline,$channel]);
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline,channel,sender_currency,receiver_currency,fx_rate_applied,receiver_amount) VALUES (?,?,?,?,?,'transfer','pending',?,?,?,?,?,?,?,?)",
+          [$txid,$sw['id'],$recv['wid'],$brut,$net,$reference,$desc?:null,$deadline,$channel,$senderCurrency,$receiverCurrency,$fxRateApplied,$receiverAmount]);
         $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$sw["id"],$brut])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
-        // Recipient gets NET amount
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$net,$recv['wid']]);
+        // Le destinataire recoit receiverAmount, dans SA devise (identique a
+        // $net si meme devise que l'expediteur, converti+marge sinon).
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$receiverAmount,$recv['wid']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
 
         // ── Transfer fees to ROM_MONEY system account
@@ -1123,11 +1176,13 @@ function tx_send() {
         fraud_check_transaction($sw['id'], $to, $brut, $txid, $reference);
 
         web_push_send_to_user($recv['id'], 'ROM_MONEY',
-            'Vous avez recu '.number_format($net,0,',',' ').' F de '.($user['full_name']?:'un utilisateur'));
+            'Vous avez recu '.number_format($receiverAmount,0,',',' ').' '.($receiverCurrency==='XOF'||$receiverCurrency==='XAF'?'F':$receiverCurrency).' de '.($user['full_name']?:'un utilisateur'));
 
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
-            'new_balance'=>(float)$sw['balance']-$brut],'Transfert effectue');
+            'new_balance'=>(float)$sw['balance']-$brut,
+            'receiver_amount'=>$receiverAmount,'receiver_currency'=>$receiverCurrency,
+            'sender_currency'=>$senderCurrency,'fx_rate_applied'=>$fxRateApplied],'Transfert effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
 }
 
@@ -3348,6 +3403,7 @@ function app_settings_defs() {
         'fraud_unusual_multiplier'    => [5, 'Multiplicateur montant inhabituel'],
         'fraud_unusual_min_amount'    => [20000, 'Montant plancher (inhabituel)'],
         'fraud_new_recipient_min_amount' => [50000, 'Montant plancher (nouveau destinataire)'],
+        'fx_margin_rate'              => [0.01, 'Marge de change (0 = aucune)'],
     ];
 }
 
@@ -3373,6 +3429,7 @@ function admin_update_settings() {
         // absurde (> 1 = plus de 100%), garde-fou simple contre une erreur
         // de saisie (ex: 15 au lieu de 0.15).
         if(strpos($key,'fee_rate_')===0 && $val > 1) fail($def[1].' doit etre une proportion entre 0 et 1 (ex: 0.01 pour 1%)');
+        if($key==='fx_margin_rate' && ($val < 0 || $val > 1)) fail('La marge de change doit etre une proportion entre 0 et 1 (ex: 0.01 pour 1%, 0 pour aucune marge)');
         if($key==='admin_bf_max_attempts' && $val < 1) fail('Le nombre de tentatives avant blocage doit etre au moins 1');
         if($key==='admin_bf_block_minutes' && $val < 1) fail('La duree de blocage doit etre d\'au moins 1 minute');
         if($key==='fraud_velocity_count' && $val < 2) fail('Le seuil de velocite doit etre d\'au moins 2 transactions');
@@ -3792,6 +3849,10 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMP",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_reason VARCHAR(255)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS channel VARCHAR(20) DEFAULT 'national'",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_currency VARCHAR(10)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_currency VARCHAR(10)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fx_rate_applied DECIMAL(20,8)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_amount DECIMAL(15,2)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,

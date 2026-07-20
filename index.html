@@ -843,6 +843,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div class="frow"><label class="flabel">Montant plancher — nouveau destinataire (F)</label><input class="finput" id="set-fraud-newrecipient-min" type="number" step="1000" min="0"></div>
       </div>
 
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bord)">
+        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px">💱 Transfert Afrique — devises différentes</div>
+        <div class="frow"><label class="flabel">Marge de change (0 = aucune, 0.01 = 1%)</label><input class="finput" id="set-fx-margin" type="number" step="0.001" min="0" max="1"></div>
+      </div>
+
       <button class="btn-g" onclick="adminSaveSettings()">Enregistrer les réglages</button>
       <div id="settings-status-box" style="margin-top:12px"></div>
 
@@ -1496,6 +1501,7 @@ var I18N = {
   transfert_number_not_on_app: {fr:"Ce numéro n'est pas sur ROM_MONEY", en:'This number is not on ROM_MONEY'},
   transfert_pin_confirm: {fr:'Confirmer envoi {amt} à {name} ({country}) — net reçu : {net}', en:'Confirm sending {amt} to {name} ({country}) — net received: {net}'},
   transfert_success_toast: {fr:'{amt} envoyé à {name} au {country} !', en:'{amt} sent to {name} in {country}!'},
+  transfert_success_toast_fx: {fr:'{amt} envoyé — {name} recevra environ {ramt} au {country} !', en:'{amt} sent — {name} will receive about {ramt} in {country}!'},
   transfert_waitlist_desc: {fr:'Transfert vers ce pays bientôt disponible.<br>Inscrivez-vous pour être notifié en premier !', en:'Transfer to this country coming soon.<br>Sign up to be notified first!'},
   transfert_label_your_number: {fr:'Votre numéro', en:'Your number'},
   transfert_btn_waitlist_signup: {fr:"M'inscrire pour ", en:'Sign me up for '},
@@ -3392,6 +3398,7 @@ function adminLoadSettings(){
       document.getElementById('set-fraud-unusual-multiplier').value = d.fraud_unusual_multiplier;
       document.getElementById('set-fraud-unusual-min').value = d.fraud_unusual_min_amount;
       document.getElementById('set-fraud-newrecipient-min').value = d.fraud_new_recipient_min_amount;
+      document.getElementById('set-fx-margin').value = d.fx_margin_rate;
       if(statusBox) statusBox.innerHTML='';
     } else {
       if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+((res&&res.message)||'Erreur de chargement')+'</div>';
@@ -3417,7 +3424,8 @@ function adminSaveSettings(){
     fraud_velocity_minutes: document.getElementById('set-fraud-velocity-minutes').value,
     fraud_unusual_multiplier: document.getElementById('set-fraud-unusual-multiplier').value,
     fraud_unusual_min_amount: document.getElementById('set-fraud-unusual-min').value,
-    fraud_new_recipient_min_amount: document.getElementById('set-fraud-newrecipient-min').value
+    fraud_new_recipient_min_amount: document.getElementById('set-fraud-newrecipient-min').value,
+    fx_margin_rate: document.getElementById('set-fx-margin').value
   };
   adminOpenConfirmModal({
     icon:'⚙', title:'Mettre à jour les réglages ?', message:'Ça affecte immédiatement tous les utilisateurs.',
@@ -7424,6 +7432,7 @@ function selPaysTransfert(el){
     +'<div class="frow"><label class="flabel">'+t('transfert_label_net')+'</label>'
     +'<div class="amt-row"><input class="finput" id="transfert-amt-net" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt-net\',\'transfert-amt\',\'net\',\'transfert-frais\')"><span class="amt-f">F</span></div></div>'
     +'<div id="transfert-frais"></div>'
+    +'<div id="transfert-fx-preview"></div>'
     +'<div class="frow"><label class="flabel">'+t('send_label_reason')+'</label>'
     +'<input class="finput" id="transfert-motif" placeholder="'+t('transfert_ph_reason')+'"></div>'
     +'<button class="btn-g" data-pays="'+pays.replace(/"/g,'&quot;')+'" onclick="doTransfertCFA(this.getAttribute(\'data-pays\'))">'+t('transfert_btn_send_to')+pays+'</button>';
@@ -7462,6 +7471,8 @@ function resolveTransfertPhone(){
         nm.textContent = t('transfert_number_not_found');
         nm.style.color = '#e53e3e';
       }
+      var brutEl = document.getElementById('transfert-amt');
+      if(brutEl) updateFxPreview(parseFloat(brutEl.value)||0);
     }).catch(function(){ nm.textContent=''; });
 }
 
@@ -7502,7 +7513,14 @@ function doTransfertCFA(pays){
         txList.unshift({id:d.transaction_id||Date.now(),name:d.receiver_name||receiverName,
           type:'debit',amt:intent.brut,cat:'Transfert Afrique',motif:motif,ref:d.reference||'',ts:Date.now()});
         updateBalDisplay(); renderTx('home'); save();
-        closeSheet(); toast(t('transfert_success_toast').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays));
+        closeSheet();
+        if(d.receiver_currency && d.sender_currency && d.receiver_currency!==d.sender_currency){
+          var rcur = (d.receiver_currency==='XOF'||d.receiver_currency==='XAF') ? 'F' : d.receiver_currency;
+          var ramt = Number(d.receiver_amount).toLocaleString('fr-FR')+' '+rcur;
+          toast(t('transfert_success_toast_fx').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays).replace('{ramt}',ramt));
+        } else {
+          toast(t('transfert_success_toast').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays));
+        }
       } else { toast((res&&res.message)||t('send_err_generic'),true); }
     });
   });
@@ -8679,6 +8697,35 @@ function updateFraisDisplayAfrica(inputId, displayId, mode){
     +'<div style="display:flex;justify-content:space-between;color:var(--rd);margin-bottom:3px"><span>'+t('fee_international_label').replace('{pct}',feePctLabel(APP.feeConfig.fee_rate_africa))+'</span><span style="font-weight:700">-'+fmt(frais)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;color:var(--g);border-top:.5px solid var(--div);padding-top:4px"><span style="font-weight:700">'+t('fee_net_received_label')+'</span><span style="font-weight:900;font-size:13px">'+fmt(net)+'</span></div>'
     +'</div>';
+  updateFxPreview(brut);
+}
+// Apercu (avec un court delai pour ne pas appeler le serveur a chaque
+// frappe) du montant que recevra le destinataire si sa devise differe de
+// celle de l'expediteur - inclut deja les frais ET la marge de change,
+// pour montrer un chiffre aussi proche que possible du montant final reel.
+var _fxPreviewTimer = null;
+function updateFxPreview(brutAmount){
+  var box = document.getElementById('transfert-fx-preview');
+  var phoneEl = document.getElementById('transfert-to');
+  if(!box || !phoneEl) return;
+  clearTimeout(_fxPreviewTimer);
+  var phone = stripDialCode(phoneEl.value);
+  if(!phone || phone.length<8 || !brutAmount || brutAmount<=0){ box.innerHTML=''; return; }
+  _fxPreviewTimer = setTimeout(function(){
+    var tok = getToken();
+    apiCall('/transactions?action=fx-preview','POST',{receiver_phone:phone, amount:brutAmount},tok).then(function(res){
+      if(res && res.success && res.data && res.data.same_currency===false){
+        if(res.data.unavailable){
+          box.innerHTML = '<div style="font-size:11px;color:var(--t3);margin-top:6px">Conversion momentanément indisponible, réessaie dans un instant.</div>';
+        } else {
+          var cur = (res.data.receiver_currency==='XOF'||res.data.receiver_currency==='XAF') ? 'F' : res.data.receiver_currency;
+          box.innerHTML = '<div style="background:var(--gl);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;color:var(--accent-text)">💱 Le destinataire recevra environ <b>'+Number(res.data.receiver_amount_estimate).toLocaleString('fr-FR')+' '+cur+'</b></div>';
+        }
+      } else {
+        box.innerHTML='';
+      }
+    }).catch(function(){ box.innerHTML=''; });
+  }, 500);
 }
 function getAmountIntentAfrique(brutId, netId){
   var key = brutId+'_'+netId+'_africa';
