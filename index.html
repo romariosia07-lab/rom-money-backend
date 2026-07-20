@@ -403,10 +403,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div class="frow"><label class="flabel" data-i18n="label_email_opt">Email (optionnel)</label><input class="finput" id="r-email" placeholder="votre@email.ci" data-i18n-ph="ph_email" type="email" autocomplete="email"></div>
       <div class="frow"><label class="flabel" data-i18n="label_operator">Opérateur mobile *</label>
-        <select class="finput fsel" id="r-op">
+        <select class="finput fsel" id="r-op" onchange="toggleOtherOperator()">
           <option value="" data-i18n="choose_operator">Choisir un opérateur</option>
           <option>Orange CI</option><option>MTN CI</option><option>Moov Africa CI</option>
         </select>
+        <input class="finput" id="r-op-other" placeholder="Précisez votre opérateur" style="display:none;margin-top:8px">
       </div>
       <div class="frow"><label class="flabel" data-i18n="label_refcode">Code de parrainage (optionnel)</label><input class="finput" id="r-refcode" placeholder="Ex: ROMA1B2C3" data-i18n-ph="ph_refcode" type="text" style="text-transform:uppercase"></div>
     </div>
@@ -1178,6 +1179,7 @@ function getLogoBase64(cb){
 var APP = {
   name:'', phone:'', email:'', op:'', photoURL:'', notifications:[], seenTxIds:{}, payFavorites:[],
   pin:'', bioEnabled:false, bioCredId:'', token:'', notifTx:true, notifPromo:true, isKyc:false, theme:'system', lang:'fr',
+  currency:'XOF',
   userID: 'CI-' + Math.random().toString(36).substr(2,6).toUpperCase(),
   qrSeed: Math.random().toString(36).substr(2,8).toUpperCase(),
   balance: 245800, vaultBal: 80000,
@@ -1223,6 +1225,7 @@ var I18N = {
   ph_email: {fr:'votre@email.ci', en:'your@email.com'},
   label_operator: {fr:'Opérateur mobile *', en:'Mobile operator *'},
   choose_operator: {fr:'Choisir un opérateur', en:'Choose an operator'},
+  operator_other: {fr:'Autre (préciser)', en:'Other (specify)'},
   label_refcode: {fr:'Code de parrainage (optionnel)', en:'Referral code (optional)'},
   ph_refcode: {fr:'Ex: ROMA1B2C3', en:'E.g: ROMA1B2C3'},
   btn_continue: {fr:'Continuer', en:'Continue'},
@@ -1860,7 +1863,14 @@ var scanStream=null,scanData=null;
 // ═══════════════════════════════════════════
 // UTILITAIRES
 // ═══════════════════════════════════════════
-function fmt(n){ return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' F'; }
+// Zone CFA : garde "F" (habitude deja connue de tous les utilisateurs
+// actuels). Autres devises : code ISO en suffixe (ex: "10 000 NGN"), plus
+// sur qu'un symbole qui pourrait pretre a confusion entre devises.
+function fmt(n){
+  var cur = APP.currency || 'XOF';
+  var suffix = (cur==='XOF' || cur==='XAF') ? 'F' : cur;
+  return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' '+suffix;
+}
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée',frozen:'❄ En vérification'};
 var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
 var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
@@ -2277,7 +2287,7 @@ function save(){
       pin:APP.pin,bioEnabled:APP.bioEnabled,bioCredId:APP.bioCredId||'',userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
       notifTx:APP.notifTx!==false,notifPromo:APP.notifPromo!==false,pushEnabled:APP.pushEnabled===true,isKyc:!!APP.isKyc,theme:APP.theme||'system',lang:APP.lang||'fr',
       balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,photoURL:APP.photoURL||'', notifications:APP.notifications||[], seenTxIds:APP.seenTxIds||{}, seenAnnouncementIds:APP.seenAnnouncementIds||{}, payFavorites:APP.payFavorites||[],
-      subVaults:APP.subVaults,nextSubVaultId:APP.nextSubVaultId,
+      subVaults:APP.subVaults,nextSubVaultId:APP.nextSubVaultId,currency:APP.currency||'XOF',
       txList: (txList||[]).slice(0,30)
     };
     localStorage.setItem('mmci', JSON.stringify(snapshot));
@@ -3683,6 +3693,66 @@ function updatePhonePlaceholder(){
   if(!countrySel || !phoneEl) return;
   var country = countrySel.value;
   phoneEl.placeholder = COUNTRY_PHONE_EXAMPLE[country] || '+225 07 XX XX XX XX';
+  updateOperatorList(country);
+}
+// Devise officielle de chaque pays (codes ISO 4217). Les pays de la zone
+// CFA (UEMOA/CEMAC) affichent "F" comme aujourd'hui (habitude deja connue
+// des utilisateurs actuels) ; les autres pays affichent leur code ISO
+// (ex: "10 000 NGN") plutot qu'un symbole, pour eviter toute ambiguite
+// entre devises qui partagent parfois le meme symbole visuel ($ , ₣...).
+var COUNTRY_CURRENCY = {
+  "Côte d'Ivoire":'XOF','Sénégal':'XOF','Mali':'XOF','Burkina Faso':'XOF','Niger':'XOF','Togo':'XOF','Bénin':'XOF','Guinée-Bissau':'XOF',
+  'Cameroun':'XAF','Congo-Brazzaville':'XAF','Gabon':'XAF','Centrafrique':'XAF','Tchad':'XAF','Guinée Équatoriale':'XAF',
+  'Comores':'KMF','Algérie':'DZD','Angola':'AOA','Burundi':'BIF','Botswana':'BWP','Congo-Kinshasa':'CDF','Djibouti':'DJF',
+  'Égypte':'EGP','Érythrée':'ERN','Éthiopie':'ETB','Ghana':'GHS','Guinée Conakry':'GNF','Kenya':'KES','Lesotho':'LSL',
+  'Liberia':'LRD','Libye':'LYD','Madagascar':'MGA','Malawi':'MWK','Mauritanie':'MRU','Maurice':'MUR','Maroc':'MAD',
+  'Mozambique':'MZN','Namibie':'NAD','Nigeria':'NGN','Rwanda':'RWF','São Tomé':'STN','Seychelles':'SCR','Sierra Leone':'SLE',
+  'Somalie':'SOS','Afrique du Sud':'ZAR','Soudan du Sud':'SSP','Soudan':'SDG','Eswatini':'SZL','Tanzanie':'TZS','Tunisie':'TND',
+  'Ouganda':'UGX','Zambie':'ZMW','Zimbabwe':'ZWG'
+};
+// Operateurs mobile money connus par pays. Volontairement limite aux
+// marches ou l'information est fiable (evite d'inventer des noms
+// d'operateurs pour des pays moins documentes) - "Autre" couvre le reste,
+// avec saisie libre a la connexion pour ne bloquer personne.
+var COUNTRY_OPERATORS = {
+  "Côte d'Ivoire": ['Orange CI','MTN CI','Moov Africa CI'],
+  'Sénégal': ['Orange Sénégal','Free Sénégal','Expresso Sénégal'],
+  'Mali': ['Orange Mali','Moov Africa Mali'],
+  'Burkina Faso': ['Orange Burkina Faso','Moov Africa Burkina Faso'],
+  'Niger': ['Orange Niger','Moov Africa Niger','Airtel Niger'],
+  'Togo': ['Togocom (T-Money)','Moov Africa Togo'],
+  'Bénin': ['MTN Bénin','Moov Africa Bénin'],
+  'Guinée-Bissau': ['Orange Guinée-Bissau','MTN Guinée-Bissau'],
+  'Cameroun': ['MTN Cameroun','Orange Cameroun'],
+  'Gabon': ['Airtel Gabon','Moov Africa Gabon'],
+  'Congo-Brazzaville': ['MTN Congo','Airtel Congo'],
+  'Tchad': ['Airtel Tchad','Moov Africa Tchad'],
+  'Ghana': ['MTN Ghana','Telecel Ghana','AirtelTigo Ghana'],
+  'Nigeria': ['MTN Nigeria','Airtel Nigeria','Opay','PalmPay','Glo Mobile'],
+  'Kenya': ['Safaricom (M-Pesa)','Airtel Money Kenya','T-Kash (Telkom)'],
+  'Ouganda': ['MTN Ouganda','Airtel Money Ouganda'],
+  'Tanzanie': ['M-Pesa Tanzanie (Vodacom)','Airtel Money Tanzanie','Tigo Pesa'],
+  'Rwanda': ['MTN Rwanda','Airtel Money Rwanda'],
+  'Maroc': ['Orange Money Maroc','inwi money'],
+  'Afrique du Sud': ['MTN MoMo Afrique du Sud','Vodacom (M-Pesa)']
+};
+function toggleOtherOperator(){
+  var sel = document.getElementById('r-op');
+  var other = document.getElementById('r-op-other');
+  if(!sel || !other) return;
+  other.style.display = (sel.value==='__other__') ? 'block' : 'none';
+  if(sel.value!=='__other__') other.value='';
+}
+function updateOperatorList(country){
+  var sel = document.getElementById('r-op');
+  if(!sel) return;
+  var ops = COUNTRY_OPERATORS[country];
+  var options = '<option value="" data-i18n="choose_operator">'+t('choose_operator')+'</option>';
+  if(ops && ops.length){
+    options += ops.map(function(o){ return '<option>'+o+'</option>'; }).join('');
+  }
+  options += '<option value="__other__">'+t('operator_other')+'</option>';
+  sel.innerHTML = options;
 }
 // Extrait juste l'indicatif (ex: "+225") a partir de l'exemple complet
 // deja present dans COUNTRY_PHONE_EXAMPLE (ex: "+225 07 XX XX XX XX").
@@ -3725,6 +3795,9 @@ function regStep1(){
   var name=document.getElementById('r-name').value.trim();
   var phone=document.getElementById('r-phone').value.trim();
   var op=document.getElementById('r-op').value;
+  if(op==='__other__'){
+    op = document.getElementById('r-op-other').value.trim();
+  }
   var country=document.getElementById('r-country').value;
   var errEl=document.getElementById('r-phone-err');
   if(errEl) errEl.innerHTML='';
@@ -3740,7 +3813,7 @@ function regStep1(){
       if(errEl) errEl.innerHTML=t('phone_exists_err');
       return;
     }
-    APP.name=name; APP.phone=phone; APP.country=country;
+    APP.name=name; APP.phone=phone; APP.country=country; APP.currency=COUNTRY_CURRENCY[country]||'XOF';
     APP.email=document.getElementById('r-email').value.trim();
     APP.op=op;
     var refEl=document.getElementById('r-refcode');
@@ -4124,7 +4197,7 @@ function lgPin(d){
                 APP.notifications=[]; APP.seenTxIds={}; APP.seenAnnouncementIds={}; APP.payFavorites=[];
                 APP.pin=''; APP.bioEnabled=false; APP.bioCredId=''; APP.token='';
                 APP.notifTx=true; APP.notifPromo=true; APP.isKyc=false; APP.theme=APP.theme||'system';
-                APP.legalName=''; APP.country='';
+                APP.legalName=''; APP.country=''; APP.currency='XOF';
                 APP.balance=0; APP.vaultBal=0; APP.vaultLocked=false; APP.vaultDate=null;
                 APP.subVaults=[]; APP.nextSubVaultId=1;
                 txList = [];
@@ -4311,6 +4384,7 @@ function launchApp(){
         if(res.data.name) APP.name=res.data.name;
         APP.legalName=res.data.legal_name||'';
         APP.country=res.data.country||'';
+        APP.currency=res.data.currency||'XOF';
         APP.email=res.data.email||'';
         APP.photoURL=res.data.photo_url||'';
         APP.notifTx=(res.data.notif_tx!==false);

@@ -516,6 +516,23 @@ function is_weak_pin($pin) {
     return false;
 }
 
+// Miroir exact de COUNTRY_CURRENCY cote frontend (index.html) - garder les
+// deux synchronises si la liste de pays evolue. Determine la devise du
+// portefeuille a la creation du compte, selon le pays choisi.
+function country_to_currency($country) {
+    $map = [
+        "Côte d'Ivoire"=>'XOF','Sénégal'=>'XOF','Mali'=>'XOF','Burkina Faso'=>'XOF','Niger'=>'XOF','Togo'=>'XOF','Bénin'=>'XOF','Guinée-Bissau'=>'XOF',
+        'Cameroun'=>'XAF','Congo-Brazzaville'=>'XAF','Gabon'=>'XAF','Centrafrique'=>'XAF','Tchad'=>'XAF','Guinée Équatoriale'=>'XAF',
+        'Comores'=>'KMF','Algérie'=>'DZD','Angola'=>'AOA','Burundi'=>'BIF','Botswana'=>'BWP','Congo-Kinshasa'=>'CDF','Djibouti'=>'DJF',
+        'Égypte'=>'EGP','Érythrée'=>'ERN','Éthiopie'=>'ETB','Ghana'=>'GHS','Guinée Conakry'=>'GNF','Kenya'=>'KES','Lesotho'=>'LSL',
+        'Liberia'=>'LRD','Libye'=>'LYD','Madagascar'=>'MGA','Malawi'=>'MWK','Mauritanie'=>'MRU','Maurice'=>'MUR','Maroc'=>'MAD',
+        'Mozambique'=>'MZN','Namibie'=>'NAD','Nigeria'=>'NGN','Rwanda'=>'RWF','São Tomé'=>'STN','Seychelles'=>'SCR','Sierra Leone'=>'SLE',
+        'Somalie'=>'SOS','Afrique du Sud'=>'ZAR','Soudan du Sud'=>'SSP','Soudan'=>'SDG','Eswatini'=>'SZL','Tanzanie'=>'TZS','Tunisie'=>'TND',
+        'Ouganda'=>'UGX','Zambie'=>'ZMW','Zimbabwe'=>'ZWG',
+    ];
+    return $map[$country] ?? 'XOF';
+}
+
 function auth_register() {
     rate_limit_check('register', 10, 60);
     $b = body();
@@ -530,8 +547,12 @@ function auth_register() {
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
-    $validOperators = ['Orange CI','MTN CI','Moov Africa CI'];
-    if(!in_array($op, $validOperators, true)) fail('Operateur invalide');
+    // Plus de liste figee a 3 operateurs ivoiriens : les operateurs varient
+    // par pays (voir COUNTRY_OPERATORS cote frontend), et l'utilisateur peut
+    // aussi saisir librement le sien ("Autre"). Validation generique a la
+    // place : juste une longueur raisonnable, pour eviter un champ vide ou
+    // un texte visiblement invalide.
+    if(mb_strlen($op) < 2 || mb_strlen($op) > 60) fail('Operateur invalide');
     if(!$country) fail('Le pays est requis');
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']) fail('ROM_MONEY n\'est pas encore disponible dans ce pays');
@@ -556,8 +577,8 @@ function auth_register() {
         $myReferralCode = generate_referral_code();
         q("INSERT INTO users (id,full_name,phone_number,email,operator,password_hash,pin_hash,referral_code,referred_by,country) VALUES (?,?,?,?,?,?,?,?,?,?)",
           [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh,$myReferralCode,$referredBy,$country]);
-        q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,'FCFA',?)",
-          [$wid,$uid,$qrseed]);
+        q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,?,?)",
+          [$wid,$uid,country_to_currency($country),$qrseed]);
         $token = jwt_make(['sub'=>$uid,'phone'=>$phone]);
         db()->commit();
         ok(['token'=>$token,'user_id'=>$uid,'name'=>$name,'phone'=>$phone,'qr_seed'=>$qrseed,'referral_code'=>$myReferralCode],'Compte cree', 201);
@@ -1270,13 +1291,13 @@ function profile_referral_status() {
 
 function profile_get() {
     $pl = auth();
-    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,u.verified_name,u.country,w.id wid FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT u.id,u.full_name,u.phone_number,u.email,u.operator,u.bio_enabled,u.is_kyc,u.status,u.created_at,u.photo_url,u.notif_tx,u.notif_promo,u.verified_name,u.country,w.id wid,w.currency FROM users u LEFT JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$pl['sub']])->fetch();
     if(!$u) fail('Introuvable',404);
     ok(['id'=>$u['id'],'name'=>$u['full_name'],'phone'=>$u['phone_number'],'email'=>$u['email'],
         'operator'=>$u['operator'],'bio_enabled'=>(bool)$u['bio_enabled'],'is_kyc'=>(bool)$u['is_kyc'],
         'status'=>$u['status'],'member_since'=>$u['created_at'],'wallet_id'=>$u['wid'],'photo_url'=>$u['photo_url'],
         'notif_tx'=>(bool)($u['notif_tx']??true),'notif_promo'=>(bool)($u['notif_promo']??true),
-        'legal_name'=>$u['verified_name'],'country'=>$u['country']]);
+        'legal_name'=>$u['verified_name'],'country'=>$u['country'],'currency'=>$u['currency']?:'XOF']);
 }
 
 function profile_update() {
@@ -1285,9 +1306,9 @@ function profile_update() {
     if(!empty($b['full_name'])){$sets[]="full_name=?";$vals[]=$b['full_name'];}
     if(!empty($b['email'])){$sets[]="email=?";$vals[]=$b['email'];}
     if(!empty($b['operator'])){
-        $validOperators = ['Orange CI','MTN CI','Moov Africa CI'];
-        if(!in_array($b['operator'], $validOperators, true)) fail('Operateur invalide');
-        $sets[]="operator=?";$vals[]=$b['operator'];
+        $opVal = trim($b['operator']);
+        if(mb_strlen($opVal) < 2 || mb_strlen($opVal) > 60) fail('Operateur invalide');
+        $sets[]="operator=?";$vals[]=$opVal;
     }
     if(array_key_exists('photo_url',$b)){$sets[]="photo_url=?";$vals[]=$b['photo_url'];}
     if(array_key_exists('notif_tx',$b)){$sets[]="notif_tx=?";$vals[]=$b['notif_tx']?'t':'f';}
