@@ -746,59 +746,59 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
 <!-- ADMIN KYC (acces via #admin dans l'URL, mot de passe simple, aucun compte requis) -->
 <div class="screen" id="s-admin" style="padding:20px;overflow-y:auto">
-  <div class="admin-header"><span class="adot"></span><span class="atitle">Admin ROM_MONEY</span><span class="asub">Espace sécurisé</span><button id="admin-theme-toggle" onclick="toggleAdminTheme()" style="background:none;border:1px solid var(--bord);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0" aria-label="Basculer le theme"></button></div>
+  <div class="admin-header"><span class="adot"></span><span class="atitle">Admin ROM_MONEY</span><span class="asub">Espace sécurisé</span><button id="admin-lang-toggle" onclick="adminToggleLang()" style="background:none;border:1px solid var(--bord);border-radius:10px;padding:0 10px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0;font-size:12px;font-weight:700;margin-right:6px" aria-label="Changer de langue">FR</button><button id="admin-theme-toggle" onclick="toggleAdminTheme()" style="background:none;border:1px solid var(--bord);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0" aria-label="Basculer le theme"></button></div>
   <div id="admin-login-box">
-    <div class="frow"><label class="flabel">Mot de passe admin</label>
-    <input class="finput" id="admin-pw" type="password" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')adminLogin()"></div>
-    <button class="btn-g" onclick="adminLogin()">Se connecter</button>
+    <div class="frow"><label class="flabel" data-i18n-admin="admin_login_pw_label">Mot de passe admin</label>
+    <input class="finput" id="admin-pw" type="password" placeholder="Mot de passe" data-i18n-admin-ph="admin_login_pw_ph" onkeydown="if(event.key==='Enter')adminLogin()"></div>
+    <button class="btn-g" onclick="adminLogin()" data-i18n-admin="admin_login_btn">Se connecter</button>
   </div>
   <div id="admin-2fa-box" style="display:none">
-    <div style="text-align:center;margin-bottom:14px;color:var(--t2);font-size:13px">Ouvrez votre application d'authentification (Google Authenticator, Authy...) et entrez le code a 6 chiffres.</div>
-    <div class="frow"><label class="flabel">Code de verification</label>
+    <div style="text-align:center;margin-bottom:14px;color:var(--t2);font-size:13px" data-i18n-admin="admin_2fa_instructions">Ouvrez votre application d'authentification (Google Authenticator, Authy...) et entrez le code a 6 chiffres.</div>
+    <div class="frow"><label class="flabel" data-i18n-admin="admin_2fa_code_label">Code de verification</label>
     <input class="finput" id="admin-2fa-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')adminLogin()" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
-    <button class="btn-g" onclick="adminLogin()">Valider</button>
-    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:10px;cursor:pointer" onclick="adminToggleRecoveryMode()" id="admin-2fa-recovery-toggle">J'ai perdu mon telephone — utiliser un code de recuperation</button>
+    <button class="btn-g" onclick="adminLogin()" data-i18n-admin="admin_2fa_validate_btn">Valider</button>
+    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:10px;cursor:pointer" onclick="adminToggleRecoveryMode()" id="admin-2fa-recovery-toggle" data-i18n-admin="admin_2fa_lost_phone">J'ai perdu mon telephone — utiliser un code de recuperation</button>
     <div id="admin-2fa-recovery-row" class="frow" style="display:none">
-      <label class="flabel">Code de recuperation</label>
+      <label class="flabel" data-i18n-admin="admin_2fa_recovery_label">Code de recuperation</label>
       <input class="finput" id="admin-recovery-code" type="text" placeholder="Ex: A1B2C3D4" onkeydown="if(event.key==='Enter')adminLogin()">
     </div>
-    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:6px;cursor:pointer" onclick="adminCancel2fa()">Annuler</button>
+    <button style="background:none;border:none;color:var(--t3);font-size:12px;width:100%;margin-top:6px;cursor:pointer" onclick="adminCancel2fa()" data-i18n-admin="admin_btn_cancel">Annuler</button>
   </div>
   <div id="admin-main-box" style="display:none">
     <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px;white-space:nowrap">
-      <button class="admin-tab-btn" onclick="adminTab('dashboard')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:var(--gold);color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Vue d'ensemble</button>
-      <button class="admin-tab-btn" onclick="adminTab('announce')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Annonces</button>
-      <button class="admin-tab-btn" onclick="adminTab('kyc')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Identités<span id="admin-kyc-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
-      <button class="admin-tab-btn" onclick="adminTab('settings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚙ Réglages</button>
-      <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚠ Alertes<span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
-      <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Utilisateurs</button>
-      <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Compte</button>
-      <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Transaction</button>
-      <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Journal</button>
-      <button class="admin-tab-btn" onclick="adminTab('countries')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Pays</button>
+      <button class="admin-tab-btn" onclick="adminTab('dashboard')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:var(--gold);color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_dashboard">Vue d'ensemble</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('announce')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_announce">Annonces</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('kyc')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_kyc">Identités</span><span id="admin-kyc-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
+      <button class="admin-tab-btn" onclick="adminTab('settings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_settings">⚙ Réglages</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_alerts">⚠ Alertes</span><span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
+      <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_account">Compte</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('countries')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_countries">Pays</span></button>
     </div>
 
     <div id="admin-panel-dashboard" class="admin-panel">
-      <div class="admin-stitle">Vue d'ensemble</div>
-      <div class="frow"><label class="flabel">Période (pour Volume et Gains ci-dessous)</label>
+      <div class="admin-stitle" data-i18n-admin="admin_dash_title">Vue d'ensemble</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
         <select class="finput" id="dash-period" onchange="adminToggleDashCustomDates()">
-          <option value="today">Aujourd'hui</option>
-          <option value="7d">7 derniers jours</option>
-          <option value="month">Ce mois-ci</option>
-          <option value="all">Tout</option>
-          <option value="custom">Personnalisé</option>
+          <option value="today" data-i18n-admin="admin_period_today">Aujourd'hui</option>
+          <option value="7d" data-i18n-admin="admin_period_7d">7 derniers jours</option>
+          <option value="month" data-i18n-admin="admin_period_month">Ce mois-ci</option>
+          <option value="all" data-i18n-admin="admin_period_all">Tout</option>
+          <option value="custom" data-i18n-admin="admin_period_custom">Personnalisé</option>
         </select>
       </div>
       <div id="dash-custom-dates" style="display:none;gap:10px;margin-bottom:14px">
-        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel">Date de début</label><input class="finput" type="date" id="dash-date-from"></div>
-        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel">Date de fin</label><input class="finput" type="date" id="dash-date-to"></div>
+        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_from">Date de début</label><input class="finput" type="date" id="dash-date-from"></div>
+        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_to">Date de fin</label><input class="finput" type="date" id="dash-date-to"></div>
       </div>
-      <button class="btn-g" style="margin-bottom:16px" onclick="adminLoadDashboard()">Appliquer</button>
+      <button class="btn-g" style="margin-bottom:16px" onclick="adminLoadDashboard()" data-i18n-admin="admin_btn_apply">Appliquer</button>
       <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('xlsx')">⬇ Exporter Excel</button>
-        <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('pdf')">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('xlsx')" data-i18n-admin="admin_dash_export_xlsx">⬇ Exporter Excel</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('pdf')" data-i18n-admin="admin_dash_export_pdf">⬇ Exporter PDF</button>
       </div>
-      <div id="admin-dashboard-box"><div class="admin-empty">Chargement...</div></div>
+      <div id="admin-dashboard-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
 
     <div id="admin-panel-announce" class="admin-panel" style="display:none">
@@ -1110,12 +1110,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div id="admin-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.5;white-space:pre-line"></div>
     <div id="admin-confirm-reason-box" style="display:none;margin-bottom:16px">
       <select class="finput" id="admin-confirm-reason-sel" onchange="toggleReasonCustom('admin-confirm')" style="margin-bottom:8px">
-        <option value="">— Choisir une raison —</option>
+        <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
       </select>
-      <input class="finput" id="admin-confirm-reason-custom" placeholder="Précisez la raison" style="display:none">
+      <input class="finput" id="admin-confirm-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button onclick="adminCloseConfirmModal()" style="padding:12px;background:none;border:1px solid var(--bord);border-radius:10px;color:var(--t2);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button onclick="adminCloseConfirmModal()" style="padding:12px;background:none;border:1px solid var(--bord);border-radius:10px;color:var(--t2);font-weight:700;cursor:pointer;font-family:inherit" data-i18n-admin="admin_btn_cancel">Annuler</button>
       <button id="admin-confirm-btn" onclick="adminConfirmModalSubmit()" style="padding:12px;background:var(--re);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
     </div>
   </div>
@@ -1216,6 +1216,86 @@ var APP = {
 // progressivement ; t() replie sur le francais si une cle est absente.
 // ═══════════════════════════════════════════
 var I18N = {
+  // ── ADMIN : navigation ──
+  admin_tab_dashboard: {fr:"Vue d'ensemble", en:'Overview'},
+  admin_tab_announce: {fr:'Annonces', en:'Announcements'},
+  admin_tab_kyc: {fr:'Identités', en:'Identities'},
+  admin_tab_settings: {fr:'⚙ Réglages', en:'⚙ Settings'},
+  admin_tab_alerts: {fr:'⚠ Alertes', en:'⚠ Alerts'},
+  admin_tab_users: {fr:'Utilisateurs', en:'Users'},
+  admin_tab_account: {fr:'Compte', en:'Account'},
+  admin_tab_tx: {fr:'Transaction', en:'Transaction'},
+  admin_tab_audit: {fr:'Journal', en:'Log'},
+  admin_tab_countries: {fr:'Pays', en:'Countries'},
+  // ── ADMIN : connexion ──
+  admin_login_title: {fr:'Admin ROM_MONEY', en:'ROM_MONEY Admin'},
+  admin_login_pw_label: {fr:'Mot de passe admin', en:'Admin password'},
+  admin_login_pw_ph: {fr:'Mot de passe', en:'Password'},
+  admin_login_btn: {fr:'Se connecter', en:'Log in'},
+  admin_2fa_title: {fr:'Vérification en deux étapes', en:'Two-step verification'},
+  admin_2fa_code_label: {fr:'Code de vérification', en:'Verification code'},
+  admin_2fa_confirm_btn: {fr:'Confirmer', en:'Confirm'},
+  admin_2fa_instructions: {fr:"Ouvrez votre application d'authentification (Google Authenticator, Authy...) et entrez le code à 6 chiffres.", en:'Open your authenticator app (Google Authenticator, Authy...) and enter the 6-digit code.'},
+  admin_2fa_validate_btn: {fr:'Valider', en:'Validate'},
+  admin_2fa_lost_phone: {fr:"J'ai perdu mon téléphone — utiliser un code de récupération", en:'I lost my phone — use a recovery code'},
+  admin_2fa_use_app_code: {fr:'Utiliser plutôt le code de mon application', en:'Use my app code instead'},
+  admin_2fa_recovery_label: {fr:'Code de récupération', en:'Recovery code'},
+  // ── ADMIN : tableau de bord ──
+  admin_dash_title: {fr:"Vue d'ensemble", en:'Overview'},
+  admin_dash_users: {fr:'Utilisateurs', en:'Users'},
+  admin_dash_volume: {fr:'Volume (14j)', en:'Volume (14d)'},
+  admin_dash_pending_kyc: {fr:'KYC en attente', en:'Pending KYC'},
+  admin_dash_top10: {fr:'Top 10 utilisateurs', en:'Top 10 users'},
+  admin_dash_recent: {fr:'Activité récente', en:'Recent activity'},
+  admin_dash_export: {fr:'Exporter', en:'Export'},
+  // ── ADMIN : actions communes ──
+  admin_btn_approve: {fr:'Approuver', en:'Approve'},
+  admin_btn_reject: {fr:'Refuser', en:'Reject'},
+  admin_btn_confirm: {fr:'Confirmer', en:'Confirm'},
+  admin_btn_cancel: {fr:'Annuler', en:'Cancel'},
+  admin_loading: {fr:'Chargement...', en:'Loading...'},
+  admin_dash_today: {fr:"Aujourd'hui", en:'Today'},
+  admin_dash_cumulative: {fr:'Cumulé', en:'Cumulative'},
+  admin_dash_cumulative_suffix: {fr:'(cumulé)', en:'(cumulative)'},
+  admin_dash_transactions: {fr:'Transactions', en:'Transactions'},
+  admin_dash_gains: {fr:'Gains', en:'Earnings'},
+  admin_dash_total_volume_note: {fr:'Volume cumulé depuis le début (test inclus) : {amt}', en:'Cumulative volume since the start (tests included): {amt}'},
+  admin_dash_operator_breakdown: {fr:'Répartition par opérateur', en:'Breakdown by operator'},
+  admin_dash_no_data: {fr:'Aucune donnée', en:'No data'},
+  admin_dash_recent_actions: {fr:'Dernières actions', en:'Recent actions'},
+  admin_dash_no_logged_action: {fr:'Aucune action journalisée', en:'No logged action'},
+  admin_dash_account_label: {fr:'Compte : {phone}', en:'Account: {phone}'},
+  admin_dash_volume_evolution: {fr:'Évolution du volume (14 derniers jours)', en:'Volume trend (last 14 days)'},
+  admin_dash_chart_note: {fr:'Barre la plus haute = {max} · Total période = {total} · <i>Touchez une barre pour voir le détail du jour</i>', en:'Tallest bar = {max} · Period total = {total} · <i>Tap a bar for the day\'s detail</i>'},
+  admin_dash_no_tx_day: {fr:'aucune transaction', en:'no transaction'},
+  admin_dash_tx_count_suffix: {fr:'transaction(s)', en:'transaction(s)'},
+  admin_dash_top10_users: {fr:'Top 10 utilisateurs (volume total)', en:'Top 10 users (total volume)'},
+  admin_dash_error_loading: {fr:'Erreur de chargement', en:'Loading error'},
+  admin_dash_error_network: {fr:'Erreur réseau', en:'Network error'},
+  admin_dash_select_dates: {fr:'Sélectionnez les deux dates', en:'Select both dates'},
+  admin_period_today: {fr:"Aujourd'hui", en:'Today'},
+  admin_period_7d: {fr:'7 derniers jours', en:'Last 7 days'},
+  admin_period_month: {fr:'Ce mois-ci', en:'This month'},
+  admin_period_all: {fr:'Tout', en:'All'},
+  admin_period_custom: {fr:'Période personnalisée', en:'Custom period'},
+  admin_dash_period_label: {fr:'Période (pour Volume et Gains ci-dessous)', en:'Period (for Volume and Earnings below)'},
+  admin_dash_date_from: {fr:'Date de début', en:'Start date'},
+  admin_dash_date_to: {fr:'Date de fin', en:'End date'},
+  admin_btn_apply: {fr:'Appliquer', en:'Apply'},
+  admin_dash_export_xlsx: {fr:'⬇ Exporter Excel', en:'⬇ Export Excel'},
+  admin_dash_export_pdf: {fr:'⬇ Exporter PDF', en:'⬇ Export PDF'},
+  admin_reason_choose: {fr:'— Choisir une raison —', en:'— Choose a reason —'},
+  admin_reason_specify: {fr:'Précisez la raison', en:'Specify the reason'},
+  admin_reason_other: {fr:'Autre raison (préciser)', en:'Other reason (specify)'},
+  admin_confirm_title_default: {fr:'Confirmation', en:'Confirmation'},
+  admin_error_generic: {fr:'Erreur', en:'Error'},
+  admin_kyc_name_required: {fr:'Prénom et nom requis', en:'First and last name required'},
+  admin_kyc_approve_title: {fr:'Approuver cette demande ?', en:'Approve this request?'},
+  admin_kyc_approve_msg: {fr:'Nom vérifié : "{name}"\nLe compte sera marqué comme vérifié.', en:'Verified name: "{name}"\nThe account will be marked as verified.'},
+  admin_kyc_verified_toast: {fr:'Compte vérifié', en:'Account verified'},
+  admin_kyc_reject_title: {fr:'Refuser cette demande ?', en:'Reject this request?'},
+  admin_kyc_reject_msg: {fr:"L'utilisateur devra soumettre une nouvelle demande KYC.", en:'The user will need to submit a new KYC request.'},
+  admin_kyc_rejected_toast: {fr:'Demande refusée', en:'Request rejected'},
   lang_fr: {fr:'Français', en:'French'},
   lang_en: {fr:'Anglais', en:'English'},
   lang_settings_title: {fr:'Langue', en:'Language'},
@@ -1924,21 +2004,21 @@ function resetReasonField(prefix){
 var _adminConfirmCallback = null;
 function adminOpenConfirmModal(config){
   document.getElementById('admin-confirm-icon').textContent = config.icon || '⚠️';
-  document.getElementById('admin-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('admin-confirm-title').textContent = config.title || at('admin_confirm_title_default');
   document.getElementById('admin-confirm-message').textContent = config.message || '';
   var reasonBox = document.getElementById('admin-confirm-reason-box');
   var sel = document.getElementById('admin-confirm-reason-sel');
   if(config.needsReason){
     reasonBox.style.display='block';
-    sel.innerHTML = '<option value="">— Choisir une raison —</option>'
+    sel.innerHTML = '<option value="">'+at('admin_reason_choose')+'</option>'
       + (config.reasonOptions||[]).map(function(o){ return '<option value="'+o.replace(/"/g,'&quot;')+'">'+o+'</option>'; }).join('')
-      + '<option value="__other__">Autre raison (préciser)</option>';
+      + '<option value="__other__">'+at('admin_reason_other')+'</option>';
     resetReasonField('admin-confirm');
   } else {
     reasonBox.style.display='none';
   }
   var btn = document.getElementById('admin-confirm-btn');
-  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.textContent = config.confirmLabel || at('admin_btn_confirm');
   btn.style.background = config.confirmColor || 'var(--re)';
   _adminConfirmCallback = config.onConfirm;
   document.getElementById('admin-confirm-overlay').style.display='flex';
@@ -2018,45 +2098,48 @@ function adminForceLogout(){
 // ═══════════════════════════════════════════
 // ADMIN - Vue d'ensemble (dashboard)
 // ═══════════════════════════════════════════
-var DASH_PERIOD_FR={today:"Aujourd'hui",'7d':'7 derniers jours',month:'Ce mois-ci',all:'Tout',custom:'Période personnalisée'};
+function DASH_PERIOD_FR_GET(key){
+  var map={today:'admin_period_today','7d':'admin_period_7d',month:'admin_period_month',all:'admin_period_all',custom:'admin_period_custom'};
+  return map[key] ? at(map[key]) : null;
+}
 function adminToggleDashCustomDates(){
   var sel=document.getElementById('dash-period').value;
   document.getElementById('dash-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
 }
 function adminLoadDashboard(){
   var box=document.getElementById('admin-dashboard-box');
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   var period=document.getElementById('dash-period').value;
   var payload={admin_password:window._adminPw, period:period};
   if(period==='custom'){
     var df=document.getElementById('dash-date-from').value, dt=document.getElementById('dash-date-to').value;
-    if(!df||!dt){ toast('Sélectionnez les deux dates', true); box.innerHTML=''; return; }
+    if(!df||!dt){ toast(at('admin_dash_select_dates'), true); box.innerHTML=''; return; }
     payload.date_from=df; payload.date_to=dt;
   }
   apiCall('/admin?action=dashboard-stats','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
       var d=res.data;
       var cardsHtml='<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:8px">'
-        +'<div class="admin-stitle" style="margin-top:0">Aujourd\'hui</div>'
-        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR[d.period]||'Cumulé')+' (cumulé)</div>'
+        +'<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_today')+'</div>'
+        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:18px">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
-        +adminStatBox('Transactions', d.today_count, true)
-        +adminStatBox('Volume', fmt(d.today_volume), true)
-        +adminStatBox('KYC en attente', d.kyc_pending, true)
-        +adminStatBox('Gains', fmt(d.today_fees), true)
+        +adminStatBox(at('admin_dash_transactions'), d.today_count, true)
+        +adminStatBox(at('admin_dash_volume'), fmt(d.today_volume), true)
+        +adminStatBox(at('admin_dash_pending_kyc'), d.kyc_pending, true)
+        +adminStatBox(at('admin_dash_gains'), fmt(d.today_fees), true)
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
-        +adminStatBox('Volume', fmt(d.period_volume), true)
-        +adminStatBox('Gains', fmt(d.period_fees), true)
+        +adminStatBox(at('admin_dash_volume'), fmt(d.period_volume), true)
+        +adminStatBox(at('admin_dash_gains'), fmt(d.period_fees), true)
         +'</div>'
         +'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Volume cumulé depuis le début (test inclus) : '+fmt(d.total_volume)+'</div>';
-      var opHtml='<div class="admin-stitle">Répartition par opérateur</div>';
+        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">'+at('admin_dash_total_volume_note').replace('{amt}',fmt(d.total_volume))+'</div>';
+      var opHtml='<div class="admin-stitle">'+at('admin_dash_operator_breakdown')+'</div>';
       var ops=d.operator_breakdown||[];
       if(ops.length===0){
-        opHtml+='<div class="admin-empty">Aucune donnée</div>';
+        opHtml+='<div class="admin-empty">'+at('admin_dash_no_data')+'</div>';
       } else {
         opHtml+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
           +ops.map(function(o){
@@ -2067,27 +2150,27 @@ function adminLoadDashboard(){
           }).join('')
           +'</div>';
       }
-      var logsHtml='<div class="admin-stitle">Dernières actions</div>';
+      var logsHtml='<div class="admin-stitle">'+at('admin_dash_recent_actions')+'</div>';
       var logs=d.recent_logs||[];
       if(logs.length===0){
-        logsHtml+='<div class="admin-empty">Aucune action journalisée</div>';
+        logsHtml+='<div class="admin-empty">'+at('admin_dash_no_logged_action')+'</div>';
       } else {
         logsHtml+=logs.map(function(l){
           return '<div class="admin-audit-row">'
             +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR[l.action]||l.action)+'</b>'+resultPill(l.result)+'</div>'
-            +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">Compte : '+l.target_phone+'</div>':'')
+            +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
             +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
             +'</div>';
         }).join('');
       }
 
       // ── Evolution quotidienne (14 jours) ──
-      var chartHtml='<div class="admin-stitle">Évolution du volume (14 derniers jours)</div>';
+      var chartHtml='<div class="admin-stitle">'+at('admin_dash_volume_evolution')+'</div>';
       var daily=d.daily_volume||[];
       var maxVol=Math.max.apply(null,daily.map(function(x){return x.volume;}).concat([1]));
       var totalVol=daily.reduce(function(s,x){return s+x.volume;},0);
       var MONTHS_ABBR=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-      chartHtml+='<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Barre la plus haute = '+fmt(maxVol)+' &middot; Total période = '+fmt(totalVol)+' &middot; <i>Touchez une barre pour voir le détail du jour</i></div>';
+      chartHtml+='<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+at('admin_dash_chart_note').replace('{max}',fmt(maxVol)).replace('{total}',fmt(totalVol))+'</div>';
       chartHtml+='<div style="display:flex;align-items:flex-end;gap:4px;height:160px;padding:0 4px 6px;background:var(--card);border:1px solid var(--bord);border-radius:12px 12px 0 0;margin-top:8px">'
         +daily.map(function(x){
           var ratio = x.volume/maxVol;
@@ -2095,7 +2178,7 @@ function adminLoadDashboard(){
           var col = x.volume>0 ? adminBarColor(ratio) : 'var(--bord)';
           var dObj=new Date(x.day);
           var dateLbl=dObj.getDate()+' '+MONTHS_ABBR[dObj.getMonth()]+'.';
-          var detail = x.count>0 ? (dateLbl+' : '+fmt(x.volume)+' ('+x.count+' transaction(s))') : (dateLbl+' : aucune transaction');
+          var detail = x.count>0 ? (dateLbl+' : '+fmt(x.volume)+' ('+x.count+' '+at('admin_dash_tx_count_suffix')+')') : (dateLbl+' : '+at('admin_dash_no_tx_day'));
           return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:140px;cursor:pointer" onclick="toast(\''+detail+'\')">'
             +'<div style="background:'+col+';border-radius:2px;height:'+h+'px;min-height:3px"></div></div>';
         }).join('')
@@ -2109,16 +2192,16 @@ function adminLoadDashboard(){
         +'</div>';
 
       // ── Classement des utilisateurs les plus actifs ──
-      var topHtml='<div class="admin-stitle">Top 10 utilisateurs (volume total)</div>';
+      var topHtml='<div class="admin-stitle">'+at('admin_dash_top10_users')+'</div>';
       var topUsers=d.top_users||[];
       if(topUsers.length===0){
-        topHtml+='<div class="admin-empty">Aucune donnée</div>';
+        topHtml+='<div class="admin-empty">'+at('admin_dash_no_data')+'</div>';
       } else {
         topHtml+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
           +topUsers.map(function(u,i){
             return '<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenUserFromList(\''+u.phone_number+'\')">'
               +'<div style="display:flex;justify-content:space-between"><b>#'+(i+1)+' '+u.name+'</b><span>'+fmt(parseFloat(u.total_volume))+'</span></div>'
-              +'<div style="color:var(--t3);margin-top:2px">'+u.phone_number+' · '+u.tx_count+' transaction(s)</div>'
+              +'<div style="color:var(--t3);margin-top:2px">'+u.phone_number+' · '+u.tx_count+' '+at('admin_dash_tx_count_suffix')+'</div>'
               +'</div>';
           }).join('')
           +'</div>';
@@ -2126,9 +2209,9 @@ function adminLoadDashboard(){
 
       box.innerHTML=cardsHtml+chartHtml+topHtml+opHtml+logsHtml;
     } else {
-      box.innerHTML='<div class="admin-empty" style="color:var(--re)">Erreur de chargement</div>';
+      box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminStatCard(label, value, isAmount){
   return '<div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px">'
@@ -2438,6 +2521,43 @@ function applyAdminTheme(){
   var btn=document.getElementById('admin-theme-toggle');
   if(btn) btn.innerHTML = dark ? ICO_SUN : ICO_MOON;
 }
+// ═══════════════════════════════════════════
+// ADMIN - Langue (FR/EN), separee de la langue utilisateur (APP.lang)
+// puisque l'admin n'est pas un compte utilisateur connecte - propre a cet
+// appareil/navigateur, memorisee independamment. Reutilise le MEME
+// dictionnaire I18N que le reste de l'app (juste de nouvelles cles
+// specifiques a l'admin ajoutees dedans), pour ne pas dupliquer de systeme.
+var ADMIN_LANG = localStorage.getItem('admin_lang') || 'fr';
+function at(key){
+  var e = I18N[key];
+  if(!e) return key; // cle manquante : affiche la cle brute plutot que de planter, facile a reperer en test
+  return e[ADMIN_LANG] || e.fr || key;
+}
+function adminToggleLang(){
+  ADMIN_LANG = (ADMIN_LANG==='fr') ? 'en' : 'fr';
+  localStorage.setItem('admin_lang', ADMIN_LANG);
+  applyAdminLang();
+}
+// Comme le contenu admin est en grande partie genere dynamiquement en JS
+// (listes, messages), on ne peut pas se contenter de mettre a jour des
+// attributs data-i18n statiques comme cote utilisateur : on met a jour le
+// bouton + les textes statiques, PUIS on redemande le contenu de l'onglet
+// actuellement affiche pour qu'il se regenere dans la nouvelle langue.
+function applyAdminLang(){
+  var btn = document.getElementById('admin-lang-toggle');
+  if(btn) btn.textContent = ADMIN_LANG.toUpperCase();
+  document.querySelectorAll('[data-i18n-admin]').forEach(function(el){
+    el.textContent = at(el.getAttribute('data-i18n-admin'));
+  });
+  document.querySelectorAll('[data-i18n-admin-ph]').forEach(function(el){
+    el.placeholder = at(el.getAttribute('data-i18n-admin-ph'));
+  });
+  // Redemande juste l'onglet actif pour regenerer son contenu dynamique
+  var active = document.querySelector('.admin-tab-btn[style*="background: var(--g)"], .admin-panel[style*="display: block"]');
+  if(document.getElementById('admin-panel-dashboard') && document.getElementById('admin-panel-dashboard').style.display==='block') adminLoadDashboard();
+  if(document.getElementById('admin-panel-kyc') && document.getElementById('admin-panel-kyc').style.display==='block') adminLoadKycList();
+  if(document.getElementById('admin-panel-alerts') && document.getElementById('admin-panel-alerts').style.display==='block') adminLoadAlerts();
+}
 function toggleAdminTheme(){
   var isDark = document.documentElement.getAttribute('data-theme')==='dark';
   setAdminThemeOverride(isDark ? 'light' : 'dark');
@@ -2523,7 +2643,7 @@ function adminToggleRecoveryMode(){
   var showingRecovery = row.style.display!=='none';
   row.style.display = showingRecovery ? 'none' : 'block';
   codeField.style.display = showingRecovery ? 'block' : 'none';
-  toggle.textContent = showingRecovery ? "J'ai perdu mon telephone — utiliser un code de recuperation" : 'Utiliser plutot le code de mon application';
+  toggle.textContent = showingRecovery ? at('admin_2fa_lost_phone') : at('admin_2fa_use_app_code');
 }
 function adminCancel2fa(){
   window._adminPw='';
@@ -2574,6 +2694,8 @@ function adminLoadRequests(){
   document.getElementById('admin-login-box').style.display='none';
   document.getElementById('admin-main-box').style.display='block';
   adminStartInactivityTimer();
+  var langBtn = document.getElementById('admin-lang-toggle');
+  if(langBtn) langBtn.textContent = ADMIN_LANG.toUpperCase();
   adminTab('dashboard');
   adminStartKycPolling();
   adminRefreshFraudBadge();
@@ -2684,14 +2806,14 @@ function adminApprove(id){
   var prenom=prenomEl?prenomEl.value.trim():'';
   var nom=nomEl?nomEl.value.trim():'';
   var bd=bdEl?bdEl.value.trim():'';
-  if(!prenom||!nom){ toast('Prénom et nom requis', true); return; }
+  if(!prenom||!nom){ toast(at('admin_kyc_name_required'), true); return; }
   adminOpenConfirmModal({
-    icon:'✓', title:'Approuver cette demande ?', message:'Nom vérifié : "'+prenom+' '+nom+'"\nLe compte sera marqué comme vérifié.',
-    needsReason:false, confirmLabel:'Approuver', confirmColor:'var(--g)',
+    icon:'✓', title:at('admin_kyc_approve_title'), message:at('admin_kyc_approve_msg').replace('{name}',prenom+' '+nom),
+    needsReason:false, confirmLabel:at('admin_btn_approve'), confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/kyc?action=admin_approve','POST',{admin_password:window._adminPw,id:id,legal_prenom:prenom,legal_nom:nom,legal_birthdate:bd},'').then(function(res){
-        if(res&&res.success){ toast('Compte vérifié'); adminLoadKycList(); }
-        else toast((res&&res.message)||'Erreur', true);
+        if(res&&res.success){ toast(at('admin_kyc_verified_toast')); adminLoadKycList(); }
+        else toast((res&&res.message)||at('admin_error_generic'), true);
       });
     }
   });
@@ -2699,12 +2821,12 @@ function adminApprove(id){
 
 function adminReject(id){
   adminOpenConfirmModal({
-    icon:'✗', title:'Refuser cette demande ?', message:'L\'utilisateur devra soumettre une nouvelle demande KYC.',
-    needsReason:false, confirmLabel:'Refuser', confirmColor:'var(--re)',
+    icon:'✗', title:at('admin_kyc_reject_title'), message:at('admin_kyc_reject_msg'),
+    needsReason:false, confirmLabel:at('admin_btn_reject'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
-        if(res&&res.success){ toast('Demande refusée'); adminLoadKycList(); }
-        else toast((res&&res.message)||'Erreur', true);
+        if(res&&res.success){ toast(at('admin_kyc_rejected_toast')); adminLoadKycList(); }
+        else toast((res&&res.message)||at('admin_error_generic'), true);
       });
     }
   });
