@@ -290,9 +290,26 @@ function web_push_send_to_admin($title, $body, $extra = []) {
 // bancaire) ou une autre personne (Envoyer -> le message s'adresse a l'emetteur).
 function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
     $u = q("SELECT is_kyc FROM users WHERE id=?",[$userId])->fetch();
-    $limit = ($u && $u['is_kyc']) ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
-    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$userId])->fetchColumn();
-    $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
+    $limitXof = ($u && $u['is_kyc']) ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
+    $wallet = q("SELECT id, currency FROM wallets WHERE user_id=?",[$userId])->fetch();
+    if (!$wallet) return;
+    $wid = $wallet['id'];
+    $currency = $wallet['currency'] ?: 'XOF';
+    // Les plafonds sont toujours definis en XOF par l'admin (habitude et
+    // reference actuelles) : on les convertit vers la devise reelle du
+    // destinataire avant de comparer. Si la conversion echoue (source de
+    // taux indisponible), on garde le plafond en XOF tel quel plutot que de
+    // bloquer completement l'utilisateur - filet de securite, pas un blocage.
+    $limit = $limitXof;
+    if ($currency !== 'XOF') {
+        $converted = convert_currency($limitXof, 'XOF', $currency);
+        if ($converted !== null) $limit = $converted;
+    }
+    // receiver_amount (Phase 3) reflete ce qui est REELLEMENT credite au
+    // destinataire dans SA devise ; net_amount/amount sont un repli pour les
+    // transactions plus anciennes ou les types qui ne le renseignent pas
+    // encore (Encaisser, Payer).
+    $row = q("SELECT COALESCE(SUM(COALESCE(receiver_amount, net_amount, amount)),0) total FROM transactions
         WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
         AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
         AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",[$wid])->fetch();
@@ -842,9 +859,16 @@ function wallet_limit_status() {
     $pl = auth();
     $u = q("SELECT is_kyc FROM users WHERE id=?",[$pl['sub']])->fetch();
     $isKyc = (bool)($u['is_kyc']??false);
-    $limit = $isKyc ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
-    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
-    $row = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
+    $limitXof = $isKyc ? (float)get_setting('limit_verified', 100000000) : (float)get_setting('limit_unverified', 2000000);
+    $wallet = q("SELECT id, currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $wid = $wallet['id']??null;
+    $currency = $wallet['currency'] ?? 'XOF';
+    $limit = $limitXof;
+    if ($currency !== 'XOF') {
+        $converted = convert_currency($limitXof, 'XOF', $currency);
+        if ($converted !== null) $limit = $converted;
+    }
+    $row = q("SELECT COALESCE(SUM(COALESCE(receiver_amount, net_amount, amount)),0) total FROM transactions
         WHERE receiver_wallet_id=? AND status='completed' AND type!='fee'
         AND EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
         AND EXTRACT(YEAR FROM created_at)=EXTRACT(YEAR FROM NOW())",[$wid])->fetch();
@@ -858,7 +882,7 @@ function wallet_stats_full() {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
 
     $rows = q("SELECT to_char(created_at,'YYYY-MM') ym,
-        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(receiver_amount,net_amount,amount) ELSE 0 END) total_in,
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out
         FROM transactions
         WHERE (sender_wallet_id=? OR receiver_wallet_id=?) AND type!='fee'
@@ -888,7 +912,7 @@ function wallet_stats_full() {
     // Cartes du haut - "Ce mois" : remis a zero automatiquement au changement de mois
     // (calcule a la volee via EXTRACT, pas de tache planifiee necessaire).
     $current = q("SELECT
-        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(receiver_amount,net_amount,amount) ELSE 0 END) total_in,
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out,
         COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) tx_count,
         COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) cancelled
@@ -899,7 +923,7 @@ function wallet_stats_full() {
 
     // Cartes du haut - "Recap total" : cumul sur l'annee calendaire affichee dans le graphique.
     $cumulative = q("SELECT
-        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) total_in,
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(receiver_amount,net_amount,amount) ELSE 0 END) total_in,
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) total_out,
         COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) tx_count,
         COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) cancelled
@@ -985,10 +1009,16 @@ function tx_check_new_recipient() {
     $receiverPhone = trim($b['receiver_phone'] ?? '');
     $amount = (float)($b['amount'] ?? 0);
     if (!$receiverPhone || $amount <= 0) { ok(['warn'=>false]); return; }
-    $newRecipientMin = (float)get_setting('fraud_new_recipient_min_amount', 50000);
-    if ($amount < $newRecipientMin) { ok(['warn'=>false]); return; }
-    $sw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $sw = q("SELECT id, currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if (!$sw) { ok(['warn'=>false]); return; }
+    $senderCurrency = $sw['currency'] ?: 'XOF';
+    $newRecipientMinXof = (float)get_setting('fraud_new_recipient_min_amount', 50000);
+    $newRecipientMin = $newRecipientMinXof;
+    if ($senderCurrency !== 'XOF') {
+        $converted = convert_currency($newRecipientMinXof, 'XOF', $senderCurrency);
+        if ($converted !== null) $newRecipientMin = $converted;
+    }
+    if ($amount < $newRecipientMin) { ok(['warn'=>false]); return; }
     $prior = q("SELECT COUNT(*) c FROM transactions t
                 JOIN wallets rw ON rw.id=t.receiver_wallet_id
                 JOIN users ru ON ru.id=rw.user_id
@@ -1012,6 +1042,17 @@ function tx_check_new_recipient() {
 function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid, $reference) {
     try {
         $reasons = [];
+        $senderCurrency = q("SELECT currency FROM wallets WHERE id=?",[$senderWalletId])->fetchColumn() ?: 'XOF';
+        $curSuffix = ($senderCurrency==='XOF' || $senderCurrency==='XAF') ? 'F' : $senderCurrency;
+        // Convertit un seuil defini en XOF (habitude admin actuelle) vers la
+        // devise reelle de l'expediteur. Repli sur la valeur XOF telle quelle
+        // si la conversion echoue (source de taux indisponible) : mieux vaut
+        // une detection legerement imprecise que pas de detection du tout.
+        $toSenderCurrency = function($xofValue) use ($senderCurrency) {
+            if ($senderCurrency === 'XOF') return $xofValue;
+            $c = convert_currency($xofValue, 'XOF', $senderCurrency);
+            return $c !== null ? $c : $xofValue;
+        };
 
         $velocityCount   = (int)get_setting('fraud_velocity_count', 5);
         $velocityMinutes = (int)get_setting('fraud_velocity_minutes', 10);
@@ -1024,7 +1065,7 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
         }
 
         $unusualMultiplier = (float)get_setting('fraud_unusual_multiplier', 5);
-        $unusualMinAmount  = (float)get_setting('fraud_unusual_min_amount', 20000);
+        $unusualMinAmount  = $toSenderCurrency((float)get_setting('fraud_unusual_min_amount', 20000));
         if ($amount >= $unusualMinAmount) {
             $avgRow = q("SELECT AVG(amount) a, COUNT(*) c FROM (
                             SELECT amount FROM transactions
@@ -1034,12 +1075,12 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
             if ($avgRow && (int)$avgRow['c'] >= 3 && (float)$avgRow['a'] > 0) {
                 $avg = (float)$avgRow['a'];
                 if ($amount >= $avg * $unusualMultiplier) {
-                    $reasons[] = 'Montant '.number_format($amount,0,',',' ').' F, tres superieur a la moyenne habituelle ('.number_format($avg,0,',',' ').' F)';
+                    $reasons[] = 'Montant '.number_format($amount,0,',',' ').' '.$curSuffix.', tres superieur a la moyenne habituelle ('.number_format($avg,0,',',' ').' '.$curSuffix.')';
                 }
             }
         }
 
-        $newRecipientMin = (float)get_setting('fraud_new_recipient_min_amount', 50000);
+        $newRecipientMin = $toSenderCurrency((float)get_setting('fraud_new_recipient_min_amount', 50000));
         if ($amount >= $newRecipientMin) {
             $prior = q("SELECT COUNT(*) c FROM transactions t
                         JOIN wallets rw ON rw.id=t.receiver_wallet_id
@@ -1047,7 +1088,7 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
                         WHERE t.sender_wallet_id=? AND ru.phone_number=? AND t.status='completed' AND t.id!=?",
                         [$senderWalletId, $receiverPhone, $txid])->fetch();
             if ($prior && (int)$prior['c'] === 0) {
-                $reasons[] = 'Premier envoi a ce destinataire, montant eleve ('.number_format($amount,0,',',' ').' F)';
+                $reasons[] = 'Premier envoi a ce destinataire, montant eleve ('.number_format($amount,0,',',' ').' '.$curSuffix.')';
             }
         }
 
