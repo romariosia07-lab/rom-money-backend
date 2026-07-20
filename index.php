@@ -533,6 +533,77 @@ function country_to_currency($country) {
     return $map[$country] ?? 'XOF';
 }
 
+// ============================================================
+// TAUX DE CHANGE — plutot que de stocker un taux pour CHAQUE paire de
+// devises possibles (des centaines de combinaisons), on stocke chaque
+// devise face au dollar americain (USD), et on calcule n'importe quelle
+// conversion a partir de ces deux valeurs de reference - exactement comme
+// procedent les vraies banques (le "cross rate").
+// Source : fawazahmed0/exchange-api, gratuite, sans cle ni compte,
+// mise a jour quotidiennement, 200+ devises. Deux URLs (CDN principal +
+// repli Cloudflare) pour la resilience, comme recommande par la doc de
+// l'API elle-meme.
+// ============================================================
+function fetch_rates_from_api() {
+    $urls = [
+        'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+        'https://latest.currency-api.pages.dev/v1/currencies/usd.json',
+    ];
+    foreach ($urls as $url) {
+        try {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($resp && $httpCode === 200) {
+                $json = json_decode($resp, true);
+                if (isset($json['usd']) && is_array($json['usd']) && count($json['usd']) > 50) {
+                    return $json['usd'];
+                }
+            }
+        } catch (Exception $e) { /* on tente l'URL suivante */ }
+    }
+    return null; // les deux sources ont echoue : on continuera avec les taux deja en cache
+}
+
+// Ne rafraichit que si les taux en cache ont plus de 12h - evite d'appeler
+// l'API externe a chaque transaction. Si l'API est injoignable, on garde
+// simplement les derniers taux connus plutot que de bloquer quoi que ce
+// soit : mieux vaut un taux legerement ancien qu'un transfert qui echoue.
+function refresh_exchange_rates_if_stale() {
+    $lastUpdate = q("SELECT MAX(updated_at) AS m FROM exchange_rates")->fetch();
+    if ($lastUpdate && $lastUpdate['m'] && (time() - strtotime($lastUpdate['m'])) < 12 * 3600) {
+        return; // encore frais, rien a faire
+    }
+    $rates = fetch_rates_from_api();
+    if (!$rates) return; // API indisponible : on garde le cache existant tel quel
+    foreach ($rates as $code => $rate) {
+        if (!is_numeric($rate) || $rate <= 0) continue;
+        q("INSERT INTO exchange_rates (currency_code, rate_to_usd) VALUES (?,?)
+           ON CONFLICT (currency_code) DO UPDATE SET rate_to_usd=EXCLUDED.rate_to_usd, updated_at=NOW()",
+          [strtoupper($code), $rate]);
+    }
+}
+
+// Convertit un montant d'une devise vers une autre, via le dollar comme
+// intermediaire commun. Renvoie null si l'une des deux devises n'a pas
+// (encore) de taux connu - a gerer explicitement par l'appelant, jamais
+// de conversion silencieuse a 1:1 qui ferait perdre ou gagner de l'argent
+// a quelqu'un par erreur.
+function convert_currency($amount, $fromCode, $toCode) {
+    $fromCode = strtoupper($fromCode); $toCode = strtoupper($toCode);
+    if ($fromCode === $toCode) return $amount;
+    refresh_exchange_rates_if_stale();
+    $fromRate = q("SELECT rate_to_usd FROM exchange_rates WHERE currency_code=?",[$fromCode])->fetchColumn();
+    $toRate = q("SELECT rate_to_usd FROM exchange_rates WHERE currency_code=?",[$toCode])->fetchColumn();
+    if (!$fromRate || !$toRate) return null;
+    $usdAmount = $amount / (float)$fromRate;
+    return $usdAmount * (float)$toRate;
+}
+
 function auth_register() {
     rate_limit_check('register', 10, 60);
     $b = body();
@@ -2316,6 +2387,8 @@ function route_admin($action) {
         'kyc-migrate-encrypt'  => admin_kyc_migrate_encrypt(),
         'backfill-verified-names' => admin_backfill_verified_names(),
         'delete-account' => admin_delete_account(),
+        'get-exchange-rates' => admin_get_exchange_rates(),
+        'refresh-exchange-rates' => admin_refresh_exchange_rates(),
         'freeze-tx'      => admin_freeze_transaction(),
         'unfreeze-tx'    => admin_unfreeze_transaction(),
         'confirm-cancel-frozen' => admin_confirm_cancel_frozen(),
@@ -3512,6 +3585,34 @@ function admin_delete_account() {
     ok(null,'Compte supprime definitivement');
 }
 
+// Consultation des taux actuellement en cache - permet de verifier que la
+// recuperation automatique fonctionne, et de voir "l'age" des taux affiches.
+function admin_get_exchange_rates() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT currency_code, rate_to_usd, updated_at FROM exchange_rates ORDER BY currency_code ASC")->fetchAll();
+    ok(['rates' => $rows]);
+}
+
+// Force un rafraichissement immediat (ignore le cache de 12h), pour tester
+// tout de suite apres deploiement sans attendre le prochain cycle naturel.
+function admin_refresh_exchange_rates() {
+    $b = body();
+    check_admin_password($b);
+    $rates = fetch_rates_from_api();
+    if (!$rates) fail('Impossible de contacter la source de taux de change (les deux URLs ont echoue). Reessayez dans quelques instants.');
+    $count = 0;
+    foreach ($rates as $code => $rate) {
+        if (!is_numeric($rate) || $rate <= 0) continue;
+        q("INSERT INTO exchange_rates (currency_code, rate_to_usd) VALUES (?,?)
+           ON CONFLICT (currency_code) DO UPDATE SET rate_to_usd=EXCLUDED.rate_to_usd, updated_at=NOW()",
+          [strtoupper($code), $rate]);
+        $count++;
+    }
+    admin_log('exchange_rates_refresh','success',null,$count.' devise(s) mise(s) a jour manuellement');
+    ok(['updated' => $count], 'Taux de change actualises');
+}
+
 function admin_update_country() {
     $b = body();
     check_admin_password($b);
@@ -3691,6 +3792,12 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMP",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS frozen_reason VARCHAR(255)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS channel VARCHAR(20) DEFAULT 'national'",
+    "CREATE TABLE IF NOT EXISTS exchange_rates (
+        id SERIAL PRIMARY KEY,
+        currency_code VARCHAR(10) NOT NULL UNIQUE,
+        rate_to_usd DECIMAL(20,8) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
     "CREATE INDEX IF NOT EXISTS idx_tx_sender ON transactions(sender_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_receiver ON transactions(receiver_wallet_id)",
     "CREATE INDEX IF NOT EXISTS idx_tx_created_at ON transactions(created_at)",
