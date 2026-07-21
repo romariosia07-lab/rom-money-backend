@@ -928,135 +928,135 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-users" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Rechercher un compte</div>
-      <div class="frow"><label class="flabel">Nom ou numéro</label><input class="finput" id="usr-search" placeholder="Nom ou numéro de téléphone" oninput="adminLoadUsers(1)"></div>
+      <div class="admin-stitle" data-i18n-admin="admin_users_search_title">Rechercher un compte</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_users_search_label">Nom ou numéro</label><input class="finput" id="usr-search" placeholder="Nom ou numéro de téléphone" data-i18n-admin-ph="admin_users_search_ph" oninput="adminLoadUsers(1)"></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <select class="finput" id="usr-kyc" onchange="adminLoadUsers(1)" style="margin-bottom:0">
-          <option value="">KYC : Tous</option>
-          <option value="verified">KYC : Vérifiés</option>
-          <option value="unverified">KYC : Non vérifiés</option>
+          <option value="" data-i18n-admin="admin_users_kyc_all">KYC : Tous</option>
+          <option value="verified" data-i18n-admin="admin_users_kyc_verified">KYC : Vérifiés</option>
+          <option value="unverified" data-i18n-admin="admin_users_kyc_unverified">KYC : Non vérifiés</option>
         </select>
         <select class="finput" id="usr-status" onchange="adminLoadUsers(1)" style="margin-bottom:0">
-          <option value="">Statut : Tous</option>
-          <option value="active">Statut : Actifs</option>
-          <option value="blocked">Statut : Bloqués</option>
+          <option value="" data-i18n-admin="admin_users_status_all">Statut : Tous</option>
+          <option value="active" data-i18n-admin="admin_users_status_active">Statut : Actifs</option>
+          <option value="blocked" data-i18n-admin="admin_users_status_blocked">Statut : Bloqués</option>
         </select>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">Inscrit du</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_from">Inscrit du</label>
         <input class="finput" id="usr-date-from" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">au</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_to">au</label>
         <input class="finput" id="usr-date-to" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
       </div>
-      <div id="usr-list-box"><div class="admin-empty">Chargement...</div></div>
+      <div id="usr-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="usr-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
 
     <div id="admin-panel-account" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Réinitialiser un PIN</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Vérifiez toujours l'identité de la personne (WhatsApp/appel) avant d'utiliser cet outil.</div>
-      <div class="frow"><label class="flabel">Numéro de téléphone</label><input class="finput" id="rst-phone" placeholder="0000000000"></div>
-      <div class="frow"><label class="flabel">Nouveau PIN (6 chiffres)</label><input class="finput" id="rst-pin" type="text" maxlength="6" inputmode="numeric" placeholder="000000"></div>
-      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+      <div class="admin-stitle" data-i18n-admin="admin_acc_reset_pin_title">Réinitialiser un PIN</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_acc_reset_pin_desc">Vérifiez toujours l'identité de la personne (WhatsApp/appel) avant d'utiliser cet outil.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_phone_label">Numéro de téléphone</label><input class="finput" id="rst-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_new_pin_label">Nouveau PIN (6 chiffres)</label><input class="finput" id="rst-pin" type="text" maxlength="6" inputmode="numeric" placeholder="000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="rst-reason-sel" onchange="toggleReasonCustom('rst')">
-          <option value="">— Choisir une raison —</option>
-          <option value="Identité vérifiée par WhatsApp">Identité vérifiée par WhatsApp</option>
-          <option value="Identité vérifiée par appel téléphonique">Identité vérifiée par appel téléphonique</option>
-          <option value="Perte du téléphone / changement d'appareil">Perte du téléphone / changement d'appareil</option>
-          <option value="PIN oublié - identité confirmée en agence">PIN oublié - identité confirmée en agence</option>
-          <option value="Demande du client - pièce d'identité vérifiée">Demande du client - pièce d'identité vérifiée</option>
-          <option value="__other__">Autre raison (préciser)</option>
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
+          <option value="Identité vérifiée par WhatsApp" data-i18n-admin="admin_acc_reason_whatsapp">Identité vérifiée par WhatsApp</option>
+          <option value="Identité vérifiée par appel téléphonique" data-i18n-admin="admin_acc_reason_call">Identité vérifiée par appel téléphonique</option>
+          <option value="Perte du téléphone / changement d'appareil" data-i18n-admin="admin_acc_reason_lost_phone">Perte du téléphone / changement d'appareil</option>
+          <option value="PIN oublié - identité confirmée en agence" data-i18n-admin="admin_acc_reason_pin_forgotten">PIN oublié - identité confirmée en agence</option>
+          <option value="Demande du client - pièce d'identité vérifiée" data-i18n-admin="admin_acc_reason_client_id">Demande du client - pièce d'identité vérifiée</option>
+          <option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>
         </select>
-        <input class="finput" id="rst-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+        <input class="finput" id="rst-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
       </div>
-      <button class="btn-g" onclick="adminResetPin()">Réinitialiser le PIN</button>
+      <button class="btn-g" onclick="adminResetPin()" data-i18n-admin="admin_acc_reset_pin_btn">Réinitialiser le PIN</button>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Bloquer / débloquer un compte</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Réservé aux cas de fraude, litige ou demande du client. Bloque l'accès immédiatement, même en session active.</div>
-      <div class="frow"><label class="flabel">Numéro de téléphone</label><input class="finput" id="blk-phone" placeholder="0000000000" oninput="document.getElementById('blk-status-box').innerHTML=''"></div>
-      <button class="btn-w" style="margin-bottom:14px" onclick="adminCheckAccountStatus()">Vérifier le statut</button>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_acc_block_title">Bloquer / débloquer un compte</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_acc_block_desc">Réservé aux cas de fraude, litige ou demande du client. Bloque l'accès immédiatement, même en session active.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_phone_label">Numéro de téléphone</label><input class="finput" id="blk-phone" placeholder="0000000000" oninput="document.getElementById('blk-status-box').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminCheckAccountStatus()" data-i18n-admin="admin_acc_check_status_btn">Vérifier le statut</button>
       <div id="blk-status-box" style="margin-bottom:14px"></div>
       <div id="blk-action-box" style="display:none">
-        <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
           <select class="finput" id="blk-reason-sel" onchange="toggleReasonCustom('blk')">
-            <option value="">— Choisir une raison —</option>
+            <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
           </select>
-          <input class="finput" id="blk-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+          <input class="finput" id="blk-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
         </div>
-        <button id="blk-action-btn" style="width:100%;padding:14px;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminBlockOrUnblock()">Bloquer ce compte</button>
+        <button id="blk-action-btn" style="width:100%;padding:14px;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminBlockOrUnblock()" data-i18n-admin="admin_acc_block_btn">Bloquer ce compte</button>
       </div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Modifier le pays d'un utilisateur</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Le pays est fixé à l'inscription et verrouillé côté utilisateur. À utiliser uniquement pour un vrai déménagement confirmé — chaque modification est journalisée.</div>
-      <div class="frow"><label class="flabel">Numéro de téléphone</label><input class="finput" id="cty-phone" placeholder="0000000000"></div>
-      <div class="frow"><label class="flabel">Nouveau pays</label>
-        <select class="finput" id="cty-country"><option value="">Chargement des pays...</option></select>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_acc_country_title">Modifier le pays d'un utilisateur</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_acc_country_desc">Le pays est fixé à l'inscription et verrouillé côté utilisateur. À utiliser uniquement pour un vrai déménagement confirmé — chaque modification est journalisée.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_phone_label">Numéro de téléphone</label><input class="finput" id="cty-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_new_country_label">Nouveau pays</label>
+        <select class="finput" id="cty-country"><option value="" data-i18n-admin="admin_acc_country_loading">Chargement des pays...</option></select>
       </div>
-      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="cty-reason-sel" onchange="toggleReasonCustom('cty')">
-          <option value="">— Choisir une raison —</option>
-          <option value="Déménagement confirmé">Déménagement confirmé</option>
-          <option value="Erreur de saisie à l'inscription">Erreur de saisie à l'inscription</option>
-          <option value="__other__">Autre raison (préciser)</option>
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
+          <option value="Déménagement confirmé" data-i18n-admin="admin_acc_reason_move">Déménagement confirmé</option>
+          <option value="Erreur de saisie à l'inscription" data-i18n-admin="admin_acc_reason_signup_error">Erreur de saisie à l'inscription</option>
+          <option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>
         </select>
-        <input class="finput" id="cty-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+        <input class="finput" id="cty-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
       </div>
-      <button class="btn-g" onclick="adminUpdateCountry()">Mettre à jour le pays</button>
+      <button class="btn-g" onclick="adminUpdateCountry()" data-i18n-admin="admin_acc_update_country_btn">Mettre à jour le pays</button>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px;color:var(--re)">⚠ Supprimer définitivement un compte</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Action <b>irréversible</b>. Supprime le compte, le portefeuille, l'historique KYC et tout ce qui lui est associé — le numéro redevient totalement disponible pour une nouvelle inscription, comme s'il n'avait jamais existé. Réservé aux comptes de test ou erreurs d'inscription. Les transactions déjà effectuées restent visibles côté destinataire/expéditeur (jamais supprimées, pour ne pas fausser leur historique).</div>
-      <div class="frow"><label class="flabel">Numéro de téléphone à supprimer</label><input class="finput" id="del-phone" placeholder="0000000000"></div>
-      <div class="frow"><label class="flabel">Retape le même numéro pour confirmer</label><input class="finput" id="del-phone-confirm" placeholder="0000000000"></div>
-      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px;color:var(--re)" data-i18n-admin="admin_acc_delete_title">⚠ Supprimer définitivement un compte</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin-html="admin_acc_delete_desc">Action <b>irréversible</b>. Supprime le compte, le portefeuille, l'historique KYC et tout ce qui lui est associé — le numéro redevient totalement disponible pour une nouvelle inscription, comme s'il n'avait jamais existé. Réservé aux comptes de test ou erreurs d'inscription. Les transactions déjà effectuées restent visibles côté destinataire/expéditeur (jamais supprimées, pour ne pas fausser leur historique).</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_delete_phone_label">Numéro de téléphone à supprimer</label><input class="finput" id="del-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_delete_confirm_label">Retape le même numéro pour confirmer</label><input class="finput" id="del-phone-confirm" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="del-reason-sel" onchange="toggleReasonCustom('del')">
-          <option value="">— Choisir une raison —</option>
-          <option value="Compte de test">Compte de test</option>
-          <option value="Erreur de saisie a l'inscription">Erreur de saisie à l'inscription</option>
-          <option value="Demande du client">Demande du client</option>
-          <option value="__other__">Autre raison (préciser)</option>
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
+          <option value="Compte de test" data-i18n-admin="admin_acc_reason_test">Compte de test</option>
+          <option value="Erreur de saisie a l'inscription" data-i18n-admin="admin_acc_reason_signup_error">Erreur de saisie à l'inscription</option>
+          <option value="Demande du client" data-i18n-admin="admin_acc_reason_client_request">Demande du client</option>
+          <option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>
         </select>
-        <input class="finput" id="del-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+        <input class="finput" id="del-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
       </div>
-      <button style="width:100%;padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminDeleteAccount()">Supprimer définitivement ce compte</button>
+      <button style="width:100%;padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminDeleteAccount()" data-i18n-admin="admin_acc_delete_btn">Supprimer définitivement ce compte</button>
     </div>
 
     <div id="admin-panel-tx" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Trouver une transaction par numéro</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Utile quand le client n'a pas la référence en main : tape son numéro, compare le nom/numéro du contact affiché avec ce qu'il te décrit au téléphone.</div>
-      <div class="frow"><label class="flabel">Numéro du client</label><input class="finput" id="srch-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('admin-phone-result').innerHTML=''"></div>
-      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchByPhone()">Voir ses transactions</button>
+      <div class="admin-stitle" data-i18n-admin="admin_tx_find_by_phone_title">Trouver une transaction par numéro</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_tx_find_by_phone_desc">Utile quand le client n'a pas la référence en main : tape son numéro, compare le nom/numéro du contact affiché avec ce qu'il te décrit au téléphone.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_tx_client_phone_label">Numéro du client</label><input class="finput" id="srch-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('admin-phone-result').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchByPhone()" data-i18n-admin="admin_tx_view_transactions_btn">Voir ses transactions</button>
       <div id="admin-phone-result" style="margin-bottom:20px"></div>
 
-      <div class="admin-stitle" style="border-top:1px solid var(--bord);padding-top:20px">Rechercher par référence</div>
-      <div class="frow"><label class="flabel">Référence</label><input class="finput" id="srch-ref" placeholder="REF-20260704-XXXXXX" oninput="if(!this.value.trim())document.getElementById('admin-tx-result').innerHTML=''"></div>
-      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTx()">Rechercher</button>
+      <div class="admin-stitle" style="border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_tx_search_by_ref_title">Rechercher par référence</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_tx_ref_label">Référence</label><input class="finput" id="srch-ref" placeholder="REF-20260704-XXXXXX" oninput="if(!this.value.trim())document.getElementById('admin-tx-result').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTx()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="admin-tx-result"></div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Annulation tardive / Gel</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l'argent revient temporairement à l'expéditeur le temps de vérifier, puis tu débloques ou confirmes l'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.</div>
-      <div class="frow"><label class="flabel">Référence</label><input class="finput" id="cncl-ref" placeholder="REF-20260704-XXXXXX"></div>
-      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_tx_freeze_title">Annulation tardive / Gel</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_tx_freeze_desc">Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l'argent revient temporairement à l'expéditeur le temps de vérifier, puis tu débloques ou confirmes l'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_tx_ref_label">Référence</label><input class="finput" id="cncl-ref" placeholder="REF-20260704-XXXXXX"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="cncl-reason-sel" onchange="toggleReasonCustom('cncl')">
-          <option value="">— Choisir une raison —</option>
-          <option value="Erreur de destinataire confirmée">Erreur de destinataire confirmée</option>
-          <option value="Montant incorrect envoyé par erreur">Montant incorrect envoyé par erreur</option>
-          <option value="Double envoi par le client">Double envoi par le client</option>
-          <option value="Transaction frauduleuse suspectée">Transaction frauduleuse suspectée</option>
-          <option value="Erreur technique de l'application">Erreur technique de l'application</option>
-          <option value="En cours de verification">En cours de vérification</option>
-          <option value="__other__">Autre raison (préciser)</option>
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
+          <option value="Erreur de destinataire confirmée" data-i18n-admin="admin_tx_reason_wrong_recipient">Erreur de destinataire confirmée</option>
+          <option value="Montant incorrect envoyé par erreur" data-i18n-admin="admin_tx_reason_wrong_amount">Montant incorrect envoyé par erreur</option>
+          <option value="Double envoi par le client" data-i18n-admin="admin_tx_reason_double_send">Double envoi par le client</option>
+          <option value="Transaction frauduleuse suspectée" data-i18n-admin="admin_tx_reason_fraud_suspected">Transaction frauduleuse suspectée</option>
+          <option value="Erreur technique de l'application" data-i18n-admin="admin_tx_reason_technical">Erreur technique de l'application</option>
+          <option value="En cours de verification" data-i18n-admin="admin_tx_reason_verifying">En cours de vérification</option>
+          <option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>
         </select>
-        <input class="finput" id="cncl-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+        <input class="finput" id="cncl-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button style="padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminLateCancel()">Annuler</button>
-        <button style="padding:14px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminFreezeTx()">❄ Geler</button>
+        <button style="padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminLateCancel()" data-i18n-admin="admin_tx_cancel_btn">Annuler</button>
+        <button style="padding:14px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminFreezeTx()" data-i18n-admin="admin_tx_freeze_btn">❄ Geler</button>
       </div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">❄ Transactions gelées en attente</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Toutes les transactions actuellement gelées, en attente de ta décision finale.</div>
-      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadFrozenTx()">Actualiser la liste</button>
-      <div id="admin-frozen-box"><div class="admin-empty">Clique sur "Actualiser la liste" pour charger</div></div>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_tx_frozen_list_title">❄ Transactions gelées en attente</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_tx_frozen_list_desc">Toutes les transactions actuellement gelées, en attente de ta décision finale.</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadFrozenTx()" data-i18n-admin="admin_tx_refresh_list_btn">Actualiser la liste</button>
+      <div id="admin-frozen-box"><div class="admin-empty" data-i18n-admin="admin_tx_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
     </div>
 
     <div id="admin-panel-audit" class="admin-panel" style="display:none">
@@ -1090,9 +1090,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-countries" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Pays actifs (Transfert Afrique)</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Seuls les pays "Actif" apparaissent comme disponibles pour le transfert instantané côté utilisateur. Les autres restent en liste d'attente.</div>
-      <div id="admin-countries-box"><div class="admin-empty">Chargement...</div></div>
+      <div class="admin-stitle" data-i18n-admin="admin_countries_title">Pays actifs (Transfert Afrique)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_countries_desc">Seuls les pays "Actif" apparaissent comme disponibles pour le transfert instantané côté utilisateur. Les autres restent en liste d'attente.</div>
+      <div id="admin-countries-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
   </div>
 </div>
@@ -1326,6 +1326,211 @@ var I18N = {
   admin_alerts_none_30d: {fr:'Aucune alerte sur les 30 derniers jours', en:'No alert in the last 30 days'},
   admin_alerts_new_device_line: {fr:'Nouvel appareil : {device} — {date}', en:'New device: {device} — {date}'},
   admin_kyc_verified_title: {fr:'Nom vérifié KYC', en:'KYC-verified name'},
+  admin_users_search_title: {fr:'Rechercher un compte', en:'Search for an account'},
+  admin_users_search_label: {fr:'Nom ou numéro', en:'Name or phone number'},
+  admin_users_search_ph: {fr:'Nom ou numéro de téléphone', en:'Name or phone number'},
+  admin_users_kyc_all: {fr:'KYC : Tous', en:'KYC: All'},
+  admin_users_kyc_verified: {fr:'KYC : Vérifiés', en:'KYC: Verified'},
+  admin_users_kyc_unverified: {fr:'KYC : Non vérifiés', en:'KYC: Unverified'},
+  admin_users_status_all: {fr:'Statut : Tous', en:'Status: All'},
+  admin_users_status_active: {fr:'Statut : Actifs', en:'Status: Active'},
+  admin_users_status_blocked: {fr:'Statut : Bloqués', en:'Status: Blocked'},
+  admin_users_registered_from: {fr:'Inscrit du', en:'Registered from'},
+  admin_users_registered_to: {fr:'au', en:'to'},
+  admin_users_none_found: {fr:'Aucun compte trouvé', en:'No account found'},
+  admin_users_blocked: {fr:'Bloqué', en:'Blocked'},
+  admin_users_active: {fr:'Actif', en:'Active'},
+  admin_users_registered_line: {fr:'Inscrit le {date} · {kyc}', en:'Registered on {date} · {kyc}'},
+  admin_users_kyc_verified_short: {fr:'KYC vérifié', en:'KYC verified'},
+  admin_users_kyc_unverified_short: {fr:'KYC non vérifié', en:'KYC not verified'},
+  admin_users_prev_page: {fr:'← Précédent', en:'← Previous'},
+  admin_users_next_page: {fr:'Suivant →', en:'Next →'},
+  admin_users_page_of: {fr:'Page {p} / {total} ({count} comptes)', en:'Page {p} / {total} ({count} accounts)'},
+  admin_acc_reset_pin_title: {fr:'Réinitialiser un PIN', en:'Reset a PIN'},
+  admin_acc_reset_pin_desc: {fr:"Vérifiez toujours l'identité de la personne (WhatsApp/appel) avant d'utiliser cet outil.", en:"Always verify the person's identity (WhatsApp/call) before using this tool."},
+  admin_acc_phone_label: {fr:'Numéro de téléphone', en:'Phone number'},
+  admin_acc_new_pin_label: {fr:'Nouveau PIN (6 chiffres)', en:'New PIN (6 digits)'},
+  admin_acc_reason_label: {fr:'Raison (obligatoire, journalisée)', en:'Reason (required, logged)'},
+  admin_acc_reason_whatsapp: {fr:'Identité vérifiée par WhatsApp', en:'Identity verified via WhatsApp'},
+  admin_acc_reason_call: {fr:'Identité vérifiée par appel téléphonique', en:'Identity verified via phone call'},
+  admin_acc_reason_lost_phone: {fr:"Perte du téléphone / changement d'appareil", en:'Lost phone / device change'},
+  admin_acc_reason_pin_forgotten: {fr:'PIN oublié - identité confirmée en agence', en:'Forgotten PIN - identity confirmed in-branch'},
+  admin_acc_reason_client_id: {fr:"Demande du client - pièce d'identité vérifiée", en:'Client request - ID verified'},
+  admin_acc_reset_pin_btn: {fr:'Réinitialiser le PIN', en:'Reset PIN'},
+  admin_acc_block_title: {fr:'Bloquer / débloquer un compte', en:'Block / unblock an account'},
+  admin_acc_block_desc: {fr:"Réservé aux cas de fraude, litige ou demande du client. Bloque l'accès immédiatement, même en session active.", en:'Reserved for fraud, dispute, or client request cases. Blocks access immediately, even during an active session.'},
+  admin_acc_check_status_btn: {fr:'Vérifier le statut', en:'Check status'},
+  admin_acc_block_btn: {fr:'Bloquer ce compte', en:'Block this account'},
+  admin_acc_country_title: {fr:"Modifier le pays d'un utilisateur", en:"Change a user's country"},
+  admin_acc_country_desc: {fr:"Le pays est fixé à l'inscription et verrouillé côté utilisateur. À utiliser uniquement pour un vrai déménagement confirmé — chaque modification est journalisée.", en:"The country is set at signup and locked on the user's side. Only use this for a confirmed real move — every change is logged."},
+  admin_acc_new_country_label: {fr:'Nouveau pays', en:'New country'},
+  admin_acc_country_loading: {fr:'Chargement des pays...', en:'Loading countries...'},
+  admin_acc_reason_move: {fr:'Déménagement confirmé', en:'Confirmed move'},
+  admin_acc_reason_signup_error: {fr:"Erreur de saisie à l'inscription", en:'Signup input error'},
+  admin_acc_update_country_btn: {fr:'Mettre à jour le pays', en:'Update country'},
+  admin_acc_delete_title: {fr:'⚠ Supprimer définitivement un compte', en:'⚠ Permanently delete an account'},
+  admin_acc_delete_desc: {fr:"Action <b>irréversible</b>. Supprime le compte, le portefeuille, l'historique KYC et tout ce qui lui est associé — le numéro redevient totalement disponible pour une nouvelle inscription, comme s'il n'avait jamais existé. Réservé aux comptes de test ou erreurs d'inscription. Les transactions déjà effectuées restent visibles côté destinataire/expéditeur (jamais supprimées, pour ne pas fausser leur historique).", en:"<b>Irreversible</b> action. Deletes the account, wallet, KYC history and everything linked to it — the number becomes fully available again for a new signup, as if it never existed. Reserved for test accounts or signup errors. Transactions already made remain visible to the other party (never deleted, to avoid distorting their history)."},
+  admin_acc_delete_phone_label: {fr:'Numéro de téléphone à supprimer', en:'Phone number to delete'},
+  admin_acc_delete_confirm_label: {fr:'Retape le même numéro pour confirmer', en:'Retype the same number to confirm'},
+  admin_acc_reason_test: {fr:'Compte de test', en:'Test account'},
+  admin_acc_reason_client_request: {fr:'Demande du client', en:'Client request'},
+  admin_acc_delete_btn: {fr:'Supprimer définitivement ce compte', en:'Permanently delete this account'},
+  admin_field_required: {fr:'Tous les champs sont requis', en:'All fields are required'},
+  admin_pin_6_digits: {fr:'Le PIN doit contenir 6 chiffres', en:'PIN must contain 6 digits'},
+  admin_reset_pin_confirm_title: {fr:'Réinitialiser ce PIN ?', en:'Reset this PIN?'},
+  admin_reset_pin_confirm_msg: {fr:'Compte {phone}\nAs-tu bien vérifié son identité avant de continuer ?', en:"Account {phone}\nHave you verified this person's identity before continuing?"},
+  admin_reset_pin_btn_confirm: {fr:'Réinitialiser', en:'Reset'},
+  admin_reset_pin_success: {fr:'PIN réinitialisé avec succès', en:'PIN reset successfully'},
+  admin_phone_required: {fr:'Numéro requis', en:'Phone number required'},
+  admin_searching: {fr:'Recherche...', en:'Searching...'},
+  admin_current_status_label: {fr:'Statut actuel :', en:'Current status:'},
+  admin_status_blocked: {fr:'🔒 Bloqué', en:'🔒 Blocked'},
+  admin_status_active: {fr:'✅ Actif', en:'✅ Active'},
+  admin_unblock_btn: {fr:'Débloquer ce compte', en:'Unblock this account'},
+  admin_account_not_found: {fr:'Compte introuvable', en:'Account not found'},
+  admin_reason_fraud: {fr:'Fraude suspectée', en:'Suspected fraud'},
+  admin_reason_suspect_activity: {fr:'Activité suspecte signalée', en:'Suspicious activity reported'},
+  admin_reason_dispute: {fr:'Litige en cours', en:'Ongoing dispute'},
+  admin_reason_verified_legit: {fr:'Vérification effectuée - compte légitime', en:'Verification done - legitimate account'},
+  admin_reason_dispute_resolved: {fr:'Litige résolu', en:'Dispute resolved'},
+  admin_reason_block_error: {fr:'Erreur de blocage', en:'Blocking error'},
+  admin_reason_client_confirmed: {fr:'Demande du client confirmée', en:'Confirmed client request'},
+  admin_phone_reason_required: {fr:'Numéro et raison requis', en:'Phone number and reason required'},
+  admin_unblock_confirm_title: {fr:'Débloquer ce compte ?', en:'Unblock this account?'},
+  admin_block_confirm_title: {fr:'Bloquer ce compte ?', en:'Block this account?'},
+  admin_block_confirm_msg: {fr:"Compte {phone}\nLe client ne pourra plus se connecter ni faire d'opération.", en:'Account {phone}\nThe client will no longer be able to log in or make any operation.'},
+  admin_unblock_btn_confirm: {fr:'Débloquer', en:'Unblock'},
+  admin_block_btn_confirm: {fr:'Bloquer', en:'Block'},
+  admin_unblock_success: {fr:'Compte débloqué avec succès', en:'Account unblocked successfully'},
+  admin_block_success: {fr:'Compte bloqué avec succès', en:'Account blocked successfully'},
+  admin_country_choose: {fr:'— Choisir un pays —', en:'— Choose a country —'},
+  admin_phone_country_reason_required: {fr:'Numéro, pays et raison requis', en:'Phone number, country and reason required'},
+  admin_change_country_title: {fr:'Changer le pays ?', en:'Change country?'},
+  admin_country_updated: {fr:'Pays mis à jour avec succès', en:'Country updated successfully'},
+  admin_phone_x2_reason_required: {fr:'Numéro (x2) et raison requis', en:'Phone number (x2) and reason required'},
+  admin_phones_mismatch: {fr:'Les deux numéros ne correspondent pas', en:'The two numbers do not match'},
+  admin_final_confirmation: {fr:'DERNIÈRE CONFIRMATION', en:'FINAL CONFIRMATION'},
+  admin_delete_confirm_msg: {fr:'Supprimer DÉFINITIVEMENT le compte {phone} ?\n\nCette action est IRRÉVERSIBLE. Le compte, son portefeuille et son historique KYC seront perdus pour toujours. Le numéro redeviendra disponible pour une nouvelle inscription.', en:'PERMANENTLY delete the account {phone}?\n\nThis action is IRREVERSIBLE. The account, its wallet and its KYC history will be lost forever. The number will become available again for a new signup.'},
+  admin_delete_definitively_btn: {fr:'Supprimer définitivement', en:'Delete permanently'},
+  admin_account_deleted: {fr:'Compte supprimé définitivement', en:'Account permanently deleted'},
+  admin_tx_find_by_phone_title: {fr:'Trouver une transaction par numéro', en:'Find a transaction by phone number'},
+  admin_tx_find_by_phone_desc: {fr:"Utile quand le client n'a pas la référence en main : tape son numéro, compare le nom/numéro du contact affiché avec ce qu'il te décrit au téléphone.", en:"Useful when the client doesn't have the reference on hand: type their number, compare the displayed contact name/number with what they describe over the phone."},
+  admin_tx_client_phone_label: {fr:'Numéro du client', en:"Client's phone number"},
+  admin_tx_view_transactions_btn: {fr:'Voir ses transactions', en:'View their transactions'},
+  admin_tx_search_by_ref_title: {fr:'Rechercher par référence', en:'Search by reference'},
+  admin_tx_ref_label: {fr:'Référence', en:'Reference'},
+  admin_tx_search_btn: {fr:'Rechercher', en:'Search'},
+  admin_tx_freeze_title: {fr:'Annulation tardive / Gel', en:'Late cancellation / Freeze'},
+  admin_tx_freeze_desc: {fr:'Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l\'argent revient temporairement à l\'expéditeur le temps de vérifier, puis tu débloques ou confirmes l\'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.', en:'Admin only. "Cancel" is final and immediate (2-day limit). "Freeze" is reversible: the money temporarily returns to the sender while you verify, then you unfreeze or confirm the cancellation from the list below. Both automatically check that the recipient still has the required balance.'},
+  admin_tx_reason_wrong_recipient: {fr:'Erreur de destinataire confirmée', en:'Confirmed wrong recipient'},
+  admin_tx_reason_wrong_amount: {fr:'Montant incorrect envoyé par erreur', en:'Incorrect amount sent by mistake'},
+  admin_tx_reason_double_send: {fr:'Double envoi par le client', en:'Duplicate send by client'},
+  admin_tx_reason_fraud_suspected: {fr:'Transaction frauduleuse suspectée', en:'Suspected fraudulent transaction'},
+  admin_tx_reason_technical: {fr:"Erreur technique de l'application", en:'App technical error'},
+  admin_tx_reason_verifying: {fr:'En cours de vérification', en:'Under review'},
+  admin_tx_cancel_btn: {fr:'Annuler', en:'Cancel'},
+  admin_tx_freeze_btn: {fr:'❄ Geler', en:'❄ Freeze'},
+  admin_tx_frozen_list_title: {fr:'❄ Transactions gelées en attente', en:'❄ Transactions frozen, pending decision'},
+  admin_tx_frozen_list_desc: {fr:'Toutes les transactions actuellement gelées, en attente de ta décision finale.', en:'All transactions currently frozen, awaiting your final decision.'},
+  admin_tx_refresh_list_btn: {fr:'Actualiser la liste', en:'Refresh list'},
+  admin_tx_click_refresh: {fr:'Clique sur "Actualiser la liste" pour charger', en:'Click "Refresh list" to load'},
+  admin_profile_section: {fr:'Profil', en:'Profile'},
+  admin_wallet_section: {fr:'Portefeuille', en:'Wallet'},
+  admin_balance_label: {fr:'Solde :', en:'Balance:'},
+  admin_vault_label: {fr:'Coffre :', en:'Vault:'},
+  admin_vault_locked_until: {fr:'🔒 verrouillé jusqu\'au {date}', en:'🔒 locked until {date}'},
+  admin_vault_locked: {fr:'🔒 verrouillé', en:'🔒 locked'},
+  admin_status_label_colon: {fr:'Statut :', en:'Status:'},
+  admin_phone_label_colon: {fr:'Téléphone :', en:'Phone:'},
+  admin_email_label_colon: {fr:'Email :', en:'Email:'},
+  admin_operator_country_label: {fr:'Opérateur :', en:'Operator:'},
+  admin_country_label: {fr:'Pays :', en:'Country:'},
+  admin_kyc_label_colon: {fr:'KYC :', en:'KYC:'},
+  admin_kyc_verified_short: {fr:'Vérifié', en:'Verified'},
+  admin_kyc_unverified_short: {fr:'Non vérifié', en:'Not verified'},
+  admin_born_on: {fr:'Né(e) le {date}', en:'Born on {date}'},
+  admin_registered_on: {fr:'Inscrit le :', en:'Registered on:'},
+  admin_referral_code_label: {fr:'Code parrainage :', en:'Referral code:'},
+  admin_referral_stats: {fr:'{count} filleul(s), {amt} gagnés', en:'{count} referral(s), {amt} earned'},
+  admin_kyc_requests_title: {fr:'Demandes KYC ({count})', en:'KYC requests ({count})'},
+  admin_kyc_no_requests: {fr:'Aucune demande KYC', en:'No KYC request'},
+  admin_kyc_status_approved: {fr:'Approuvée', en:'Approved'},
+  admin_kyc_status_rejected: {fr:'Rejetée', en:'Rejected'},
+  admin_kyc_status_pending: {fr:'En attente', en:'Pending'},
+  admin_kyc_submitted_on: {fr:'Soumise le {date}', en:'Submitted on {date}'},
+  admin_kyc_processed_on: {fr:' · Traitée le {date}', en:' · Processed on {date}'},
+  admin_kyc_toggle_photos_btn: {fr:'Voir / masquer les photos', en:'Show / hide photos'},
+  admin_delete_btn: {fr:'Supprimer', en:'Delete'},
+  admin_devices_title: {fr:'Appareils connus ({count})', en:'Known devices ({count})'},
+  admin_devices_none: {fr:'Aucun appareil enregistré', en:'No device registered'},
+  admin_device_first_login: {fr:'Première connexion : {date}', en:'First login: {date}'},
+  admin_device_last_login: {fr:'Dernière connexion : {date}', en:'Last login: {date}'},
+  admin_linked_banks_title: {fr:'Comptes bancaires liés ({count})', en:'Linked bank accounts ({count})'},
+  admin_bank_default: {fr:'(par défaut)', en:'(default)'},
+  admin_recent_tx_title: {fr:'Transactions récentes ({count})', en:'Recent transactions ({count})'},
+  admin_filter_number_ph: {fr:'Numéro', en:'Number'},
+  admin_filter_amt_min_ph: {fr:'Montant min', en:'Min amount'},
+  admin_filter_amt_max_ph: {fr:'Montant max', en:'Max amount'},
+  admin_filter_from: {fr:'Du', en:'From'},
+  admin_filter_to: {fr:'Au', en:'To'},
+  admin_not_found: {fr:'Introuvable', en:'Not found'},
+  admin_device_unknown: {fr:'Appareil inconnu', en:'Unknown device'},
+  admin_no_result: {fr:'Aucun résultat', en:'No result'},
+  admin_sent_to: {fr:'Envoyé à', en:'Sent to'},
+  admin_received_from: {fr:'Reçu de', en:'Received from'},
+  admin_contact_number_label: {fr:'Numéro contact : {phone}', en:'Contact number: {phone}'},
+  admin_ref_copied_toast: {fr:'Référence copiée dans les champs ci-dessous', en:'Reference copied into the fields below'},
+  admin_kyc_delete_title: {fr:'Supprimer cette demande KYC ?', en:'Delete this KYC request?'},
+  admin_kyc_delete_msg: {fr:'Photos incluses. Action irréversible.', en:'Photos included. Irreversible action.'},
+  admin_kyc_deleted_toast: {fr:'Demande KYC supprimée', en:'KYC request deleted'},
+  admin_delete_error: {fr:'Erreur suppression', en:'Deletion error'},
+  admin_ref_required: {fr:'Référence requise', en:'Reference required'},
+  admin_type_label: {fr:'Type :', en:'Type:'},
+  admin_amount_gross_label: {fr:'Montant (brut) :', en:'Amount (gross):'},
+  admin_net_label: {fr:'Net :', en:'Net:'},
+  admin_sender_label: {fr:'Expéditeur :', en:'Sender:'},
+  admin_recipient_label: {fr:'Destinataire :', en:'Recipient:'},
+  admin_date_label: {fr:'Date :', en:'Date:'},
+  admin_cancelled_label: {fr:'Annulée :', en:'Cancelled:'},
+  admin_no_label: {fr:'Non', en:'No'},
+  admin_ref_reason_required: {fr:'Référence et raison requises', en:'Reference and reason required'},
+  admin_cancel_definitively_title: {fr:'Annuler définitivement ?', en:'Cancel permanently?'},
+  admin_cancel_definitively_msg: {fr:'Transaction {ref}\nCette action déplace réellement de l\'argent et ne peut pas être annulée après coup.', en:'Transaction {ref}\nThis action moves real money and cannot be undone afterwards.'},
+  admin_yes_cancel: {fr:'Oui, annuler', en:'Yes, cancel'},
+  admin_tx_cancelled_success: {fr:'Transaction annulée avec succès', en:'Transaction cancelled successfully'},
+  admin_freeze_confirm_title: {fr:'Geler cette transaction ?', en:'Freeze this transaction?'},
+  admin_freeze_confirm_msg: {fr:'Transaction {ref}\nL\'argent revient temporairement à l\'expéditeur, le temps de ta vérification. Réversible depuis la liste des transactions gelées.', en:"Transaction {ref}\nThe money temporarily returns to the sender while you verify. Reversible from the frozen transactions list."},
+  admin_yes_freeze: {fr:'Oui, geler', en:'Yes, freeze'},
+  admin_tx_frozen_success: {fr:'Transaction gelée avec succès', en:'Transaction frozen successfully'},
+  admin_frozen_none: {fr:'Aucune transaction gelée actuellement', en:'No transaction currently frozen'},
+  admin_frozen_badge: {fr:'❄ GELÉE', en:'❄ FROZEN'},
+  admin_frozen_reason_label: {fr:'Raison : {reason}', en:'Reason: {reason}'},
+  admin_frozen_ref_label: {fr:'Réf : {ref} — gelée le {date}', en:'Ref: {ref} — frozen on {date}'},
+  admin_unfreeze_btn: {fr:'Débloquer', en:'Unfreeze'},
+  admin_confirm_cancel_btn: {fr:"Confirmer l'annulation", en:'Confirm cancellation'},
+  admin_unfreeze_confirm_title: {fr:'Débloquer cette transaction ?', en:'Unfreeze this transaction?'},
+  admin_unfreeze_confirm_msg: {fr:'Réf. {ref}\nElle redeviendra normale, comme si elle n\'avait jamais été gelée.', en:'Ref. {ref}\nIt will return to normal, as if it had never been frozen.'},
+  admin_yes_unfreeze: {fr:'Oui, débloquer', en:'Yes, unfreeze'},
+  admin_tx_unfrozen_success: {fr:'Transaction débloquée', en:'Transaction unfrozen'},
+  admin_confirm_cancel_final_title: {fr:"Confirmer l'annulation définitive ?", en:'Confirm final cancellation?'},
+  admin_confirm_cancel_final_msg: {fr:"Réf. {ref}\nCette action est IRRÉVERSIBLE. L'argent, déjà revenu à l'expéditeur pendant le gel, y reste définitivement.", en:"Ref. {ref}\nThis action is IRREVERSIBLE. The money, already returned to the sender during the freeze, stays there permanently."},
+  admin_tx_cancel_confirmed: {fr:'Annulation confirmée', en:'Cancellation confirmed'},
+  admin_type_transfer: {fr:'Transfert', en:'Transfer'},
+  admin_type_fee: {fr:'Frais', en:'Fee'},
+  admin_type_deposit: {fr:'Recharge', en:'Top-up'},
+  admin_type_vault_deposit: {fr:'Dépôt coffre', en:'Vault deposit'},
+  admin_type_vault_withdrawal: {fr:'Retrait coffre', en:'Vault withdrawal'},
+  admin_type_payment: {fr:'Paiement', en:'Payment'},
+  admin_type_bank_deposit: {fr:'Dépôt bancaire', en:'Bank deposit'},
+  admin_type_bank_withdraw: {fr:'Retrait bancaire', en:'Bank withdrawal'},
+  admin_type_referral_bonus: {fr:'Bonus parrainage', en:'Referral bonus'},
+  admin_type_fx_margin: {fr:'Marge de change', en:'FX margin'},
+  admin_countries_title: {fr:'Pays actifs (Transfert Afrique)', en:'Active countries (Africa Transfer)'},
+  admin_countries_desc: {fr:'Seuls les pays "Actif" apparaissent comme disponibles pour le transfert instantané côté utilisateur. Les autres restent en liste d\'attente.', en:'Only "Active" countries appear as available for instant transfer on the user side. Others remain on the waitlist.'},
+  admin_country_active: {fr:'✅ Actif', en:'✅ Active'},
+  admin_country_inactive: {fr:'⏳ Inactif', en:'⏳ Inactive'},
+  admin_country_activated: {fr:'activé', en:'activated'},
+  admin_country_deactivated: {fr:'désactivé', en:'deactivated'},
   lang_fr: {fr:'Français', en:'French'},
   lang_en: {fr:'Anglais', en:'English'},
   lang_settings_title: {fr:'Langue', en:'Language'},
@@ -2005,7 +2210,10 @@ function fmtCur(n, currency){
   return new Intl.NumberFormat('fr-FR').format(Math.round(n))+' '+suffix;
 }
 var STATUS_FR={completed:'Terminée',pending:'En attente',cancelled:'Annulée',frozen:'❄ En vérification'};
-var TYPE_FR={transfer:'Transfert',fee:'Frais',deposit:'Recharge',vault_deposit:'Dépôt coffre',vault_withdrawal:'Retrait coffre',payment:'Paiement',bank_deposit:'Dépôt bancaire',bank_withdraw:'Retrait bancaire',referral_bonus:'Bonus parrainage'};
+function TYPE_FR_GET(key){
+  var map={transfer:'admin_type_transfer',fee:'admin_type_fee',deposit:'admin_type_deposit',vault_deposit:'admin_type_vault_deposit',vault_withdrawal:'admin_type_vault_withdrawal',payment:'admin_type_payment',bank_deposit:'admin_type_bank_deposit',bank_withdraw:'admin_type_bank_withdraw',referral_bonus:'admin_type_referral_bonus',fx_margin:'admin_type_fx_margin'};
+  return map[key] ? at(map[key]) : null;
+}
 var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
 function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':(s==='frozen'?'st-frozen':'st-pending')); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
@@ -2579,6 +2787,9 @@ function applyAdminLang(){
   document.querySelectorAll('[data-i18n-admin]').forEach(function(el){
     el.textContent = at(el.getAttribute('data-i18n-admin'));
   });
+  document.querySelectorAll('[data-i18n-admin-html]').forEach(function(el){
+    el.innerHTML = at(el.getAttribute('data-i18n-admin-html'));
+  });
   document.querySelectorAll('[data-i18n-admin-ph]').forEach(function(el){
     el.placeholder = at(el.getAttribute('data-i18n-admin-ph'));
   });
@@ -2587,6 +2798,9 @@ function applyAdminLang(){
   if(document.getElementById('admin-panel-dashboard') && document.getElementById('admin-panel-dashboard').style.display==='block') adminLoadDashboard();
   if(document.getElementById('admin-panel-kyc') && document.getElementById('admin-panel-kyc').style.display==='block') adminLoadKycList();
   if(document.getElementById('admin-panel-alerts') && document.getElementById('admin-panel-alerts').style.display==='block') adminLoadAlerts();
+  if(document.getElementById('admin-panel-users') && document.getElementById('admin-panel-users').style.display==='block') adminLoadUsers();
+  if(document.getElementById('admin-panel-tx') && document.getElementById('admin-panel-tx').style.display==='block' && document.getElementById('admin-frozen-box').innerHTML.indexOf('admin-tx-card')>=0) adminLoadFrozenTx();
+  if(document.getElementById('admin-panel-countries') && document.getElementById('admin-panel-countries').style.display==='block') adminLoadCountries();
 }
 function toggleAdminTheme(){
   var isDark = document.documentElement.getAttribute('data-theme')==='dark';
@@ -2887,22 +3101,22 @@ function adminResetPin(){
   var phone=document.getElementById('rst-phone').value.trim();
   var newPin=document.getElementById('rst-pin').value.trim();
   var reason=getReasonValue('rst');
-  if(!phone||!newPin||!reason){ toast('Tous les champs sont requis', true); return; }
-  if(!/^\d{6}$/.test(newPin)){ toast('Le PIN doit contenir 6 chiffres', true); return; }
+  if(!phone||!newPin||!reason){ toast(at('admin_field_required'), true); return; }
+  if(!/^\d{6}$/.test(newPin)){ toast(at('admin_pin_6_digits'), true); return; }
   adminOpenConfirmModal({
-    icon:'🔑', title:'Réinitialiser ce PIN ?', message:'Compte '+phone+'\nAs-tu bien vérifié son identité avant de continuer ?',
-    needsReason:false, confirmLabel:'Réinitialiser', confirmColor:'var(--re)',
+    icon:'🔑', title:at('admin_reset_pin_confirm_title'), message:at('admin_reset_pin_confirm_msg').replace('{phone}',phone),
+    needsReason:false, confirmLabel:at('admin_reset_pin_btn_confirm'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=reset-pin','POST',{admin_password:window._adminPw,phone:phone,new_pin:newPin,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('PIN réinitialisé avec succès');
+          toast(at('admin_reset_pin_success'));
           document.getElementById('rst-phone').value='';
           document.getElementById('rst-pin').value='';
           resetReasonField('rst');
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -2915,56 +3129,56 @@ function adminCheckAccountStatus(){
   var phone=document.getElementById('blk-phone').value.trim();
   var box=document.getElementById('blk-status-box');
   var actionBox=document.getElementById('blk-action-box');
-  if(!phone){ toast('Numéro requis', true); return; }
-  box.innerHTML='<div class="admin-empty">Recherche...</div>';
+  if(!phone){ toast(at('admin_phone_required'), true); return; }
+  box.innerHTML='<div class="admin-empty">'+at('admin_searching')+'</div>';
   actionBox.style.display='none';
   apiCall('/admin?action=account-status','POST',{admin_password:window._adminPw,phone:phone},'').then(function(res){
     if(res&&res.success&&res.data){
       _blkCurrentStatus=res.data.status;
       var isBlocked=(res.data.status==='blocked');
       box.innerHTML='<div style="display:flex;align-items:center;gap:8px;font-size:12px">'
-        +'<b>Statut actuel :</b> '
-        +'<span class="status-pill '+(isBlocked?'st-cancel':'st-ok')+'">'+(isBlocked?'🔒 Bloqué':'✅ Actif')+'</span>'
+        +'<b>'+at('admin_current_status_label')+'</b> '
+        +'<span class="status-pill '+(isBlocked?'st-cancel':'st-ok')+'">'+(isBlocked?at('admin_status_blocked'):at('admin_status_active'))+'</span>'
         +'</div>';
       var btn=document.getElementById('blk-action-btn');
-      btn.textContent=isBlocked?'Débloquer ce compte':'Bloquer ce compte';
+      btn.textContent=isBlocked?at('admin_unblock_btn'):at('admin_acc_block_btn');
       btn.style.background=isBlocked?'var(--g)':'var(--re)';
       btn.style.color='#fff';
       var reasonSel=document.getElementById('blk-reason-sel');
-      var blockReasons=['Fraude suspectée','Activité suspecte signalée','Demande du client','Litige en cours'];
-      var unblockReasons=['Vérification effectuée - compte légitime','Litige résolu','Erreur de blocage','Demande du client confirmée'];
+      var blockReasons=[at('admin_reason_fraud'),at('admin_reason_suspect_activity'),at('admin_acc_reason_client_request'),at('admin_reason_dispute')];
+      var unblockReasons=[at('admin_reason_verified_legit'),at('admin_reason_dispute_resolved'),at('admin_reason_block_error'),at('admin_reason_client_confirmed')];
       var opts=isBlocked?unblockReasons:blockReasons;
-      reasonSel.innerHTML='<option value="">— Choisir une raison —</option>'
+      reasonSel.innerHTML='<option value="">'+at('admin_reason_choose')+'</option>'
         +opts.map(function(r){ return '<option value="'+r+'">'+r+'</option>'; }).join('')
-        +'<option value="__other__">Autre raison (préciser)</option>';
+        +'<option value="__other__">'+at('admin_reason_other')+'</option>';
       resetReasonField('blk');
       actionBox.style.display='block';
     } else {
-      box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+((res&&res.message)||'Compte introuvable')+'</div>';
+      box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+((res&&res.message)||at('admin_account_not_found'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminBlockOrUnblock(){
   var phone=document.getElementById('blk-phone').value.trim();
   var reason=getReasonValue('blk');
-  if(!phone||!reason){ toast('Numéro et raison requis', true); return; }
+  if(!phone||!reason){ toast(at('admin_phone_reason_required'), true); return; }
   var isBlocked=(_blkCurrentStatus==='blocked');
   var action=isBlocked?'unblock-account':'block-account';
   adminOpenConfirmModal({
     icon:isBlocked?'🔓':'🔒',
-    title:isBlocked?'Débloquer ce compte ?':'Bloquer ce compte ?',
-    message:isBlocked?('Compte '+phone) : ('Compte '+phone+'\nLe client ne pourra plus se connecter ni faire d\'opération.'),
-    needsReason:false, confirmLabel:isBlocked?'Débloquer':'Bloquer', confirmColor:isBlocked?'var(--g)':'var(--re)',
+    title:isBlocked?at('admin_unblock_confirm_title'):at('admin_block_confirm_title'),
+    message:isBlocked?('Compte '+phone) : at('admin_block_confirm_msg').replace('{phone}',phone),
+    needsReason:false, confirmLabel:isBlocked?at('admin_unblock_btn_confirm'):at('admin_block_btn_confirm'), confirmColor:isBlocked?'var(--g)':'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action='+action,'POST',{admin_password:window._adminPw,phone:phone,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast(isBlocked?'Compte débloqué avec succès':'Compte bloqué avec succès');
+          toast(isBlocked?at('admin_unblock_success'):at('admin_block_success'));
           resetReasonField('blk');
           adminCheckAccountStatus();
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -2977,35 +3191,35 @@ function adminLoadCountryOptions(){
   if(!sel || sel.getAttribute('data-loaded')==='1') return;
   apiCall('/auth?action=countries','GET',null,'').then(function(res){
     if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
-      sel.innerHTML='<option value="">— Choisir un pays —</option>'
+      sel.innerHTML='<option value="">'+at('admin_country_choose')+'</option>'
         + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
       sel.setAttribute('data-loaded','1');
     } else {
       sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
     }
   }).catch(function(){
-    sel.innerHTML='<option value="">Erreur de chargement</option>';
+    sel.innerHTML='<option value="">'+at('admin_dash_error_loading')+'</option>';
   });
 }
 function adminUpdateCountry(){
   var phone=document.getElementById('cty-phone').value.trim();
   var country=document.getElementById('cty-country').value;
   var reason=getReasonValue('cty');
-  if(!phone||!country||!reason){ toast('Numéro, pays et raison requis', true); return; }
+  if(!phone||!country||!reason){ toast(at('admin_phone_country_reason_required'), true); return; }
   adminOpenConfirmModal({
-    icon:'🌍', title:'Changer le pays ?', message:'Compte '+phone+' → "'+country+'"',
-    needsReason:false, confirmLabel:'Confirmer', confirmColor:'var(--g)',
+    icon:'🌍', title:at('admin_change_country_title'), message:'Compte '+phone+' → "'+country+'"',
+    needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/admin?action=update-country','POST',{admin_password:window._adminPw,phone:phone,country:country,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Pays mis à jour avec succès');
+          toast(at('admin_country_updated'));
           document.getElementById('cty-phone').value='';
           document.getElementById('cty-country').value='';
           resetReasonField('cty');
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3014,22 +3228,22 @@ function adminDeleteAccount(){
   var phone=document.getElementById('del-phone').value.trim();
   var confirmPhone=document.getElementById('del-phone-confirm').value.trim();
   var reason=getReasonValue('del');
-  if(!phone||!confirmPhone||!reason){ toast('Numéro (x2) et raison requis', true); return; }
-  if(phone!==confirmPhone){ toast('Les deux numéros ne correspondent pas', true); return; }
+  if(!phone||!confirmPhone||!reason){ toast(at('admin_phone_x2_reason_required'), true); return; }
+  if(phone!==confirmPhone){ toast(at('admin_phones_mismatch'), true); return; }
   adminOpenConfirmModal({
-    icon:'⚠', title:'DERNIÈRE CONFIRMATION', message:'Supprimer DÉFINITIVEMENT le compte '+phone+' ?\n\nCette action est IRRÉVERSIBLE. Le compte, son portefeuille et son historique KYC seront perdus pour toujours. Le numéro redeviendra disponible pour une nouvelle inscription.',
-    needsReason:false, confirmLabel:'Supprimer définitivement', confirmColor:'var(--re)',
+    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_delete_confirm_msg').replace('{phone}',phone),
+    needsReason:false, confirmLabel:at('admin_delete_definitively_btn'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Compte supprimé définitivement');
+          toast(at('admin_account_deleted'));
           document.getElementById('del-phone').value='';
           document.getElementById('del-phone-confirm').value='';
           resetReasonField('del');
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3037,8 +3251,8 @@ function adminDeleteAccount(){
 function adminSearchByPhone(){
   var phone=document.getElementById('srch-phone').value.trim();
   var box=document.getElementById('admin-phone-result');
-  if(!phone){ toast('Numéro requis', true); return; }
-  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">Recherche...</div>';
+  if(!phone){ toast(at('admin_phone_required'), true); return; }
+  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_searching')+'</div>';
   apiCall('/admin?action=search-phone','POST',{admin_password:window._adminPw,phone:phone},'').then(function(res){
     if(res&&res.success&&res.data){
       var d=res.data;
@@ -3049,45 +3263,45 @@ function adminSearchByPhone(){
 
       // ── Profil ──
       var statusColor = p.status==='blocked' ? 'var(--re)' : 'var(--g)';
-      var statusLabel = p.status==='blocked' ? 'Bloqué' : 'Actif';
+      var statusLabel = p.status==='blocked' ? at('admin_users_blocked') : at('admin_users_active');
       html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px;line-height:1.9">'
-        +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+(p.verified_name||p.full_name||'-')+(p.verified_name?' <span style="color:var(--g)" title="Nom vérifié KYC">✓</span>':'')+'</div>'
-        +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+statusLabel+'</span><br>'
-        +'<b>Téléphone :</b> '+(p.phone||'-')+'<br>'
-        +'<b>Email :</b> '+(p.email||'-')+'<br>'
-        +'<b>Opérateur :</b> '+(p.operator||'-')+' &middot; <b>Pays :</b> '+(p.country||'-')+'<br>'
-        +'<b>KYC :</b> '+(p.is_kyc?'<span style="color:var(--g)">Vérifié</span>':'<span style="color:var(--t3)">Non vérifié</span>')+(p.verified_birthdate?' &middot; Né(e) le '+p.verified_birthdate:'')+'<br>'
-        +'<b>Inscrit le :</b> '+(p.created_at?new Date(p.created_at).toLocaleString():'-')+'<br>'
-        +'<b>Code parrainage :</b> '+(p.referral_code||'-')+' ('+(d.referral?d.referral.referred_count:0)+' filleul(s), '+fmt(d.referral?d.referral.total_earned:0)+' gagnés)'
+        +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+(p.verified_name||p.full_name||'-')+(p.verified_name?' <span style="color:var(--g)" title="'+at('admin_kyc_verified_title')+'">✓</span>':'')+'</div>'
+        +'<b>'+at('admin_status_label_colon')+'</b> <span style="color:'+statusColor+';font-weight:700">'+statusLabel+'</span><br>'
+        +'<b>'+at('admin_phone_label_colon')+'</b> '+(p.phone||'-')+'<br>'
+        +'<b>'+at('admin_email_label_colon')+'</b> '+(p.email||'-')+'<br>'
+        +'<b>'+at('admin_operator_country_label')+'</b> '+(p.operator||'-')+' &middot; <b>'+at('admin_country_label')+'</b> '+(p.country||'-')+'<br>'
+        +'<b>'+at('admin_kyc_label_colon')+'</b> '+(p.is_kyc?'<span style="color:var(--g)">'+at('admin_kyc_verified_short')+'</span>':'<span style="color:var(--t3)">'+at('admin_kyc_unverified_short')+'</span>')+(p.verified_birthdate?' &middot; '+at('admin_born_on').replace('{date}',p.verified_birthdate):'')+'<br>'
+        +'<b>'+at('admin_registered_on')+'</b> '+(p.created_at?new Date(p.created_at).toLocaleString():'-')+'<br>'
+        +'<b>'+at('admin_referral_code_label')+'</b> '+(p.referral_code||'-')+' ('+at('admin_referral_stats').replace('{count}',d.referral?d.referral.referred_count:0).replace('{amt}',fmt(d.referral?d.referral.total_earned:0))+')'
         +'</div>';
 
       // ── Portefeuille ──
       html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px;line-height:1.9">'
-        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:6px">Portefeuille</div>'
-        +'<b>Solde :</b> '+fmt(w.balance||0)+'<br>'
-        +'<b>Coffre :</b> '+fmt(w.vault_balance||0)+(w.vault_locked?' <span style="color:var(--am)">🔒 verrouillé'+(w.vault_lock_date?' jusqu\'au '+w.vault_lock_date:'')+'</span>':'')
+        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:6px">'+at('admin_wallet_section')+'</div>'
+        +'<b>'+at('admin_balance_label')+'</b> '+fmt(w.balance||0)+'<br>'
+        +'<b>'+at('admin_vault_label')+'</b> '+fmt(w.vault_balance||0)+(w.vault_locked?' <span style="color:var(--am)">'+(w.vault_lock_date?at('admin_vault_locked_until').replace('{date}',w.vault_lock_date):at('admin_vault_locked'))+'</span>':'')
         +'</div>';
 
       // ── KYC (historique + photos) ──
       var kycHist = d.kyc_history||[];
       html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px">'
-        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">Demandes KYC ('+kycHist.length+')</div>';
+        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">'+at('admin_kyc_requests_title').replace('{count}',kycHist.length)+'</div>';
       if(kycHist.length===0){
-        html+='<div class="admin-empty">Aucune demande KYC</div>';
+        html+='<div class="admin-empty">'+at('admin_kyc_no_requests')+'</div>';
       } else {
         kycHist.forEach(function(k,ki){
           var stColor = k.status==='approved'?'var(--g)':k.status==='rejected'?'var(--re)':'var(--am)';
-          var stLabel = k.status==='approved'?'Approuvée':k.status==='rejected'?'Rejetée':'En attente';
+          var stLabel = k.status==='approved'?at('admin_kyc_status_approved'):k.status==='rejected'?at('admin_kyc_status_rejected'):at('admin_kyc_status_pending');
           html+='<div style="border-top:'+(ki>0?'1px solid var(--bord)':'none')+';padding-top:'+(ki>0?'10px':'0')+';margin-top:'+(ki>0?'10px':'0')+'">'
             +'<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>'+(k.legal_name||'-')+'</b><span style="color:'+stColor+';font-weight:700">'+stLabel+'</span></div>'
-            +'<div style="color:var(--t3);margin-bottom:8px">Soumise le '+new Date(k.created_at).toLocaleString()+(k.reviewed_at?' &middot; Traitée le '+new Date(k.reviewed_at).toLocaleString():'')+'</div>'
+            +'<div style="color:var(--t3);margin-bottom:8px">'+at('admin_kyc_submitted_on').replace('{date}',new Date(k.created_at).toLocaleString())+(k.reviewed_at?at('admin_kyc_processed_on').replace('{date}',new Date(k.reviewed_at).toLocaleString()):'')+'</div>'
             +'<div style="display:flex;gap:8px">'
-            +'<button class="btn-w" style="margin-top:0;padding:8px;font-size:11px;flex:1" onclick="var el=document.getElementById(\'kyc-photos-'+ki+'\');el.style.display=el.style.display===\'none\'?\'grid\':\'none\'">Voir / masquer les photos</button>'
-            +'<button style="margin-top:0;padding:8px 12px;font-size:11px;background:var(--rl);color:var(--re);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:700" onclick="adminDeleteKyc(\''+k.id+'\',\''+k.created_at+'\')">Supprimer</button>'
+            +'<button class="btn-w" style="margin-top:0;padding:8px;font-size:11px;flex:1" onclick="var el=document.getElementById(\'kyc-photos-'+ki+'\');el.style.display=el.style.display===\'none\'?\'grid\':\'none\'">'+at('admin_kyc_toggle_photos_btn')+'</button>'
+            +'<button style="margin-top:0;padding:8px 12px;font-size:11px;background:var(--rl);color:var(--re);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:700" onclick="adminDeleteKyc(\''+k.id+'\',\''+k.created_at+'\')">'+at('admin_delete_btn')+'</button>'
             +'</div>'
             +'<div id="kyc-photos-'+ki+'" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">'
-            +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Recto</div><img src="'+k.photo_recto+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
-            +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Verso</div><img src="'+k.photo_verso+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
+            +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+at('admin_kyc_recto')+'</div><img src="'+k.photo_recto+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
+            +'<div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+at('admin_kyc_verso')+'</div><img src="'+k.photo_verso+'" style="width:100%;border-radius:8px;border:1px solid var(--bord)" onclick="window.open(this.src)"></div>'
             +'</div></div>';
         });
       }
@@ -3096,15 +3310,15 @@ function adminSearchByPhone(){
       // ── Appareils connus ──
       var devices = d.known_devices||[];
       html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px">'
-        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">Appareils connus ('+devices.length+')</div>';
+        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">'+at('admin_devices_title').replace('{count}',devices.length)+'</div>';
       if(devices.length===0){
-        html+='<div class="admin-empty">Aucun appareil enregistré</div>';
+        html+='<div class="admin-empty">'+at('admin_devices_none')+'</div>';
       } else {
         devices.forEach(function(dv){
           html+='<div style="padding:6px 0;border-top:1px solid var(--bord);line-height:1.7">'
             +'<div style="font-weight:700" title="'+(dv.user_agent||'').replace(/"/g,'&quot;')+'">'+parseUserAgent(dv.user_agent)+'</div>'
-            +'<div>Première connexion : '+new Date(dv.first_seen).toLocaleString()+'</div>'
-            +'<div>Dernière connexion : '+new Date(dv.last_seen).toLocaleString()+'</div>'
+            +'<div>'+at('admin_device_first_login').replace('{date}',new Date(dv.first_seen).toLocaleString())+'</div>'
+            +'<div>'+at('admin_device_last_login').replace('{date}',new Date(dv.last_seen).toLocaleString())+'</div>'
             +'</div>';
         });
       }
@@ -3114,25 +3328,25 @@ function adminSearchByPhone(){
       var banks = d.linked_banks||[];
       if(banks.length>0){
         html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px">'
-          +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">Comptes bancaires liés ('+banks.length+')</div>';
+          +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">'+at('admin_linked_banks_title').replace('{count}',banks.length)+'</div>';
         banks.forEach(function(bk){
-          html+='<div style="padding:6px 0;border-top:1px solid var(--bord)">'+bk.bank_name+' ****'+(bk.account_last4||'')+(bk.is_default?' <span style="color:var(--g)">(par défaut)</span>':'')+'</div>';
+          html+='<div style="padding:6px 0;border-top:1px solid var(--bord)">'+bk.bank_name+' ****'+(bk.account_last4||'')+(bk.is_default?' <span style="color:var(--g)">'+at('admin_bank_default')+'</span>':'')+'</div>';
         });
         html+='</div>';
       }
 
       // ── Transactions ──
       window._adminTxCache = txs;
-      html+='<div style="font-size:13px;font-weight:800;color:var(--accent-text);margin-bottom:10px">Transactions récentes ('+txs.length+')</div>';
+      html+='<div style="font-size:13px;font-weight:800;color:var(--accent-text);margin-bottom:10px">'+at('admin_recent_tx_title').replace('{count}',txs.length)+'</div>';
       html+='<div style="display:flex;gap:8px;margin-bottom:8px">'
-        +'<input id="atx-contact" type="text" placeholder="Numéro" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'<input id="atx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'<input id="atx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<input id="atx-contact" type="text" placeholder="'+at('admin_filter_number_ph')+'" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<input id="atx-amt-min" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_min_ph')+'" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<input id="atx-amt-max" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_max_ph')+'" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'</div>'
         +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">Du</label>'
+        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_from')+'</label>'
         +'<input id="atx-date-from" type="date" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">Au</label>'
+        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_to')+'</label>'
         +'<input id="atx-date-to" type="date" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'</div>'
         +'<div id="admin-tx-list-box"></div>';
@@ -3140,16 +3354,16 @@ function adminSearchByPhone(){
       renderAdminTxList();
       return;
     } else {
-      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||'Introuvable')+'</div>';
+      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||at('admin_not_found'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 // Transforme un User-Agent brut en resume lisible (ex: "Android · Chrome
 // Mobile") pour l'affichage admin. Le texte brut original reste consultable
 // via l'attribut title (survol) pour un diagnostic plus pousse si besoin.
 function parseUserAgent(ua){
-  if(!ua) return 'Appareil inconnu';
+  if(!ua) return at('admin_device_unknown');
   var os = 'Appareil';
   if(/iPhone/.test(ua)) os = 'iPhone';
   else if(/iPad/.test(ua)) os = 'iPad';
@@ -3197,7 +3411,7 @@ function renderAdminTxList(){
   if(toTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()<=toTs; });
 
   if(txs.length===0){
-    box.innerHTML='<div class="admin-empty">Aucun résultat</div>';
+    box.innerHTML='<div class="admin-empty">'+at('admin_no_result')+'</div>';
     return;
   }
   var html='';
@@ -3205,10 +3419,10 @@ function renderAdminTxList(){
     var isDebit=t.direction==='debit';
     var contactName=isDebit?adminNameDisplay(t.receiver_name,t.receiver_verified_name):adminNameDisplay(t.sender_name,t.sender_verified_name);
     var contactPhone=isDebit?(t.receiver_phone||'-'):(t.sender_phone||'-');
-    html+='<div class="admin-tx-card" onclick="document.getElementById(\'srch-ref\').value=\''+t.reference+'\';document.getElementById(\'cncl-ref\').value=\''+t.reference+'\';toast(\'Référence copiée dans les champs ci-dessous\')">'
-      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?'Envoyé à':'Reçu de')+' : '+contactName+'</b><span>'+fmt(parseFloat(t.amount))+'</span></div>'
-      +'<div style="color:var(--t3);margin-top:2px">Numéro contact : '+contactPhone+'</div>'
-      +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">Réf : '+t.reference+' · '+new Date(t.created_at).toLocaleString()+' '+statusPill(t.status)+'</div>'
+    html+='<div class="admin-tx-card" onclick="document.getElementById(\'srch-ref\').value=\''+t.reference+'\';document.getElementById(\'cncl-ref\').value=\''+t.reference+'\';toast(\''+at('admin_ref_copied_toast')+'\')">'
+      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmt(parseFloat(t.amount))+'</span></div>'
+      +'<div style="color:var(--t3);margin-top:2px">'+at('admin_contact_number_label').replace('{phone}',contactPhone)+'</div>'
+      +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">'+at('admin_alerts_ref_label').replace('{ref}',t.reference).replace('{date}',new Date(t.created_at).toLocaleString())+' '+statusPill(t.status)+'</div>'
       +'</div>';
   });
   box.innerHTML=html;
@@ -3216,67 +3430,67 @@ function renderAdminTxList(){
 
 function adminDeleteKyc(id, createdAt){
   adminOpenConfirmModal({
-    icon:'🗑', title:'Supprimer cette demande KYC ?', message:'Photos incluses. Action irréversible.',
-    needsReason:false, confirmLabel:'Supprimer', confirmColor:'var(--re)',
+    icon:'🗑', title:at('admin_kyc_delete_title'), message:at('admin_kyc_delete_msg'),
+    needsReason:false, confirmLabel:at('admin_delete_btn'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=delete-kyc','POST',{admin_password:window._adminPw,id:id,created_at:createdAt},'').then(function(res){
         if(res&&res.success){
-          toast('Demande KYC supprimée');
+          toast(at('admin_kyc_deleted_toast'));
           adminSearchByPhone();
         } else {
-          toast((res&&res.message)||'Erreur suppression', true);
+          toast((res&&res.message)||at('admin_delete_error'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
 
 function adminNameDisplay(name, verifiedName){
-  if(verifiedName) return verifiedName+' <span style="color:var(--g)" title="Nom vérifié KYC">✓</span>';
+  if(verifiedName) return verifiedName+' <span style="color:var(--g)" title="'+at('admin_kyc_verified_title')+'">✓</span>';
   return (name||'-');
 }
 function adminSearchTx(){
   var ref=document.getElementById('srch-ref').value.trim();
   var box=document.getElementById('admin-tx-result');
-  if(!ref){ toast('Référence requise', true); return; }
-  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">Recherche...</div>';
+  if(!ref){ toast(at('admin_ref_required'), true); return; }
+  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_searching')+'</div>';
   apiCall('/admin?action=search-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
     if(res&&res.success&&res.data&&res.data.transaction){
       var t=res.data.transaction;
       box.innerHTML='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;font-size:12px;line-height:1.9">'
-        +'<div style="margin-bottom:6px"><b>Statut :</b> '+statusPill(t.status)+'</div>'
-        +'<b>Type :</b> '+(TYPE_FR[t.type]||t.type)+'<br>'
-        +'<b>Montant (brut) :</b> '+fmt(parseFloat(t.amount))+'<br>'
-        +'<b>Net :</b> '+(t.net_amount!=null?fmt(parseFloat(t.net_amount)):'-')+'<br>'
-        +'<b>Expéditeur :</b> '+adminNameDisplay(t.sender_name,t.sender_verified_name)+' ('+(t.sender_phone||'-')+')'+(t.sender_operator?' — '+t.sender_operator:'')+'<br>'
-        +'<b>Destinataire :</b> '+adminNameDisplay(t.receiver_name,t.receiver_verified_name)+' ('+(t.receiver_phone||'-')+')'+(t.receiver_operator?' — '+t.receiver_operator:'')+'<br>'
-        +'<b>Date :</b> '+new Date(t.created_at).toLocaleString()+'<br>'
-        +'<b>Annulée :</b> '+(t.cancelled_at?new Date(t.cancelled_at).toLocaleString():'Non')
+        +'<div style="margin-bottom:6px"><b>'+at('admin_status_label_colon')+'</b> '+statusPill(t.status)+'</div>'
+        +'<b>'+at('admin_type_label')+'</b> '+(TYPE_FR_GET(t.type)||t.type)+'<br>'
+        +'<b>'+at('admin_amount_gross_label')+'</b> '+fmt(parseFloat(t.amount))+'<br>'
+        +'<b>'+at('admin_net_label')+'</b> '+(t.net_amount!=null?fmt(parseFloat(t.net_amount)):'-')+'<br>'
+        +'<b>'+at('admin_sender_label')+'</b> '+adminNameDisplay(t.sender_name,t.sender_verified_name)+' ('+(t.sender_phone||'-')+')'+(t.sender_operator?' — '+t.sender_operator:'')+'<br>'
+        +'<b>'+at('admin_recipient_label')+'</b> '+adminNameDisplay(t.receiver_name,t.receiver_verified_name)+' ('+(t.receiver_phone||'-')+')'+(t.receiver_operator?' — '+t.receiver_operator:'')+'<br>'
+        +'<b>'+at('admin_date_label')+'</b> '+new Date(t.created_at).toLocaleString()+'<br>'
+        +'<b>'+at('admin_cancelled_label')+'</b> '+(t.cancelled_at?new Date(t.cancelled_at).toLocaleString():at('admin_no_label'))
         +'</div>';
     } else {
-      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||'Introuvable')+'</div>';
+      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||at('admin_not_found'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminLateCancel(){
   var ref=document.getElementById('cncl-ref').value.trim();
   var reason=getReasonValue('cncl');
-  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  if(!ref||!reason){ toast(at('admin_ref_reason_required'), true); return; }
   adminOpenConfirmModal({
-    icon:'🚫', title:'Annuler définitivement ?',
-    message:'Transaction '+ref+'\nCette action déplace réellement de l\'argent et ne peut pas être annulée après coup.',
-    needsReason:false, confirmLabel:'Oui, annuler', confirmColor:'var(--re)',
+    icon:'🚫', title:at('admin_cancel_definitively_title'),
+    message:at('admin_cancel_definitively_msg').replace('{ref}',ref),
+    needsReason:false, confirmLabel:at('admin_yes_cancel'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=late-cancel','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Transaction annulée avec succès');
+          toast(at('admin_tx_cancelled_success'));
           document.getElementById('cncl-ref').value='';
           resetReasonField('cncl');
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3284,22 +3498,22 @@ function adminLateCancel(){
 function adminFreezeTx(){
   var ref=document.getElementById('cncl-ref').value.trim();
   var reason=getReasonValue('cncl');
-  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  if(!ref||!reason){ toast(at('admin_ref_reason_required'), true); return; }
   adminOpenConfirmModal({
-    icon:'❄', title:'Geler cette transaction ?',
-    message:'Transaction '+ref+'\nL\'argent revient temporairement à l\'expéditeur, le temps de ta vérification. Réversible depuis la liste des transactions gelées.',
-    needsReason:false, confirmLabel:'Oui, geler', confirmColor:'#f5a623',
+    icon:'❄', title:at('admin_freeze_confirm_title'),
+    message:at('admin_freeze_confirm_msg').replace('{ref}',ref),
+    needsReason:false, confirmLabel:at('admin_yes_freeze'), confirmColor:'#f5a623',
     onConfirm:function(){
       apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Transaction gelée avec succès');
+          toast(at('admin_tx_frozen_success'));
           document.getElementById('cncl-ref').value='';
           resetReasonField('cncl');
           adminLoadFrozenTx();
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3307,12 +3521,12 @@ function adminFreezeTx(){
 function adminLoadFrozenTx(){
   var box=document.getElementById('admin-frozen-box');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=list-frozen','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data){
       var rows=res.data.frozen||[];
       if(rows.length===0){
-        box.innerHTML='<div class="admin-empty">Aucune transaction gelée actuellement</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_frozen_none')+'</div>';
         return;
       }
       var html='';
@@ -3320,49 +3534,49 @@ function adminLoadFrozenTx(){
         var senderName=r.sender_verified_name||r.sender_name||r.sender_phone||'?';
         var receiverName=r.receiver_verified_name||r.receiver_name||r.receiver_phone||'?';
         html+='<div class="admin-tx-card" style="border-left:3px solid #f5a623">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+fmtCur(r.amount, r.sender_currency)+'</b><span style="font-size:10px;color:#f5a623;font-weight:700">❄ GELÉE</span></div>'
-          +'<div style="color:var(--t3);margin-top:3px">De '+senderName+' vers '+receiverName+'</div>'
-          +'<div style="color:var(--t2);margin-top:4px;font-size:11px">Raison : '+(r.frozen_reason||'-')+'</div>'
-          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">Réf : '+(r.reference||'-')+' — gelée le '+new Date(r.frozen_at).toLocaleString()+'</div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+fmtCur(r.amount, r.sender_currency)+'</b><span style="font-size:10px;color:#f5a623;font-weight:700">'+at('admin_frozen_badge')+'</span></div>'
+          +'<div style="color:var(--t3);margin-top:3px">'+at('admin_alerts_from_to').replace('{from}',senderName).replace('{to}',receiverName)+'</div>'
+          +'<div style="color:var(--t2);margin-top:4px;font-size:11px">'+at('admin_frozen_reason_label').replace('{reason}',r.frozen_reason||'-')+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">'+at('admin_frozen_ref_label').replace('{ref}',r.reference||'-').replace('{date}',new Date(r.frozen_at).toLocaleString())+'</div>'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">'
-          +'<button style="padding:8px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminUnfreezeTx(\''+r.reference+'\')">Débloquer</button>'
-          +'<button style="padding:8px;background:var(--re);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminConfirmCancelFrozen(\''+r.reference+'\')">Confirmer l\'annulation</button>'
+          +'<button style="padding:8px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminUnfreezeTx(\''+r.reference+'\')">'+at('admin_unfreeze_btn')+'</button>'
+          +'<button style="padding:8px;background:var(--re);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminConfirmCancelFrozen(\''+r.reference+'\')">'+at('admin_confirm_cancel_btn')+'</button>'
           +'</div>'
           +'</div>';
       });
       box.innerHTML=html;
     } else {
-      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminUnfreezeTx(ref){
   adminOpenConfirmModal({
-    icon:'✅', title:'Débloquer cette transaction ?',
-    message:'Réf. '+ref+'\nElle redeviendra normale, comme si elle n\'avait jamais été gelée.',
-    needsReason:false, confirmLabel:'Oui, débloquer', confirmColor:'var(--g)',
+    icon:'✅', title:at('admin_unfreeze_confirm_title'),
+    message:at('admin_unfreeze_confirm_msg').replace('{ref}',ref),
+    needsReason:false, confirmLabel:at('admin_yes_unfreeze'), confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
-        if(res&&res.success){ toast('Transaction débloquée'); adminLoadFrozenTx(); }
-        else toast((res&&res.message)||'Erreur', true);
-      }).catch(function(){ toast('Erreur réseau', true); });
+        if(res&&res.success){ toast(at('admin_tx_unfrozen_success')); adminLoadFrozenTx(); }
+        else toast((res&&res.message)||at('admin_error_generic'), true);
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
 
 function adminConfirmCancelFrozen(ref){
   adminOpenConfirmModal({
-    icon:'🚫', title:'Confirmer l\'annulation définitive ?',
-    message:'Réf. '+ref+'\nCette action est IRRÉVERSIBLE. L\'argent, déjà revenu à l\'expéditeur pendant le gel, y reste définitivement.',
+    icon:'🚫', title:at('admin_confirm_cancel_final_title'),
+    message:at('admin_confirm_cancel_final_msg').replace('{ref}',ref),
     needsReason:true,
-    reasonOptions:['Erreur de destinataire confirmée','Montant incorrect envoyé par erreur','Double envoi par le client','Transaction frauduleuse confirmée','Erreur technique de l\'application'],
-    confirmLabel:'Confirmer l\'annulation', confirmColor:'var(--re)',
+    reasonOptions:[at('admin_tx_reason_wrong_recipient'),at('admin_tx_reason_wrong_amount'),at('admin_tx_reason_double_send'),at('admin_reason_fraud'),at('admin_tx_reason_technical')],
+    confirmLabel:at('admin_confirm_cancel_btn'), confirmColor:'var(--re)',
     onConfirm:function(reason){
       apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
-        if(res&&res.success){ toast('Annulation confirmée'); adminLoadFrozenTx(); }
-        else toast((res&&res.message)||'Erreur', true);
-      }).catch(function(){ toast('Erreur réseau', true); });
+        if(res&&res.success){ toast(at('admin_tx_cancel_confirmed')); adminLoadFrozenTx(); }
+        else toast((res&&res.message)||at('admin_error_generic'), true);
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3414,7 +3628,7 @@ function adminLoadUsers(page){
   var box = document.getElementById('usr-list-box');
   var pag = document.getElementById('usr-pagination');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
   apiCall('/admin?action=list-users','POST',{
     admin_password: window._adminPw,
@@ -3430,31 +3644,31 @@ function adminLoadUsers(page){
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
       if(users.length===0){
-        box.innerHTML='<div class="admin-empty">Aucun compte trouvé</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_users_none_found')+'</div>';
         return;
       }
       var html='';
       users.forEach(function(u){
         var statusColor = u.status==='blocked' ? 'var(--re)' : 'var(--g)';
-        var statusLabel = u.status==='blocked' ? 'Bloqué' : 'Actif';
+        var statusLabel = u.status==='blocked' ? at('admin_users_blocked') : at('admin_users_active');
         html+='<div class="admin-tx-card" onclick="adminOpenUserFromList(\''+u.phone_number+'\')">'
-          +'<div style="display:flex;justify-content:space-between"><b>'+(u.verified_name||u.full_name)+(u.verified_name?' <span style="color:var(--g)" title="Nom vérifié KYC">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between"><b>'+(u.verified_name||u.full_name)+(u.verified_name?' <span style="color:var(--g)" title="'+at('admin_kyc_verified_title')+'">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
           +'<div style="color:var(--t3);margin-top:2px">'+u.phone_number+(u.operator?' · '+u.operator:'')+'</div>'
-          +'<div style="color:var(--t3);margin-top:4px">Inscrit le '+new Date(u.created_at).toLocaleDateString()+' · '+(u.is_kyc?'KYC vérifié':'KYC non vérifié')+'</div>'
+          +'<div style="color:var(--t3);margin-top:4px">'+at('admin_users_registered_line').replace('{date}',new Date(u.created_at).toLocaleDateString()).replace('{kyc}',u.is_kyc?at('admin_users_kyc_verified_short'):at('admin_users_kyc_unverified_short'))+'</div>'
           +'</div>';
       });
       box.innerHTML=html;
 
       var totalPages = Math.max(1, Math.ceil(total/perPage));
       if(pag){
-        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._usrPage<=1?'disabled':'')+' onclick="adminLoadUsers('+(window._usrPage-1)+')">← Précédent</button>'
-          +'<span style="color:var(--t3)">Page '+window._usrPage+' / '+totalPages+' ('+total+' comptes)</span>'
-          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._usrPage>=totalPages?'disabled':'')+' onclick="adminLoadUsers('+(window._usrPage+1)+')">Suivant →</button>';
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._usrPage<=1?'disabled':'')+' onclick="adminLoadUsers('+(window._usrPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',window._usrPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._usrPage>=totalPages?'disabled':'')+' onclick="adminLoadUsers('+(window._usrPage+1)+')">'+at('admin_users_next_page')+'</button>';
       }
     } else {
-      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 // Depuis la liste globale, ouvre directement la fiche complete du compte
@@ -3847,7 +4061,7 @@ function admin2faDisable(){
 
 function adminLoadCountries(){
   var box=document.getElementById('admin-countries-box');
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=countries-list','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data&&res.data.countries){
       var list=res.data.countries;
@@ -3858,26 +4072,26 @@ function adminLoadCountries(){
           +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+c.name+'</span>'
           +'<button onclick="adminToggleCountry(\''+c.name.replace(/'/g,"\\'")+'\')" style="border:none;cursor:pointer;padding:5px 10px;border-radius:14px;font-size:10px;font-weight:700;'
           +(isOn?'background:var(--gl);color:var(--accent-text)':'background:var(--rl);color:var(--rd)')+'">'
-          +(isOn?'✅ Actif':'⏳ Inactif')
+          +(isOn?at('admin_country_active'):at('admin_country_inactive'))
           +'</button>'
           +'</div>';
       });
       html+='</div>';
       box.innerHTML=html;
     } else {
-      box.innerHTML='<div class="admin-empty" style="color:var(--re)">Erreur de chargement</div>';
+      box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminToggleCountry(name){
   apiCall('/admin?action=country-toggle','POST',{admin_password:window._adminPw,name:name},'').then(function(res){
     if(res&&res.success){
-      toast(name+' : '+(res.data.is_active?'activé':'désactivé'));
+      toast(name+' : '+(res.data.is_active?at('admin_country_activated'):at('admin_country_deactivated')));
       adminLoadCountries();
     } else {
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||at('admin_error_generic'), true);
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 
 // ═══════════════════════════════════════════
