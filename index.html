@@ -746,7 +746,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
 <!-- ADMIN KYC (acces via #admin dans l'URL, mot de passe simple, aucun compte requis) -->
 <div class="screen" id="s-admin" style="padding:20px;overflow-y:auto">
-  <div class="admin-header"><span class="adot"></span><span class="atitle">Admin ROM_MONEY</span><span class="asub">Espace sécurisé</span><button id="admin-lang-toggle" onclick="adminToggleLang()" style="background:none;border:1px solid var(--bord);border-radius:10px;padding:0 10px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0;font-size:12px;font-weight:700;margin-right:6px" aria-label="Changer de langue">FR</button><button id="admin-theme-toggle" onclick="toggleAdminTheme()" style="background:none;border:1px solid var(--bord);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0" aria-label="Basculer le theme"></button></div>
+  <div class="admin-header"><span class="adot"></span><span class="atitle">Admin ROM_MONEY</span><span class="asub" data-i18n-admin="admin_header_subtitle">Espace sécurisé</span><button id="admin-lang-toggle" onclick="adminToggleLang()" style="background:none;border:1px solid var(--bord);border-radius:10px;padding:0 10px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0;font-size:12px;font-weight:700;margin-right:6px" aria-label="Changer de langue">FR</button><button id="admin-theme-toggle" onclick="toggleAdminTheme()" style="background:none;border:1px solid var(--bord);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);flex-shrink:0" aria-label="Basculer le theme"></button></div>
   <div id="admin-login-box">
     <div class="frow"><label class="flabel" data-i18n-admin="admin_login_pw_label">Mot de passe admin</label>
     <input class="finput" id="admin-pw" type="password" placeholder="Mot de passe" data-i18n-admin-ph="admin_login_pw_ph" onkeydown="if(event.key==='Enter')adminLogin()"></div>
@@ -1643,6 +1643,7 @@ var I18N = {
   action_delete_kyc: {fr:"Suppression d'une demande KYC", en:'KYC request deleted'},
   action_exchange_rates_refresh: {fr:'Taux de change actualisés', en:'Exchange rates refreshed'},
   action_kyc_migrate_encrypt: {fr:'Chiffrement des anciennes photos KYC', en:'Old KYC photos encrypted'},
+  admin_header_subtitle: {fr:'Espace sécurisé', en:'Secure area'},
   result_success: {fr:'Succès', en:'Success'},
   result_failed: {fr:'Échec', en:'Failed'},
   admin_audit_no_match: {fr:'Aucune action ne correspond à ces filtres', en:'No action matches these filters'},
