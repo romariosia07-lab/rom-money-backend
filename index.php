@@ -3517,9 +3517,9 @@ function admin_update_settings() {
         if($key==='fraud_velocity_minutes' && $val < 1) fail('La fenetre de velocite doit etre d\'au moins 1 minute');
         if($key==='fraud_unusual_multiplier' && $val < 2) fail('Le multiplicateur doit etre d\'au moins 2');
         set_setting($key, (string)$val);
-        $changes[] = $def[1].' = '.$val;
+        $changes[] = ['key'=>$key, 'value'=>$val];
     }
-    admin_log('update_settings','success',null, implode(', ', $changes) ?: 'Aucun changement');
+    admin_log('update_settings','success',null, empty($changes) ? dk('d_no_change') : dk('d_settings_changed', ['items'=>json_encode($changes)]));
     ok(null,'Reglages mis a jour');
 }
 

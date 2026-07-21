@@ -1675,6 +1675,7 @@ var I18N = {
   d_country_changed: {fr:'De "{old}" vers "{new}" - {reason}', en:'From "{old}" to "{new}" - {reason}'},
   d_request_not_found: {fr:'Demande introuvable : {id}', en:'Request not found: {id}'},
   d_kyc_deleted: {fr:'Demande KYC {id} supprimée (ligne unique)', en:'KYC request {id} deleted (single row)'},
+  d_no_change: {fr:'Aucun changement', en:'No change'},
   result_success: {fr:'Succès', en:'Success'},
   result_failed: {fr:'Échec', en:'Failed'},
   admin_audit_no_match: {fr:'Aucune action ne correspond à ces filtres', en:'No action matches these filters'},
@@ -2520,10 +2521,31 @@ function adminForceLogout(){
 //   tu tapes toi-meme, par exemple) : affiche tel quel, toujours en
 //   francais, sans tenter de le traduire (retrocompatibilite totale, rien
 //   n'est jamais perdu ni casse).
+// Correspondance entre chaque cle de reglage (cote serveur) et sa cle de
+// traduction deja utilisee dans l'ecran Reglages - pour ne jamais dupliquer
+// ces libelles, meme ici dans le journal.
+var SETTINGS_KEY_TO_I18N = {
+  fee_rate_national:'admin_settings_fee_national', fee_free_threshold_national:'admin_settings_fee_threshold',
+  fee_rate_africa:'admin_settings_fee_africa', limit_unverified:'admin_settings_limit_unverified',
+  limit_verified:'admin_settings_limit_verified', admin_bf_max_attempts:'admin_settings_bf_attempts',
+  admin_bf_block_minutes:'admin_settings_bf_minutes', fraud_velocity_count:'admin_settings_fraud_velocity_count',
+  fraud_velocity_minutes:'admin_settings_fraud_velocity_minutes', fraud_unusual_multiplier:'admin_settings_fraud_multiplier',
+  fraud_unusual_min_amount:'admin_settings_fraud_unusual_min', fraud_new_recipient_min_amount:'admin_settings_fraud_newrecipient_min',
+  fx_margin_rate:'admin_settings_fx_margin'
+};
 function translateAuditDetail(details){
   if(!details || typeof details!=='string' || details.indexOf('I18N::')!==0) return details||'';
   try{
     var parsed = JSON.parse(details.slice(6));
+    // Cas particulier : liste de reglages modifies, longueur variable, geree
+    // a part plutot que par le simple remplacement {cle} du cas general.
+    if(parsed.key==='d_settings_changed'){
+      var items = JSON.parse(parsed.params.items||'[]');
+      return items.map(function(it){
+        var label = SETTINGS_KEY_TO_I18N[it.key] ? at(SETTINGS_KEY_TO_I18N[it.key]) : it.key;
+        return label+' = '+it.value;
+      }).join(', ');
+    }
     var text = at(parsed.key);
     var params = parsed.params||{};
     Object.keys(params).forEach(function(k){
