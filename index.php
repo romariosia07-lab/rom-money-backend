@@ -2120,7 +2120,7 @@ function kyc_admin_approve() {
       [$prenom, $nom, $legalName, $birthdate?:null, $id]);
     q("UPDATE users SET is_kyc=1, verified_name=?, verified_birthdate=? WHERE id=?",[$legalName, $birthdate?:null, $r['user_id']]);
     if($wasCorrected){
-        admin_log('kyc_approve_corrected','success',$r['phone_number'],'Nom/date corrige(s) par l\'admin avant validation KYC');
+        admin_log('kyc_approve_corrected','success',$r['phone_number'],dk('d_kyc_name_corrected'));
     }
     ok(null,'Compte verifie avec succes');
 }
@@ -2524,12 +2524,26 @@ function route_admin($action) {
 // Capture automatiquement l'IP et l'appareil/navigateur (user-agent) sur
 // CHAQUE action journalisee, sans que les ~20 fonctions qui appellent deja
 // admin_log() n'aient besoin d'etre modifiees une par une.
+// $details accepte deux formats :
+// - une chaine de texte brute (ancien comportement, jamais traduite - reste
+//   en francais pour toujours, y compris pour tout l'historique deja en
+//   base avant ce changement)
+// - un tableau ['key'=>'...', 'params'=>[...]] (nouveau, traduisible cote
+//   client selon la langue admin choisie) - stocke avec un prefixe "I18N::"
+//   reconnaissable, pour ne jamais confondre les deux formats a la lecture.
 function admin_log($action, $result, $targetPhone, $details) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
+    $stored = is_array($details) ? ('I18N::'.json_encode($details, JSON_UNESCAPED_UNICODE)) : $details;
     q("INSERT INTO audit_logs (action,result,target_phone,details,ip_address,user_agent) VALUES (?,?,?,?,?,?)",
-      [$action,$result,$targetPhone,$details,$ip,$ua]);
-    admin_notify_if_sensitive($action, $result, $targetPhone, $details, $ip);
+      [$action,$result,$targetPhone,$stored,$ip,$ua]);
+    admin_notify_if_sensitive($action, $result, $targetPhone, $stored, $ip);
+}
+// Raccourci pour construire une entree traduisible sans repeter la structure
+// du tableau a chaque appel : dk('d_login_success') ou avec parametres
+// dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]).
+function dk($key, $params = []) {
+    return ['key' => $key, 'params' => $params];
 }
 
 // Liste volontairement courte : seulement les actions ou une notification
@@ -2578,7 +2592,7 @@ function admin_login_check() {
     $pw = (string)($b['admin_password'] ?? '');
     admin_bruteforce_check();
     if (!hash_equals(ADMIN_PASSWORD, $pw)) {
-        admin_log('admin_login','failed',null,'Mot de passe incorrect');
+        admin_log('admin_login','failed',null,dk('d_wrong_password'));
         fail('Mot de passe admin incorrect',401);
     }
     if (admin_2fa_enabled()) {
@@ -2612,16 +2626,16 @@ function admin_login_check() {
             }
         }
         if (!$verified) {
-            admin_log('admin_login','failed',null,'Code 2FA invalide');
+            admin_log('admin_login','failed',null,dk('d_2fa_invalid'));
             fail('Code de verification incorrect',401);
         }
         if ($usedRecovery) {
-            admin_log('admin_login','success',null,'Connexion reussie (code de recuperation utilise - il ne pourra plus resservir)');
+            admin_log('admin_login','success',null,dk('d_login_success_recovery'));
             ok(['recovery_used'=>true],'Connexion reussie');
             return;
         }
     }
-    admin_log('admin_login','success',null,'Connexion reussie');
+    admin_log('admin_login','success',null,dk('d_login_success'));
     ok(null,'Connexion reussie');
 }
 
@@ -2646,7 +2660,7 @@ function admin_2fa_setup() {
     set_setting('admin_2fa_secret_pending', $secret);
     set_setting('admin_2fa_recovery_codes_pending', json_encode($recoveryCodesHashed));
     $otpauth = 'otpauth://totp/ROM-MONEY%20Admin?secret='.$secret.'&issuer=ROM-MONEY&period=30&digits=6';
-    admin_log('2fa_setup_started','success',null,'Generation d\'un nouveau secret 2FA (non encore active)');
+    admin_log('2fa_setup_started','success',null,dk('d_2fa_secret_generated'));
     ok(['secret'=>$secret, 'otpauth_uri'=>$otpauth, 'recovery_codes'=>$recoveryCodesPlain]);
 }
 
@@ -2660,7 +2674,7 @@ function admin_2fa_confirm() {
     $secret = get_setting('admin_2fa_secret_pending', '');
     if ($secret === '') fail('Aucune configuration 2FA en attente. Relancez la generation du QR code.');
     if (!totp_verify($secret, $code)) {
-        admin_log('2fa_setup_confirm','failed',null,'Code de confirmation incorrect');
+        admin_log('2fa_setup_confirm','failed',null,dk('d_confirm_code_wrong'));
         fail('Code incorrect. Verifiez l\'heure de votre telephone et reessayez.',401);
     }
     set_setting('admin_2fa_secret', $secret);
@@ -2668,7 +2682,7 @@ function admin_2fa_confirm() {
     set_setting('admin_2fa_enabled', '1');
     set_setting('admin_2fa_secret_pending', '');
     set_setting('admin_2fa_recovery_codes_pending', '');
-    admin_log('2fa_setup_confirm','success',null,'Double authentification activee');
+    admin_log('2fa_setup_confirm','success',null,dk('d_2fa_activated'));
     ok(null,'Double authentification activee avec succes');
 }
 
@@ -2679,14 +2693,14 @@ function admin_2fa_disable() {
         $code = trim((string)($b['totp_code'] ?? ''));
         $secret = get_setting('admin_2fa_secret', '');
         if (!totp_verify($secret, $code)) {
-            admin_log('2fa_disable','failed',null,'Code de confirmation incorrect');
+            admin_log('2fa_disable','failed',null,dk('d_confirm_code_wrong'));
             fail('Code incorrect',401);
         }
     }
     set_setting('admin_2fa_enabled', '0');
     set_setting('admin_2fa_secret', '');
     set_setting('admin_2fa_recovery_codes', '[]');
-    admin_log('2fa_disable','success',null,'Double authentification desactivee');
+    admin_log('2fa_disable','success',null,dk('d_2fa_deactivated'));
     ok(null,'Double authentification desactivee');
 }
 
@@ -2703,13 +2717,13 @@ function admin_2fa_regenerate_codes() {
     $code = trim((string)($b['totp_code'] ?? ''));
     $secret = get_setting('admin_2fa_secret', '');
     if (!totp_verify($secret, $code)) {
-        admin_log('2fa_regenerate_codes','failed',null,'Code de confirmation incorrect');
+        admin_log('2fa_regenerate_codes','failed',null,dk('d_confirm_code_wrong'));
         fail('Code incorrect',401);
     }
     $recoveryCodesPlain = totp_generate_recovery_codes(10);
     $recoveryCodesHashed = array_map(fn($c) => password_hash($c, PASSWORD_BCRYPT), $recoveryCodesPlain);
     set_setting('admin_2fa_recovery_codes', json_encode($recoveryCodesHashed));
-    admin_log('2fa_regenerate_codes','success',null,'Nouveaux codes de recuperation generes (les anciens sont invalides)');
+    admin_log('2fa_regenerate_codes','success',null,dk('d_recovery_codes_regenerated'));
     ok(['recovery_codes'=>$recoveryCodesPlain],'Nouveaux codes generes');
 }
 
@@ -2732,7 +2746,7 @@ function admin_kyc_migrate_encrypt() {
         q("UPDATE kyc_requests SET photo_recto=?, photo_verso=? WHERE id=?", [$newRecto, $newVerso, $r['id']]);
         $migrated++;
     }
-    admin_log('kyc_migrate_encrypt','success',null,$migrated.' demande(s) KYC migree(s) vers le chiffrement');
+    admin_log('kyc_migrate_encrypt','success',null,dk('d_kyc_migrated', ['count'=>$migrated]));
     ok(['migrated'=>$migrated],'Migration terminee');
 }
 
@@ -2755,7 +2769,7 @@ function admin_backfill_verified_names() {
         q("UPDATE users SET verified_name=?, verified_birthdate=? WHERE id=?", [$verifiedName, $verifiedBirthdate, $u['id']]);
         $fixed++;
     }
-    admin_log('backfill_verified_names','success',null,$fixed.' compte(s) deja verifie(s) corrige(s)');
+    admin_log('backfill_verified_names','success',null,dk('d_accounts_fixed', ['count'=>$fixed]));
     ok(['fixed'=>$fixed],'Migration terminee');
 }
 
@@ -2770,7 +2784,7 @@ function admin_reset_pin() {
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
-        admin_log('pin_reset','failed',$phone,'Compte introuvable - '.$reason);
+        admin_log('pin_reset','failed',$phone,dk('d_account_not_found_with_reason', ['reason'=>$reason]));
         fail('Compte introuvable',404);
     }
     q("UPDATE users SET pin_hash=?, pin_attempts=0, pin_locked_until=NULL WHERE id=?",
@@ -2869,7 +2883,7 @@ function admin_late_cancel() {
 
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx){
-        admin_log('late_cancel','failed',null,'Ref introuvable: '.$ref.' - '.$reason);
+        admin_log('late_cancel','failed',null,dk('d_ref_not_found', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Transaction introuvable',404);
     }
     $senderPhone = null;
@@ -2877,14 +2891,14 @@ function admin_late_cancel() {
         $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() ?: null;
     }
     if($tx['status']!=='completed'){
-        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,dk('d_ref_wrong_status', ['ref'=>$ref, 'status'=>$tx['status'], 'reason'=>$reason]));
         fail('Cette transaction n\'est pas au statut "completed" (deja annulee ou en attente)');
     }
     if($tx['type']==='fee'){
         fail('Impossible d\'annuler directement une ligne de frais');
     }
     if((time() - strtotime($tx['created_at'])) > 2*24*3600){
-        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' - delai 2j depasse - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,dk('d_ref_deadline_passed', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Delai de 2 jours depasse : annulation tardive impossible, meme pour un admin');
     }
     $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
@@ -2893,7 +2907,7 @@ function admin_late_cancel() {
     }
     $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
     if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
-        admin_log('late_cancel','failed',$senderPhone,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
+        admin_log('late_cancel','failed',$senderPhone,dk('d_ref_insufficient_balance', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Le destinataire n\'a plus assez de solde pour annuler automatiquement cette transaction');
     }
 
@@ -2902,7 +2916,7 @@ function admin_late_cancel() {
         q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason='admin_late_cancel' WHERE id=?",[$tx['id']]);
-        admin_log('late_cancel','success',$senderPhone,'Ref '.$ref.' - '.$reason);
+        admin_log('late_cancel','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
         db()->commit();
         ok(null,'Transaction annulee avec succes');
     } catch(Exception $e) {
@@ -2930,12 +2944,12 @@ function admin_freeze_transaction() {
 
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx){
-        admin_log('tx_freeze','failed',null,'Ref introuvable: '.$ref.' - '.$reason);
+        admin_log('tx_freeze','failed',null,dk('d_ref_not_found', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Transaction introuvable',404);
     }
     $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
     if($tx['status']!=='completed'){
-        admin_log('tx_freeze','failed',$senderPhone,'Ref '.$ref.' statut='.$tx['status'].' - '.$reason);
+        admin_log('tx_freeze','failed',$senderPhone,dk('d_ref_wrong_status', ['ref'=>$ref, 'status'=>$tx['status'], 'reason'=>$reason]));
         fail('Seule une transaction "completed" peut etre gelee (statut actuel : '.$tx['status'].')');
     }
     if($tx['type']==='fee'){
@@ -2947,7 +2961,7 @@ function admin_freeze_transaction() {
     }
     $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
     if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
-        admin_log('tx_freeze','failed',$senderPhone,'Ref '.$ref.' - solde destinataire insuffisant - '.$reason);
+        admin_log('tx_freeze','failed',$senderPhone,dk('d_ref_insufficient_balance', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Le destinataire n\'a plus assez de solde pour geler cette transaction');
     }
 
@@ -2956,7 +2970,7 @@ function admin_freeze_transaction() {
         q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE transactions SET status='frozen', frozen_at=NOW(), frozen_reason=? WHERE id=?",[$reason,$tx['id']]);
-        admin_log('tx_freeze','success',$senderPhone,'Ref '.$ref.' - '.$reason);
+        admin_log('tx_freeze','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
         db()->commit();
         $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
         $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
@@ -2985,7 +2999,7 @@ function admin_unfreeze_transaction() {
     $senderPhone = $sw ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$sw])->fetchColumn() : null;
     $senderWallet = q("SELECT balance FROM wallets WHERE id=?",[$sw])->fetch();
     if(!$senderWallet || (float)$senderWallet['balance'] < (float)$tx['amount']){
-        admin_log('tx_unfreeze','failed',$senderPhone,'Ref '.$ref.' - solde expediteur insuffisant pour debloquer');
+        admin_log('tx_unfreeze','failed',$senderPhone,dk('d_ref_unfreeze_insufficient', ['ref'=>$ref]));
         fail('L\'expediteur n\'a plus assez de solde pour debloquer cette transaction (il a peut-etre depense l\'argent temporairement recredite)');
     }
     db()->beginTransaction();
@@ -2993,7 +3007,7 @@ function admin_unfreeze_transaction() {
         q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$rw]);
         q("UPDATE transactions SET status='completed', frozen_at=NULL, frozen_reason=NULL WHERE id=?",[$tx['id']]);
-        admin_log('tx_unfreeze','success',$senderPhone,'Ref '.$ref.' debloquee');
+        admin_log('tx_unfreeze','success',$senderPhone,dk('d_ref_unfrozen', ['ref'=>$ref]));
         db()->commit();
         $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
         $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
@@ -3022,7 +3036,7 @@ function admin_confirm_cancel_frozen() {
     if($tx['status']!=='frozen') fail('Cette transaction n\'est pas gelee (statut actuel : '.$tx['status'].')');
     $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
     q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason=? WHERE id=?",[$reason,$tx['id']]);
-    admin_log('tx_freeze_confirm_cancel','success',$senderPhone,'Ref '.$ref.' - '.$reason);
+    admin_log('tx_freeze_confirm_cancel','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
     $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
     $senderUid = $sw ? q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn() : null;
     $receiverUid = $rw ? q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn() : null;
@@ -3611,7 +3625,7 @@ function admin_country_toggle() {
     if(!$row) fail('Pays introuvable',404);
     $newStatus = $row['is_active'] ? 0 : 1;
     q("UPDATE active_countries SET is_active=?, updated_at=NOW() WHERE name=?",[$newStatus,$name]);
-    admin_log('country_toggle','success',null,($newStatus?'Activation':'Désactivation').' pays : '.$name);
+    admin_log('country_toggle','success',null,dk($newStatus?'d_country_toggle_on':'d_country_toggle_off', ['country'=>$name]));
     ok(['name'=>$name,'is_active'=>(bool)$newStatus],'Statut du pays mis a jour');
 }
 
@@ -3633,11 +3647,11 @@ function admin_block_account() {
     if(!$phone || !$reason) fail('Telephone et raison requis');
     $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
-        admin_log('account_block','failed',$phone,'Compte introuvable');
+        admin_log('account_block','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
     if($u['status']==='blocked'){
-        admin_log('account_block','failed',$phone,'Deja bloque - '.$reason);
+        admin_log('account_block','failed',$phone,dk('d_already_blocked', ['reason'=>$reason]));
         fail('Ce compte est deja bloque');
     }
     q("UPDATE users SET status='blocked' WHERE id=?",[$u['id']]);
@@ -3653,11 +3667,11 @@ function admin_unblock_account() {
     if(!$phone || !$reason) fail('Telephone et raison requis');
     $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
-        admin_log('account_unblock','failed',$phone,'Compte introuvable');
+        admin_log('account_unblock','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
     if($u['status']==='active'){
-        admin_log('account_unblock','failed',$phone,'Deja actif - '.$reason);
+        admin_log('account_unblock','failed',$phone,dk('d_already_active', ['reason'=>$reason]));
         fail('Ce compte est deja actif');
     }
     q("UPDATE users SET status='active' WHERE id=?",[$u['id']]);
@@ -3688,7 +3702,7 @@ function admin_delete_account() {
 
     $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
-        admin_log('account_delete','failed',$phone,'Compte introuvable');
+        admin_log('account_delete','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
     $uid = $u['id'];
@@ -3705,7 +3719,7 @@ function admin_delete_account() {
     q("DELETE FROM wallets WHERE user_id=?",[$uid]);
     q("DELETE FROM users WHERE id=?",[$uid]);
 
-    admin_log('account_delete','success',$phone,'Compte "'.($u['full_name']?:'?').'" supprime definitivement - '.$reason);
+    admin_log('account_delete','success',$phone,dk('d_account_deleted', ['name'=>($u['full_name']?:'?'), 'reason'=>$reason]));
     ok(null,'Compte supprime definitivement');
 }
 
@@ -3733,7 +3747,7 @@ function admin_refresh_exchange_rates() {
           [strtoupper($code), $rate]);
         $count++;
     }
-    admin_log('exchange_rates_refresh','success',null,$count.' devise(s) mise(s) a jour manuellement');
+    admin_log('exchange_rates_refresh','success',null,dk('d_currencies_updated', ['count'=>$count]));
     ok(['updated' => $count], 'Taux de change actualises');
 }
 
@@ -3746,17 +3760,17 @@ function admin_update_country() {
     if(!$phone || !$country || !$reason) fail('Telephone, pays et raison requis');
     $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
-        admin_log('update_country','failed',$phone,'Compte introuvable');
+        admin_log('update_country','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']){
-        admin_log('update_country','failed',$phone,'Pays non actif: '.$country.' - '.$reason);
+        admin_log('update_country','failed',$phone,dk('d_country_not_active', ['country'=>$country, 'reason'=>$reason]));
         fail('Ce pays n\'est pas actif sur ROM_MONEY');
     }
     $oldCountry = $u['country'];
     q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
-    admin_log('update_country','success',$phone,'De "'.($oldCountry?:'-').'" vers "'.$country.'" - '.$reason);
+    admin_log('update_country','success',$phone,dk('d_country_changed', ['old'=>($oldCountry?:'-'), 'new'=>$country, 'reason'=>$reason]));
     ok(null,'Pays mis a jour avec succes');
 }
 
@@ -3779,11 +3793,11 @@ function admin_delete_kyc() {
     if($createdAt){ $where .= " AND created_at=?"; $params[] = $createdAt; }
     $k = q("SELECT ctid, phone_number FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
     if(!$k){
-        admin_log('delete_kyc','failed',null,'Demande introuvable: '.$id);
+        admin_log('delete_kyc','failed',null,dk('d_request_not_found', ['id'=>$id]));
         fail('Demande introuvable',404);
     }
     q("DELETE FROM kyc_requests WHERE ctid = ?::tid", [$k['ctid']]);
-    admin_log('delete_kyc','success',$k['phone_number'],'Demande KYC '.$id.' supprimee (ligne unique)');
+    admin_log('delete_kyc','success',$k['phone_number'],dk('d_kyc_deleted', ['id'=>$id]));
     ok(null,'Demande KYC supprimee');
 }
 

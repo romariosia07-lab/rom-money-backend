@@ -1644,6 +1644,37 @@ var I18N = {
   action_exchange_rates_refresh: {fr:'Taux de change actualisés', en:'Exchange rates refreshed'},
   action_kyc_migrate_encrypt: {fr:'Chiffrement des anciennes photos KYC', en:'Old KYC photos encrypted'},
   admin_header_subtitle: {fr:'Espace sécurisé', en:'Secure area'},
+  d_wrong_password: {fr:'Mot de passe incorrect', en:'Incorrect password'},
+  d_2fa_invalid: {fr:'Code 2FA invalide', en:'Invalid 2FA code'},
+  d_login_success_recovery: {fr:'Connexion réussie (code de récupération utilisé - il ne pourra plus resservir)', en:'Login successful (recovery code used - it can no longer be reused)'},
+  d_login_success: {fr:'Connexion réussie', en:'Login successful'},
+  d_2fa_secret_generated: {fr:"Génération d'un nouveau secret 2FA (non encore active)", en:'New 2FA secret generated (not yet active)'},
+  d_confirm_code_wrong: {fr:'Code de confirmation incorrect', en:'Incorrect confirmation code'},
+  d_2fa_activated: {fr:'Double authentification activée', en:'Two-factor authentication enabled'},
+  d_2fa_deactivated: {fr:'Double authentification désactivée', en:'Two-factor authentication disabled'},
+  d_recovery_codes_regenerated: {fr:'Nouveaux codes de récupération générés (les anciens sont invalides)', en:'New recovery codes generated (old ones are now invalid)'},
+  d_kyc_migrated: {fr:'{count} demande(s) KYC migrée(s) vers le chiffrement', en:'{count} KYC request(s) migrated to encryption'},
+  d_accounts_fixed: {fr:'{count} compte(s) déjà vérifié(s) corrigé(s)', en:'{count} already-verified account(s) fixed'},
+  d_account_not_found_with_reason: {fr:'Compte introuvable - {reason}', en:'Account not found - {reason}'},
+  d_ref_not_found: {fr:'Réf introuvable : {ref} - {reason}', en:'Reference not found: {ref} - {reason}'},
+  d_ref_wrong_status: {fr:'Réf {ref} statut={status} - {reason}', en:'Ref {ref} status={status} - {reason}'},
+  d_ref_deadline_passed: {fr:'Réf {ref} - délai 2j dépassé - {reason}', en:'Ref {ref} - 2-day deadline exceeded - {reason}'},
+  d_ref_insufficient_balance: {fr:'Réf {ref} - solde destinataire insuffisant - {reason}', en:"Ref {ref} - recipient's balance insufficient - {reason}"},
+  d_ref_with_reason: {fr:'Réf {ref} - {reason}', en:'Ref {ref} - {reason}'},
+  d_ref_unfreeze_insufficient: {fr:'Réf {ref} - solde expéditeur insuffisant pour débloquer', en:"Ref {ref} - sender's balance insufficient to unfreeze"},
+  d_ref_unfrozen: {fr:'Réf {ref} débloquée', en:'Ref {ref} unfrozen'},
+  d_kyc_name_corrected: {fr:"Nom/date corrigé(s) par l'admin avant validation KYC", en:'Name/date corrected by admin before KYC approval'},
+  d_country_toggle_on: {fr:'Activation pays : {country}', en:'Country enabled: {country}'},
+  d_country_toggle_off: {fr:'Désactivation pays : {country}', en:'Country disabled: {country}'},
+  d_account_not_found: {fr:'Compte introuvable', en:'Account not found'},
+  d_already_blocked: {fr:'Déjà bloqué - {reason}', en:'Already blocked - {reason}'},
+  d_already_active: {fr:'Déjà actif - {reason}', en:'Already active - {reason}'},
+  d_account_deleted: {fr:'Compte "{name}" supprimé définitivement - {reason}', en:'Account "{name}" permanently deleted - {reason}'},
+  d_currencies_updated: {fr:'{count} devise(s) mise(s) à jour manuellement', en:'{count} currencies manually updated'},
+  d_country_not_active: {fr:'Pays non actif : {country} - {reason}', en:'Country not active: {country} - {reason}'},
+  d_country_changed: {fr:'De "{old}" vers "{new}" - {reason}', en:'From "{old}" to "{new}" - {reason}'},
+  d_request_not_found: {fr:'Demande introuvable : {id}', en:'Request not found: {id}'},
+  d_kyc_deleted: {fr:'Demande KYC {id} supprimée (ligne unique)', en:'KYC request {id} deleted (single row)'},
   result_success: {fr:'Succès', en:'Success'},
   result_failed: {fr:'Échec', en:'Failed'},
   admin_audit_no_match: {fr:'Aucune action ne correspond à ces filtres', en:'No action matches these filters'},
@@ -2480,6 +2511,32 @@ function adminForceLogout(){
 // ═══════════════════════════════════════════
 // ADMIN - Vue d'ensemble (dashboard)
 // ═══════════════════════════════════════════
+// Traduit le champ "details" du journal d'audit selon la langue admin
+// choisie. Deux formats geres :
+// - "I18N::{...}" (nouveau, genere a partir d'aujourd'hui) : JSON avec une
+//   cle de traduction + des parametres, traduit et recompose ici.
+// - texte brut (tout l'historique deja enregistre avant ce changement,
+//   ou les rares cas volontairement laisses en texte libre - la raison que
+//   tu tapes toi-meme, par exemple) : affiche tel quel, toujours en
+//   francais, sans tenter de le traduire (retrocompatibilite totale, rien
+//   n'est jamais perdu ni casse).
+function translateAuditDetail(details){
+  if(!details || typeof details!=='string' || details.indexOf('I18N::')!==0) return details||'';
+  try{
+    var parsed = JSON.parse(details.slice(6));
+    var text = at(parsed.key);
+    var params = parsed.params||{};
+    Object.keys(params).forEach(function(k){
+      var val = params[k];
+      // Les noms de pays beneficient de la meme table de traduction que le
+      // reste de l'admin (Algerie -> Algeria, etc.) plutot que d'un simple
+      // remplacement brut.
+      if((k==='country'||k==='old'||k==='new') && typeof val==='string') val = adminCountryName(val);
+      text = text.split('{'+k+'}').join(val);
+    });
+    return text;
+  }catch(e){ return details; }
+}
 function DASH_PERIOD_FR_GET(key){
   var map={today:'admin_period_today','7d':'admin_period_7d',month:'admin_period_month',all:'admin_period_all',custom:'admin_period_custom'};
   return map[key] ? at(map[key]) : null;
@@ -3745,7 +3802,7 @@ function adminLoadAuditLog(){
         return '<div class="admin-audit-row">'
           +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR_GET(l.action)||l.action)+'</b>'+resultPill(l.result)+'</div>'
           +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
-          +'<div style="color:var(--t2);margin-top:2px">'+(l.details||'')+'</div>'
+          +'<div style="color:var(--t2);margin-top:2px">'+translateAuditDetail(l.details)+'</div>'
           +(l.ip_address?'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+at('admin_audit_ip_label').replace('{ip}',l.ip_address)+(l.user_agent?' — '+parseUserAgent(l.user_agent):'')+'</div>':'')
           +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
           +'</div>';
