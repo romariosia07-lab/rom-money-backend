@@ -822,97 +822,97 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-settings" class="admin-panel" style="display:none">
-      <div class="admin-stitle">⚙ Frais et plafonds</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Modifie le fonctionnement de l'app en temps reel, sans deploiement. Chaque changement est journalise dans l'audit.</div>
+      <div class="admin-stitle" data-i18n-admin="admin_settings_fees_title">⚙ Frais et plafonds</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_settings_fees_desc">Modifie le fonctionnement de l'app en temps reel, sans deploiement. Chaque changement est journalise dans l'audit.</div>
 
-      <div class="frow"><label class="flabel">Taux de frais national (proportion, ex: 0.01 = 1%)</label><input class="finput" id="set-fee-national" type="number" step="0.001" min="0" max="1"></div>
-      <div class="frow"><label class="flabel">Seuil de gratuite national (F)</label><input class="finput" id="set-fee-threshold" type="number" step="100" min="0"></div>
-      <div class="frow"><label class="flabel">Taux de frais Transfert Afrique (proportion, ex: 0.015 = 1,5%)</label><input class="finput" id="set-fee-africa" type="number" step="0.001" min="0" max="1"></div>
-      <div class="frow"><label class="flabel">Plafond mensuel non verifie KYC (F)</label><input class="finput" id="set-limit-unverified" type="number" step="1000" min="0"></div>
-      <div class="frow"><label class="flabel">Plafond mensuel verifie KYC (F)</label><input class="finput" id="set-limit-verified" type="number" step="1000" min="0"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_national">Taux de frais national (proportion, ex: 0.01 = 1%)</label><input class="finput" id="set-fee-national" type="number" step="0.001" min="0" max="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_threshold">Seuil de gratuite national (F)</label><input class="finput" id="set-fee-threshold" type="number" step="100" min="0"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_africa">Taux de frais Transfert Afrique (proportion, ex: 0.015 = 1,5%)</label><input class="finput" id="set-fee-africa" type="number" step="0.001" min="0" max="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_limit_unverified">Plafond mensuel non verifie KYC (F)</label><input class="finput" id="set-limit-unverified" type="number" step="1000" min="0"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_limit_verified">Plafond mensuel verifie KYC (F)</label><input class="finput" id="set-limit-verified" type="number" step="1000" min="0"></div>
 
-      <div class="frow"><label class="flabel">Tentatives admin avant blocage</label><input class="finput" id="set-bf-attempts" type="number" step="1" min="1"></div>
-      <div class="frow"><label class="flabel">Duree du blocage admin (minutes)</label><input class="finput" id="set-bf-minutes" type="number" step="1" min="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_bf_attempts">Tentatives admin avant blocage</label><input class="finput" id="set-bf-attempts" type="number" step="1" min="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_bf_minutes">Duree du blocage admin (minutes)</label><input class="finput" id="set-bf-minutes" type="number" step="1" min="1"></div>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bord)">
-        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px">🚩 Seuils de détection de fraude</div>
-        <div class="frow"><label class="flabel">Nb transactions suspect (vélocité)</label><input class="finput" id="set-fraud-velocity-count" type="number" step="1" min="2"></div>
-        <div class="frow"><label class="flabel">Fenêtre de vélocité (minutes)</label><input class="finput" id="set-fraud-velocity-minutes" type="number" step="1" min="1"></div>
-        <div class="frow"><label class="flabel">Multiplicateur montant inhabituel (x fois la moyenne)</label><input class="finput" id="set-fraud-unusual-multiplier" type="number" step="1" min="2"></div>
-        <div class="frow"><label class="flabel">Montant plancher — inhabituel (F)</label><input class="finput" id="set-fraud-unusual-min" type="number" step="1000" min="0"></div>
-        <div class="frow"><label class="flabel">Montant plancher — nouveau destinataire (F)</label><input class="finput" id="set-fraud-newrecipient-min" type="number" step="1000" min="0"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px" data-i18n-admin="admin_settings_fraud_title">🚩 Seuils de détection de fraude</div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fraud_velocity_count">Nb transactions suspect (vélocité)</label><input class="finput" id="set-fraud-velocity-count" type="number" step="1" min="2"></div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fraud_velocity_minutes">Fenêtre de vélocité (minutes)</label><input class="finput" id="set-fraud-velocity-minutes" type="number" step="1" min="1"></div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fraud_multiplier">Multiplicateur montant inhabituel (x fois la moyenne)</label><input class="finput" id="set-fraud-unusual-multiplier" type="number" step="1" min="2"></div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fraud_unusual_min">Montant plancher — inhabituel (F)</label><input class="finput" id="set-fraud-unusual-min" type="number" step="1000" min="0"></div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fraud_newrecipient_min">Montant plancher — nouveau destinataire (F)</label><input class="finput" id="set-fraud-newrecipient-min" type="number" step="1000" min="0"></div>
       </div>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bord)">
-        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px">💱 Transfert Afrique — devises différentes</div>
-        <div class="frow"><label class="flabel">Marge de change (0 = aucune, 0.01 = 1%)</label><input class="finput" id="set-fx-margin" type="number" step="0.001" min="0" max="1"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px" data-i18n-admin="admin_settings_fx_title">💱 Transfert Afrique — devises différentes</div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fx_margin">Marge de change (0 = aucune, 0.01 = 1%)</label><input class="finput" id="set-fx-margin" type="number" step="0.001" min="0" max="1"></div>
       </div>
 
-      <button class="btn-g" onclick="adminSaveSettings()">Enregistrer les réglages</button>
+      <button class="btn-g" onclick="adminSaveSettings()" data-i18n-admin="admin_settings_save_btn">Enregistrer les réglages</button>
       <div id="settings-status-box" style="margin-top:12px"></div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
-        <div class="admin-stitle">🔒 Double authentification (2FA)</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Protege l'acces admin avec un second code, en plus du mot de passe, genere par une application comme Google Authenticator ou Authy.</div>
-        <div id="admin-2fa-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)">Chargement...</div>
+        <div class="admin-stitle" data-i18n-admin="admin_2fa_title_settings">🔒 Double authentification (2FA)</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_2fa_settings_desc">Protege l'acces admin avec un second code, en plus du mot de passe, genere par une application comme Google Authenticator ou Authy.</div>
+        <div id="admin-2fa-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)" data-i18n-admin="admin_loading">Chargement...</div>
         <div id="admin-2fa-off-box" style="display:none">
-          <button class="btn-g" onclick="admin2faStartSetup()">Activer la double authentification</button>
+          <button class="btn-g" onclick="admin2faStartSetup()" data-i18n-admin="admin_2fa_enable_btn">Activer la double authentification</button>
         </div>
         <div id="admin-2fa-setup-box" style="display:none">
           <div style="text-align:center;margin:14px 0">
             <div id="admin-2fa-qr" style="display:inline-block;background:#fff;padding:10px;border-radius:10px"></div>
           </div>
-          <div style="font-size:11px;color:var(--t3);margin-bottom:10px;text-align:center">Scannez ce QR code avec Google Authenticator ou Authy, puis entrez le code affiché pour confirmer.</div>
-          <div class="frow"><label class="flabel">Code affiché dans l'application</label>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:10px;text-align:center" data-i18n-admin="admin_2fa_scan_qr_desc">Scannez ce QR code avec Google Authenticator ou Authy, puis entrez le code affiché pour confirmer.</div>
+          <div class="frow"><label class="flabel" data-i18n-admin="admin_2fa_app_code_label">Code affiché dans l'application</label>
           <input class="finput" id="admin-2fa-confirm-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
-          <button class="btn-g" onclick="admin2faConfirmSetup()">Confirmer et activer</button>
+          <button class="btn-g" onclick="admin2faConfirmSetup()" data-i18n-admin="admin_2fa_confirm_activate_btn">Confirmer et activer</button>
           <div id="admin-2fa-recovery-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
-            <div style="font-weight:700;color:var(--t1);margin-bottom:6px">⚠ Codes de récupération — à noter maintenant</div>
-            <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Chacun ne fonctionne qu'une seule fois. Conservez-les en lieu sûr (ils ne seront plus jamais affichés en entier).</div>
+            <div style="font-weight:700;color:var(--t1);margin-bottom:6px" data-i18n-admin="admin_2fa_recovery_title">⚠ Codes de récupération — à noter maintenant</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:8px" data-i18n-admin="admin_2fa_recovery_desc">Chacun ne fonctionne qu'une seule fois. Conservez-les en lieu sûr (ils ne seront plus jamais affichés en entier).</div>
             <div id="admin-2fa-recovery-codes" style="font-family:monospace;font-size:13px;color:var(--t1);line-height:1.8"></div>
           </div>
         </div>
         <div id="admin-2fa-on-box" style="display:none">
-          <div style="color:var(--su,#1a8);font-size:13px;margin-bottom:10px">✓ Double authentification active</div>
-          <div class="frow"><label class="flabel">Code de votre application</label>
+          <div style="color:var(--su,#1a8);font-size:13px;margin-bottom:10px" data-i18n-admin="admin_2fa_active_label">✓ Double authentification active</div>
+          <div class="frow"><label class="flabel" data-i18n-admin="admin_2fa_your_app_code">Code de votre application</label>
           <input class="finput" id="admin-2fa-disable-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
-          <button class="btn-g" onclick="admin2faRegenerateCodes()" style="margin-bottom:10px">Régénérer mes codes de récupération</button>
-          <button style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()">Désactiver la double authentification</button>
+          <button class="btn-g" onclick="admin2faRegenerateCodes()" style="margin-bottom:10px" data-i18n-admin="admin_2fa_regenerate_btn">Régénérer mes codes de récupération</button>
+          <button style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()" data-i18n-admin="admin_2fa_disable_btn">Désactiver la double authentification</button>
           <div id="admin-2fa-regen-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
-            <div style="font-weight:700;color:var(--t1);margin-bottom:6px">⚠ Nouveaux codes de récupération — à noter maintenant</div>
-            <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Les anciens codes ne fonctionnent plus. Ceux-ci ne seront plus jamais affichés en entier.</div>
+            <div style="font-weight:700;color:var(--t1);margin-bottom:6px" data-i18n-admin="admin_2fa_regen_title">⚠ Nouveaux codes de récupération — à noter maintenant</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:8px" data-i18n-admin="admin_2fa_regen_desc">Les anciens codes ne fonctionnent plus. Ceux-ci ne seront plus jamais affichés en entier.</div>
             <div id="admin-2fa-regen-codes" style="font-family:monospace;font-size:13px;color:var(--t1);line-height:1.8"></div>
           </div>
         </div>
       </div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
-        <div class="admin-stitle">🔔 Alertes push</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Reçois une notification directement sur cet appareil dès qu'une action sensible se produit (connexion admin, blocage de compte, réinitialisation de PIN...), sans avoir à consulter le journal d'audit.</div>
-        <div id="admin-push-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)">Chargement...</div>
-        <button class="btn-g" id="admin-push-toggle-btn" onclick="adminTogglePush()">Activer les alertes push</button>
+        <div class="admin-stitle" data-i18n-admin="admin_push_title">🔔 Alertes push</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_push_desc">Reçois une notification directement sur cet appareil dès qu'une action sensible se produit (connexion admin, blocage de compte, réinitialisation de PIN...), sans avoir à consulter le journal d'audit.</div>
+        <div id="admin-push-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)" data-i18n-admin="admin_loading">Chargement...</div>
+        <button class="btn-g" id="admin-push-toggle-btn" onclick="adminTogglePush()" data-i18n-admin="admin_push_enable_btn">Activer les alertes push</button>
       </div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
-        <div class="admin-stitle">🔒 Chiffrement des photos KYC</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.</div>
-        <button class="btn-g" onclick="adminMigrateKycEncrypt()">Chiffrer les anciennes photos KYC</button>
+        <div class="admin-stitle" data-i18n-admin="admin_kyc_encrypt_title">🔒 Chiffrement des photos KYC</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_kyc_encrypt_desc">Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.</div>
+        <button class="btn-g" onclick="adminMigrateKycEncrypt()" data-i18n-admin="admin_kyc_encrypt_btn">Chiffrer les anciennes photos KYC</button>
         <div id="admin-kyc-migrate-status" style="margin-top:10px;font-size:12px;color:var(--t2)"></div>
       </div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
-        <div class="admin-stitle">✓ Comptes vérifiés — noms manquants</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n'a pas été enregistré (typiquement des comptes approuvés avant l'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.</div>
-        <button class="btn-g" onclick="adminBackfillVerifiedNames()">Corriger les comptes déjà vérifiés</button>
+        <div class="admin-stitle" data-i18n-admin="admin_backfill_title">✓ Comptes vérifiés — noms manquants</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_backfill_desc">Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n'a pas été enregistré (typiquement des comptes approuvés avant l'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.</div>
+        <button class="btn-g" onclick="adminBackfillVerifiedNames()" data-i18n-admin="admin_backfill_btn">Corriger les comptes déjà vérifiés</button>
         <div id="admin-backfill-status" style="margin-top:10px;font-size:12px;color:var(--t2)"></div>
       </div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
-        <div class="admin-stitle">💱 Taux de change</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Utilisés pour les transferts entre pays de devises différentes (Phase 2 en cours de construction). Rafraîchis automatiquement toutes les 12h ; ce bouton force une actualisation immédiate.</div>
-        <button class="btn-g" onclick="adminRefreshExchangeRates()">Actualiser maintenant</button>
+        <div class="admin-stitle" data-i18n-admin="admin_fx_rates_title">💱 Taux de change</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_fx_rates_desc">Utilisés pour les transferts entre pays de devises différentes (Phase 2 en cours de construction). Rafraîchis automatiquement toutes les 12h ; ce bouton force une actualisation immédiate.</div>
+        <button class="btn-g" onclick="adminRefreshExchangeRates()" data-i18n-admin="admin_fx_refresh_btn">Actualiser maintenant</button>
         <div id="admin-fx-status" style="margin:10px 0;font-size:12px;color:var(--t2)"></div>
-        <button onclick="adminToggleFxRatesList()" id="admin-fx-toggle-btn" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--t2);cursor:pointer;margin-bottom:8px">Afficher le détail des taux ▾</button>
+        <button onclick="adminToggleFxRatesList()" id="admin-fx-toggle-btn" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--t2);cursor:pointer;margin-bottom:8px" data-i18n-admin="admin_fx_show_details_btn">Afficher le détail des taux ▾</button>
         <div id="admin-fx-rates-box" style="margin-top:10px;display:none"></div>
       </div>
     </div>
@@ -1060,31 +1060,31 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-audit" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Journal d'audit (100 dernières actions)</div>
-      <div class="frow"><label class="flabel">Type d'action</label>
+      <div class="admin-stitle" data-i18n-admin="admin_audit_title">Journal d'audit (100 dernières actions)</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_audit_action_type">Type d'action</label>
         <select class="finput" id="audit-f-action">
-          <option value="">Toutes les actions</option>
-          <option value="pin_reset">Réinitialisation PIN</option>
-          <option value="late_cancel">Annulation tardive</option>
-          <option value="admin_login">Connexion admin</option>
-          <option value="country_toggle">Pays actif/inactif</option>
-          <option value="account_block">Blocage de compte</option>
-          <option value="account_unblock">Déblocage de compte</option>
-          <option value="update_country">Modification du pays</option>
+          <option value="" data-i18n-admin="admin_audit_all_actions">Toutes les actions</option>
+          <option value="pin_reset" data-i18n-admin="admin_audit_action_pin_reset">Réinitialisation PIN</option>
+          <option value="late_cancel" data-i18n-admin="admin_audit_action_late_cancel">Annulation tardive</option>
+          <option value="admin_login" data-i18n-admin="admin_audit_action_admin_login">Connexion admin</option>
+          <option value="country_toggle" data-i18n-admin="admin_audit_action_country_toggle">Pays actif/inactif</option>
+          <option value="account_block" data-i18n-admin="admin_audit_action_account_block">Blocage de compte</option>
+          <option value="account_unblock" data-i18n-admin="admin_audit_action_account_unblock">Déblocage de compte</option>
+          <option value="update_country" data-i18n-admin="admin_audit_action_update_country">Modification du pays</option>
         </select>
       </div>
-      <div class="frow"><label class="flabel">Numéro de compte</label><input class="finput" id="audit-f-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_audit_account_number">Numéro de compte</label><input class="finput" id="audit-f-phone" placeholder="0000000000"></div>
       <div style="display:flex;gap:10px">
-        <div class="frow" style="flex:1"><label class="flabel">Date de début</label><input class="finput" type="date" id="audit-f-from"></div>
-        <div class="frow" style="flex:1"><label class="flabel">Date de fin</label><input class="finput" type="date" id="audit-f-to"></div>
+        <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_from">Date de début</label><input class="finput" type="date" id="audit-f-from"></div>
+        <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_to">Date de fin</label><input class="finput" type="date" id="audit-f-to"></div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn-g" style="margin-top:0" onclick="adminLoadAuditLog()">Filtrer</button>
-        <button class="btn-w" style="margin-top:0" onclick="adminResetAuditFilters()">Réinitialiser</button>
+        <button class="btn-g" style="margin-top:0" onclick="adminLoadAuditLog()" data-i18n-admin="admin_audit_filter_btn">Filtrer</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminResetAuditFilters()" data-i18n-admin="admin_audit_reset_btn">Réinitialiser</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('xlsx')">⬇ Exporter Excel</button>
-        <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('pdf')">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('xlsx')" data-i18n-admin="admin_audit_export_xlsx">⬇ Exporter Excel</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('pdf')" data-i18n-admin="admin_audit_export_pdf">⬇ Exporter PDF</button>
       </div>
       <div id="admin-audit-box"></div>
     </div>
@@ -1519,6 +1519,130 @@ var I18N = {
   admin_status_pending: {fr:'En attente', en:'Pending'},
   admin_status_cancelled: {fr:'Annulée', en:'Cancelled'},
   admin_status_frozen: {fr:'❄ En vérification', en:'❄ Under review'},
+  admin_settings_fees_title: {fr:'⚙ Frais et plafonds', en:'⚙ Fees and limits'},
+  admin_settings_fees_desc: {fr:"Modifie le fonctionnement de l'app en temps reel, sans deploiement. Chaque changement est journalise dans l'audit.", en:"Changes how the app behaves in real time, no deployment needed. Every change is logged in the audit."},
+  admin_settings_fee_national: {fr:'Taux de frais national (proportion, ex: 0.01 = 1%)', en:'National fee rate (proportion, e.g. 0.01 = 1%)'},
+  admin_settings_fee_threshold: {fr:'Seuil de gratuite national (F)', en:'National free-of-charge threshold (F)'},
+  admin_settings_fee_africa: {fr:'Taux de frais Transfert Afrique (proportion, ex: 0.015 = 1,5%)', en:'Africa Transfer fee rate (proportion, e.g. 0.015 = 1.5%)'},
+  admin_settings_limit_unverified: {fr:'Plafond mensuel non verifie KYC (F)', en:'Monthly limit, KYC unverified (F)'},
+  admin_settings_limit_verified: {fr:'Plafond mensuel verifie KYC (F)', en:'Monthly limit, KYC verified (F)'},
+  admin_settings_bf_attempts: {fr:'Tentatives admin avant blocage', en:'Admin attempts before lockout'},
+  admin_settings_bf_minutes: {fr:'Duree du blocage admin (minutes)', en:'Admin lockout duration (minutes)'},
+  admin_settings_fraud_title: {fr:'🚩 Seuils de détection de fraude', en:'🚩 Fraud detection thresholds'},
+  admin_settings_fraud_velocity_count: {fr:'Nb transactions suspect (vélocité)', en:'Suspicious transaction count (velocity)'},
+  admin_settings_fraud_velocity_minutes: {fr:'Fenêtre de vélocité (minutes)', en:'Velocity window (minutes)'},
+  admin_settings_fraud_multiplier: {fr:'Multiplicateur montant inhabituel (x fois la moyenne)', en:'Unusual amount multiplier (x times the average)'},
+  admin_settings_fraud_unusual_min: {fr:'Montant plancher — inhabituel (F)', en:'Floor amount — unusual (F)'},
+  admin_settings_fraud_newrecipient_min: {fr:'Montant plancher — nouveau destinataire (F)', en:'Floor amount — new recipient (F)'},
+  admin_settings_fx_title: {fr:'💱 Transfert Afrique — devises différentes', en:'💱 Africa Transfer — different currencies'},
+  admin_settings_fx_margin: {fr:'Marge de change (0 = aucune, 0.01 = 1%)', en:'Exchange margin (0 = none, 0.01 = 1%)'},
+  admin_settings_save_btn: {fr:'Enregistrer les réglages', en:'Save settings'},
+  admin_2fa_title_settings: {fr:'🔒 Double authentification (2FA)', en:'🔒 Two-factor authentication (2FA)'},
+  admin_2fa_settings_desc: {fr:"Protege l'acces admin avec un second code, en plus du mot de passe, genere par une application comme Google Authenticator ou Authy.", en:"Protects admin access with a second code, in addition to the password, generated by an app like Google Authenticator or Authy."},
+  admin_2fa_enable_btn: {fr:'Activer la double authentification', en:'Enable two-factor authentication'},
+  admin_2fa_scan_qr_desc: {fr:'Scannez ce QR code avec Google Authenticator ou Authy, puis entrez le code affiché pour confirmer.', en:'Scan this QR code with Google Authenticator or Authy, then enter the displayed code to confirm.'},
+  admin_2fa_app_code_label: {fr:"Code affiché dans l'application", en:'Code shown in the app'},
+  admin_2fa_confirm_activate_btn: {fr:'Confirmer et activer', en:'Confirm and activate'},
+  admin_2fa_recovery_title: {fr:'⚠ Codes de récupération — à noter maintenant', en:'⚠ Recovery codes — write them down now'},
+  admin_2fa_recovery_desc: {fr:'Chacun ne fonctionne qu\'une seule fois. Conservez-les en lieu sûr (ils ne seront plus jamais affichés en entier).', en:'Each one works only once. Keep them somewhere safe (they will never be shown in full again).'},
+  admin_2fa_active_label: {fr:'✓ Double authentification active', en:'✓ Two-factor authentication active'},
+  admin_2fa_your_app_code: {fr:'Code de votre application', en:'Code from your app'},
+  admin_2fa_regenerate_btn: {fr:'Régénérer mes codes de récupération', en:'Regenerate my recovery codes'},
+  admin_2fa_disable_btn: {fr:'Désactiver la double authentification', en:'Disable two-factor authentication'},
+  admin_2fa_regen_title: {fr:'⚠ Nouveaux codes de récupération — à noter maintenant', en:'⚠ New recovery codes — write them down now'},
+  admin_2fa_regen_desc: {fr:'Les anciens codes ne fonctionnent plus. Ceux-ci ne seront plus jamais affichés en entier.', en:'The old codes no longer work. These will never be shown in full again.'},
+  admin_push_title: {fr:'🔔 Alertes push', en:'🔔 Push alerts'},
+  admin_push_desc: {fr:"Reçois une notification directement sur cet appareil dès qu'une action sensible se produit (connexion admin, blocage de compte, réinitialisation de PIN...), sans avoir à consulter le journal d'audit.", en:"Get a notification directly on this device as soon as a sensitive action happens (admin login, account block, PIN reset...), without having to check the audit log."},
+  admin_push_enable_btn: {fr:'Activer les alertes push', en:'Enable push alerts'},
+  admin_kyc_encrypt_title: {fr:'🔒 Chiffrement des photos KYC', en:'🔒 KYC photo encryption'},
+  admin_kyc_encrypt_desc: {fr:'Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.', en:'New KYC requests are encrypted automatically. This button also encrypts requests already in the database, sent before this update. No effect on those already encrypted — can be run again safely.'},
+  admin_kyc_encrypt_btn: {fr:'Chiffrer les anciennes photos KYC', en:'Encrypt old KYC photos'},
+  admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
+  admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
+  admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
+  admin_fx_rates_title: {fr:'💱 Taux de change', en:'💱 Exchange rates'},
+  admin_fx_rates_desc: {fr:'Utilisés pour les transferts entre pays de devises différentes (Phase 2 en cours de construction). Rafraîchis automatiquement toutes les 12h ; ce bouton force une actualisation immédiate.', en:'Used for transfers between countries with different currencies (Phase 2 in progress). Automatically refreshed every 12h; this button forces an immediate refresh.'},
+  admin_fx_refresh_btn: {fr:'Actualiser maintenant', en:'Refresh now'},
+  admin_fx_show_details_btn: {fr:'Afficher le détail des taux ▾', en:'Show rate details ▾'},
+  admin_update_settings_title: {fr:'Mettre à jour les réglages ?', en:'Update settings?'},
+  admin_update_settings_msg: {fr:'Ça affecte immédiatement tous les utilisateurs.', en:'This immediately affects all users.'},
+  admin_settings_updated_toast: {fr:'Réglages mis à jour', en:'Settings updated'},
+  admin_saved_success: {fr:'Enregistré avec succès', en:'Saved successfully'},
+  admin_2fa_status_error: {fr:'Impossible de charger le statut 2FA', en:'Unable to load 2FA status'},
+  admin_2fa_enter_app_code: {fr:'Entrez le code affiché par votre application', en:'Enter the code shown by your app'},
+  admin_2fa_enabled_toast: {fr:'Double authentification activée', en:'Two-factor authentication enabled'},
+  admin_2fa_wrong_code: {fr:'Code incorrect', en:'Incorrect code'},
+  admin_2fa_regen_confirm_title: {fr:'Régénérer les codes de récupération ?', en:'Regenerate recovery codes?'},
+  admin_2fa_regen_confirm_msg: {fr:'Les 10 codes actuels ne fonctionneront plus.', en:'The 10 current codes will stop working.'},
+  admin_2fa_regen_btn: {fr:'Régénérer', en:'Regenerate'},
+  admin_2fa_regen_success_toast: {fr:'Nouveaux codes de récupération générés', en:'New recovery codes generated'},
+  admin_2fa_disable_confirm_title: {fr:'Désactiver la double authentification ?', en:'Disable two-factor authentication?'},
+  admin_2fa_disable_confirm_msg: {fr:'La connexion admin ne demandera plus que le mot de passe.', en:'Admin login will only require the password from now on.'},
+  admin_2fa_disable_btn_confirm: {fr:'Désactiver', en:'Disable'},
+  admin_2fa_disabled_toast: {fr:'Double authentification désactivée', en:'Two-factor authentication disabled'},
+  admin_fx_none_cached: {fr:'Aucun taux en cache pour l\'instant — clique sur "Actualiser maintenant".', en:'No cached rate yet — click "Refresh now".'},
+  admin_fx_last_update: {fr:'Dernière actualisation : {date}', en:'Last update: {date}'},
+  admin_fx_refreshing: {fr:'Actualisation en cours...', en:'Refreshing...'},
+  admin_fx_updated_count: {fr:'{count} devises mises à jour.', en:'{count} currencies updated.'},
+  admin_fx_updated_toast: {fr:'Taux de change actualisés', en:'Exchange rates updated'},
+  admin_backfill_confirm_title: {fr:'Corriger les comptes déjà vérifiés ?', en:'Fix already-verified accounts?'},
+  admin_backfill_confirm_msg: {fr:'Retrouve le nom légal manquant pour les comptes déjà marqués "vérifié".', en:'Finds the missing legal name for accounts already marked "verified".'},
+  admin_backfill_launch_btn: {fr:'Lancer la correction', en:'Start the fix'},
+  admin_backfill_running: {fr:'Correction en cours...', en:'Fixing...'},
+  admin_backfill_fixed_count: {fr:'{count} compte(s) corrigé(s) avec succès.', en:'{count} account(s) fixed successfully.'},
+  admin_backfill_none: {fr:'Aucun compte à corriger — tout est déjà à jour.', en:'No account to fix — everything is already up to date.'},
+  admin_migration_done_toast: {fr:'Migration terminée', en:'Migration complete'},
+  admin_kyc_encrypt_confirm_title: {fr:'Chiffrer les anciennes photos KYC ?', en:'Encrypt old KYC photos?'},
+  admin_kyc_encrypt_confirm_msg: {fr:'Toutes les demandes KYC non encore chiffrées seront chiffrées.', en:'All KYC requests not yet encrypted will be encrypted.'},
+  admin_kyc_encrypt_launch_btn: {fr:'Lancer le chiffrement', en:'Start encryption'},
+  admin_kyc_encrypt_running: {fr:'Migration en cours...', en:'Migration in progress...'},
+  admin_kyc_encrypted_count: {fr:'{count} demande(s) KYC chiffrée(s) avec succès.', en:'{count} KYC request(s) encrypted successfully.'},
+  admin_kyc_encrypt_none: {fr:'Aucune ancienne photo à chiffrer — tout est déjà à jour.', en:'No old photo to encrypt — everything is already up to date.'},
+  admin_push_enabled_on_device: {fr:'✓ Alertes activées sur cet appareil', en:'✓ Alerts enabled on this device'},
+  admin_push_disabled_on_device: {fr:'Alertes désactivées sur cet appareil', en:'Alerts disabled on this device'},
+  admin_push_disable_btn: {fr:'Désactiver les alertes push', en:'Disable push alerts'},
+  admin_push_not_supported: {fr:'Notifications non supportées sur cet appareil', en:'Notifications not supported on this device'},
+  admin_push_permission_denied: {fr:'Autorisation refusée', en:'Permission denied'},
+  admin_push_enabled_toast: {fr:'Alertes push activées', en:'Push alerts enabled'},
+  admin_push_disabled_toast: {fr:'Alertes push désactivées', en:'Push alerts disabled'},
+  admin_audit_title: {fr:"Journal d'audit (100 dernières actions)", en:'Audit log (last 100 actions)'},
+  admin_audit_action_type: {fr:"Type d'action", en:'Action type'},
+  admin_audit_all_actions: {fr:'Toutes les actions', en:'All actions'},
+  admin_audit_action_pin_reset: {fr:'Réinitialisation PIN', en:'PIN reset'},
+  admin_audit_action_late_cancel: {fr:'Annulation tardive', en:'Late cancellation'},
+  admin_audit_action_admin_login: {fr:'Connexion admin', en:'Admin login'},
+  admin_audit_action_country_toggle: {fr:'Pays actif/inactif', en:'Country active/inactive'},
+  admin_audit_action_account_block: {fr:'Blocage de compte', en:'Account block'},
+  admin_audit_action_account_unblock: {fr:'Déblocage de compte', en:'Account unblock'},
+  admin_audit_action_update_country: {fr:'Modification du pays', en:'Country change'},
+  admin_audit_account_number: {fr:'Numéro de compte', en:'Account number'},
+  admin_audit_date_from: {fr:'Date de début', en:'Start date'},
+  admin_audit_date_to: {fr:'Date de fin', en:'End date'},
+  admin_audit_filter_btn: {fr:'Filtrer', en:'Filter'},
+  admin_audit_reset_btn: {fr:'Réinitialiser', en:'Reset'},
+  admin_audit_export_xlsx: {fr:'⬇ Exporter Excel', en:'⬇ Export Excel'},
+  admin_audit_export_pdf: {fr:'⬇ Exporter PDF', en:'⬇ Export PDF'},
+  action_pin_reset: {fr:'Réinitialisation PIN', en:'PIN reset'},
+  action_late_cancel: {fr:'Annulation tardive', en:'Late cancellation'},
+  action_tx_freeze: {fr:'Transaction gelée', en:'Transaction frozen'},
+  action_tx_unfreeze: {fr:'Transaction débloquée', en:'Transaction unfrozen'},
+  action_tx_freeze_confirm_cancel: {fr:'Annulation confirmée (après gel)', en:'Cancellation confirmed (after freeze)'},
+  action_admin_login: {fr:'Connexion admin', en:'Admin login'},
+  action_country_toggle: {fr:'Pays actif/inactif', en:'Country active/inactive'},
+  action_account_block: {fr:'Blocage de compte', en:'Account block'},
+  action_account_unblock: {fr:'Déblocage de compte', en:'Account unblock'},
+  action_account_delete: {fr:'Suppression définitive de compte', en:'Permanent account deletion'},
+  action_update_country: {fr:'Modification du pays', en:'Country change'},
+  action_2fa_setup_started: {fr:'2FA — génération QR code', en:'2FA — QR code generated'},
+  action_2fa_setup_confirm: {fr:'2FA — activation confirmée', en:'2FA — activation confirmed'},
+  action_2fa_disable: {fr:'2FA — désactivation', en:'2FA — disabled'},
+  action_2fa_regenerate_codes: {fr:'2FA — codes de récupération régénérés', en:'2FA — recovery codes regenerated'},
+  action_kyc_approve_corrected: {fr:'KYC approuvé (nom corrigé par admin)', en:'KYC approved (name corrected by admin)'},
+  action_update_settings: {fr:'Modification des réglages', en:'Settings changed'},
+  result_success: {fr:'Succès', en:'Success'},
+  result_failed: {fr:'Échec', en:'Failed'},
+  admin_audit_no_match: {fr:'Aucune action ne correspond à ces filtres', en:'No action matches these filters'},
+  admin_audit_ip_label: {fr:'IP : {ip}', en:'IP: {ip}'},
   admin_type_transfer: {fr:'Transfert', en:'Transfer'},
   admin_type_fee: {fr:'Frais', en:'Fee'},
   admin_type_deposit: {fr:'Recharge', en:'Top-up'},
@@ -2218,15 +2342,21 @@ function TYPE_FR_GET(key){
   var map={transfer:'admin_type_transfer',fee:'admin_type_fee',deposit:'admin_type_deposit',vault_deposit:'admin_type_vault_deposit',vault_withdrawal:'admin_type_vault_withdrawal',payment:'admin_type_payment',bank_deposit:'admin_type_bank_deposit',bank_withdraw:'admin_type_bank_withdraw',referral_bonus:'admin_type_referral_bonus',fx_margin:'admin_type_fx_margin'};
   return map[key] ? at(map[key]) : null;
 }
-var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
-var RESULT_FR={success:'Succès',failed:'Échec'};
+function ACTION_FR_GET(action){
+  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings'};
+  return map[action] ? at(map[action]) : null;
+}
+function RESULT_FR_GET(result){
+  var map={success:'result_success',failed:'result_failed'};
+  return map[result] ? at(map[result]) : null;
+}
+function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; var label=RESULT_FR_GET(r); return '<span class="result-pill '+cls+'">'+(label||r)+'</span>'; }
 function statusPill(s){
   var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':(s==='frozen'?'st-frozen':'st-pending'));
   var labelKeys={completed:'admin_status_completed',pending:'admin_status_pending',cancelled:'admin_status_cancelled',frozen:'admin_status_frozen'};
   var label = labelKeys[s] ? at(labelKeys[s]) : s;
   return '<span class="status-pill '+cls+'">'+label+'</span>';
 }
-function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
 function toggleReasonCustom(prefix){
   var sel=document.getElementById(prefix+'-reason-sel');
   var custom=document.getElementById(prefix+'-reason-custom');
@@ -2404,7 +2534,7 @@ function adminLoadDashboard(){
       } else {
         logsHtml+=logs.map(function(l){
           return '<div class="admin-audit-row">'
-            +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR[l.action]||l.action)+'</b>'+resultPill(l.result)+'</div>'
+            +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR_GET(l.action)||l.action)+'</b>'+resultPill(l.result)+'</div>'
             +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
             +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
             +'</div>';
@@ -2810,6 +2940,8 @@ function applyAdminLang(){
   if(document.getElementById('admin-panel-users') && document.getElementById('admin-panel-users').style.display==='block') adminLoadUsers();
   if(document.getElementById('admin-panel-tx') && document.getElementById('admin-panel-tx').style.display==='block' && document.getElementById('admin-frozen-box').innerHTML.indexOf('admin-tx-card')>=0) adminLoadFrozenTx();
   if(document.getElementById('admin-panel-countries') && document.getElementById('admin-panel-countries').style.display==='block') adminLoadCountries();
+  if(document.getElementById('admin-panel-audit') && document.getElementById('admin-panel-audit').style.display==='block') adminLoadAuditLog();
+  if(document.getElementById('admin-panel-settings') && document.getElementById('admin-panel-settings').style.display==='block') adminLoadSettings();
 }
 function toggleAdminTheme(){
   var isDark = document.documentElement.getAttribute('data-theme')==='dark';
@@ -3592,7 +3724,7 @@ function adminConfirmCancelFrozen(ref){
 
 function adminLoadAuditLog(){
   var box=document.getElementById('admin-audit-box');
-  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">Chargement...</div>';
+  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_loading')+'</div>';
   var payload={
     admin_password:window._adminPw,
     action_filter:document.getElementById('audit-f-action').value,
@@ -3603,20 +3735,20 @@ function adminLoadAuditLog(){
   apiCall('/admin?action=audit-list','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data&&res.data.logs){
       var logs=res.data.logs;
-      if(logs.length===0){ box.innerHTML='<div class="admin-empty">Aucune action ne correspond à ces filtres</div>'; return; }
+      if(logs.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_audit_no_match')+'</div>'; return; }
       box.innerHTML=logs.map(function(l){
         return '<div class="admin-audit-row">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR[l.action]||l.action)+'</b>'+resultPill(l.result)+'</div>'
-          +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">Compte : '+l.target_phone+'</div>':'')
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR_GET(l.action)||l.action)+'</b>'+resultPill(l.result)+'</div>'
+          +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
           +'<div style="color:var(--t2);margin-top:2px">'+(l.details||'')+'</div>'
-          +(l.ip_address?'<div style="color:var(--t3);font-size:10px;margin-top:3px">IP : '+l.ip_address+(l.user_agent?' — '+parseUserAgent(l.user_agent):'')+'</div>':'')
+          +(l.ip_address?'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+at('admin_audit_ip_label').replace('{ip}',l.ip_address)+(l.user_agent?' — '+parseUserAgent(l.user_agent):'')+'</div>':'')
           +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
           +'</div>';
       }).join('');
     } else {
-      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">Erreur de chargement</div>';
+      box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminResetAuditFilters(){
@@ -3766,7 +3898,7 @@ function adminLoadAlerts(){
 
 function adminLoadSettings(){
   var statusBox = document.getElementById('settings-status-box');
-  if(statusBox) statusBox.innerHTML='<div style="color:var(--t3);font-size:12px">Chargement...</div>';
+  if(statusBox) statusBox.innerHTML='<div style="color:var(--t3);font-size:12px">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=get-settings','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data){
       var d=res.data;
@@ -3785,9 +3917,9 @@ function adminLoadSettings(){
       document.getElementById('set-fx-margin').value = d.fx_margin_rate;
       if(statusBox) statusBox.innerHTML='';
     } else {
-      if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+      if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
-  }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">Erreur réseau</div>'; });
+  }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re);font-size:12px">'+at('admin_dash_error_network')+'</div>'; });
   admin2faLoadStatus();
   adminLoadPushStatus();
   adminLoadExchangeRates();
@@ -3812,17 +3944,17 @@ function adminSaveSettings(){
     fx_margin_rate: document.getElementById('set-fx-margin').value
   };
   adminOpenConfirmModal({
-    icon:'⚙', title:'Mettre à jour les réglages ?', message:'Ça affecte immédiatement tous les utilisateurs.',
-    needsReason:false, confirmLabel:'Confirmer', confirmColor:'var(--g)',
+    icon:'⚙', title:at('admin_update_settings_title'), message:at('admin_update_settings_msg'),
+    needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/admin?action=update-settings','POST',payload,'').then(function(res){
         if(res&&res.success){
-          toast('Réglages mis à jour');
-          if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">Enregistré avec succès</div>';
+          toast(at('admin_settings_updated_toast'));
+          if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">'+at('admin_saved_success')+'</div>';
         } else {
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3845,7 +3977,7 @@ function adminLoadExchangeRates(){
     if(res&&res.success&&res.data){
       var rates = res.data.rates||[];
       if(rates.length===0){
-        box.innerHTML='<div style="font-size:12px;color:var(--t3)">Aucun taux en cache pour l\'instant — clique sur "Actualiser maintenant".</div>';
+        box.innerHTML='<div style="font-size:12px;color:var(--t3)">'+at('admin_fx_none_cached')+'</div>';
         return;
       }
       // N'affiche que les devises reellement utilisees par l'app (celles
@@ -3853,7 +3985,7 @@ function adminLoadExchangeRates(){
       var relevant = Object.values(COUNTRY_CURRENCY).filter(function(v,i,a){ return a.indexOf(v)===i; });
       var filtered = rates.filter(function(r){ return relevant.indexOf(r.currency_code)!==-1; });
       var updatedAt = filtered.length ? new Date(filtered[0].updated_at).toLocaleString() : '';
-      var html = '<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Dernière actualisation : '+updatedAt+'</div>';
+      var html = '<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+at('admin_fx_last_update').replace('{date}',updatedAt)+'</div>';
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
       filtered.forEach(function(r){
         html += '<div style="background:var(--gl);border-radius:8px;padding:8px 10px;font-size:12px"><b>'+r.currency_code+'</b><span style="color:var(--t3)"> = '+(1/parseFloat(r.rate_to_usd)).toFixed(6)+' USD</span></div>';
@@ -3865,35 +3997,35 @@ function adminLoadExchangeRates(){
 }
 function adminRefreshExchangeRates(){
   var statusBox = document.getElementById('admin-fx-status');
-  if(statusBox) statusBox.textContent = 'Actualisation en cours...';
+  if(statusBox) statusBox.textContent = at('admin_fx_refreshing');
   apiCall('/admin?action=refresh-exchange-rates','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success){
-      if(statusBox) statusBox.textContent = (res.data&&res.data.updated?res.data.updated:0)+' devises mises à jour.';
-      toast('Taux de change actualisés');
+      if(statusBox) statusBox.textContent = at('admin_fx_updated_count').replace('{count}',res.data&&res.data.updated?res.data.updated:0);
+      toast(at('admin_fx_updated_toast'));
       adminLoadExchangeRates();
     } else {
       if(statusBox) statusBox.textContent = '';
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||at('admin_error_generic'), true);
     }
-  }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+  }).catch(function(){ if(statusBox) statusBox.textContent=''; toast(at('admin_dash_error_network'), true); });
 }
 function adminBackfillVerifiedNames(){
   var statusBox = document.getElementById('admin-backfill-status');
   adminOpenConfirmModal({
-    icon:'✓', title:'Corriger les comptes déjà vérifiés ?', message:'Retrouve le nom légal manquant pour les comptes déjà marqués "vérifié".',
-    needsReason:false, confirmLabel:'Lancer la correction', confirmColor:'var(--g)',
+    icon:'✓', title:at('admin_backfill_confirm_title'), message:at('admin_backfill_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_backfill_launch_btn'), confirmColor:'var(--g)',
     onConfirm:function(){
-      if(statusBox) statusBox.textContent = 'Correction en cours...';
+      if(statusBox) statusBox.textContent = at('admin_backfill_running');
       apiCall('/admin?action=backfill-verified-names','POST',{admin_password:window._adminPw},'').then(function(res){
         if(res&&res.success){
           var n = (res.data&&res.data.fixed!==undefined) ? res.data.fixed : 0;
-          if(statusBox) statusBox.textContent = n>0 ? (n+' compte(s) corrigé(s) avec succès.') : 'Aucun compte à corriger — tout est déjà à jour.';
-          toast('Migration terminée');
+          if(statusBox) statusBox.textContent = n>0 ? at('admin_backfill_fixed_count').replace('{count}',n) : at('admin_backfill_none');
+          toast(at('admin_migration_done_toast'));
         } else {
           if(statusBox) statusBox.textContent = '';
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3901,20 +4033,20 @@ function adminBackfillVerifiedNames(){
 function adminMigrateKycEncrypt(){
   var statusBox = document.getElementById('admin-kyc-migrate-status');
   adminOpenConfirmModal({
-    icon:'🔒', title:'Chiffrer les anciennes photos KYC ?', message:'Toutes les demandes KYC non encore chiffrées seront chiffrées.',
-    needsReason:false, confirmLabel:'Lancer le chiffrement', confirmColor:'var(--g)',
+    icon:'🔒', title:at('admin_kyc_encrypt_confirm_title'), message:at('admin_kyc_encrypt_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_kyc_encrypt_launch_btn'), confirmColor:'var(--g)',
     onConfirm:function(){
-      if(statusBox) statusBox.textContent = 'Migration en cours...';
+      if(statusBox) statusBox.textContent = at('admin_kyc_encrypt_running');
       apiCall('/admin?action=kyc-migrate-encrypt','POST',{admin_password:window._adminPw},'').then(function(res){
         if(res&&res.success){
           var n = (res.data&&res.data.migrated!==undefined) ? res.data.migrated : 0;
-          if(statusBox) statusBox.textContent = n>0 ? (n+' demande(s) KYC chiffrée(s) avec succès.') : 'Aucune ancienne photo à chiffrer — tout est déjà à jour.';
-          toast('Migration terminée');
+          if(statusBox) statusBox.textContent = n>0 ? at('admin_kyc_encrypted_count').replace('{count}',n) : at('admin_kyc_encrypt_none');
+          toast(at('admin_migration_done_toast'));
         } else {
           if(statusBox) statusBox.textContent = '';
-          toast((res&&res.message)||'Erreur', true);
+          toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast('Erreur réseau', true); });
+      }).catch(function(){ if(statusBox) statusBox.textContent=''; toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -3926,8 +4058,8 @@ function adminLoadPushStatus(){
   var statusBox = document.getElementById('admin-push-status-box');
   var btn = document.getElementById('admin-push-toggle-btn');
   var enabled = localStorage.getItem('admin_push_enabled') === '1';
-  if(statusBox) statusBox.innerHTML = enabled ? '✓ Alertes activées sur cet appareil' : 'Alertes désactivées sur cet appareil';
-  if(btn) btn.textContent = enabled ? 'Désactiver les alertes push' : 'Activer les alertes push';
+  if(statusBox) statusBox.innerHTML = enabled ? at('admin_push_enabled_on_device') : at('admin_push_disabled_on_device');
+  if(btn) btn.textContent = enabled ? at('admin_push_disable_btn') : at('admin_push_enable_btn');
 }
 function adminTogglePush(){
   var enabled = localStorage.getItem('admin_push_enabled') === '1';
@@ -3935,11 +4067,11 @@ function adminTogglePush(){
 }
 function adminEnablePush(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window)){
-    toast('Notifications non supportées sur cet appareil', true); return;
+    toast(at('admin_push_not_supported'), true); return;
   }
   navigator.serviceWorker.ready.then(function(reg){
     return Notification.requestPermission().then(function(perm){
-      if(perm !== 'granted'){ toast('Autorisation refusée', true); throw new Error('denied'); }
+      if(perm !== 'granted'){ toast(at('admin_push_permission_denied'), true); throw new Error('denied'); }
       return reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -3957,9 +4089,9 @@ function adminEnablePush(){
     if(res && res.success){
       localStorage.setItem('admin_push_enabled','1');
       adminLoadPushStatus();
-      toast('Alertes push activées');
+      toast(at('admin_push_enabled_toast'));
     } else {
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||at('admin_error_generic'), true);
     }
   }).catch(function(){});
 }
@@ -3972,7 +4104,7 @@ function adminDisablePush(){
   }).then(function(){
     localStorage.setItem('admin_push_enabled','0');
     adminLoadPushStatus();
-    toast('Alertes push désactivées');
+    toast(at('admin_push_disabled_toast'));
   }).catch(function(){
     localStorage.setItem('admin_push_enabled','0');
     adminLoadPushStatus();
@@ -3993,9 +4125,9 @@ function admin2faLoadStatus(){
         document.getElementById('admin-2fa-off-box').style.display='block';
       }
     } else {
-      if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">Impossible de charger le statut 2FA</div>';
+      if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">'+at('admin_2fa_status_error')+'</div>';
     }
-  }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">Erreur réseau</div>'; });
+  }).catch(function(){ if(statusBox) statusBox.innerHTML='<div style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 function admin2faStartSetup(){
   apiCall('/admin?action=2fa-setup','POST',{admin_password:window._adminPw},'').then(function(res){
@@ -4008,31 +4140,31 @@ function admin2faStartSetup(){
       try{ new QRCode(qrEl,{text:res.data.otpauth_uri,width:180,height:180,colorDark:'#0F6E56',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
       window._admin2faSetupRecoveryCodes = res.data.recovery_codes||[];
     } else {
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||at('admin_error_generic'), true);
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function admin2faConfirmSetup(){
   var code=document.getElementById('admin-2fa-confirm-code').value.trim();
-  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  if(!code){ toast(at('admin_2fa_enter_app_code'), true); return; }
   apiCall('/admin?action=2fa-confirm','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
     if(res&&res.success){
       var codes=window._admin2faSetupRecoveryCodes||[];
       var disp=document.getElementById('admin-2fa-recovery-display');
       document.getElementById('admin-2fa-recovery-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
       disp.style.display='block';
-      toast('Double authentification activée');
+      toast(at('admin_2fa_enabled_toast'));
     } else {
-      toast((res&&res.message)||'Code incorrect', true);
+      toast((res&&res.message)||at('admin_2fa_wrong_code'), true);
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function admin2faRegenerateCodes(){
   var code=document.getElementById('admin-2fa-disable-code').value.trim();
-  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  if(!code){ toast(at('admin_2fa_enter_app_code'), true); return; }
   adminOpenConfirmModal({
-    icon:'🔄', title:'Régénérer les codes de récupération ?', message:'Les 10 codes actuels ne fonctionneront plus.',
-    needsReason:false, confirmLabel:'Régénérer', confirmColor:'#f5a623',
+    icon:'🔄', title:at('admin_2fa_regen_confirm_title'), message:at('admin_2fa_regen_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_2fa_regen_btn'), confirmColor:'#f5a623',
     onConfirm:function(){
       apiCall('/admin?action=2fa-regenerate-codes','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
         if(res&&res.success&&res.data){
@@ -4040,30 +4172,30 @@ function admin2faRegenerateCodes(){
           var codes=res.data.recovery_codes||[];
           document.getElementById('admin-2fa-regen-codes').innerHTML=codes.map(function(c){return c;}).join('<br>');
           document.getElementById('admin-2fa-regen-display').style.display='block';
-          toast('Nouveaux codes de récupération générés');
+          toast(at('admin_2fa_regen_success_toast'));
         } else {
-          toast((res&&res.message)||'Code incorrect', true);
+          toast((res&&res.message)||at('admin_2fa_wrong_code'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
 function admin2faDisable(){
   var code=document.getElementById('admin-2fa-disable-code').value.trim();
-  if(!code){ toast('Entrez le code affiché par votre application', true); return; }
+  if(!code){ toast(at('admin_2fa_enter_app_code'), true); return; }
   adminOpenConfirmModal({
-    icon:'🔓', title:'Désactiver la double authentification ?', message:'La connexion admin ne demandera plus que le mot de passe.',
-    needsReason:false, confirmLabel:'Désactiver', confirmColor:'var(--re)',
+    icon:'🔓', title:at('admin_2fa_disable_confirm_title'), message:at('admin_2fa_disable_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_2fa_disable_btn_confirm'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=2fa-disable','POST',{admin_password:window._adminPw,totp_code:code},'').then(function(res){
         if(res&&res.success){
-          toast('Double authentification désactivée');
+          toast(at('admin_2fa_disabled_toast'));
           document.getElementById('admin-2fa-disable-code').value='';
           admin2faLoadStatus();
         } else {
-          toast((res&&res.message)||'Code incorrect', true);
+          toast((res&&res.message)||at('admin_2fa_wrong_code'), true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
