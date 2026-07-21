@@ -1202,7 +1202,6 @@ var APP = {
   subVaults: [
     {id:1, name:'Voyage Abidjan-Paris', amt:80000, goal:150000}
   ],
-  nextSubVaultId: 2,
   // Taux de frais par defaut, synchronises depuis le serveur au demarrage
   // (voir launchApp) : garantit que l'apercu des frais avant confirmation
   // correspond toujours exactement au montant reellement debite, meme si
@@ -1917,7 +1916,6 @@ var I18N = {
 
   sheet_title_send: {fr:'Transférer à', en:'Transfer to'},
   sheet_title_receive: {fr:'Recevoir', en:'Receive'},
-  sheet_title_topup: {fr:'Recharger', en:'Top up'},
   sheet_title_pay: {fr:'Paiements & Services', en:'Payments & Services'},
   sheet_title_qr: {fr:'Mon QR code', en:'My QR code'},
   sheet_title_scanner: {fr:'Scanner QR', en:'Scan QR'},
@@ -1930,7 +1928,6 @@ var I18N = {
   sheet_title_svwithdraw: {fr:'Retrait du sous-coffre', en:'Sub-vault withdrawal'},
   sheet_title_edit_profile: {fr:'Modifier le profil', en:'Edit profile'},
   sheet_title_encaisser: {fr:'Encaisser un paiement', en:'Collect a payment'},
-  sheet_title_factures: {fr:'Paiement de factures', en:'Bill payment'},
   sheet_title_banque: {fr:'Mes banques liées', en:'My linked banks'},
   sheet_title_transfert: {fr:'Transfert Afrique', en:'Africa Transfer'},
   sheet_title_cross_country: {fr:'Envoi international', en:'International transfer'},
@@ -2018,23 +2015,12 @@ var I18N = {
   enc_enter_amount: {fr:'Entrez un montant', en:'Enter an amount'},
   enc_camera_denied: {fr:'Acces camera refuse', en:'Camera access denied'},
 
-  topup_source_bank: {fr:'Virement bancaire', en:'Bank transfer'},
-  topup_source_card: {fr:'Carte Visa / Mastercard', en:'Visa / Mastercard card'},
-  topup_source_agency: {fr:'Agence partenaire', en:'Partner agency'},
-  topup_label_source: {fr:'Source', en:'Source'},
-  topup_processing_toast: {fr:'Recharge en cours...', en:'Top-up in progress...'},
-  topup_tx_name: {fr:'Rechargement', en:'Top-up'},
-  topup_success_toast: {fr:'{amt} ajouté !', en:'{amt} added!'},
-
   pay_search_placeholder: {fr:'🔍 Rechercher une catégorie...', en:'🔍 Search a category...'},
   pay_favorites_title: {fr:'⭐ Favoris', en:'⭐ Favorites'},
   pay_favorites_empty: {fr:'Vos catégories favorites apparaîtront ici', en:'Your favorite categories will appear here'},
   pay_btn_back: {fr:'← Retour', en:'← Back'},
   pay_no_service: {fr:'Aucun service disponible', en:'No service available'},
   pay_coming_soon_desc: {fr:'Les services de paiement pour cette catégorie seront disponibles prochainement.<br>Nous travaillons à établir des partenariats.', en:'Payment services for this category will be available soon.<br>We are working on establishing partnerships.'},
-  pay_merchant_code_required: {fr:'Code marchand requis', en:'Merchant code required'},
-  pay_pin_confirm: {fr:'Paiement de {amt}', en:'Payment of {amt}'},
-  pay_success_toast: {fr:'Paiement {amt} effectué', en:'Payment {amt} completed'},
 
   pay_desc_factures: {fr:'CIE, SODECI, eau, électricité...', en:'CIE, SODECI, water, electricity...'},
   pay_desc_education: {fr:'Scolarité, université, formations', en:'Tuition, university, training'},
@@ -2854,7 +2840,7 @@ function save(){
       pin:APP.pin,bioEnabled:APP.bioEnabled,bioCredId:APP.bioCredId||'',userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
       notifTx:APP.notifTx!==false,notifPromo:APP.notifPromo!==false,pushEnabled:APP.pushEnabled===true,isKyc:!!APP.isKyc,theme:APP.theme||'system',lang:APP.lang||'fr',
       balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,photoURL:APP.photoURL||'', notifications:APP.notifications||[], seenTxIds:APP.seenTxIds||{}, seenAnnouncementIds:APP.seenAnnouncementIds||{}, payFavorites:APP.payFavorites||[],
-      subVaults:APP.subVaults,nextSubVaultId:APP.nextSubVaultId,currency:APP.currency||'XOF',
+      subVaults:APP.subVaults,currency:APP.currency||'XOF',
       txList: (txList||[]).slice(0,30)
     };
     localStorage.setItem('mmci', JSON.stringify(snapshot));
@@ -4881,7 +4867,7 @@ function lgPin(d){
                 APP.notifTx=true; APP.notifPromo=true; APP.isKyc=false; APP.theme=APP.theme||'system';
                 APP.legalName=''; APP.country=''; APP.currency='XOF';
                 APP.balance=0; APP.vaultBal=0; APP.vaultLocked=false; APP.vaultDate=null;
-                APP.subVaults=[]; APP.nextSubVaultId=1;
+                APP.subVaults=[];
                 txList = [];
               }
               _addAccountMode = false;
@@ -5024,7 +5010,7 @@ function launchApp(){
     var phoneInput = document.getElementById('login-phone-input');
     if(phoneInput && phoneInput.value.trim()) APP.phone = phoneInput.value.trim();
   }
-  goto('s-app'); refreshUI(); renderTx('home'); renderVault(); startInactivityTimer();
+  goto('s-app'); refreshUI(); renderTx('home'); renderVault(); loadSubVaults(); startInactivityTimer();
   if(APP._justRegistered){ APP._justRegistered = false; setTimeout(showOnboardingTutorial, 500); }
     // Mark existing transactions as seen before starting polling
     var tok2=getToken();
@@ -5268,6 +5254,26 @@ function askCancel(id){
 // ═══════════════════════════════════════════
 // COFFRE
 // ═══════════════════════════════════════════
+
+// Recharge la liste des sous-coffres depuis le serveur (source de verite),
+// pour eviter qu'un ancien etat local perime ne s'affiche apres reconnexion
+// sur un autre appareil ou apres une session precedente.
+function loadSubVaults(){
+  var tok=getToken();
+  if(!tok) return Promise.resolve();
+  return apiCall('/wallet?action=subvault-list','GET',null,tok).then(function(res){
+    if(res&&res.success){
+      APP.subVaults=(res.data||[]).map(function(sv){
+        return {id:sv.id, name:sv.name, amt:parseFloat(sv.balance)||0,
+          goal:(sv.goal_amount!=null?parseFloat(sv.goal_amount):0),
+          locked:!!sv.locked, lockDate:sv.lock_date||null};
+      });
+      save();
+      renderSubVaults();
+    }
+  }).catch(function(){});
+}
+
 function renderVault(){
   // Deverrouille automatiquement si la date de deblocage est deja passee
   // (le backend l'autorise deja ; l'affichage doit refleter la meme regle).
@@ -5340,15 +5346,15 @@ function renderSubVaults(){
     }
     // Action buttons
     h+='<div style="display:flex;gap:6px">';
-    h+='<button onclick="openSheet(\'svdeposit\',false,'+sv.id+')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--gl);color:var(--accent-text);font-family:inherit">'+t('vault_btn_deposit')+'</button>';
+    h+='<button onclick="openSheet(\'svdeposit\',false,&apos;'+sv.id+'&apos;)" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--gl);color:var(--accent-text);font-family:inherit">'+t('vault_btn_deposit')+'</button>';
     if(isLocked){
       h+='<button disabled style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:not-allowed;background:var(--bg);color:var(--t3);font-family:inherit;opacity:.5">'+t('vault_btn_withdraw')+'</button>';
-      h+='<button onclick="unlockSubVault('+sv.id+')" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--al);color:var(--gold-text);font-family:inherit">🔓</button>';
+      h+='<button onclick="unlockSubVault(&apos;'+sv.id+'&apos;)" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--al);color:var(--gold-text);font-family:inherit">🔓</button>';
     } else {
-      h+='<button onclick="openSheet(\'svwithdraw\',false,'+sv.id+')" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--t1);border:.5px solid var(--bord);font-family:inherit">'+t('vault_btn_withdraw')+'</button>';
-      h+='<button onclick="lockSubVault('+sv.id+')" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--gl);color:var(--accent-text);font-family:inherit">🔒</button>';
+      h+='<button onclick="openSheet(\'svwithdraw\',false,&apos;'+sv.id+'&apos;)" style="flex:1;padding:9px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--t1);border:.5px solid var(--bord);font-family:inherit">'+t('vault_btn_withdraw')+'</button>';
+      h+='<button onclick="lockSubVault(&apos;'+sv.id+'&apos;)" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--gl);color:var(--accent-text);font-family:inherit">🔒</button>';
     }
-    h+='<button onclick="deleteSubVault('+sv.id+')" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--rl);color:var(--rd);font-family:inherit">🗑</button>';
+    h+='<button onclick="deleteSubVault(&apos;'+sv.id+'&apos;)" style="padding:9px 10px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:var(--rl);color:var(--rd);font-family:inherit">🗑</button>';
     h+='</div>';
     h+='</div>';
   }
@@ -5367,9 +5373,14 @@ function deleteSubVault(id){
     icon:'🔓', title:'Supprimer ce coffre ?', message:t('vault_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)),
     confirmLabel:'Supprimer', confirmColor:'var(--re)',
     onConfirm:function(){
-      APP.vaultBal += sv.amt;
-      APP.subVaults = APP.subVaults.filter(function(s){ return s.id!==id; });
-      save(); renderVault(); updateBalDisplay(); toast(t('vault_deleted_toast'));
+      var tok=getToken();
+      apiCall('/wallet?action=subvault-delete','POST',{id:id},tok).then(function(res){
+        if(res&&res.success){
+          APP.vaultBal=res.data.vault_balance;
+          APP.subVaults = APP.subVaults.filter(function(s){ return s.id!==id; });
+          save(); renderVault(); updateBalDisplay(); toast(t('vault_deleted_toast'));
+        } else { toast((res&&res.message)||t('send_err_generic'),true); }
+      });
     }
   });
 }
@@ -6110,7 +6121,6 @@ function openSheet(type, titleAlreadySet, extra){
   var allTitles={
     send:t('sheet_title_send'),
     receive:t('sheet_title_receive'),
-    topup:t('sheet_title_topup'),
     pay:t('sheet_title_pay'),
     qr:t('sheet_title_qr'),
     scanner:t('sheet_title_scanner'),
@@ -6130,7 +6140,6 @@ function openSheet(type, titleAlreadySet, extra){
     'change-pin':t('profile_change_pin'),
     'edit-profile':t('sheet_title_edit_profile'),
     encaisser:t('sheet_title_encaisser'),
-    factures:t('sheet_title_factures'),
     banque:t('sheet_title_banque'),
     transfert:t('sheet_title_transfert'),
     'cross-country-prompt':t('sheet_title_cross_country'),
@@ -6196,7 +6205,6 @@ window.addEventListener('popstate', function(){
 function buildSheet(type, b, extra){
   if(type==='send') shSend(b);
   else if(type==='receive') shReceive(b);
-  else if(type==='topup') shTopup(b);
   else if(type==='pay') shPay(b);
   else if(type==='qr') shQr(b);
   else if(type==='scanner') shScanner(b);
@@ -6216,7 +6224,6 @@ function buildSheet(type, b, extra){
   else if(type==='change-pin') shChangePIN(b);
   else if(type==='edit-profile') shEditProfile(b);
   else if(type==='encaisser') shEncaisser(b);
-  else if(type==='factures') shFactures(b);
   else if(type==='banque') shBanque(b);
   else if(type==='transfert') shTransfert(b);
   else if(type==='cross-country-prompt') shCrossCountryPrompt(b);
@@ -6769,30 +6776,6 @@ function stopScan(){
   scanData=null;
 }
 
-// ── TOPUP ──
-function shTopup(b){
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('enc_amount_label')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="top-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
-    +'<div class="chips">'+[10000,25000,50000,100000,500000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'top-am\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('topup_label_source')+'</label>'
-    +'<select class="finput fsel" id="top-src"><option>'+t('topup_source_bank')+'</option><option>'+t('topup_source_card')+'</option><option>'+t('topup_source_agency')+'</option></select></div>'
-    +'<button class="btn-g" onclick="doTopup()">'+t('sheet_title_topup')+'</button>';
-}
-
-function doTopup(){
-  var el=document.getElementById('top-am');
-  var amt=parseFloat(el&&el.value)||0;
-  if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
-  var tok=getToken(); toast(t('topup_processing_toast'));
-  apiCall('/wallet?action=topup','POST',{amount:amt,source:'Manuel'},tok)
-    .then(function(res){
-      if(res&&res.success){ APP.balance=res.data.new_balance||(APP.balance+amt); }
-      else { APP.balance+=amt; }
-      txList.unshift({id:Date.now(),name:t('topup_tx_name'),type:'credit',amt:amt,cat:'Dépôt',ts:Date.now()});
-      updateBalDisplay(); renderTx('home'); closeSheet(); toast(t('topup_success_toast').replace('{amt}',fmt(amt)));
-    });
-}
-
 // ── PAY ──
 function shPay(b){
   var VALID_CATS = ['Factures','Éducation','Assurances','Transport','Abonnements','Autres'];
@@ -6890,26 +6873,6 @@ function openPayCat(catName){
     +'<div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:8px">'+t('pay_no_service')+'</div>'
     +'<div style="font-size:12px;color:var(--t2);line-height:1.6">'+t('pay_coming_soon_desc')+'</div>'
     +'</div>';
-}
-
-
-
-
-
-
-
-function doPay(){
-  var cd=document.getElementById('pay-cd'), am=document.getElementById('pay-am');
-  if(!cd||!cd.value.trim()){ toast(t('pay_merchant_code_required'),true); return; }
-  var amt=parseFloat(am&&am.value)||0;
-  if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
-  if(amt>APP.balance){ toast(t('send_err_insufficient_balance'),true); return; }
-  var code=cd.value.trim();
-  requirePin(t('pay_pin_confirm').replace('{amt}',fmt(amt)), function(){
-    APP.balance-=amt;
-    txList.unshift({id:Date.now(),name:code,type:'debit',amt:amt,cat:'Achat',ts:Date.now()});
-    updateBalDisplay(); renderTx('home'); toast(t('pay_success_toast').replace('{amt}',fmt(amt)));
-  });
 }
 
 // ── NOTIF ──
@@ -7105,8 +7068,14 @@ function doVD(){
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.balance){ toast(t('send_err_insufficient_balance'),true); return; }
-  APP.balance-=amt; APP.vaultBal+=amt;
-  updateBalDisplay(); renderVault(); closeSheet(); toast(t('vault_deposit_success_toast').replace('{amt}',fmt(amt)));
+  var tok=getToken();
+  apiCall('/wallet?action=vault-deposit','POST',{amount:amt},tok).then(function(res){
+    if(res&&res.success){
+      APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance;
+      save(); updateBalDisplay(); renderVault(); closeSheet();
+      toast(t('vault_deposit_success_toast').replace('{amt}',fmt(amt)));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 // ── VAULT WITHDRAW ──
@@ -7123,8 +7092,14 @@ function reqVW(){
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_insufficient_balance'),true); return; }
   requirePin(t('vault_withdraw_pin_confirm').replace('{amt}',fmt(amt)), function(){
-    APP.vaultBal-=amt; APP.balance+=amt;
-    updateBalDisplay(); renderVault(); toast(t('vault_withdraw_success_toast').replace('{amt}',fmt(amt)));
+    var tok=getToken();
+    apiCall('/wallet?action=vault-withdraw','POST',{amount:amt,pin:APP.pin},tok).then(function(res){
+      if(res&&res.success){
+        APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance;
+        save(); updateBalDisplay(); renderVault();
+        toast(t('vault_withdraw_success_toast').replace('{amt}',fmt(amt)));
+      } else { toast((res&&res.message)||t('send_err_generic'),true); }
+    });
   });
 }
 
@@ -7141,8 +7116,13 @@ function shVL(b){
 function doLock(){
   var dt=document.getElementById('lock-dt');
   if(!dt||!dt.value){ toast(t('vault_choose_date_err'),true); return; }
-  APP.vaultLocked=true; APP.vaultDate=dt.value;
-  renderVault(); closeSheet(); toast(t('vault_locked_toast'));
+  var tok=getToken();
+  apiCall('/wallet?action=vault-lock','POST',{lock_date:dt.value},tok).then(function(res){
+    if(res&&res.success){
+      APP.vaultLocked=true; APP.vaultDate=res.data.lock_date||dt.value;
+      save(); renderVault(); closeSheet(); toast(t('vault_locked_toast'));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 // ── CREATE SUB-VAULT ──
@@ -7167,10 +7147,16 @@ function doVCreate(){
   var amt=parseFloat(am&&am.value)||0;
   var goal=parseFloat(gl&&gl.value)||0;
   if(amt>APP.vaultBal){ toast(t('vault_main_insufficient'),true); return; }
-  APP.vaultBal-=amt;
-  APP.subVaults.push({id:APP.nextSubVaultId++, name:name, amt:amt, goal:goal});
-  save(); renderVault(); updateBalDisplay(); closeSheet();
-  toast(t('vault_created_toast').replace('{name}',name));
+  var tok=getToken();
+  apiCall('/wallet?action=subvault-create','POST',{name:name,amount:amt,goal:goal||''},tok).then(function(res){
+    if(res&&res.success){
+      var d=res.data||{};
+      APP.vaultBal=d.vault_balance;
+      APP.subVaults.push({id:d.id, name:d.name, amt:parseFloat(d.balance)||0, goal:d.goal_amount?parseFloat(d.goal_amount):0});
+      save(); renderVault(); updateBalDisplay(); closeSheet();
+      toast(t('vault_created_toast').replace('{name}',name));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 // ── SUB-VAULT DEPOSIT ──
@@ -7190,9 +7176,14 @@ function doSVDeposit(id){
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_main_insufficient'),true); return; }
-  APP.vaultBal-=amt; sv.amt+=amt;
-  save(); renderVault(); updateBalDisplay(); closeSheet();
-  toast(t('vault_sv_deposit_success').replace('{amt}',fmt(amt)).replace('{name}',sv.name));
+  var tok=getToken();
+  apiCall('/wallet?action=subvault-deposit','POST',{id:id,amount:amt},tok).then(function(res){
+    if(res&&res.success){
+      APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
+      save(); renderVault(); updateBalDisplay(); closeSheet();
+      toast(t('vault_sv_deposit_success').replace('{amt}',fmt(amt)).replace('{name}',sv.name));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 // ── SUB-VAULT WITHDRAW ──
@@ -7222,8 +7213,13 @@ function reqSVWithdraw(id){
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>sv.amt){ toast(t('vault_sv_insufficient'),true); return; }
   requirePin(t('vault_sv_withdraw_pin_confirm').replace('{amt}',fmt(amt)).replace('{name}',sv.name), function(){
-    sv.amt-=amt; APP.vaultBal+=amt;
-    save(); renderVault(); updateBalDisplay(); toast(t('vault_sv_withdraw_success').replace('{amt}',fmt(amt)));
+    var tok=getToken();
+    apiCall('/wallet?action=subvault-withdraw','POST',{id:id,amount:amt,pin:APP.pin},tok).then(function(res){
+      if(res&&res.success){
+        APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
+        save(); renderVault(); updateBalDisplay(); toast(t('vault_sv_withdraw_success').replace('{amt}',fmt(amt)));
+      } else { toast((res&&res.message)||t('send_err_generic'),true); }
+    });
   });
 }
 
@@ -7404,7 +7400,7 @@ function navGo(p){
   });
   document.getElementById('main-scroll').scrollTop = 0;
   if(p === 'history') renderTx('hist','all');
-  if(p === 'vault') renderVault();
+  if(p === 'vault'){ renderVault(); loadSubVaults(); }
   if(p === 'stats') setTimeout(renderStats, 60);
   if(p === 'profile') renderProfile();
   closeSheet();
@@ -7481,7 +7477,8 @@ function refreshCurrentPage2(){
     return refreshTxList().then(function(){ renderTx('hist', filter); save(); });
   }
   if(p==='vault'){
-    return new Promise(function(resolve){ renderVault(); resolve(); });
+    renderVault();
+    return loadSubVaults();
   }
   if(p==='stats'){
     renderStats();
@@ -7789,48 +7786,6 @@ var _encLoop = null;
 
 
 
-// FACTURES
-function shFactures(b){
-  var bills = [
-    {ico:'💧',name:'Eau (SODECI)'},
-    {ico:'⚡',name:'Électricité (CIE)'},
-    {ico:'📱',name:'Téléphone'},
-    {ico:'🌐',name:'Internet'},
-    {ico:'📺',name:'Télévision'},
-    {ico:'➕',name:'Autre'}
-  ];
-  var grid = bills.map(function(bill){
-    return '<div onclick="selectBill(this,&apos;'+bill.name+'&apos;)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;border:1.5px solid var(--bord);border-radius:14px;cursor:pointer;transition:all .15s">'
-      +'<div style="font-size:26px">'+bill.ico+'</div>'
-      +'<div style="font-size:10px;font-weight:700;text-align:center">'+bill.name+'</div>'
-      +'</div>';
-  }).join('');
-  b.innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">'+grid+'</div>'
-    +'<div id="bill-form" style="display:none">'
-    +'<div class="frow"><label class="flabel" id="bill-lbl">Facture</label><input class="finput" id="bill-ref" placeholder="Numéro de contrat / référence..."></div>'
-    +'<div class="frow"><label class="flabel">Montant (FCFA)</label>'
-    +'<div class="amt-row"><input class="finput" id="bill-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" onclick="doPayBill2()">Payer la facture</button>'
-    +'</div>';
-}
-function selectBill(el, name){
-  document.querySelectorAll('#sh-body > div > div[onclick]').forEach(function(d){ d.style.borderColor='var(--bord)'; d.style.background=''; });
-  el.style.borderColor='var(--g)'; el.style.background='var(--gl)';
-  document.getElementById('bill-lbl').textContent = name;
-  document.getElementById('bill-form').style.display = 'block';
-}
-function doPayBill2(){
-  var ref = document.getElementById('bill-ref').value.trim();
-  var amt = parseFloat(document.getElementById('bill-amt').value)||0;
-  var name = document.getElementById('bill-lbl').textContent;
-  if(!ref){ toast('Entrez la référence',true); return; }
-  if(amt<=0){ toast('Montant invalide',true); return; }
-  requirePin('Payer facture '+name+' '+fmt(amt), function(){
-    APP.balance -= amt;
-    txList.unshift({id:Date.now(),name:name,type:'debit',amt:amt,cat:'Facture',ts:Date.now()});
-    updateBalDisplay(); renderTx('home'); closeSheet(); toast('Facture '+name+' payée !');
-  });
-}
 
 // BANQUE
 // ── BANQUE (SIMULATION) ──
@@ -8669,7 +8624,6 @@ function showQRFullscreen(){
 
 function doOpenSend(){ openSheet('send'); }
 function doOpenPay(){ openSheet('pay'); }
-function doOpenTopup(){ openSheet('topup'); }
 function doOpenReceive(){ openSheet('receive'); }
 function doOpenNotif(){ openSheet('notif'); }
 function doOpenQr(){ openSheet('qr'); }
@@ -8914,7 +8868,7 @@ function lockSubVault(id){
     +'<div class="frow"><label class="flabel">'+t('vault_label_unlock_date')+'</label>'
     +'<input class="finput" id="sv-lock-date" type="date" min="'+minDate+'"></div>'
     +'<div style="background:var(--al);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--gold-text);margin-bottom:16px">'+t('vault_lock_warning')+'</div>'
-    +'<button class="btn-g" onclick="doLockSubVault('+id+')">'+t('vault_btn_lock_this')+'</button>'
+    +'<button class="btn-g" onclick="doLockSubVault(&apos;'+id+'&apos;)">'+t('vault_btn_lock_this')+'</button>'
     +'<button class="btn-w" onclick="closeSheet()">'+t('cross_country_btn_cancel')+'</button>';
   bg.classList.add('on');
   setTimeout(function(){sh.classList.add('on');},10);
@@ -8925,39 +8879,40 @@ function doLockSubVault(id){
   if(!dateEl||!dateEl.value){toast(t('vault_choose_date_err'),true);return;}
   var date=dateEl.value;
   if(new Date(date)<=new Date()){toast(t('vault_date_invalid'),true);return;}
-  var subs=APP.subVaults||[];
-  for(var i=0;i<subs.length;i++){
-    if(subs[i].id===id){
-      subs[i].locked=true;
-      subs[i].lockDate=date;
-      break;
-    }
-  }
-  APP.subVaults=subs;
-  save();
-  closeSheet();
-  renderSubVaults();
-  toast(t('vault_locked_until_toast').replace('{date}',new Date(date).toLocaleDateString(APP.lang==='en'?'en-US':'fr-FR')));
+  var tok=getToken();
+  apiCall('/wallet?action=subvault-lock','POST',{id:id,lock_date:date},tok).then(function(res){
+    if(res&&res.success){
+      var subs=APP.subVaults||[];
+      for(var i=0;i<subs.length;i++){
+        if(subs[i].id===id){ subs[i].locked=true; subs[i].lockDate=res.data.lock_date||date; break; }
+      }
+      APP.subVaults=subs;
+      save();
+      closeSheet();
+      renderSubVaults();
+      toast(t('vault_locked_until_toast').replace('{date}',new Date(date).toLocaleDateString(APP.lang==='en'?'en-US':'fr-FR')));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 function unlockSubVault(id){
   var subs=APP.subVaults||[];
-  for(var i=0;i<subs.length;i++){
-    if(subs[i].id===id){
-      // Check if lock date has passed
-      if(subs[i].lockDate && new Date(subs[i].lockDate)>new Date()){
-        toast(t('vault_locked_until_toast').replace('{date}',new Date(subs[i].lockDate).toLocaleDateString(APP.lang==='en'?'en-US':'fr-FR')),true);
-        return;
-      }
-      subs[i].locked=false;
-      subs[i].lockDate=null;
-      break;
-    }
+  var sv=null;
+  for(var i=0;i<subs.length;i++) if(subs[i].id===id){sv=subs[i];break;}
+  if(!sv) return;
+  if(sv.lockDate && new Date(sv.lockDate)>new Date()){
+    toast(t('vault_locked_until_toast').replace('{date}',new Date(sv.lockDate).toLocaleDateString(APP.lang==='en'?'en-US':'fr-FR')),true);
+    return;
   }
-  APP.subVaults=subs;
-  save();
-  renderSubVaults();
-  toast(t('vault_unlocked_toast'));
+  var tok=getToken();
+  apiCall('/wallet?action=subvault-unlock','POST',{id:id},tok).then(function(res){
+    if(res&&res.success){
+      sv.locked=false; sv.lockDate=null;
+      save();
+      renderSubVaults();
+      toast(t('vault_unlocked_toast'));
+    } else { toast((res&&res.message)||t('send_err_generic'),true); }
+  });
 }
 
 // ── AUTO LOGOUT after 1 minute inactivity ──

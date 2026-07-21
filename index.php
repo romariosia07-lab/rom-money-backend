@@ -737,10 +737,16 @@ function auth_change_pin() {
 function route_wallet($action) {
     match($action) {
         'balance'        => wallet_balance(),
-        'topup'          => wallet_topup(),
         'vault-deposit'  => vault_deposit(),
         'vault-withdraw' => vault_withdraw(),
         'vault-lock'     => vault_lock(),
+        'subvault-list'     => subvault_list(),
+        'subvault-create'   => subvault_create(),
+        'subvault-deposit'  => subvault_deposit(),
+        'subvault-withdraw' => subvault_withdraw(),
+        'subvault-lock'     => subvault_lock(),
+        'subvault-unlock'   => subvault_unlock(),
+        'subvault-delete'   => subvault_delete(),
         'renew-qr'       => wallet_renew_qr(),
         'resolve-qr'     => wallet_resolve_qr(),
         'stats'          => wallet_stats(),
@@ -768,22 +774,6 @@ function wallet_balance() {
         'vault_locked'=>(bool)$w['vault_locked'],'vault_lock_date'=>$w['vault_lock_date'],
         'qr_seed'=>$w['qr_seed'],'name'=>$w['full_name'],'phone'=>$w['phone_number'],
         'is_kyc'=>(bool)$w['is_kyc'],'currency'=>$w['currency']]);
-}
-
-function wallet_topup() {
-    $pl = auth(); $b = body();
-    $amt = (float)($b['amount']??0);
-    if($amt<=0) fail('Montant invalide');
-    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
-    db()->beginTransaction();
-    try {
-        $reference = ref();
-        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'deposit','completed',?,'Recharge')",[uid(),$wid,$amt,$reference]);
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amt,$wid]);
-        db()->commit();
-        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$wid])->fetchColumn();
-        ok(['reference'=>$reference,'amount'=>$amt,'new_balance'=>$bal],'Recharge effectuee');
-    } catch(Exception $e) { db()->rollBack(); fail('Erreur recharge',500); }
 }
 
 function vault_deposit() {
@@ -827,6 +817,124 @@ function vault_lock() {
     if(!$date || strtotime($date)<=time()) fail('Date invalide');
     q("UPDATE wallets SET vault_locked=1,vault_lock_date=? WHERE user_id=?",[$date,$pl['sub']]);
     ok(['lock_date'=>$date],'Coffre verrouille');
+}
+
+// ============================================================
+// SOUS-COFFRES — plusieurs tirelires nommees a l'interieur du coffre
+// principal d'un wallet. Chaque montant depose/retire d'un sous-coffre
+// transite obligatoirement par vault_balance (le coffre principal), jamais
+// directement par balance : ca garde une seule porte d'entree/sortie pour
+// l'argent qui rentre dans l'univers "epargne".
+// ============================================================
+
+function subvault_owned($wid, $id) {
+    $sv = q("SELECT * FROM sub_vaults WHERE id=? AND wallet_id=?",[$id,$wid])->fetch();
+    if(!$sv) fail('Sous-coffre introuvable',404);
+    return $sv;
+}
+
+function subvault_list() {
+    $pl = auth();
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $rows = q("SELECT id,name,balance,goal_amount,locked,lock_date FROM sub_vaults WHERE wallet_id=? ORDER BY created_at ASC",[$wid])->fetchAll();
+    ok($rows);
+}
+
+function subvault_create() {
+    $pl = auth(); $b = body();
+    $name = trim($b['name'] ?? '');
+    $amt  = (float)($b['amount'] ?? 0);
+    $goal = isset($b['goal']) && $b['goal']!=='' ? (float)$b['goal'] : null;
+    if(!$name) fail('Nom requis');
+    if($amt<0) fail('Montant invalide');
+    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    if($amt > (float)$w['vault_balance']) fail('Solde du coffre principal insuffisant');
+    db()->beginTransaction();
+    try {
+        $id = uid();
+        q("INSERT INTO sub_vaults (id,wallet_id,name,balance,goal_amount) VALUES (?,?,?,?,?)",[$id,$w['id'],$name,$amt,$goal]);
+        q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=?",[$amt,$w['id']]);
+        db()->commit();
+        ok(['id'=>$id,'name'=>$name,'balance'=>$amt,'goal_amount'=>$goal,
+            'vault_balance'=>(float)$w['vault_balance']-$amt],'Sous-coffre cree');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur creation',500); }
+}
+
+function subvault_deposit() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0);
+    if($amt<=0) fail('Montant invalide');
+    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $sv = subvault_owned($w['id'], $id);
+    if($amt > (float)$w['vault_balance']) fail('Solde du coffre principal insuffisant');
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=?",[$amt,$w['id']]);
+        q("UPDATE sub_vaults SET balance=balance+? WHERE id=?",[$amt,$id]);
+        db()->commit();
+        $bal   = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
+        $svBal = (float)q("SELECT balance FROM sub_vaults WHERE id=?",[$id])->fetchColumn();
+        ok(['vault_balance'=>$bal,'sub_balance'=>$svBal],'Depose dans le sous-coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur depot',500); }
+}
+
+function subvault_withdraw() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0); $pin = trim($b['pin'] ?? '');
+    if($amt<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
+    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
+    $w  = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $sv = subvault_owned($w['id'], $id);
+    if($sv['locked'] && strtotime($sv['lock_date']??'0')>time())
+        fail("Sous-coffre verrouille jusqu'au ".date('d/m/Y',strtotime($sv['lock_date'])));
+    if($amt > (float)$sv['balance']) fail('Solde du sous-coffre insuffisant');
+    db()->beginTransaction();
+    try {
+        q("UPDATE sub_vaults SET balance=balance-?,locked=0 WHERE id=?",[$amt,$id]);
+        q("UPDATE wallets SET vault_balance=vault_balance+? WHERE id=?",[$amt,$w['id']]);
+        db()->commit();
+        $bal   = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
+        $svBal = (float)q("SELECT balance FROM sub_vaults WHERE id=?",[$id])->fetchColumn();
+        ok(['vault_balance'=>$bal,'sub_balance'=>$svBal],'Retire du sous-coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur retrait',500); }
+}
+
+function subvault_lock() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $date = trim($b['lock_date'] ?? '');
+    if(!$date || strtotime($date)<=time()) fail('Date invalide');
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    subvault_owned($wid, $id);
+    q("UPDATE sub_vaults SET locked=1,lock_date=? WHERE id=?",[$date,$id]);
+    ok(['lock_date'=>$date],'Sous-coffre verrouille');
+}
+
+function subvault_unlock() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $sv = subvault_owned($wid, $id);
+    if($sv['locked'] && strtotime($sv['lock_date']??'0')>time())
+        fail("Verrouille jusqu'au ".date('d/m/Y',strtotime($sv['lock_date'])));
+    q("UPDATE sub_vaults SET locked=0,lock_date=NULL WHERE id=?",[$id]);
+    ok(null,'Sous-coffre deverrouille');
+}
+
+function subvault_delete() {
+    $pl = auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
+    $sv = subvault_owned($wid, $id);
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET vault_balance=vault_balance+? WHERE id=?",[$sv['balance'],$wid]);
+        q("DELETE FROM sub_vaults WHERE id=?",[$id]);
+        db()->commit();
+        $bal = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$wid])->fetchColumn();
+        ok(['vault_balance'=>$bal],'Sous-coffre supprime');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur suppression',500); }
 }
 
 function wallet_renew_qr() {
@@ -961,7 +1069,6 @@ function route_tx($action) {
     match($action) {
         'send'    => tx_send(),
         'collect' => tx_collect(),
-        'pay'     => tx_pay(),
         'cancel'  => tx_cancel(),
         'history' => tx_history(),
         'detail'  => tx_detail(),
@@ -1328,32 +1435,6 @@ function tx_collect() {
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
-}
-
-function tx_pay() {
-    $pl = auth(); $b = body();
-    $code = trim($b['merchant_code']??'');
-    $amt  = (float)($b['amount']??0);
-    $pin  = trim($b['pin']??'');
-    if(!$code) fail('Code marchand requis');
-    if($amt<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
-    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
-    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
-    $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
-    if((float)$w['balance']<$amt) fail('Solde insuffisant');
-    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
-    db()->beginTransaction();
-    try {
-        $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description,cancel_deadline) VALUES (?,?,?,'payment','pending',?,?,?)",
-          [$txid,$w['id'],$amt,$reference,"Paiement: $code",$deadline]);
-        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$amt,$w['id']]);
-        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
-        db()->commit();
-        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amt,
-            'merchant'=>$code,'cancel_before'=>$deadline,'new_balance'=>(float)$w['balance']-$amt],'Paiement effectue');
-    } catch(Exception $e) { db()->rollBack(); fail('Echec paiement',500); }
 }
 
 function tx_cancel() {
@@ -3909,6 +3990,17 @@ function route_install() {
         qr_renewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "CREATE TABLE IF NOT EXISTS sub_vaults (
+        id VARCHAR(36) PRIMARY KEY,
+        wallet_id VARCHAR(36) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        balance DECIMAL(15,2) DEFAULT 0.00,
+        goal_amount DECIMAL(15,2),
+        locked SMALLINT DEFAULT 0,
+        lock_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_subvaults_wallet ON sub_vaults(wallet_id)",
     "CREATE TABLE IF NOT EXISTS transactions (
         id VARCHAR(36) PRIMARY KEY,
         sender_wallet_id VARCHAR(36),
