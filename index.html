@@ -6073,6 +6073,7 @@ function openSheet(type, titleAlreadySet, extra){
 
   bg.classList.add('on');
   setTimeout(function(){ sh.classList.add('on'); }, 10);
+  pushNavState('sheet-'+type);
 }
 
 function closeSheet(){
@@ -6081,6 +6082,37 @@ function closeSheet(){
   var sh=document.getElementById('sh'); sh.classList.remove('on');
   document.getElementById('sh-bg').classList.remove('on');
 }
+
+// ═══════════════════════════════════════════
+// BOUTON RETOUR (Android/PWA) — sans ceci, le bouton/geste retour du
+// telephone quitte l'app directement au lieu de fermer l'ecran ouvert
+// (Envoyer, Payer, etc.), puisqu'aucun etat n'est jamais ajoute a
+// l'historique du navigateur lors de la navigation interne a l'app.
+// ═══════════════════════════════════════════
+function pushNavState(label){
+  try{ history.pushState({romNav:true, label:label||''}, ''); }catch(e){}
+}
+window.addEventListener('popstate', function(){
+  // Un ecran secondaire (sheet) est ouvert -> le bouton retour le ferme,
+  // au lieu de quitter l'app. Re-arme un etat pour le prochain retour.
+  var sh = document.getElementById('sh');
+  if(sh && sh.classList.contains('on')){
+    closeSheet();
+    pushNavState('closed-sheet');
+    return;
+  }
+  // L'ecran de confirmation par PIN est affiche -> retour a l'accueil
+  // plutot que de quitter l'app en pleine saisie du code secret.
+  var pinScreen = document.getElementById('s-pinconfirm');
+  if(pinScreen && pinScreen.classList.contains('on')){
+    pcBuf=''; updatePcDots();
+    goto('s-app');
+    pushNavState('cancelled-pin');
+    return;
+  }
+  // Sinon (accueil ou ecran de connexion) : comportement normal du
+  // navigateur, l'app se ferme - c'est l'attente standard a cet endroit.
+});
 
 function buildSheet(type, b, extra){
   if(type==='send') shSend(b);
