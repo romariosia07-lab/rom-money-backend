@@ -1515,6 +1515,10 @@ var I18N = {
   admin_confirm_cancel_final_title: {fr:"Confirmer l'annulation définitive ?", en:'Confirm final cancellation?'},
   admin_confirm_cancel_final_msg: {fr:"Réf. {ref}\nCette action est IRRÉVERSIBLE. L'argent, déjà revenu à l'expéditeur pendant le gel, y reste définitivement.", en:"Ref. {ref}\nThis action is IRREVERSIBLE. The money, already returned to the sender during the freeze, stays there permanently."},
   admin_tx_cancel_confirmed: {fr:'Annulation confirmée', en:'Cancellation confirmed'},
+  admin_status_completed: {fr:'Terminée', en:'Completed'},
+  admin_status_pending: {fr:'En attente', en:'Pending'},
+  admin_status_cancelled: {fr:'Annulée', en:'Cancelled'},
+  admin_status_frozen: {fr:'❄ En vérification', en:'❄ Under review'},
   admin_type_transfer: {fr:'Transfert', en:'Transfer'},
   admin_type_fee: {fr:'Frais', en:'Fee'},
   admin_type_deposit: {fr:'Recharge', en:'Top-up'},
@@ -2216,7 +2220,12 @@ function TYPE_FR_GET(key){
 }
 var ACTION_FR={pin_reset:'Réinitialisation PIN',late_cancel:'Annulation tardive',tx_freeze:'Transaction gelée',tx_unfreeze:'Transaction débloquée',tx_freeze_confirm_cancel:'Annulation confirmée (après gel)',admin_login:'Connexion admin',country_toggle:'Pays actif/inactif',account_block:'Blocage de compte',account_unblock:'Déblocage de compte',account_delete:'Suppression définitive de compte',update_country:'Modification du pays','2fa_setup_started':'2FA — génération QR code','2fa_setup_confirm':'2FA — activation confirmée','2fa_disable':'2FA — désactivation','2fa_regenerate_codes':'2FA — codes de récupération régénérés',kyc_approve_corrected:'KYC approuvé (nom corrigé par admin)',update_settings:'Modification des réglages'};
 var RESULT_FR={success:'Succès',failed:'Échec'};
-function statusPill(s){ var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':(s==='frozen'?'st-frozen':'st-pending')); return '<span class="status-pill '+cls+'">'+(STATUS_FR[s]||s)+'</span>'; }
+function statusPill(s){
+  var cls=s==='completed'?'st-ok':(s==='cancelled'?'st-cancel':(s==='frozen'?'st-frozen':'st-pending'));
+  var labelKeys={completed:'admin_status_completed',pending:'admin_status_pending',cancelled:'admin_status_cancelled',frozen:'admin_status_frozen'};
+  var label = labelKeys[s] ? at(labelKeys[s]) : s;
+  return '<span class="status-pill '+cls+'">'+label+'</span>';
+}
 function resultPill(r){ var cls=r==='success'?'res-ok':'res-fail'; return '<span class="result-pill '+cls+'">'+(RESULT_FR[r]||r)+'</span>'; }
 function toggleReasonCustom(prefix){
   var sel=document.getElementById(prefix+'-reason-sel');
