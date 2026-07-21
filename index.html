@@ -1639,6 +1639,10 @@ var I18N = {
   action_2fa_regenerate_codes: {fr:'2FA — codes de récupération régénérés', en:'2FA — recovery codes regenerated'},
   action_kyc_approve_corrected: {fr:'KYC approuvé (nom corrigé par admin)', en:'KYC approved (name corrected by admin)'},
   action_update_settings: {fr:'Modification des réglages', en:'Settings changed'},
+  action_backfill_verified_names: {fr:'Correction des noms manquants (comptes vérifiés)', en:'Missing names fix (verified accounts)'},
+  action_delete_kyc: {fr:"Suppression d'une demande KYC", en:'KYC request deleted'},
+  action_exchange_rates_refresh: {fr:'Taux de change actualisés', en:'Exchange rates refreshed'},
+  action_kyc_migrate_encrypt: {fr:'Chiffrement des anciennes photos KYC', en:'Old KYC photos encrypted'},
   result_success: {fr:'Succès', en:'Success'},
   result_failed: {fr:'Échec', en:'Failed'},
   admin_audit_no_match: {fr:'Aucune action ne correspond à ces filtres', en:'No action matches these filters'},
@@ -2343,7 +2347,7 @@ function TYPE_FR_GET(key){
   return map[key] ? at(map[key]) : null;
 }
 function ACTION_FR_GET(action){
-  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings'};
+  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings',backfill_verified_names:'action_backfill_verified_names',delete_kyc:'action_delete_kyc',exchange_rates_refresh:'action_exchange_rates_refresh',kyc_migrate_encrypt:'action_kyc_migrate_encrypt'};
   return map[action] ? at(map[action]) : null;
 }
 function RESULT_FR_GET(result){
@@ -3333,7 +3337,7 @@ function adminLoadCountryOptions(){
   apiCall('/auth?action=countries','GET',null,'').then(function(res){
     if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
       sel.innerHTML='<option value="">'+at('admin_country_choose')+'</option>'
-        + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+        + res.data.countries.map(function(c){ return '<option value="'+c+'">'+adminCountryName(c)+'</option>'; }).join('');
       sel.setAttribute('data-loaded','1');
     } else {
       sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
@@ -3410,7 +3414,7 @@ function adminSearchByPhone(){
         +'<b>'+at('admin_status_label_colon')+'</b> <span style="color:'+statusColor+';font-weight:700">'+statusLabel+'</span><br>'
         +'<b>'+at('admin_phone_label_colon')+'</b> '+(p.phone||'-')+'<br>'
         +'<b>'+at('admin_email_label_colon')+'</b> '+(p.email||'-')+'<br>'
-        +'<b>'+at('admin_operator_country_label')+'</b> '+(p.operator||'-')+' &middot; <b>'+at('admin_country_label')+'</b> '+(p.country||'-')+'<br>'
+        +'<b>'+at('admin_operator_country_label')+'</b> '+(p.operator||'-')+' &middot; <b>'+at('admin_country_label')+'</b> '+(p.country?adminCountryName(p.country):'-')+'<br>'
         +'<b>'+at('admin_kyc_label_colon')+'</b> '+(p.is_kyc?'<span style="color:var(--g)">'+at('admin_kyc_verified_short')+'</span>':'<span style="color:var(--t3)">'+at('admin_kyc_unverified_short')+'</span>')+(p.verified_birthdate?' &middot; '+at('admin_born_on').replace('{date}',p.verified_birthdate):'')+'<br>'
         +'<b>'+at('admin_registered_on')+'</b> '+(p.created_at?new Date(p.created_at).toLocaleString():'-')+'<br>'
         +'<b>'+at('admin_referral_code_label')+'</b> '+(p.referral_code||'-')+' ('+at('admin_referral_stats').replace('{count}',d.referral?d.referral.referred_count:0).replace('{amt}',fmt(d.referral?d.referral.total_earned:0))+')'
@@ -4210,7 +4214,7 @@ function adminLoadCountries(){
       list.forEach(function(c){
         var isOn=!!(c.is_active==1||c.is_active===true);
         html+='<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--bord);border-radius:12px;padding:10px 12px;background:var(--card)">'
-          +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+c.name+'</span>'
+          +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+adminCountryName(c.name)+'</span>'
           +'<button onclick="adminToggleCountry(\''+c.name.replace(/'/g,"\\'")+'\')" style="border:none;cursor:pointer;padding:5px 10px;border-radius:14px;font-size:10px;font-weight:700;'
           +(isOn?'background:var(--gl);color:var(--accent-text)':'background:var(--rl);color:var(--rd)')+'">'
           +(isOn?at('admin_country_active'):at('admin_country_inactive'))
@@ -4227,7 +4231,7 @@ function adminLoadCountries(){
 function adminToggleCountry(name){
   apiCall('/admin?action=country-toggle','POST',{admin_password:window._adminPw,name:name},'').then(function(res){
     if(res&&res.success){
-      toast(name+' : '+(res.data.is_active?at('admin_country_activated'):at('admin_country_deactivated')));
+      toast(adminCountryName(name)+' : '+(res.data.is_active?at('admin_country_activated'):at('admin_country_deactivated')));
       adminLoadCountries();
     } else {
       toast((res&&res.message)||at('admin_error_generic'), true);
@@ -4290,6 +4294,24 @@ var COUNTRY_CURRENCY = {
   'Somalie':'SOS','Afrique du Sud':'ZAR','Soudan du Sud':'SSP','Soudan':'SDG','Eswatini':'SZL','Tanzanie':'TZS','Tunisie':'TND',
   'Ouganda':'UGX','Zambie':'ZMW','Zimbabwe':'ZWG'
 };
+// Traduction des noms de pays (stockes en francais en base) pour l'affichage
+// admin en anglais uniquement - ex: liste des Pays actifs. Cote utilisateur,
+// les noms restent tels quels (le champ pays est fige a l'inscription, pas
+// affiche differemment selon la langue).
+var COUNTRY_NAME_EN = {
+  "Côte d'Ivoire":"Ivory Coast",'Sénégal':'Senegal','Mali':'Mali','Burkina Faso':'Burkina Faso','Niger':'Niger','Togo':'Togo','Bénin':'Benin','Guinée-Bissau':'Guinea-Bissau',
+  'Cameroun':'Cameroon','Congo-Brazzaville':'Congo-Brazzaville','Gabon':'Gabon','Centrafrique':'Central African Republic','Tchad':'Chad','Guinée Équatoriale':'Equatorial Guinea',
+  'Comores':'Comoros','Algérie':'Algeria','Angola':'Angola','Burundi':'Burundi','Botswana':'Botswana','Congo-Kinshasa':'Congo-Kinshasa','Djibouti':'Djibouti',
+  'Égypte':'Egypt','Érythrée':'Eritrea','Éthiopie':'Ethiopia','Ghana':'Ghana','Guinée Conakry':'Guinea','Kenya':'Kenya','Lesotho':'Lesotho',
+  'Liberia':'Liberia','Libye':'Libya','Madagascar':'Madagascar','Malawi':'Malawi','Mauritanie':'Mauritania','Maurice':'Mauritius','Maroc':'Morocco',
+  'Mozambique':'Mozambique','Namibie':'Namibia','Nigeria':'Nigeria','Rwanda':'Rwanda','São Tomé':'São Tomé','Seychelles':'Seychelles','Sierra Leone':'Sierra Leone',
+  'Somalie':'Somalia','Afrique du Sud':'South Africa','Soudan du Sud':'South Sudan','Soudan':'Sudan','Eswatini':'Eswatini','Tanzanie':'Tanzania','Tunisie':'Tunisia',
+  'Ouganda':'Uganda','Zambie':'Zambia','Zimbabwe':'Zimbabwe'
+};
+function adminCountryName(frName){
+  if(ADMIN_LANG==='en' && COUNTRY_NAME_EN[frName]) return COUNTRY_NAME_EN[frName];
+  return frName;
+}
 // Operateurs mobile money connus par pays. Volontairement limite aux
 // marches ou l'information est fiable (evite d'inventer des noms
 // d'operateurs pour des pays moins documentes) - "Autre" couvre le reste,
