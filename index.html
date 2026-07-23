@@ -8394,7 +8394,13 @@ function refreshUI(){
   });
   _('prof-kyc-badge',function(e){
     var svg=e.querySelector('svg');
-    e.childNodes[e.childNodes.length-1].textContent=APP.isKyc?t('kyc_verified_suffix'):t('kyc_unverified_suffix');
+    var span=e.querySelector('span');
+    // Cible le <span> par balise, pas "le dernier enfant" : un retour a la
+    // ligne dans le HTML entre </span> et </div> cree un noeud de texte
+    // invisible juste apres le span, qui devenait alors "le dernier enfant"
+    // a la place du span - le vrai texte n'etait donc jamais remplace, et un
+    // second texte apparaissait a cote (ex: "Non verifie Compte Verifie").
+    if(span) span.textContent=APP.isKyc?t('kyc_verified_suffix'):t('kyc_unverified_suffix');
     if(svg) svg.setAttribute('stroke', APP.isKyc?'var(--g)':'var(--re)');
     e.style.color=APP.isKyc?'var(--g)':'var(--re)';
   });
