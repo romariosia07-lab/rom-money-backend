@@ -421,12 +421,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div class="reg-body">
       <div class="steps"><div class="step on"></div><div class="step on"></div><div class="step"></div></div>
       <div class="reg-title" data-i18n="reg_title_pin">Choisissez votre PIN</div>
-      <div class="reg-sub" data-i18n="reg_sub_pin">Code à 6 chiffres — il sécurise chacune de vos transactions.</div>
+      <div class="reg-sub" data-i18n="reg_sub_pin">Code à 4 chiffres — il sécurise chacune de vos transactions.</div>
       <div id="pin-phase-label" style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:20px;text-align:center" data-i18n="pin_enter_new">Entrez votre nouveau PIN</div>
       <div class="dots" id="reg-dots">
         <div class="dot" id="rg0"></div><div class="dot" id="rg1"></div>
         <div class="dot" id="rg2"></div><div class="dot" id="rg3"></div>
-        <div class="dot" id="rg4"></div><div class="dot" id="rg5"></div>
       </div>
       <div class="kpad" style="margin:0 auto">
         <button class="kb light" onclick="rgPin('1')">1</button><button class="kb light" onclick="rgPin('2')">2</button><button class="kb light" onclick="rgPin('3')">3</button>
@@ -473,7 +472,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   <div class="dots">
     <div class="dot" id="ld0"></div><div class="dot" id="ld1"></div>
     <div class="dot" id="ld2"></div><div class="dot" id="ld3"></div>
-    <div class="dot" id="ld4"></div><div class="dot" id="ld5"></div>
   </div>
   <div class="kpad">
     <button class="kb" onclick="lgPin('1')">1</button><button class="kb" onclick="lgPin('2')">2</button><button class="kb" onclick="lgPin('3')">3</button>
@@ -495,7 +493,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   <div class="dots">
     <div class="dot" id="pc0"></div><div class="dot" id="pc1"></div>
     <div class="dot" id="pc2"></div><div class="dot" id="pc3"></div>
-    <div class="dot" id="pc4"></div><div class="dot" id="pc5"></div>
   </div>
   <div class="kpad">
     <button class="kb" onclick="pcPin('1')">1</button><button class="kb" onclick="pcPin('2')">2</button><button class="kb" onclick="pcPin('3')">3</button>
@@ -956,7 +953,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="admin-stitle" data-i18n-admin="admin_acc_reset_pin_title">Réinitialiser un PIN</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_acc_reset_pin_desc">Vérifiez toujours l'identité de la personne (WhatsApp/appel) avant d'utiliser cet outil.</div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_phone_label">Numéro de téléphone</label><input class="finput" id="rst-phone" placeholder="0000000000"></div>
-      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_new_pin_label">Nouveau PIN (6 chiffres)</label><input class="finput" id="rst-pin" type="text" maxlength="6" inputmode="numeric" placeholder="000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_new_pin_label">Nouveau PIN (4 chiffres)</label><input class="finput" id="rst-pin" type="text" maxlength="4" inputmode="numeric" placeholder="0000"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="rst-reason-sel" onchange="toggleReasonCustom('rst')">
           <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
@@ -1348,7 +1345,7 @@ var I18N = {
   admin_acc_reset_pin_title: {fr:'Réinitialiser un PIN', en:'Reset a PIN'},
   admin_acc_reset_pin_desc: {fr:"Vérifiez toujours l'identité de la personne (WhatsApp/appel) avant d'utiliser cet outil.", en:"Always verify the person's identity (WhatsApp/call) before using this tool."},
   admin_acc_phone_label: {fr:'Numéro de téléphone', en:'Phone number'},
-  admin_acc_new_pin_label: {fr:'Nouveau PIN (6 chiffres)', en:'New PIN (6 digits)'},
+  admin_acc_new_pin_label: {fr:'Nouveau PIN (4 chiffres)', en:'New PIN (4 digits)'},
   admin_acc_reason_label: {fr:'Raison (obligatoire, journalisée)', en:'Reason (required, logged)'},
   admin_acc_reason_whatsapp: {fr:'Identité vérifiée par WhatsApp', en:'Identity verified via WhatsApp'},
   admin_acc_reason_call: {fr:'Identité vérifiée par appel téléphonique', en:'Identity verified via phone call'},
@@ -1375,7 +1372,7 @@ var I18N = {
   admin_acc_reason_client_request: {fr:'Demande du client', en:'Client request'},
   admin_acc_delete_btn: {fr:'Supprimer définitivement ce compte', en:'Permanently delete this account'},
   admin_field_required: {fr:'Tous les champs sont requis', en:'All fields are required'},
-  admin_pin_6_digits: {fr:'Le PIN doit contenir 6 chiffres', en:'PIN must contain 6 digits'},
+  admin_pin_6_digits: {fr:'Le PIN doit contenir 4 chiffres', en:'PIN must contain 4 digits'},
   admin_reset_pin_confirm_title: {fr:'Réinitialiser ce PIN ?', en:'Reset this PIN?'},
   admin_reset_pin_confirm_msg: {fr:'Compte {phone}\nAs-tu bien vérifié son identité avant de continuer ?', en:"Account {phone}\nHave you verified this person's identity before continuing?"},
   admin_reset_pin_btn_confirm: {fr:'Réinitialiser', en:'Reset'},
@@ -1726,7 +1723,7 @@ var I18N = {
 
   step2_of_3: {fr:'Étape 2 sur 3', en:'Step 2 of 3'},
   reg_title_pin: {fr:'Choisissez votre PIN', en:'Choose your PIN'},
-  reg_sub_pin: {fr:'Code à 6 chiffres — il sécurise chacune de vos transactions.', en:'6-digit code — it secures each of your transactions.'},
+  reg_sub_pin: {fr:'Code à 4 chiffres — il sécurise chacune de vos transactions.', en:'4-digit code — it secures each of your transactions.'},
   pin_enter_new: {fr:'Entrez votre nouveau PIN', en:'Enter your new PIN'},
   pin_confirm_new: {fr:'Confirmez votre PIN', en:'Confirm your PIN'},
   pin_mismatch: {fr:'Les codes ne correspondent pas, recommencez', en:'Codes do not match, try again'},
@@ -1856,7 +1853,7 @@ var I18N = {
 
   pin_enter_current: {fr:'Entrez votre PIN actuel', en:'Enter your current PIN'},
   pin_current_incorrect: {fr:'PIN actuel incorrect', en:'Incorrect current PIN'},
-  pin_change_new_label: {fr:'Nouveau PIN (6 chiffres)', en:'New PIN (6 digits)'},
+  pin_change_new_label: {fr:'Nouveau PIN (4 chiffres)', en:'New PIN (4 digits)'},
   pin_change_confirm_label: {fr:'Confirmez le nouveau PIN', en:'Confirm the new PIN'},
   pin_change_mismatch: {fr:'PIN non identique, recommencez', en:'PIN mismatch, try again'},
   pin_change_success_toast: {fr:'PIN mis à jour avec succès !', en:'PIN updated successfully!'},
@@ -2008,7 +2005,7 @@ var I18N = {
   enc_pin_prompt: {fr:'Le tiers doit entrer son PIN pour confirmer :', en:'The other person must enter their PIN to confirm:'},
   enc_btn_scan_again: {fr:'Scanner à nouveau', en:'Scan again'},
   enc_qr_not_account: {fr:"Ce QR n'est pas un compte ROM_MONEY", en:'This QR is not a ROM_MONEY account'},
-  enc_pin_length_err: {fr:'PIN doit avoir 6 chiffres', en:'PIN must have 6 digits'},
+  enc_pin_length_err: {fr:'PIN doit avoir 4 chiffres', en:'PIN must have 4 digits'},
   enc_processing_toast: {fr:'Encaissement en cours...', en:'Collecting payment...'},
   enc_success_toast: {fr:'{amt} encaissé de {name} !', en:'{amt} collected from {name}!'},
   enc_err_generic: {fr:'Echec encaissement', en:'Collection failed'},
@@ -2105,6 +2102,7 @@ var I18N = {
   vault_btn_withdraw_from_vault: {fr:'Retirer du coffre', en:'Withdraw from the vault'},
   vault_insufficient_balance: {fr:'Solde coffre insuffisant', en:'Insufficient vault balance'},
   vault_withdraw_pin_confirm: {fr:'Retrait coffre {amt}', en:'Vault withdrawal {amt}'},
+  bank_withdraw_pin_confirm: {fr:'Retrait banque {amt}', en:'Bank withdrawal {amt}'},
   vault_withdraw_success_toast: {fr:'{amt} retiré du coffre', en:'{amt} withdrawn from the vault'},
   vault_choose_unlock_date: {fr:'Choisissez la date de déblocage. Aucun retrait avant cette date.', en:'Choose the unlock date. No withdrawal before this date.'},
   vault_label_unlock_date: {fr:'Date de déblocage', en:'Unlock date'},
@@ -2296,7 +2294,7 @@ var I18N = {
   onboard_4_title: {fr:'Statistiques', en:'Statistics'},
   onboard_4_desc: {fr:'Suivez vos revenus et depenses mois par mois, et visualisez la repartition de vos transactions.', en:'Track your income and expenses month by month, and see the breakdown of your transactions.'},
   onboard_5_title: {fr:'Votre compte est protege', en:'Your account is protected'},
-  onboard_5_desc: {fr:'Votre PIN a 6 chiffres et la biometrie (empreinte/visage) protegent votre solde. Ne le partagez jamais avec personne.', en:'Your 6-digit PIN and biometrics (fingerprint/face) protect your balance. Never share it with anyone.'},
+  onboard_5_desc: {fr:'Votre PIN a 4 chiffres et la biometrie (empreinte/visage) protegent votre solde. Ne le partagez jamais avec personne.', en:'Your 4-digit PIN and biometrics (fingerprint/face) protect your balance. Never share it with anyone.'},
 
   enc_speech_confirm: {fr:'Vous avez recu {amt} F de {name}', en:'You received {amt} F from {name}'}
 };
@@ -2728,25 +2726,46 @@ function adminStopKycPolling(){
 // ═══════════════════════════════════════════
 // ADMIN - Export du journal d'audit (CSV / PDF)
 // ═══════════════════════════════════════════
+// Telecharge un export admin via POST (mot de passe dans le corps de la
+// requete, jamais dans l'URL - contrairement a window.open() qui l'aurait
+// expose dans l'historique du navigateur et d'eventuels journaux serveur).
+function adminDownloadExport(action, payload, filename){
+  var url=API_URL+'/admin?action='+action;
+  fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).then(function(r){
+    if(!r.ok) throw new Error('Erreur serveur');
+    return r.blob();
+  }).then(function(blob){
+    var url2=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url2; a.download=filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url2); }, 1000);
+  }).catch(function(){ toast(at('admin_error_generic'), true); });
+}
+
 function adminExportDashboard(format){
   var period=document.getElementById('dash-period').value;
-  var qs='admin_password='+encodeURIComponent(window._adminPw)+'&period='+encodeURIComponent(period);
+  var payload={admin_password:window._adminPw, period:period};
   if(period==='custom'){
-    qs+='&date_from='+encodeURIComponent(document.getElementById('dash-date-from').value)
-      +'&date_to='+encodeURIComponent(document.getElementById('dash-date-to').value);
+    payload.date_from=document.getElementById('dash-date-from').value;
+    payload.date_to=document.getElementById('dash-date-to').value;
   }
-  var url=API_URL+'/admin?action=dashboard-export-'+format+'&'+qs;
-  window.open(url,'_blank');
+  adminDownloadExport('dashboard-export-'+format, payload, 'rom_money_dashboard.'+format);
 }
 
 function adminExportAudit(format){
-  var qs='admin_password='+encodeURIComponent(window._adminPw)
-    +'&action_filter='+encodeURIComponent(document.getElementById('audit-f-action').value)
-    +'&phone_filter='+encodeURIComponent(document.getElementById('audit-f-phone').value.trim())
-    +'&date_from='+encodeURIComponent(document.getElementById('audit-f-from').value)
-    +'&date_to='+encodeURIComponent(document.getElementById('audit-f-to').value);
-  var url=API_URL+'/admin?action=audit-export-'+format+'&'+qs;
-  window.open(url,'_blank');
+  var payload={
+    admin_password:window._adminPw,
+    action_filter:document.getElementById('audit-f-action').value,
+    phone_filter:document.getElementById('audit-f-phone').value.trim(),
+    date_from:document.getElementById('audit-f-from').value,
+    date_to:document.getElementById('audit-f-to').value
+  };
+  adminDownloadExport('audit-export-'+format, payload, 'rom_money_journal_audit.'+format);
 }
 
 function relDate(ts){
@@ -3029,7 +3048,6 @@ function applyAdminLang(){
     el.placeholder = at(el.getAttribute('data-i18n-admin-ph'));
   });
   // Redemande juste l'onglet actif pour regenerer son contenu dynamique
-  var active = document.querySelector('.admin-tab-btn[style*="background: var(--g)"], .admin-panel[style*="display: block"]');
   if(document.getElementById('admin-panel-dashboard') && document.getElementById('admin-panel-dashboard').style.display==='block') adminLoadDashboard();
   if(document.getElementById('admin-panel-kyc') && document.getElementById('admin-panel-kyc').style.display==='block') adminLoadKycList();
   if(document.getElementById('admin-panel-alerts') && document.getElementById('admin-panel-alerts').style.display==='block') adminLoadAlerts();
@@ -3339,7 +3357,7 @@ function adminResetPin(){
   var newPin=document.getElementById('rst-pin').value.trim();
   var reason=getReasonValue('rst');
   if(!phone||!newPin||!reason){ toast(at('admin_field_required'), true); return; }
-  if(!/^\d{6}$/.test(newPin)){ toast(at('admin_pin_6_digits'), true); return; }
+  if(!/^\d{4}$/.test(newPin)){ toast(at('admin_pin_6_digits'), true); return; }
   adminOpenConfirmModal({
     icon:'🔑', title:at('admin_reset_pin_confirm_title'), message:at('admin_reset_pin_confirm_msg').replace('{phone}',phone),
     needsReason:false, confirmLabel:at('admin_reset_pin_btn_confirm'), confirmColor:'var(--re)',
@@ -4521,16 +4539,16 @@ function regStep1(){
 }
 
 function updateRgDots(){
-  for(var i=0;i<6;i++){
+  for(var i=0;i<4;i++){
     var el=document.getElementById('rg'+i);
     if(el) el.classList.toggle('on', i<rgBuf.length);
   }
 }
 
 function rgPin(d){
-  if(rgBuf.length>=6) return;
+  if(rgBuf.length>=4) return;
   rgBuf+=d; updateRgDots();
-  if(rgBuf.length===6){
+  if(rgBuf.length===4){
     var buf=rgBuf;
     setTimeout(function(){
       if(rgPhase===1){
@@ -4846,16 +4864,16 @@ function setupLoginScreen(){
 }
 
 function updateLgDots(){
-  for(var i=0;i<6;i++){
+  for(var i=0;i<4;i++){
     var el=document.getElementById('ld'+i);
     if(el) el.classList.toggle('on', i<lgBuf.length);
   }
 }
 
 function lgPin(d){
-  if(lgBuf.length>=6) return;
+  if(lgBuf.length>=4) return;
   lgBuf+=d; updateLgDots();
-  if(lgBuf.length===6){
+  if(lgBuf.length===4){
     var buf=lgBuf;
     setTimeout(function(){
       // Get phone from input or APP
@@ -4924,12 +4942,12 @@ function lgPin(d){
             });
           } else {
             lgBuf='';
-            for(var i=0;i<6;i++){
+            for(var i=0;i<4;i++){
               var el=document.getElementById('ld'+i);
               if(el){ el.classList.remove('on'); el.classList.add('err'); }
             }
             setTimeout(function(){
-              for(var i=0;i<6;i++){
+              for(var i=0;i<4;i++){
                 var el=document.getElementById('ld'+i);
                 if(el) el.classList.remove('err');
               }
@@ -5321,7 +5339,6 @@ function renderVault(){
   if(lbl){ lbl.textContent=lk?t('vault_locked_label'):t('vault_savings_label'); lbl.style.color=lk?'var(--gold-text)':'var(--gdd)'; }
   var amt=document.getElementById('vault-amt');
   if(amt){ amt.textContent=fmt(APP.vaultBal); amt.style.color=lk?'var(--am)':'var(--g)'; }
-  var vm=document.getElementById('vault-mini'); if(vm) vm.textContent=APP.balHidden?'*** F':fmt(APP.vaultBal);
   var li=document.getElementById('vault-lock-info');
   if(li){
     if(lk&&APP.vaultDate){
@@ -6073,16 +6090,16 @@ function requirePin(subtitle, callback){
 }
 
 function updatePcDots(){
-  for(var i=0;i<6;i++){
+  for(var i=0;i<4;i++){
     var el=document.getElementById('pc'+i);
     if(el) el.classList.toggle('on', i<pcBuf.length);
   }
 }
 
 function pcPin(d){
-  if(pcBuf.length>=6) return;
+  if(pcBuf.length>=4) return;
   pcBuf+=d; updatePcDots();
-  if(pcBuf.length===6){
+  if(pcBuf.length===4){
     var buf=pcBuf;
     setTimeout(function(){
       // Verification locale d'abord (hash compare, jamais le PIN en clair)
@@ -6106,12 +6123,12 @@ function pcPin(d){
               if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
             } else {
               pcBuf='';
-              for(var i=0;i<6;i++){
+              for(var i=0;i<4;i++){
                 var el=document.getElementById('pc'+i);
                 if(el){ el.classList.remove('on'); el.classList.add('err'); }
               }
               setTimeout(function(){
-                for(var i=0;i<6;i++){
+                for(var i=0;i<4;i++){
                   var el=document.getElementById('pc'+i);
                   if(el) el.classList.remove('err');
                 }
@@ -6275,26 +6292,6 @@ function drawQR(elId, txt){
     +'<div style="font-size:10px;font-family:monospace;color:#9FE1CB;word-break:break-all">'+p[0]+'</div>'
     +'<div style="font-size:9px;color:rgba(255,255,255,.5);margin-top:4px">'+(p[1]||'')+'</div>';
   el.appendChild(d);
-}
-
-// ── CONTACTS ──
-function mkContacts(){
-  var cts=[['Mamadou D','+225 07 12 34 56 70'],['Fatou C','+225 07 98 76 54 32'],['Kofi M','+225 07 55 44 33 22'],['Aissatou B','+225 07 11 22 33 44']];
-  var h=[];
-  for(var i=0;i<cts.length;i++){
-    var c=cts[i], cv=avc(c[0]);
-    h.push('<div data-p="'+c[1]+'" data-n="'+c[0]+'" onclick="pickContactChip(this)" style="text-align:center;cursor:pointer;flex-shrink:0">');
-    h.push('<div style="width:42px;height:42px;border-radius:50%;background:'+cv[0]+';color:'+cv[1]+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;margin:0 auto 3px">'+ini(c[0])+'</div>');
-    h.push('<div style="font-size:10px;color:var(--t2)">'+c[0].split(' ')[0]+'</div>');
-    h.push('</div>');
-  }
-  return h.join('');
-}
-
-function pickContactChip(el){
-  var ph=document.getElementById('sph'), rn=document.getElementById('srn');
-  if(ph) ph.value=el.getAttribute('data-p');
-  if(rn) rn.textContent='Destinataire: '+el.getAttribute('data-n');
 }
 
 // ── SEND ──
@@ -7258,7 +7255,6 @@ function shChangePIN(b){
     +'<div class="dots" style="margin-bottom:24px">'
     +'<div class="dot dark" id="cp0"></div><div class="dot dark" id="cp1"></div>'
     +'<div class="dot dark" id="cp2"></div><div class="dot dark" id="cp3"></div>'
-    +'<div class="dot dark" id="cp4"></div><div class="dot dark" id="cp5"></div>'
     +'</div>'
     +'<div class="kpad" style="margin:0 auto">'
     +'<button class="kb light" onclick="cpAdd(\'1\')">1</button><button class="kb light" onclick="cpAdd(\'2\')">2</button><button class="kb light" onclick="cpAdd(\'3\')">3</button>'
@@ -7269,15 +7265,15 @@ function shChangePIN(b){
     +'<div id="cp-err" style="color:var(--re);font-size:13px;text-align:center;margin-top:12px;min-height:18px"></div>';
 
   function updDots(){
-    for(var i=0;i<6;i++){
+    for(var i=0;i<4;i++){
       var el=document.getElementById('cp'+i);
       if(el) el.classList.toggle('on', i<cbuf.length);
     }
   }
 
   window.cpAdd=function(d){
-    if(cbuf.length>=6) return; cbuf+=d; updDots();
-    if(cbuf.length===6){
+    if(cbuf.length>=4) return; cbuf+=d; updDots();
+    if(cbuf.length===4){
       var buf=cbuf; cbuf='';
       setTimeout(function(){
         updDots();
@@ -7402,7 +7398,6 @@ function updateBalDisplay(){
       el.innerHTML = new Intl.NumberFormat('fr-FR').format(Math.round(APP.balance)) + '<span class="bal-cur">FCFA</span>';
     }
   }
-  var vm = document.getElementById('vault-mini'); if(vm) vm.textContent = APP.balHidden ? '*** F' : fmt(APP.vaultBal);
 };
 
 // Toggle balance eye
@@ -7688,13 +7683,12 @@ function processEncaisserQR(text){
           +'<div class="dots" style="margin:0 auto 12px">'
           +'<div class="dot" id="ep0"></div><div class="dot" id="ep1"></div>'
           +'<div class="dot" id="ep2"></div><div class="dot" id="ep3"></div>'
-          +'<div class="dot" id="ep4"></div><div class="dot" id="ep5"></div>'
           +'</div>'
           +'<div class="kpad">'
-          +'<button class="kp" onclick="encPin(\'1\')">1</button><button class="kp" onclick="encPin(\'2\')">2</button><button class="kp" onclick="encPin(\'3\')">3</button>'
-          +'<button class="kp" onclick="encPin(\'4\')">4</button><button class="kp" onclick="encPin(\'5\')">5</button><button class="kp" onclick="encPin(\'6\')">6</button>'
-          +'<button class="kp" onclick="encPin(\'7\')">7</button><button class="kp" onclick="encPin(\'8\')">8</button><button class="kp" onclick="encPin(\'9\')">9</button>'
-          +'<button class="kp" onclick="encPin(\'C\')">⌫</button><button class="kp" onclick="encPin(\'0\')">0</button><button class="kp" style="background:var(--g);color:#fff" onclick="encPin(\'OK\')">OK</button>'
+          +'<button class="kb light" onclick="encPin(\'1\')">1</button><button class="kb light" onclick="encPin(\'2\')">2</button><button class="kb light" onclick="encPin(\'3\')">3</button>'
+          +'<button class="kb light" onclick="encPin(\'4\')">4</button><button class="kb light" onclick="encPin(\'5\')">5</button><button class="kb light" onclick="encPin(\'6\')">6</button>'
+          +'<button class="kb light" onclick="encPin(\'7\')">7</button><button class="kb light" onclick="encPin(\'8\')">8</button><button class="kb light" onclick="encPin(\'9\')">9</button>'
+          +'<button class="kb light" onclick="encPin(\'C\')">⌫</button><button class="kb light" onclick="encPin(\'0\')">0</button><button class="kb" style="background:var(--g);color:#fff" onclick="encPin(\'OK\')">OK</button>'
           +'</div>'
           +'</div>'
           +'</div>'
@@ -7718,15 +7712,15 @@ function encPin(v){
   if(!window._encPinBuf) window._encPinBuf='';
   if(v==='C'){ window._encPinBuf=window._encPinBuf.slice(0,-1); }
   else if(v==='OK'){
-    if(window._encPinBuf.length!==6){ toast(t('enc_pin_length_err'),true); return; }
+    if(window._encPinBuf.length!==4){ toast(t('enc_pin_length_err'),true); return; }
     doEncaisserWithPin(window._encPhone, window._encName, window._encPinBuf);
     return;
   } else {
-    if(window._encPinBuf.length>=6) return;
+    if(window._encPinBuf.length>=4) return;
     window._encPinBuf+=v;
   }
   // Update dots
-  for(var j=0;j<6;j++){
+  for(var j=0;j<4;j++){
     var d=document.getElementById('ep'+j);
     if(d){ d.classList.toggle('on', j<window._encPinBuf.length); }
   }
@@ -7762,12 +7756,12 @@ function doEncaisserWithPin(phone, name, pin){
       var msg=(res&&res.message)||t('enc_err_generic');
       toast(msg,true);
       window._encPinBuf='';
-      for(var j=0;j<6;j++){
+      for(var j=0;j<4;j++){
         var d2=document.getElementById('ep'+j);
         if(d2){ d2.classList.remove('on'); d2.classList.add('err'); }
       }
       setTimeout(function(){
-        for(var j=0;j<6;j++){
+        for(var j=0;j<4;j++){
           var d3=document.getElementById('ep'+j);
           if(d3) d3.classList.remove('err');
         }
@@ -7775,42 +7769,6 @@ function doEncaisserWithPin(phone, name, pin){
     }
   });
 }
-
-function doEncaisserDirect(phone, name){
-  var amt=parseFloat(document.getElementById('enc-amt').value)||0;
-  var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
-  if(!phone){ toast('Scannez le QR d abord', true); return; }
-  if(amt<=0){ toast('Montant invalide', true); return; }
-
-  requirePin('Encaisser '+fmt(amt)+' de '+name, function(){
-    var tok=getToken();
-    toast('Encaissement en cours...');
-    // Use tx_send from client's perspective - but we are the receiver
-    // We send a "collect" request - backend handles debit from client
-    // For now we record as incoming transaction locally
-    txList.unshift({
-      id: Date.now(),
-      name: name,
-      type: 'credit',
-      amt: amt,
-      cat: 'Encaissement',
-      motif: motif,
-      ref: '',
-      ts: Date.now()
-    });
-    APP.balance = APP.balance + amt;
-    updateBalDisplay(); renderTx('home'); save();
-    closeSheet();
-    toast(fmt(amt)+' encaissé de '+name+' !');
-  });
-}
-
-var _encStream = null;
-var _encLoop = null;
-
-
-
-
 
 
 
@@ -7976,10 +7934,19 @@ function doSubmitBankAmount(mode){
   var amt = parseFloat(el && el.value) || 0;
   if(amt<=0){ toast(t('send_err_invalid_amount'), true); return; }
   if(mode==='withdraw' && amt>APP.balance){ toast(t('send_err_insufficient_balance'), true); return; }
+  if(mode==='withdraw'){
+    requirePin(t('bank_withdraw_pin_confirm').replace('{amt}',fmt(amt)), function(){ submitBankAmount(mode, amt); });
+  } else {
+    submitBankAmount(mode, amt);
+  }
+}
+
+function submitBankAmount(mode, amt){
   var tok = getToken();
   toast(mode==='deposit' ? t('bank_depositing_toast') : t('bank_withdrawing_toast'));
   setTimeout(function(){
-    apiCall('/bank?action='+mode,'POST',{amount:amt},tok).then(function(res){
+    var payload = mode==='withdraw' ? {amount:amt,pin:PIN_MEM} : {amount:amt};
+    apiCall('/bank?action='+mode,'POST',payload,tok).then(function(res){
       if(res && res.success){
         if(mode==='deposit'){
           APP.balance += amt;
@@ -8003,7 +7970,8 @@ function shTransfert(b){
   var allPays = [
     {flag:'🇨🇮',name:"Côte d'Ivoire"},{flag:'🇸🇳',name:'Sénégal'},{flag:'🇲🇱',name:'Mali'},
     {flag:'🇧🇫',name:'Burkina Faso'},{flag:'🇳🇪',name:'Niger'},{flag:'🇹🇬',name:'Togo'},
-    {flag:'🇧🇯',name:'Bénin'},{flag:'🇬🇼',name:'Guinée-Bissau'},{flag:'🇨🇲',name:'Cameroun'},
+    {flag:'🇧🇯',name:'Bénin'},{flag:'🇬🇼',name:'Guinée-Bissau'},{flag:'🇬🇲',name:'Gambie'},
+    {flag:'🇨🇻',name:'Cap-Vert'},{flag:'🇨🇲',name:'Cameroun'},
     {flag:'🇨🇬',name:'Congo-Brazzaville'},{flag:'🇬🇦',name:'Gabon'},{flag:'🇨🇫',name:'Centrafrique'},
     {flag:'🇹🇩',name:'Tchad'},{flag:'🇬🇶',name:'Guinée Équatoriale'},{flag:'🇰🇲',name:'Comores'},
     {flag:'🇩🇿',name:'Algérie'},{flag:'🇦🇴',name:'Angola'},{flag:'🇧🇮',name:'Burundi'},
@@ -8176,11 +8144,6 @@ function selPaysWaitlist(el){
   var form = document.getElementById('transfert-form');
   if(!form) return;
   form.style.display = 'block';
-  var paysList = ['Algérie','Angola','Burundi','Botswana','Congo-Kinshasa','Djibouti',
-    'Égypte','Érythrée','Éthiopie','Ghana','Guinée Conakry','Kenya','Lesotho','Liberia',
-    'Libye','Madagascar','Malawi','Mauritanie','Maurice','Maroc','Mozambique','Namibie',
-    'Nigeria','Rwanda','São Tomé','Seychelles','Sierra Leone','Somalie','Afrique du Sud',
-    'Soudan du Sud','Soudan','Eswatini','Tanzanie','Tunisie','Ouganda','Zambie','Zimbabwe'];
   form.innerHTML = '<div style="text-align:center;padding:14px 0">'
     +'<div style="font-size:32px;margin-bottom:8px">⏳</div>'
     +'<div style="font-size:15px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+pays+'</div>'
@@ -8248,26 +8211,6 @@ function doWaitlistTransfert(pays){
   });
   closeSheet();
 }
-function selPays(el){
-  document.querySelectorAll('#sh-body > div > div[onclick]').forEach(function(d){ d.style.borderColor='var(--bord)'; d.style.background=''; });
-  el.style.borderColor='var(--g)'; el.style.background='var(--gl)';
-  var name = el.getAttribute('data-name');
-  var rate = el.getAttribute('data-rate');
-  document.getElementById('transfert-lbl').textContent = name+' - '+rate;
-  document.getElementById('transfert-form').style.display = 'block';
-}
-
-function doTransfert2(){
-  var to = document.getElementById('transfert-to').value.trim();
-  var amt = parseFloat(document.getElementById('transfert-amt').value)||0;
-  if(!to||!amt){ toast('Remplissez tous les champs',true); return; }
-  requirePin('Transfert Afrique '+fmt(amt), function(){
-    APP.balance -= amt;
-    txList.unshift({id:Date.now(),name:'Transfert Afrique '+to,type:'debit',amt:amt,cat:'Transfert',ts:Date.now()});
-    updateBalDisplay(); renderTx('home'); closeSheet(); toast('Transfert de '+fmt(amt)+' envoyé !');
-  });
-}
-
 // PARRAINAGE
 function shParrainage(b){
   b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">'+t('home_tx_loading')+'</div>';
@@ -8295,7 +8238,10 @@ function shParrainage(b){
 function shareParrainage2(){
   var code = window._referralCode || '';
   if(!code){ toast(t('ref_loading_retry'), true); return; }
-  var url = 'https://romariosia07-lab.github.io/rom-money-backend/?ref='+code;
+  // Construit le lien a partir de l'adresse reelle de l'app (jamais une URL
+  // codee en dur qui pointait par erreur vers le depot du backend au lieu
+  // de l'application elle-meme) : reste correct meme si l'hebergement change.
+  var url = location.origin + location.pathname + '?ref='+code;
   if(navigator.share){ navigator.share({title:t('ref_share_title'),text:t('ref_share_text').replace('{code}',code),url:url}); }
   else if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){ toast(t('ref_link_copied')); }); }
   else { toast(t('ref_code_fallback').replace('{code}',code)); }
@@ -9299,6 +9245,20 @@ function calcFrais(amt){
   return Math.round(amt * APP.feeConfig.fee_rate_national);
 }
 
+// Le seuil de gratuite s'applique toujours au montant BRUT (ce que calcFrais()
+// fait deja). Quand l'utilisateur tape directement le montant NET souhaite, il
+// faut donc estimer le brut correspondant AVANT de decider si c'est gratuit ou
+// non - sinon, taper "3961" en net (gratuit, car <4000) donnait un resultat
+// different que taper "4001" en brut (payant) pour un net final quasi identique :
+// une faille qui permettait d'eviter les frais pres du seuil.
+function feeFromNet(net, rate, threshold){
+  if(net<=0) return {frais:0, brut:net};
+  var estBrut = rate < 1 ? net / (1 - rate) : net;
+  if(estBrut < threshold) return {frais:0, brut:net};
+  var frais = Math.round(estBrut * rate);
+  return {frais:frais, brut:net + frais};
+}
+
 // ═══════════════════════════════════════════
 // Transfert Afrique - calcul des frais (1,5%, SANS palier de gratuite,
 // contrairement au national). Meme mecanique brut/net synchronise que le
@@ -9387,10 +9347,7 @@ function getAmountIntentAfrique(brutId, netId){
 }
 
 function calcBrutFromNet(net){
-  // Modele : frais = taux national du montant net, brut = net + frais
-  if(net < APP.feeConfig.fee_free_threshold_national) return net;
-  var frais = Math.round(net * APP.feeConfig.fee_rate_national);
-  return net + frais;
+  return feeFromNet(net, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national).brut;
 }
 
 // Returns the authoritative {brut, net, frais, mode, amount} based on which field
@@ -9404,8 +9361,8 @@ function getAmountIntent(brutId, netId){
   var brutEl = document.getElementById(brutId);
   if(lastField === netId){
     var netVal = netEl ? parseFloat(netEl.value)||0 : 0;
-    var frais = (netVal < APP.feeConfig.fee_free_threshold_national) ? 0 : Math.round(netVal * APP.feeConfig.fee_rate_national);
-    return { brut: netVal + frais, net: netVal, frais: frais, mode:'net', amount: netVal };
+    var r = feeFromNet(netVal, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national);
+    return { brut: r.brut, net: netVal, frais: r.frais, mode:'net', amount: netVal };
   }
   var brutVal = brutEl ? parseFloat(brutEl.value)||0 : 0;
   var frais2 = calcFrais(brutVal);
@@ -9423,8 +9380,8 @@ function updateFraisDisplay(inputId, displayId, mode){
   var brut, net, frais;
   if(mode==='net'){
     net = val;
-    frais = (net < APP.feeConfig.fee_free_threshold_national) ? 0 : Math.round(net * APP.feeConfig.fee_rate_national);
-    brut = net + frais;
+    var r = feeFromNet(net, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national);
+    frais = r.frais; brut = r.brut;
   } else {
     brut = val;
     frais = calcFrais(brut);

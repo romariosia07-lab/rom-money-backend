@@ -92,6 +92,15 @@ function body() {
     $d = json_decode(file_get_contents('php://input'), true);
     return is_array($d) ? $d : [];
 }
+// Lit un parametre depuis le corps JSON (POST) en priorite, sinon depuis la
+// query string (GET). Sert aux routes d'export : le mot de passe admin doit
+// pouvoir voyager dans le corps de la requete (POST), jamais dans l'URL,
+// qui elle peut se retrouver dans l'historique du navigateur ou des logs.
+function bg($key, $default=null) {
+    $b = body();
+    if (array_key_exists($key, $b)) return $b[$key];
+    return $_GET[$key] ?? $default;
+}
 function b64e($d) { return rtrim(strtr(base64_encode($d),'+/','-_'),'='); }
 function b64d($d) { return base64_decode(strtr($d,'-_','+/').str_repeat('=',(3+strlen($d))%4)); }
 function jwt_make($payload) {
@@ -268,6 +277,13 @@ function web_push_send($subscription, $title, $body, $extra = []) {
 }
 // Envoie une notification push a TOUS les appareils abonnes d'un utilisateur.
 function web_push_send_to_user($userId, $title, $body, $extra = []) {
+    // Persiste toujours une trace dans la table notifications (lue par l'ecran
+    // "Notifications" de l'app), independamment du push : avant ce correctif,
+    // rien n'y etait jamais enregistre et l'historique in-app restait vide en
+    // permanence, meme pour un utilisateur ayant active les notifications push.
+    try {
+        q("INSERT INTO notifications (user_id,title,body) VALUES (?,?,?)",[$userId,$title,$body]);
+    } catch(Exception $e) {}
     try {
         $subs = q("SELECT * FROM push_subscriptions WHERE user_id=?", [$userId])->fetchAll();
         foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
@@ -333,7 +349,7 @@ const REFERRAL_BONUS_PCT = 0.30;
 // (verifie via referral_bonuses). Le lien de parrainage etant fixe a
 // l'inscription (users.referred_by, jamais modifiable ensuite), un compte
 // deja existant ne peut jamais devenir "parraine" retroactivement.
-function apply_referral_bonus($senderId, $fee) {
+function apply_referral_bonus($senderId, $fee, $feeCurrency='XOF') {
     if($fee <= 0) return;
     $u = q("SELECT referred_by FROM users WHERE id=?",[$senderId])->fetch();
     if(!$u || !$u['referred_by']) return;
@@ -345,15 +361,26 @@ function apply_referral_bonus($senderId, $fee) {
     $bonus = round($fee * REFERRAL_BONUS_PCT);
     if($bonus <= 0) return;
 
-    $referrerWid = q("SELECT id FROM wallets WHERE user_id=?",[$referrerId])->fetchColumn();
-    if(!$referrerWid) return;
+    $referrerW = q("SELECT id,currency FROM wallets WHERE user_id=?",[$referrerId])->fetch();
+    if(!$referrerW) return;
+
+    // $bonus est calcule dans la devise du filleul (celle de ses frais) : il
+    // faut le convertir vers la devise du parrain avant de le crediter, sinon
+    // le montant verse est faux quand parrain et filleul sont dans des pays
+    // differents.
+    $referrerCurrency = $referrerW['currency'] ?: 'XOF';
+    $bonusConverted = $bonus;
+    if($referrerCurrency !== $feeCurrency){
+        $c = convert_currency($bonus, $feeCurrency, $referrerCurrency);
+        if($c !== null) $bonusConverted = round($c, 2);
+    }
 
     $bonusId = uid(); $txid = uid(); $ref = ref();
     q("INSERT INTO referral_bonuses (id,referrer_id,referee_id,transaction_id,bonus_amount) VALUES (?,?,?,?,?)",
-      [$bonusId,$referrerId,$senderId,$txid,$bonus]);
+      [$bonusId,$referrerId,$senderId,$txid,$bonusConverted]);
     q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'referral_bonus','completed',?,'Bonus de parrainage')",
-      [$txid,null,$referrerWid,$bonus,$ref]);
-    q("UPDATE wallets SET balance=balance+? WHERE id=?",[$bonus,$referrerWid]);
+      [$txid,null,$referrerW['id'],$bonusConverted,$ref]);
+    q("UPDATE wallets SET balance=balance+? WHERE id=?",[$bonusConverted,$referrerW['id']]);
 }
 
 
@@ -520,12 +547,12 @@ function generate_referral_code() {
     return $code;
 }
 
-// PIN faibles interdits : chiffres identiques (000000, 111111...) et
+// PIN faibles interdits : chiffres identiques (0000, 1111...) et
 // suites logiques evidentes (croissantes ou decroissantes). Reste un code
-// a 6 chiffres classique pour l'utilisateur, sans nouvelle contrainte de
+// a 4 chiffres classique pour l'utilisateur, sans nouvelle contrainte de
 // lecture - juste quelques combinaisons trop simples ecartees.
 function is_weak_pin($pin) {
-    if (preg_match('/^(\d)\1{5}$/', $pin)) return true; // 000000, 111111, ...
+    if (preg_match('/^(\d)\1{3}$/', $pin)) return true; // 0000, 1111, ...
     $sequencesUp = '01234567890123456789';
     $sequencesDown = '98765432109876543210';
     if (strpos($sequencesUp, $pin) !== false) return true;   // 123456, 234567, ...
@@ -633,7 +660,7 @@ function auth_register() {
     $refCodeInput = trim($b['referral_code'] ?? '');
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
-    if(!preg_match('/^\d{6}$/', $pin)) fail('PIN doit avoir 6 chiffres');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     // Plus de liste figee a 3 operateurs ivoiriens : les operateurs varient
     // par pays (voir COUNTRY_OPERATORS cote frontend), et l'utilisateur peut
@@ -724,8 +751,8 @@ function auth_change_pin() {
     $pl = auth(); $b = body();
     $cur = trim($b['current_pin'] ?? '');
     $new = trim($b['new_pin']     ?? '');
-    if(!preg_match('/^\d{6}$/',$cur)) fail('PIN actuel invalide');
-    if(!preg_match('/^\d{6}$/',$new)) fail('Nouveau PIN invalide');
+    if(!preg_match('/^\d{4}$/',$cur)) fail('PIN actuel invalide');
+    if(!preg_match('/^\d{4}$/',$new)) fail('Nouveau PIN invalide');
     if(is_weak_pin($new)) fail('Ce code est trop simple, choisissez une autre combinaison');
     $user = q("SELECT pin_hash FROM users WHERE id=?", [$pl['sub']])->fetch();
     if(!password_verify($cur, $user['pin_hash'])) fail('PIN actuel incorrect', 401);
@@ -781,13 +808,16 @@ function vault_deposit() {
     $amt = (float)($b['amount']??0);
     if($amt<=0) fail('Montant invalide');
     $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
-    if((float)$w['balance']<$amt) fail('Solde insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=?",[$amt,$amt,$w['id']]);
+        // Garde atomique (WHERE balance>=?) : deux depots simultanes ne peuvent
+        // plus tous les deux passer si le solde ne suffit qu'une fois.
+        $n = q("UPDATE wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=? AND balance>=?",[$amt,$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde insuffisant'); }
         q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_deposit','completed',?,'Depot coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
-        ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']-$amt,'vault_balance'=>(float)$w['vault_balance']+$amt],'Depose dans le coffre');
+        $fresh = q("SELECT balance,vault_balance FROM wallets WHERE id=?",[$w['id']])->fetch();
+        ok(['amount'=>$amt,'new_balance'=>(float)$fresh['balance'],'vault_balance'=>(float)$fresh['vault_balance']],'Depose dans le coffre');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur depot',500); }
 }
 
@@ -795,19 +825,20 @@ function vault_withdraw() {
     $pl = auth(); $b = body();
     $amt = (float)($b['amount']??0); $pin = trim($b['pin']??'');
     if($amt<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
-    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
     $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if($w['vault_locked'] && strtotime($w['vault_lock_date']??'0')>time())
         fail("Coffre verrouille jusqu'au ".date('d/m/Y',strtotime($w['vault_lock_date'])));
-    if((float)$w['vault_balance']<$amt) fail('Solde coffre insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=?",[$amt,$amt,$w['id']]);
+        $n = q("UPDATE wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=? AND vault_balance>=?",[$amt,$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde coffre insuffisant'); }
         q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_withdrawal','completed',?,'Retrait coffre')",[uid(),$w['id'],$amt,ref()]);
         db()->commit();
-        ok(['amount'=>$amt,'new_balance'=>(float)$w['balance']+$amt,'vault_balance'=>(float)$w['vault_balance']-$amt],'Retire du coffre');
+        $fresh = q("SELECT balance,vault_balance FROM wallets WHERE id=?",[$w['id']])->fetch();
+        ok(['amount'=>$amt,'new_balance'=>(float)$fresh['balance'],'vault_balance'=>(float)$fresh['vault_balance']],'Retire du coffre');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur retrait',500); }
 }
 
@@ -848,15 +879,16 @@ function subvault_create() {
     if(!$name) fail('Nom requis');
     if($amt<0) fail('Montant invalide');
     $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
-    if($amt > (float)$w['vault_balance']) fail('Solde du coffre principal insuffisant');
     db()->beginTransaction();
     try {
+        $n = q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=? AND vault_balance>=?",[$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du coffre principal insuffisant'); }
         $id = uid();
         q("INSERT INTO sub_vaults (id,wallet_id,name,balance,goal_amount) VALUES (?,?,?,?,?)",[$id,$w['id'],$name,$amt,$goal]);
-        q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=?",[$amt,$w['id']]);
         db()->commit();
+        $bal = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
         ok(['id'=>$id,'name'=>$name,'balance'=>$amt,'goal_amount'=>$goal,
-            'vault_balance'=>(float)$w['vault_balance']-$amt],'Sous-coffre cree');
+            'vault_balance'=>$bal],'Sous-coffre cree');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur creation',500); }
 }
 
@@ -865,11 +897,11 @@ function subvault_deposit() {
     $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0);
     if($amt<=0) fail('Montant invalide');
     $w = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
-    $sv = subvault_owned($w['id'], $id);
-    if($amt > (float)$w['vault_balance']) fail('Solde du coffre principal insuffisant');
+    subvault_owned($w['id'], $id);
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=?",[$amt,$w['id']]);
+        $n = q("UPDATE wallets SET vault_balance=vault_balance-? WHERE id=? AND vault_balance>=?",[$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du coffre principal insuffisant'); }
         q("UPDATE sub_vaults SET balance=balance+? WHERE id=?",[$amt,$id]);
         db()->commit();
         $bal   = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
@@ -882,17 +914,17 @@ function subvault_withdraw() {
     $pl = auth(); $b = body();
     $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0); $pin = trim($b['pin'] ?? '');
     if($amt<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
-    if(!password_verify($pin,$user['pin_hash'])) fail('PIN incorrect',401);
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
     $w  = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     $sv = subvault_owned($w['id'], $id);
     if($sv['locked'] && strtotime($sv['lock_date']??'0')>time())
         fail("Sous-coffre verrouille jusqu'au ".date('d/m/Y',strtotime($sv['lock_date'])));
-    if($amt > (float)$sv['balance']) fail('Solde du sous-coffre insuffisant');
     db()->beginTransaction();
     try {
-        q("UPDATE sub_vaults SET balance=balance-?,locked=0 WHERE id=?",[$amt,$id]);
+        $n = q("UPDATE sub_vaults SET balance=balance-?,locked=0 WHERE id=? AND balance>=?",[$amt,$id,$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du sous-coffre insuffisant'); }
         q("UPDATE wallets SET vault_balance=vault_balance+? WHERE id=?",[$amt,$w['id']]);
         db()->commit();
         $bal   = (float)q("SELECT vault_balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
@@ -1059,7 +1091,7 @@ function wallet_stats() {
         COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) as tx_count,
         COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) as cancelled
         FROM transactions WHERE EXTRACT(MONTH FROM created_at)=EXTRACT(MONTH FROM NOW())
-        AND (sender_wallet_id=? OR receiver_wallet_id=?)",
+        AND (sender_wallet_id=? OR receiver_wallet_id=?) AND type!='fee'",
         [$wid,$wid,$wid,$wid,$wid,$wid,$wid])->fetch();
     ok($stats);
 }
@@ -1217,7 +1249,7 @@ function tx_send() {
     $desc= trim($b['description']??'');
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $to))) fail('Numero invalide');
     if($amount<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash,country,full_name FROM users WHERE id=?",[$pl['sub']])->fetch();
     pin_check($pl['sub'], $pin, $user['pin_hash']);
 
@@ -1314,9 +1346,19 @@ function tx_send() {
         if($fee > 0 && $fee_recv && $fee_recv['id'] !== $pl['sub']){
             $fee_txid = uid(); $fee_ref = ref();
             $feeLabel = $channel==='africa' ? 'Frais ROM_MONEY 1.5% (Transfert Afrique)' : 'Frais ROM_MONEY 1%';
+            // $fee est dans la devise de l'expediteur ($senderCurrency) : il faut
+            // le convertir vers la devise du compte systeme avant de le crediter,
+            // sinon un transfert international credite un montant faux (meme
+            // correctif deja applique plus bas a la marge de change).
+            $feeAccountCurrency = $fee_recv['currency'] ?: 'XOF';
+            $feeConverted = $fee;
+            if($feeAccountCurrency !== $senderCurrency){
+                $c = convert_currency($fee, $senderCurrency, $feeAccountCurrency);
+                if($c !== null) $feeConverted = round($c, 2);
+            }
             q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
-              [$fee_txid,$sw['id'],$fee_recv['wid'],$fee,$fee_ref,$feeLabel]);
-            q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+              [$fee_txid,$sw['id'],$fee_recv['wid'],$feeConverted,$fee_ref,$feeLabel]);
+            q("UPDATE wallets SET balance=balance+? WHERE id=?",[$feeConverted,$fee_recv['wid']]);
         }
         // ── Marge de change (revenu distinct des frais de transfert) : avant
         // ce correctif, elle etait simplement perdue - jamais creditee nulle
@@ -1343,7 +1385,7 @@ function tx_send() {
                 }
             }
         }
-        apply_referral_bonus($pl['sub'], $fee);
+        apply_referral_bonus($pl['sub'], $fee, $senderCurrency);
 
         db()->commit();
 
@@ -1373,9 +1415,9 @@ function tx_collect() {
     $desc   = trim($b['description']??'');
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $payerPhone))) fail('Numero invalide');
     if($amount<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
 
-    $payer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
+    $payer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
     if(!$payer) fail('Payeur introuvable');
     if($payer['id']===$pl['sub']) fail('Encaissement de soi-meme impossible');
 
@@ -1414,15 +1456,24 @@ function tx_collect() {
 
         $fee_phone = '0160629502';
         if($fee > 0){
-            $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
+            $fee_recv = q("SELECT u.id,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
             if($fee_recv && $fee_recv['id'] !== $payer['id']){
                 $fee_txid = uid(); $fee_ref = ref();
+                // $fee est dans la devise du payeur : conversion vers la devise du
+                // compte systeme avant credit (meme logique que tx_send).
+                $payerCurrency = $payer['currency'] ?: 'XOF';
+                $feeAccountCurrency = $fee_recv['currency'] ?: 'XOF';
+                $feeConverted = $fee;
+                if($feeAccountCurrency !== $payerCurrency){
+                    $c = convert_currency($fee, $payerCurrency, $feeAccountCurrency);
+                    if($c !== null) $feeConverted = round($c, 2);
+                }
                 q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_MONEY 1%')",
-                  [$fee_txid,$payer['wid'],$fee_recv['wid'],$fee,$fee_ref]);
-                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+                  [$fee_txid,$payer['wid'],$fee_recv['wid'],$feeConverted,$fee_ref]);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$feeConverted,$fee_recv['wid']]);
             }
         }
-        apply_referral_bonus($payer['id'], $fee);
+        apply_referral_bonus($payer['id'], $fee, $payer['currency'] ?: 'XOF');
 
         db()->commit();
 
@@ -1442,7 +1493,7 @@ function tx_cancel() {
     $txid = trim($b['transaction_id']??'');
     $pin  = trim($b['pin']??'');
     if(!$txid) fail('ID requis');
-    if(!preg_match('/^\d{6}$/',$pin)) fail('PIN invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
     $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
     pin_check($pl['sub'], $pin, $user['pin_hash']);
     $tx = q("SELECT t.*,w.user_id sender_uid FROM transactions t JOIN wallets w ON t.sender_wallet_id=w.id WHERE t.id=?",[$txid])->fetch();
@@ -1762,7 +1813,11 @@ function bank_deposit() {
 function bank_withdraw() {
     $pl = auth(); $b = body();
     $amount = (float)($b['amount']??0);
+    $pin = trim($b['pin']??'');
     if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
     $default = q("SELECT id,bank_name FROM linked_banks WHERE user_id=? AND is_default=true",[$pl['sub']])->fetch();
     if(!$default) fail('Aucune banque liee');
     $sw = q("SELECT id,balance FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
@@ -1801,7 +1856,18 @@ function route_kyc($action) {
 }
 
 function check_admin_password($b) {
-    if(!isset($b['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$b['admin_password'])) {
+    check_admin_password_str((string)($b['admin_password'] ?? ''));
+}
+// Verifie le mot de passe admin ET applique le meme verrou anti-devinette
+// que l'ecran de connexion (partage le meme compteur audit_logs) : avant,
+// seul admin/login etait protege contre le brute-force, les ~34 autres
+// actions admin (recherche, export, blocage de compte...) ne l'etaient pas
+// et pouvaient servir a deviner le mot de passe sans jamais declencher de
+// verrou.
+function check_admin_password_str($pw) {
+    admin_bruteforce_check();
+    if(!hash_equals(ADMIN_PASSWORD, $pw)) {
+        admin_log('admin_login','failed',null,dk('d_wrong_password'));
         fail('Mot de passe admin incorrect',401);
     }
 }
@@ -2670,12 +2736,7 @@ function admin_2fa_enabled() { return get_setting('admin_2fa_enabled','0') === '
 
 function admin_login_check() {
     $b = body();
-    $pw = (string)($b['admin_password'] ?? '');
-    admin_bruteforce_check();
-    if (!hash_equals(ADMIN_PASSWORD, $pw)) {
-        admin_log('admin_login','failed',null,dk('d_wrong_password'));
-        fail('Mot de passe admin incorrect',401);
-    }
+    check_admin_password_str((string)($b['admin_password'] ?? ''));
     if (admin_2fa_enabled()) {
         $totpCode = trim((string)($b['totp_code'] ?? ''));
         $recoveryCode = trim((string)($b['recovery_code'] ?? ''));
@@ -2860,7 +2921,7 @@ function admin_reset_pin() {
     $phone = trim($b['phone']??'');
     $newPin = trim($b['new_pin']??'');
     $reason = trim($b['reason']??'');
-    if(!preg_match('/^\d{6}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 6 chiffres');
+    if(!preg_match('/^\d{4}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 4 chiffres');
     if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
@@ -3162,13 +3223,11 @@ function admin_audit_list() {
 }
 
 function admin_audit_get_rows() {
-    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
-        fail('Mot de passe admin incorrect',401);
-    }
-    $actionFilter = trim($_GET['action_filter'] ?? '');
-    $phoneFilter  = trim($_GET['phone_filter'] ?? '');
-    $dateFrom     = trim($_GET['date_from'] ?? '');
-    $dateTo       = trim($_GET['date_to'] ?? '');
+    check_admin_password_str((string)bg('admin_password',''));
+    $actionFilter = trim((string)bg('action_filter',''));
+    $phoneFilter  = trim((string)bg('phone_filter',''));
+    $dateFrom     = trim((string)bg('date_from',''));
+    $dateTo       = trim((string)bg('date_to',''));
 
     $sql = "SELECT * FROM audit_logs WHERE 1=1";
     $params = [];
@@ -3490,12 +3549,10 @@ function xlsx_build($sheetXml) {
 }
 
 function admin_dashboard_export_xlsx() {
-    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
-        fail('Mot de passe admin incorrect',401);
-    }
-    $period   = trim($_GET['period'] ?? 'today');
-    $dateFrom = trim($_GET['date_from'] ?? '');
-    $dateTo   = trim($_GET['date_to'] ?? '');
+    check_admin_password_str((string)bg('admin_password',''));
+    $period   = trim((string)bg('period','today'));
+    $dateFrom = trim((string)bg('date_from',''));
+    $dateTo   = trim((string)bg('date_to',''));
     $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
 
     // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde,
@@ -3605,12 +3662,10 @@ function admin_update_settings() {
 }
 
 function admin_dashboard_export_pdf() {
-    if(!isset($_GET['admin_password']) || !hash_equals(ADMIN_PASSWORD, (string)$_GET['admin_password'])) {
-        fail('Mot de passe admin incorrect',401);
-    }
-    $period   = trim($_GET['period'] ?? 'today');
-    $dateFrom = trim($_GET['date_from'] ?? '');
-    $dateTo   = trim($_GET['date_to'] ?? '');
+    check_admin_password_str((string)bg('admin_password',''));
+    $period   = trim((string)bg('period','today'));
+    $dateFrom = trim((string)bg('date_from',''));
+    $dateTo   = trim((string)bg('date_to',''));
     $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
 
     require_once __DIR__.'/fpdf.php';
