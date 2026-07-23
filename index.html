@@ -409,7 +409,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         </select>
         <input class="finput" id="r-op-other" placeholder="Précisez votre opérateur" style="display:none;margin-top:8px">
       </div>
-      <div class="frow"><label class="flabel" data-i18n="label_refcode">Code de parrainage (optionnel)</label><input class="finput" id="r-refcode" placeholder="Ex: ROMA1B2C3" data-i18n-ph="ph_refcode" type="text" style="text-transform:uppercase"></div>
+      <div class="frow"><label class="flabel" data-i18n="label_refcode">Code de parrainage (optionnel)</label><input class="finput" id="r-refcode" placeholder="Ex: ROMA1B2C3" data-i18n-ph="ph_refcode" type="text" style="text-transform:uppercase" oninput="checkRefCodeLive()">
+        <div id="r-refcode-msg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      </div>
     </div>
     <div style="padding:0 20px 28px"><button class="btn-g" id="r-step1-btn" onclick="regStep1()" data-i18n="btn_continue">Continuer</button></div>
   </div>
@@ -1717,6 +1719,9 @@ var I18N = {
   choose_operator: {fr:'Choisir un opérateur', en:'Choose an operator'},
   operator_other: {fr:'Autre (préciser)', en:'Other (specify)'},
   label_refcode: {fr:'Code de parrainage (optionnel)', en:'Referral code (optional)'},
+  refcode_checking: {fr:'Vérification...', en:'Checking...'},
+  refcode_valid: {fr:'✅ Parrainé par {name}', en:'✅ Referred by {name}'},
+  refcode_invalid: {fr:"⚠️ Ce code de parrainage n'existe pas", en:"⚠️ This referral code doesn't exist"},
   ph_refcode: {fr:'Ex: ROMA1B2C3', en:'E.g: ROMA1B2C3'},
   btn_continue: {fr:'Continuer', en:'Continue'},
   btn_verifying: {fr:'Vérification...', en:'Verifying...'},
@@ -3109,7 +3114,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var refParam = new URLSearchParams(location.search).get('ref');
     if(refParam){
       var refEl = document.getElementById('r-refcode');
-      if(refEl) refEl.value = refParam.toUpperCase();
+      if(refEl){ refEl.value = refParam.toUpperCase(); checkRefCodeLive(); }
     }
   }catch(e){}
 
@@ -4499,6 +4504,33 @@ function loadRegCountries(){
   }).catch(function(){
     sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
   });
+}
+// Verifie le code de parrainage tape en direct (avec un court delai pour ne
+// pas appeler le serveur a chaque frappe), et affiche le nom du parrain s'il
+// est valide - avant, un code invalide etait accepte en silence, sans que
+// personne (ni le nouvel utilisateur, ni le parrain suppose) ne le sache.
+var _refCodeCheckTimer = null;
+function checkRefCodeLive(){
+  var el = document.getElementById('r-refcode');
+  var msg = document.getElementById('r-refcode-msg');
+  if(!el || !msg) return;
+  var code = el.value.trim();
+  if(_refCodeCheckTimer) clearTimeout(_refCodeCheckTimer);
+  if(!code){ msg.textContent=''; return; }
+  msg.style.color = 'var(--t3)';
+  msg.textContent = t('refcode_checking');
+  _refCodeCheckTimer = setTimeout(function(){
+    apiCall('/auth?action=check-referral-code','POST',{code:code},false).then(function(res){
+      if(el.value.trim() !== code) return; // retape entre-temps, resultat perime
+      if(res && res.success && res.data && res.data.valid){
+        msg.style.color = 'var(--g)';
+        msg.textContent = t('refcode_valid').replace('{name}', res.data.name);
+      } else {
+        msg.style.color = 'var(--re)';
+        msg.textContent = t('refcode_invalid');
+      }
+    }).catch(function(){ msg.textContent=''; });
+  }, 500);
 }
 function showRegB(){
   document.getElementById('reg-a').style.display='none';

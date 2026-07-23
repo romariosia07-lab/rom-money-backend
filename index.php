@@ -523,6 +523,7 @@ function route_auth($action) {
         'change-pin'  => auth_change_pin(),
         'countries'   => auth_active_countries(),
         'check-phone' => auth_check_phone(),
+        'check-referral-code' => auth_check_referral_code(),
         default       => fail('Action inconnue',404)
     };
 }
@@ -538,6 +539,20 @@ function auth_check_phone() {
     if(!$phone) fail('Telephone requis');
     $exists = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
     ok(['exists' => (bool)$exists]);
+}
+
+// Route publique : verifie un code de parrainage pendant la saisie a
+// l'inscription, et renvoie le nom du parrain si le code est valide - pour
+// eviter qu'une faute de frappe passe totalement inapercue (avant, un code
+// invalide etait accepte silencieusement, sans jamais prevenir personne).
+function auth_check_referral_code() {
+    rate_limit_check('check_refcode', 30, 60);
+    $b = body();
+    $code = trim($b['code'] ?? '');
+    if(!$code) ok(['valid'=>false]);
+    $u = q("SELECT full_name, verified_name FROM users WHERE referral_code=?",[strtoupper($code)])->fetch();
+    if(!$u) ok(['valid'=>false]);
+    ok(['valid'=>true, 'name'=>$u['verified_name'] ?: $u['full_name']]);
 }
 
 // Route publique (pas d'authentification requise) : liste des pays actifs,
