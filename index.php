@@ -276,13 +276,15 @@ function web_push_send($subscription, $title, $body, $extra = []) {
     } catch(Exception $e) { return false; }
 }
 // Envoie une notification push a TOUS les appareils abonnes d'un utilisateur.
-function web_push_send_to_user($userId, $title, $body, $extra = []) {
+function web_push_send_to_user($userId, $title, $body, $extra = [], $category = 'general') {
     // Persiste toujours une trace dans la table notifications (lue par l'ecran
     // "Notifications" de l'app), independamment du push : avant ce correctif,
     // rien n'y etait jamais enregistre et l'historique in-app restait vide en
     // permanence, meme pour un utilisateur ayant active les notifications push.
+    // $category='credit' = deja reconstruit par le frontend via l'historique
+    // des transactions (evite un doublon visible une fois recuperee ici).
     try {
-        q("INSERT INTO notifications (user_id,title,body) VALUES (?,?,?)",[$userId,$title,$body]);
+        q("INSERT INTO notifications (user_id,title,body,category) VALUES (?,?,?,?)",[$userId,$title,$body,$category]);
     } catch(Exception $e) {}
     try {
         $subs = q("SELECT * FROM push_subscriptions WHERE user_id=?", [$userId])->fetchAll();
@@ -1392,7 +1394,8 @@ function tx_send() {
         fraud_check_transaction($sw['id'], $to, $brut, $txid, $reference);
 
         web_push_send_to_user($recv['id'], 'ROM_MONEY',
-            'Vous avez recu '.number_format($receiverAmount,0,',',' ').' '.($receiverCurrency==='XOF'||$receiverCurrency==='XAF'?'F':$receiverCurrency).' de '.($user['full_name']?:'un utilisateur'));
+            'Vous avez recu '.number_format($receiverAmount,0,',',' ').' '.($receiverCurrency==='XOF'||$receiverCurrency==='XAF'?'F':$receiverCurrency).' de '.($user['full_name']?:'un utilisateur'),
+            [], 'credit');
 
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
@@ -1481,7 +1484,8 @@ function tx_collect() {
         fraud_check_transaction($payer['wid'], $merchantPhone, $brut, $txid, $reference);
 
         web_push_send_to_user($pl['sub'], 'ROM_MONEY',
-            'Vous avez recu '.number_format($net,0,',',' ').' F de '.($payer['full_name']?:'un client'));
+            'Vous avez recu '.number_format($net,0,',',' ').' F de '.($payer['full_name']?:'un client'),
+            [], 'credit');
 
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
@@ -4164,6 +4168,12 @@ function route_install() {
         is_read SMALLINT DEFAULT 0,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    // 'category' distingue les notifications deja affichees par l'app via un
+    // autre mecanisme (credit = argent recu, reconstruit par polling des
+    // transactions) de celles qui ne le sont pas (general = alertes securite,
+    // gel/degel...) : evite d'afficher "argent recu" deux fois une fois que
+    // le frontend recupere aussi cette table.
+    "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR(30) DEFAULT 'general'",
     "CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36),

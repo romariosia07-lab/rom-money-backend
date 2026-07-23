@@ -2858,7 +2858,7 @@ function save(){
       name:APP.name,phone:APP.phone,email:APP.email,op:APP.op,
       pinHash:APP.pinHash,bioEnabled:APP.bioEnabled,bioCredId:APP.bioCredId||'',userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
       notifTx:APP.notifTx!==false,notifPromo:APP.notifPromo!==false,pushEnabled:APP.pushEnabled===true,isKyc:!!APP.isKyc,theme:APP.theme||'system',lang:APP.lang||'fr',
-      balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,photoURL:APP.photoURL||'', notifications:APP.notifications||[], seenTxIds:APP.seenTxIds||{}, seenAnnouncementIds:APP.seenAnnouncementIds||{}, payFavorites:APP.payFavorites||[],
+      balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,photoURL:APP.photoURL||'', notifications:APP.notifications||[], seenTxIds:APP.seenTxIds||{}, seenAnnouncementIds:APP.seenAnnouncementIds||{}, seenServerNotifIds:APP.seenServerNotifIds||{}, payFavorites:APP.payFavorites||[],
       subVaults:APP.subVaults,currency:APP.currency||'XOF',
       txList: (txList||[]).slice(0,30)
     };
@@ -4906,7 +4906,7 @@ function lgPin(d){
                 // Nouveau compte sur cet appareil : donnees locales vierges,
                 // pour ne jamais melanger avec celles du compte precedent.
                 APP.name=''; APP.phone=''; APP.email=''; APP.op=''; APP.photoURL='';
-                APP.notifications=[]; APP.seenTxIds={}; APP.seenAnnouncementIds={}; APP.payFavorites=[];
+                APP.notifications=[]; APP.seenTxIds={}; APP.seenAnnouncementIds={}; APP.seenServerNotifIds={}; APP.payFavorites=[];
                 clearPin(); APP.bioEnabled=false; APP.bioCredId=''; APP.token='';
                 APP.notifTx=true; APP.notifPromo=true; APP.isKyc=false; APP.theme=APP.theme||'system';
                 APP.legalName=''; APP.country=''; APP.currency='XOF';
@@ -8933,6 +8933,7 @@ var _notifTimer = null;
 var _lastNotifCheck = 0;
 var _lastTxCount = 0;
 var _lastAnnounceCheck = 0;
+var _lastServerNotifCheck = 0;
 
 function startNotifPolling(){
   pruneOldNotifications();
@@ -8944,7 +8945,46 @@ function startNotifPolling(){
       _lastAnnounceCheck = now;
       checkAnnouncements();
     }
+    if(now - _lastServerNotifCheck > 60000){ // idem : pas besoin de verifier a chaque tick
+      _lastServerNotifCheck = now;
+      checkServerNotifications();
+    }
   }, 5000); // Check every 5 seconds
+}
+
+// Recupere les evenements que le serveur a enregistres (alertes de securite,
+// transactions gelees/degelees...) et les fusionne dans l'historique local.
+// Exclut volontairement category='credit' (argent recu) : ces evenements
+// sont deja affiches par checkNewTransactions() via l'historique des
+// transactions - les inclure ici les ferait apparaitre deux fois.
+function checkServerNotifications(){
+  var tok = getToken();
+  if(!tok) return;
+  apiCall('/profile?action=notifications','GET',null,tok).then(function(res){
+    if(res && res.success && res.data && res.data.notifications){
+      APP.seenServerNotifIds = APP.seenServerNotifIds || {};
+      APP.notifications = APP.notifications || [];
+      var hasNew = false;
+      res.data.notifications.forEach(function(n){
+        if(n.category === 'credit') return;
+        var key = 'srv'+n.id;
+        if(!APP.seenServerNotifIds[key]){
+          APP.seenServerNotifIds[key] = true;
+          APP.notifications.push({
+            ico: '🔔', msg: n.title+' : '+n.body,
+            ts: new Date(n.sent_at).getTime() || Date.now(),
+            read: !!n.is_read
+          });
+          hasNew = true;
+        }
+      });
+      if(hasNew){
+        if(APP.notifications.length > 50) APP.notifications = APP.notifications.slice(-50);
+        save();
+        updateNotifBadge();
+      }
+    }
+  }).catch(function(){});
 }
 
 function checkAnnouncements(){
