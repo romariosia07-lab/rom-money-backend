@@ -4101,9 +4101,6 @@ function route_install() {
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS title_en VARCHAR(150)",
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS message_en TEXT",
     "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
-    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
-    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
-    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
@@ -4120,6 +4117,9 @@ function route_install() {
         result VARCHAR(20) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT",
     "CREATE TABLE IF NOT EXISTS waitlist (
         id SERIAL PRIMARY KEY,
         phone VARCHAR(20) NOT NULL,
