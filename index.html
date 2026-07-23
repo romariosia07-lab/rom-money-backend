@@ -1192,7 +1192,7 @@ function getLogoBase64(cb){
 
 var APP = {
   name:'', phone:'', email:'', op:'', photoURL:'', notifications:[], seenTxIds:{}, payFavorites:[],
-  pin:'', bioEnabled:false, bioCredId:'', token:'', notifTx:true, notifPromo:true, isKyc:false, theme:'system', lang:'fr',
+  pinHash:'', bioEnabled:false, bioCredId:'', token:'', notifTx:true, notifPromo:true, isKyc:false, theme:'system', lang:'fr',
   currency:'XOF',
   userID: 'CI-' + Math.random().toString(36).substr(2,6).toUpperCase(),
   qrSeed: Math.random().toString(36).substr(2,8).toUpperCase(),
@@ -2837,7 +2837,7 @@ function save(){
   try{
     var snapshot = {
       name:APP.name,phone:APP.phone,email:APP.email,op:APP.op,
-      pin:APP.pin,bioEnabled:APP.bioEnabled,bioCredId:APP.bioCredId||'',userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
+      pinHash:APP.pinHash,bioEnabled:APP.bioEnabled,bioCredId:APP.bioCredId||'',userID:APP.userID,qrSeed:APP.qrSeed,token:APP.token,
       notifTx:APP.notifTx!==false,notifPromo:APP.notifPromo!==false,pushEnabled:APP.pushEnabled===true,isKyc:!!APP.isKyc,theme:APP.theme||'system',lang:APP.lang||'fr',
       balance:APP.balance,vaultBal:APP.vaultBal,vaultLocked:APP.vaultLocked,vaultDate:APP.vaultDate,photoURL:APP.photoURL||'', notifications:APP.notifications||[], seenTxIds:APP.seenTxIds||{}, seenAnnouncementIds:APP.seenAnnouncementIds||{}, payFavorites:APP.payFavorites||[],
       subVaults:APP.subVaults,currency:APP.currency||'XOF',
@@ -2879,6 +2879,32 @@ function load(){
 
 function getToken(){ try{ return localStorage.getItem('rom_token')||APP.token||''; }catch(e){ return APP.token||''; } }
 function setToken(t){ try{ localStorage.setItem('rom_token',t); }catch(e){} APP.token=t||''; }
+
+// ── PIN : jamais stocke en clair sur l'appareil ──
+// PIN_MEM garde le vrai code uniquement en memoire JS (perdu a chaque
+// rechargement de page) pour les appels serveur qui en ont besoin (envoi,
+// retrait coffre, changement de PIN...). Seul un hash (APP.pinHash) est
+// sauvegarde dans le stockage local, pour permettre un deverrouillage rapide
+// sans reseau sans jamais exposer le vrai code si quelqu'un lit ce stockage.
+var PIN_MEM = '';
+function sha256Hex(str){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function(buf){
+    return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+// A appeler des qu'on connait un PIN correct (apres verification serveur ou
+// resaisie a l'inscription). Met a jour la memoire ET renvoie une promesse
+// resolue une fois le hash pret a etre sauvegarde.
+function setPin(plain){
+  PIN_MEM = plain;
+  return sha256Hex(plain).then(function(h){ APP.pinHash = h; });
+}
+function clearPin(){ PIN_MEM=''; APP.pinHash=''; }
+// Comparaison locale rapide (hors-ligne) : jamais de comparaison en clair.
+function checkPinLocal(buf){
+  if(!APP.pinHash) return Promise.resolve(false);
+  return sha256Hex(buf).then(function(h){ return h===APP.pinHash; });
+}
 
 // Identifiant d'appareil unique et persistant (independant du compte connecte),
 // utilise par le backend pour detecter une connexion depuis un appareil non
@@ -3067,7 +3093,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var found=load();
       applyTheme();
       applyI18n();
-      if(found && APP.pin){ setupLoginScreen(); goto('s-login'); }
+      if(found && APP.pinHash){ setupLoginScreen(); goto('s-login'); }
       else { goto('s-register-welcome'); }
     }catch(e){ goto('s-register-welcome'); }
   }, 500);
@@ -4512,7 +4538,7 @@ function rgPin(d){
         document.getElementById('pin-phase-label').textContent=t('pin_confirm_new');
         document.getElementById('reg-pin-msg').textContent='';
       } else {
-        if(buf===rgPin1){ APP.pin=buf; showRegC(); }
+        if(buf===rgPin1){ setPin(buf); showRegC(); }
         else {
           rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
           document.getElementById('pin-phase-label').textContent=t('pin_enter_new');
@@ -4593,7 +4619,7 @@ function skipBio(){ APP.bioEnabled=false; finishRegister(); }
 function finishRegister(){
   save();
   toast('Création du compte...');
-  apiCall('/auth?action=register','POST',{full_name:APP.name,phone:APP.phone,email:APP.email,operator:APP.op,pin:APP.pin,country:APP.country||'',referral_code:APP.referralCode||''})
+  apiCall('/auth?action=register','POST',{full_name:APP.name,phone:APP.phone,email:APP.email,operator:APP.op,pin:PIN_MEM,country:APP.country||'',referral_code:APP.referralCode||''})
     .then(function(res){
       if(res&&res.success&&res.data){
         setToken(res.data.token);
@@ -4608,7 +4634,7 @@ function finishRegister(){
         APP.seenTxIds = {};
         save(); APP._justRegistered = true; launchApp();
       } else {
-        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:APP.pin,device_id:getDeviceId()})
+        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:PIN_MEM,device_id:getDeviceId()})
           .then(function(r){
             if(r&&r.success&&r.data){
               setToken(r.data.token); if(r.data.user_id) APP.userID=r.data.user_id; if(r.data.qr_seed) APP.qrSeed=r.data.qr_seed;
@@ -4771,7 +4797,7 @@ function removeAccountAndHandleUI(key){
 
   setActivePhoneKey('');
   try{ localStorage.removeItem('mmci'); localStorage.removeItem('rom_token'); }catch(e){}
-  APP.token=''; APP.phone=''; APP.name=''; APP.email=''; APP.op=''; APP.pin='';
+  APP.token=''; APP.phone=''; APP.name=''; APP.email=''; APP.op=''; clearPin();
   APP.bioEnabled=false; APP.bioCredId='';
   APP.userID='CI-'+Math.random().toString(36).substr(2,6).toUpperCase();
   APP.qrSeed=Math.random().toString(36).substr(2,8).toUpperCase();
@@ -4863,7 +4889,7 @@ function lgPin(d){
                 // pour ne jamais melanger avec celles du compte precedent.
                 APP.name=''; APP.phone=''; APP.email=''; APP.op=''; APP.photoURL='';
                 APP.notifications=[]; APP.seenTxIds={}; APP.seenAnnouncementIds={}; APP.payFavorites=[];
-                APP.pin=''; APP.bioEnabled=false; APP.bioCredId=''; APP.token='';
+                clearPin(); APP.bioEnabled=false; APP.bioCredId=''; APP.token='';
                 APP.notifTx=true; APP.notifPromo=true; APP.isKyc=false; APP.theme=APP.theme||'system';
                 APP.legalName=''; APP.country=''; APP.currency='XOF';
                 APP.balance=0; APP.vaultBal=0; APP.vaultLocked=false; APP.vaultDate=null;
@@ -4874,21 +4900,28 @@ function lgPin(d){
               _switchPrefillPhone = '';
             }
             // Save everything
-            APP.pin   = buf;
             APP.phone = res.data.phone || phone;
             APP.name  = res.data.name  || APP.name || '';
             if(res.data.qr_seed)  APP.qrSeed  = res.data.qr_seed;
             if(res.data.user_id)  APP.userID   = res.data.user_id;
             if(res.data.balance !== undefined) APP.balance = parseFloat(res.data.balance);
             setToken(res.data.token);
-            save();
+            setPin(buf).then(save);
             launchApp();
-          } else if(res && res.offline && !_addAccountMode && phone===APP.phone && APP.pin && buf===APP.pin){
-            // Hors ligne : le numero et le PIN correspondent au compte deja
-            // enregistre sur cet appareil. On autorise l'entree avec les
-            // dernieres donnees connues (le token, potentiellement perime,
-            // sera renouvele automatiquement des que le reseau revient).
-            launchApp();
+          } else if(res && res.offline && !_addAccountMode && phone===APP.phone && APP.pinHash){
+            checkPinLocal(buf).then(function(match){
+              if(!match){
+                lgBuf=''; updateLgDots();
+                document.getElementById('login-err').textContent='Numero ou PIN incorrect';
+                return;
+              }
+              // Hors ligne : le numero et le PIN correspondent au compte deja
+              // enregistre sur cet appareil. On autorise l'entree avec les
+              // dernieres donnees connues (le token, potentiellement perime,
+              // sera renouvele automatiquement des que le reseau revient).
+              PIN_MEM = buf;
+              launchApp();
+            });
           } else {
             lgBuf='';
             for(var i=0;i<6;i++){
@@ -5233,7 +5266,7 @@ function askCancel(id){
     var tok = getToken();
     apiCall('/transactions?action=cancel','POST',{
       transaction_id: tx.id,
-      pin: APP.pin
+      pin: PIN_MEM
     }, tok).then(function(res){
       if(res && res.success){
         var d = res.data || {};
@@ -6052,52 +6085,47 @@ function pcPin(d){
   if(pcBuf.length===6){
     var buf=pcBuf;
     setTimeout(function(){
-      // First check local PIN
-      if(APP.pin && buf===APP.pin){
-        goto('s-app');
-        if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
-        return;
-      }
-      // Fallback: verify with backend
-      var tok = getToken();
-      apiCall('/auth?action=login','POST',{phone:APP.phone,pin:buf,device_id:getDeviceId()},false)
-        .then(function(res){
-          if(res && res.success && res.data && res.data.token){
-            // PIN correct - save it
-            APP.pin = buf;
-            setToken(res.data.token);
-            if(res.data.name) APP.name=res.data.name;
-            if(res.data.qr_seed) APP.qrSeed=res.data.qr_seed;
-            save();
-            goto('s-app');
-            if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
-          } else {
-            pcBuf='';
-            for(var i=0;i<6;i++){
-              var el=document.getElementById('pc'+i);
-              if(el){ el.classList.remove('on'); el.classList.add('err'); }
-            }
-            setTimeout(function(){
+      // Verification locale d'abord (hash compare, jamais le PIN en clair)
+      checkPinLocal(buf).then(function(match){
+        if(match){
+          PIN_MEM = buf;
+          goto('s-app');
+          if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+          return;
+        }
+        // Repli : verifier aupres du serveur
+        apiCall('/auth?action=login','POST',{phone:APP.phone,pin:buf,device_id:getDeviceId()},false)
+          .then(function(res){
+            if(res && res.success && res.data && res.data.token){
+              // PIN correct - on le retient (memoire + hash sauvegarde)
+              setToken(res.data.token);
+              if(res.data.name) APP.name=res.data.name;
+              if(res.data.qr_seed) APP.qrSeed=res.data.qr_seed;
+              setPin(buf).then(save);
+              goto('s-app');
+              if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+            } else {
+              pcBuf='';
               for(var i=0;i<6;i++){
                 var el=document.getElementById('pc'+i);
-                if(el) el.classList.remove('err');
+                if(el){ el.classList.remove('on'); el.classList.add('err'); }
               }
-              updatePcDots();
-            }, 500);
-            var err=document.getElementById('pc-err');
-            if(err) err.textContent='PIN incorrect';
-          }
-        }).catch(function(){
-          // Network error - try local PIN as last resort
-          if(APP.pin && buf===APP.pin){
-            goto('s-app');
-            if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
-          } else {
+              setTimeout(function(){
+                for(var i=0;i<6;i++){
+                  var el=document.getElementById('pc'+i);
+                  if(el) el.classList.remove('err');
+                }
+                updatePcDots();
+              }, 500);
+              var err=document.getElementById('pc-err');
+              if(err) err.textContent='PIN incorrect';
+            }
+          }).catch(function(){
             pcBuf=''; updatePcDots();
             var err=document.getElementById('pc-err');
             if(err) err.textContent='Erreur reseau';
-          }
-        });
+          });
+      });
     }, 200);
   }
 }
@@ -6394,7 +6422,7 @@ function doSend(){
       receiver_phone: phone,
       amount: intent.amount,
       mode: intent.mode,  // 'brut' or 'net' - tells backend which value it received
-      pin: APP.pin,
+      pin: PIN_MEM,
       description: motif||''
     },tok).then(function(res){
       if(res&&res.success){
@@ -6688,7 +6716,7 @@ function doSendFromScan(phone, name){
       receiver_phone: phone,
       amount: intent.amount,
       mode: intent.mode,
-      pin: APP.pin,
+      pin: PIN_MEM,
       description: motif || 'Paiement via QR'
     }, tok).then(function(res){
       if(res && res.success){
@@ -7093,7 +7121,7 @@ function reqVW(){
   if(amt>APP.vaultBal){ toast(t('vault_insufficient_balance'),true); return; }
   requirePin(t('vault_withdraw_pin_confirm').replace('{amt}',fmt(amt)), function(){
     var tok=getToken();
-    apiCall('/wallet?action=vault-withdraw','POST',{amount:amt,pin:APP.pin},tok).then(function(res){
+    apiCall('/wallet?action=vault-withdraw','POST',{amount:amt,pin:PIN_MEM},tok).then(function(res){
       if(res&&res.success){
         APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance;
         save(); updateBalDisplay(); renderVault();
@@ -7214,7 +7242,7 @@ function reqSVWithdraw(id){
   if(amt>sv.amt){ toast(t('vault_sv_insufficient'),true); return; }
   requirePin(t('vault_sv_withdraw_pin_confirm').replace('{amt}',fmt(amt)).replace('{name}',sv.name), function(){
     var tok=getToken();
-    apiCall('/wallet?action=subvault-withdraw','POST',{id:id,amount:amt,pin:APP.pin},tok).then(function(res){
+    apiCall('/wallet?action=subvault-withdraw','POST',{id:id,amount:amt,pin:PIN_MEM},tok).then(function(res){
       if(res&&res.success){
         APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
         save(); renderVault(); updateBalDisplay(); toast(t('vault_sv_withdraw_success').replace('{amt}',fmt(amt)));
@@ -7254,18 +7282,21 @@ function shChangePIN(b){
       setTimeout(function(){
         updDots();
         if(step===0){
-          if(buf!==APP.pin){ document.getElementById('cp-err').textContent=t('pin_current_incorrect'); return; }
-          step=1; document.getElementById('cp-lbl').textContent=t('pin_change_new_label'); document.getElementById('cp-err').textContent='';
+          checkPinLocal(buf).then(function(match){
+            if(!match){ document.getElementById('cp-err').textContent=t('pin_current_incorrect'); return; }
+            PIN_MEM = buf;
+            step=1; document.getElementById('cp-lbl').textContent=t('pin_change_new_label'); document.getElementById('cp-err').textContent='';
+          });
         } else if(step===1){
           np=buf; step=2; document.getElementById('cp-lbl').textContent=t('pin_change_confirm_label'); document.getElementById('cp-err').textContent='';
         } else {
           if(buf!==np){ step=1; np=''; document.getElementById('cp-lbl').textContent=t('pin_change_new_label'); document.getElementById('cp-err').textContent=t('pin_change_mismatch'); return; }
           // Save new PIN to backend
           var tok=getToken();
-          apiCall('/auth?action=change-pin','POST',{current_pin:APP.pin,new_pin:np},tok)
+          apiCall('/auth?action=change-pin','POST',{current_pin:PIN_MEM,new_pin:np},tok)
             .then(function(res){
               if(res&&res.success){
-                APP.pin=np; save(); closeSheet(); toast(t('pin_change_success_toast'));
+                setPin(np).then(function(){ save(); closeSheet(); toast(t('pin_change_success_toast')); });
               } else {
                 document.getElementById('cp-err').textContent=(res&&res.message)||t('pin_change_error_generic');
                 step=0; np=''; cbuf=''; updDots();
@@ -7273,7 +7304,7 @@ function shChangePIN(b){
               }
             }).catch(function(){
               // Offline fallback
-              APP.pin=np; save(); closeSheet(); toast(t('pin_change_success_offline_toast'));
+              setPin(np).then(function(){ save(); closeSheet(); toast(t('pin_change_success_offline_toast')); });
             });
         }
       }, 200);
@@ -8117,7 +8148,7 @@ function doTransfertCFA(pays){
   requirePin(confirmMsgAfrica, function(){
     var tok=getToken(); toast(t('toast_sending'));
     apiCall('/transactions?action=send','POST',{
-      receiver_phone:phone, amount:intent.amount, mode:intent.mode, channel:'africa', pin:APP.pin,
+      receiver_phone:phone, amount:intent.amount, mode:intent.mode, channel:'africa', pin:PIN_MEM,
       description:motif||''
     },tok).then(function(res){
       if(res&&res.success){
