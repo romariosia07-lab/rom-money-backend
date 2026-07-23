@@ -1835,6 +1835,18 @@ var I18N = {
 
   profile_notifications: {fr:'Notifications', en:'Notifications'},
   profile_change_pin: {fr:'Changer le PIN', en:'Change PIN'},
+  profile_my_devices: {fr:'Mes appareils', en:'My devices'},
+  sheet_title_devices: {fr:'Mes appareils', en:'My devices'},
+  device_this_one: {fr:'Cet appareil', en:'This device'},
+  device_revoked_label: {fr:'Déconnecté', en:'Disconnected'},
+  device_btn_disconnect: {fr:'Déconnecter', en:'Disconnect'},
+  device_last_seen: {fr:'Vu {when}', en:'Seen {when}'},
+  device_revoke_confirm_title: {fr:'Déconnecter cet appareil ?', en:'Disconnect this device?'},
+  device_revoke_confirm_msg: {fr:"Il devra se reconnecter avec le code PIN pour être utilisé à nouveau.", en:'It will need to sign in again with the PIN to be used again.'},
+  device_revoke_confirm_btn: {fr:'Déconnecter', en:'Disconnect'},
+  device_revoked_toast: {fr:'Appareil déconnecté', en:'Device disconnected'},
+  device_none: {fr:'Aucun appareil enregistré pour le moment.', en:'No device registered yet.'},
+  device_err_generic: {fr:'Erreur, réessayez', en:'Error, please try again'},
   profile_biometrics_prefix: {fr:'Biométrie: ', en:'Biometrics: '},
   profile_biometrics_on: {fr:'Activée', en:'Enabled'},
   profile_biometrics_off: {fr:'Désactivée', en:'Disabled'},
@@ -5619,7 +5631,8 @@ function renderProfile(){
     theme:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
     logout:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     addacc:'<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-    lang:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg>'
+    lang:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg>',
+    devices:'<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg>'
   };
 
   function buildProfileRows(){
@@ -5636,6 +5649,7 @@ function renderProfile(){
     var rows=[
       {ico:'bell',lbl:t('profile_notifications'),col:'var(--bl)',fn:function(){ openSheet('notif-settings'); }},
       {ico:'lock',lbl:t('profile_change_pin'),col:'var(--g)',fn:function(){ openSheet('change-pin'); }},
+      {ico:'devices',lbl:t('profile_my_devices'),col:'var(--bl)',fn:function(){ openSheet('devices'); }},
       {ico:'bio',lbl:t('profile_biometrics_prefix')+((APP.bioEnabled&&APP.bioCredId)?t('profile_biometrics_on'):t('profile_biometrics_off')),col:'var(--g)',fn:function(){
         if(APP.bioEnabled&&APP.bioCredId){
           APP.bioEnabled=false; APP.bioCredId=''; save();
@@ -6183,6 +6197,7 @@ function openSheet(type, titleAlreadySet, extra){
     svdeposit:t('sheet_title_svdeposit'),
     svwithdraw:t('sheet_title_svwithdraw'),
     'change-pin':t('profile_change_pin'),
+    devices:t('sheet_title_devices'),
     'edit-profile':t('sheet_title_edit_profile'),
     encaisser:t('sheet_title_encaisser'),
     banque:t('sheet_title_banque'),
@@ -6267,6 +6282,7 @@ function buildSheet(type, b, extra){
   else if(type==='svdeposit') shSVDeposit(b, extra);
   else if(type==='svwithdraw') shSVWithdraw(b, extra);
   else if(type==='change-pin') shChangePIN(b);
+  else if(type==='devices') shDevices(b);
   else if(type==='edit-profile') shEditProfile(b);
   else if(type==='encaisser') shEncaisser(b);
   else if(type==='banque') shBanque(b);
@@ -7307,6 +7323,66 @@ function shChangePIN(b){
     }
   };
   window.cpDel=function(){ if(cbuf.length>0){ cbuf=cbuf.slice(0,-1); updDots(); } };
+}
+
+// ── MES APPAREILS ──
+function shDevices(b){
+  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">'+t('home_tx_loading')+'</div>';
+  loadDevicesList(b);
+}
+
+function loadDevicesList(b){
+  var tok = getToken();
+  apiCall('/profile?action=devices','GET',null,tok).then(function(res){
+    if(!res || !res.success || !res.data){ b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('device_err_generic')+'</div>'; return; }
+    var devices = res.data.devices||[];
+    if(!devices.length){
+      b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">'+t('device_none')+'</div>';
+      return;
+    }
+    var html = '';
+    devices.forEach(function(d){
+      var ua = (d.user_agent||'').length>60 ? d.user_agent.slice(0,60)+'…' : (d.user_agent||'?');
+      var when = relDate(new Date(d.last_seen).getTime());
+      var statusHtml;
+      if(d.is_current){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--g)">'+t('device_this_one')+'</span>';
+      } else if(d.revoked){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--t3)">'+t('device_revoked_label')+'</span>';
+      } else {
+        statusHtml = '<button onclick="doRevokeDevice(&apos;'+d.device_id+'&apos;)" style="background:var(--rl);color:var(--rd);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'+t('device_btn_disconnect')+'</button>';
+      }
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:.5px solid var(--bord);border-radius:12px;margin-bottom:8px;'+(d.revoked?'opacity:.5':'')+'">'
+        + '<div style="min-width:0">'
+        + '<div style="font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ua+'</div>'
+        + '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('device_last_seen').replace('{when}',when)+'</div>'
+        + '</div>'
+        + '<div style="flex-shrink:0;margin-left:10px">'+statusHtml+'</div>'
+        + '</div>';
+    });
+    b.innerHTML = html;
+  }).catch(function(){
+    b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('device_err_generic')+'</div>';
+  });
+}
+
+function doRevokeDevice(deviceId){
+  userOpenConfirmModal({
+    icon:'📴', title:t('device_revoke_confirm_title'), message:t('device_revoke_confirm_msg'),
+    confirmLabel:t('device_revoke_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      var tok = getToken();
+      apiCall('/profile?action=revoke-device','POST',{device_id:deviceId},tok).then(function(res){
+        if(res && res.success){
+          toast(t('device_revoked_toast'));
+          var b = document.getElementById('sh-body');
+          if(b) loadDevicesList(b);
+        } else {
+          toast((res&&res.message)||t('device_err_generic'), true);
+        }
+      }).catch(function(){ toast(t('device_err_generic'), true); });
+    }
+  });
 }
 
 // ── EDIT PROFILE ──

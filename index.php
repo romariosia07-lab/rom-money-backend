@@ -126,6 +126,13 @@ function auth() {
     // si l'utilisateur a deja un token valide en cours de session.
     $status = q("SELECT status FROM users WHERE id=?",[$pl['sub']])->fetchColumn();
     if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
+    // Meme principe pour un appareil precis : permet a l'utilisateur de couper
+    // a distance la session d'un telephone vole/perdu ("Mes appareils"), sans
+    // attendre l'expiration naturelle du jeton (12h).
+    if(!empty($pl['device_id'])){
+        $revoked = q("SELECT revoked FROM known_devices WHERE user_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
+        if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
+    }
     return $pl;
 }
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
@@ -660,6 +667,7 @@ function auth_register() {
     $op    = trim($b['operator']  ?? '');
     $country = trim($b['country'] ?? '');
     $refCodeInput = trim($b['referral_code'] ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
     if(!$name) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
@@ -696,7 +704,13 @@ function auth_register() {
           [$uid,$name,$phone,$email?:null,$op?:null,$passh,$pinh,$myReferralCode,$referredBy,$country]);
         q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,?,?)",
           [$wid,$uid,country_to_currency($country),$qrseed]);
-        $token = jwt_make(['sub'=>$uid,'phone'=>$phone]);
+        if($deviceId){
+            $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+            q("INSERT INTO known_devices (user_id,device_id,user_agent) VALUES (?,?,?)
+               ON CONFLICT (user_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
+              [$uid, $deviceId, $ua]);
+        }
+        $token = jwt_make(['sub'=>$uid,'phone'=>$phone,'device_id'=>$deviceId]);
         db()->commit();
         ok(['token'=>$token,'user_id'=>$uid,'name'=>$name,'phone'=>$phone,'qr_seed'=>$qrseed,'referral_code'=>$myReferralCode],'Compte cree', 201);
     } catch(Exception $e) {
@@ -733,14 +747,17 @@ function auth_login() {
             }
             $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
             q("INSERT INTO known_devices (user_id,device_id,user_agent) VALUES (?,?,?)
-               ON CONFLICT (user_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP",
+               ON CONFLICT (user_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
               [$user['id'], $deviceId, $ua]);
         } else {
-            q("UPDATE known_devices SET last_seen=CURRENT_TIMESTAMP WHERE user_id=? AND device_id=?", [$user['id'], $deviceId]);
+            // Une connexion reussie (bon PIN) reprouve la legitimite de cet
+            // appareil : si l'utilisateur l'avait revoque par erreur, ou s'il
+            // recupere son propre telephone, il redevient actif normalement.
+            q("UPDATE known_devices SET last_seen=CURRENT_TIMESTAMP, revoked=0 WHERE user_id=? AND device_id=?", [$user['id'], $deviceId]);
         }
     }
 
-    $token = jwt_make(['sub'=>$user['id'],'phone'=>$phone]);
+    $token = jwt_make(['sub'=>$user['id'],'phone'=>$phone,'device_id'=>$deviceId]);
     ok(['token'=>$token,'user_id'=>$user['id'],'name'=>$user['full_name'],'phone'=>$user['phone_number'],
         'wallet_id'=>$user['wid'],'balance'=>(float)$user['balance'],'vault_balance'=>(float)$user['vault_balance'],
         'vault_locked'=>(bool)$user['vault_locked'],'vault_lock_date'=>$user['vault_lock_date'],
@@ -1600,8 +1617,31 @@ function route_profile($action) {
         'waitlist'       => profile_waitlist(),
         'waitlist-stats' => profile_waitlist_stats(),
         'referral-status'=> profile_referral_status(),
+        'devices'        => profile_devices(),
+        'revoke-device'  => profile_revoke_device(),
         default          => fail('Action inconnue',404)
     };
+}
+
+// "Mes appareils" : liste les appareils connus, indique si chacun est deja
+// revoque, et signale lequel est celui utilise pour cet appel (device_id du
+// jeton en cours), pour que le frontend n'affiche pas de bouton "deconnecter"
+// sur l'appareil que l'utilisateur est en train d'utiliser.
+function profile_devices() {
+    $pl = auth();
+    $rows = q("SELECT device_id,user_agent,first_seen,last_seen,revoked FROM known_devices WHERE user_id=? ORDER BY last_seen DESC",[$pl['sub']])->fetchAll();
+    foreach($rows as &$r){ $r['is_current'] = ($pl['device_id'] ?? '') !== '' && $r['device_id'] === $pl['device_id']; $r['revoked']=(bool)$r['revoked']; }
+    unset($r);
+    ok(['devices'=>$rows]);
+}
+
+function profile_revoke_device() {
+    $pl = auth(); $b = body();
+    $deviceId = trim($b['device_id'] ?? '');
+    if(!$deviceId) fail('Appareil requis');
+    $n = q("UPDATE known_devices SET revoked=1 WHERE user_id=? AND device_id=?",[$pl['sub'],$deviceId])->rowCount();
+    if(!$n) fail('Appareil introuvable',404);
+    ok(null,'Appareil deconnecte');
 }
 
 function profile_referral_status() {
@@ -4242,6 +4282,10 @@ function route_install() {
         last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, device_id)
     )",
+    // 'revoked' permet a l'utilisateur de couper a distance la session d'un
+    // appareil precis (ex: telephone vole) sans attendre l'expiration
+    // naturelle du jeton (12h) : verifie a chaque appel authentifie (auth()).
+    "ALTER TABLE known_devices ADD COLUMN IF NOT EXISTS revoked SMALLINT DEFAULT 0",
     "CREATE TABLE IF NOT EXISTS fraud_alerts (
         id SERIAL PRIMARY KEY,
         transaction_id VARCHAR(36),
