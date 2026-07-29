@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#085041">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ROM_BUSINESS">
+<title>ROM_BUSINESS — Encaissez avec ROM_MONEY</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:'DM Sans',sans-serif}
+:root{
+  --g:#1D9E75;--gd:#0F6E56;--gdd:#085041;--gl:#E1F5EE;--gm:#9FE1CB;
+  --gold:#F5A623;--gold-l:#FFF3DC;
+  --re:#E24B4A;--rl:#FCEBEB;--rd:#A32D2D;
+  --bg:#F4F7F5;--card:#fff;--bord:#E5E7EB;--div:#F3F4F6;
+  --t1:#1A1A1A;--t2:#6B7280;--t3:#9CA3AF;
+  --r:14px;--rs:10px;
+}
+html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.screen.on{display:flex}
+
+#s-splash{align-items:center;justify-content:center;background:var(--gdd);gap:16px}
+.splash-logo{width:130px;height:130px;border-radius:30px;overflow:hidden;border:3px solid rgba(245,166,35,.4)}
+.splash-logo img{width:100%;height:100%;object-fit:cover}
+.splash-title{font-size:24px;font-weight:900;color:var(--gold);letter-spacing:1px}
+.splash-sub{font-size:13px;color:rgba(255,255,255,.65)}
+
+#s-welcome{align-items:center;justify-content:center;background:var(--gdd);padding:32px 28px;gap:14px;text-align:center}
+.welcome-title{font-size:24px;font-weight:900;color:#fff}
+.welcome-sub{font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:18px}
+.btn-g{width:100%;padding:15px;background:var(--gold);color:var(--gdd);border:none;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn-w{width:100%;padding:14px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px}
+
+#s-register{overflow-y:auto}
+.reg-header{padding:20px 20px 0;display:flex;align-items:center;gap:10px}
+.back-btn{background:none;border:none;cursor:pointer;padding:6px;color:var(--t2);display:flex}
+.back-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.reg-body{padding:20px 20px 40px;flex:1}
+.reg-title{font-size:22px;font-weight:800;color:var(--t1);margin-bottom:6px}
+.reg-sub{font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:22px}
+.flabel{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block}
+.finput{width:100%;background:var(--bg);border:.5px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:15px;color:var(--t1);outline:none;-webkit-appearance:none}
+.finput:focus{border-color:var(--g);background:#fff}
+.frow{margin-bottom:16px}
+.loc-toggle{display:flex;gap:8px;margin-bottom:16px}
+.loc-btn{flex:1;padding:12px;border-radius:10px;border:1.5px solid var(--bord);background:#fff;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;font-family:inherit;text-align:center}
+.loc-btn.on{border-color:var(--g);background:var(--gl);color:var(--gd)}
+
+#s-pin,#s-pinconfirm,#s-login{background:var(--gdd);align-items:center;justify-content:center;padding:32px 24px}
+.pin-av{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;margin-bottom:12px}
+.pin-title{font-size:19px;font-weight:700;color:#fff;text-align:center;margin-bottom:6px}
+.pin-sub{font-size:13px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:28px}
+.dots{display:flex;gap:16px;justify-content:center;margin-bottom:32px}
+.dot{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.45);background:transparent;transition:all .15s}
+.dot.on{background:#fff;border-color:#fff}
+.dot.err{background:var(--re);border-color:var(--re)}
+.kpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:290px}
+.kb{height:62px;font-size:22px;font-weight:500;background:rgba(255,255,255,.12);border:none;border-radius:14px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;-webkit-appearance:none}
+.kb:active{background:rgba(255,255,255,.3)}
+.kb.light{background:var(--gl);color:var(--gd)}
+.kb.ghost{background:transparent;border:.5px solid rgba(255,255,255,.2);font-size:13px;color:rgba(255,255,255,.6)}
+.pin-err{color:var(--re);font-size:13px;text-align:center;margin-top:16px;min-height:20px}
+.pin-link{background:none;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;margin-top:14px;font-family:inherit}
+
+#s-app{flex-direction:column;overflow:hidden}
+#main-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+#main-scroll::-webkit-scrollbar{display:none}
+.app-header{background:var(--gdd);padding:20px 18px 34px;position:relative}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.hdr-biz{color:#fff;font-size:15px;font-weight:800}
+.hdr-loc{color:rgba(255,255,255,.6);font-size:11px;margin-top:2px}
+.hdr-bell{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.bal-label{color:rgba(255,255,255,.65);font-size:12px;margin-bottom:4px}
+.bal-amt{color:#fff;font-size:32px;font-weight:900}
+.bal-amt .cur{font-size:15px;font-weight:600;margin-left:4px;opacity:.8}
+
+.qa-grid{display:flex;justify-content:space-around;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:18px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
+.qa{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
+.qa-ico{width:48px;height:48px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px}
+.qa-lbl{font-size:11px;font-weight:700;color:var(--t1)}
+
+.section{margin:18px 16px}
+.section-title{font-size:14px;font-weight:800;color:var(--t1);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--card);border-radius:14px;border:.5px solid var(--bord);padding:14px}
+.tx-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid var(--div)}
+.tx-row:last-child{border-bottom:none}
+.tx-ico{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.tx-name{font-size:13px;font-weight:700;color:var(--t1)}
+.tx-date{font-size:11px;color:var(--t3);margin-top:1px}
+.tx-amt{font-size:14px;font-weight:800;margin-left:auto;white-space:nowrap}
+.empty-note{text-align:center;padding:30px 10px;color:var(--t3);font-size:13px}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:.5px solid var(--bord);display:flex;padding:8px 0 calc(env(safe-area-inset-bottom,0px) + 6px);z-index:5}
+.nb{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font-family:inherit;color:var(--t3);padding:4px}
+.nb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2}
+.nb span{font-size:10px;font-weight:700}
+.nb.on{color:var(--g)}
+
+#sh-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:100}
+#sh-bg.on{display:block}
+#sh{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;max-height:88vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:101;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+#sh.on{transform:translateY(0)}
+.sh-handle{width:36px;height:4px;background:var(--bord);border-radius:2px;margin:10px auto}
+.sh-head{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 14px}
+.sh-title{font-size:16px;font-weight:800;color:var(--t1)}
+.sh-close{background:none;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:4px}
+#sh-body{padding:0 20px 10px}
+.amt-row{position:relative}
+.amt-row input{padding-right:36px}
+.amt-f{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:14px;font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}
+.chip{padding:7px 12px;background:var(--gl);border:none;border-radius:8px;font-size:12px;font-weight:700;color:var(--gd);cursor:pointer;font-family:inherit}
+.fee-note{font-size:12px;color:var(--t2);margin:8px 0;padding:10px 12px;background:var(--gl);border-radius:10px}
+.fee-note.free{color:var(--gd)}
+.fee-note.paid{background:var(--gold-l);color:#8a5a10}
+
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#222;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s;max-width:85vw;text-align:center}
+.toast.on{opacity:1}
+.toast.err{background:var(--re)}
+
+#qr-full{position:fixed;inset:0;background:var(--gdd);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:24px}
+#qr-full.on{display:flex}
+.qr-box{background:#fff;border-radius:20px;padding:24px;margin-bottom:20px}
+#svid,#scan-canvas{width:100%;border-radius:14px}
+.scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
+#scan-canvas{display:none}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="screen on" id="s-splash">
+  <div class="splash-logo"><img src="./logo.jpg" alt="ROM_BUSINESS"></div>
+  <div class="splash-title">ROM_BUSINESS</div>
+  <div class="splash-sub">Encaissez avec ROM_MONEY</div>
+</div>
+
+<!-- WELCOME -->
+<div class="screen" id="s-welcome">
+  <div class="splash-logo" style="width:90px;height:90px;border-radius:22px;margin-bottom:6px"><img src="./logo.jpg" style="width:100%;height:100%;object-fit:cover"></div>
+  <div class="welcome-title">Bienvenue sur ROM_BUSINESS</div>
+  <div class="welcome-sub">Encaissez vos ventes, gérez votre trésorerie et épargnez — l'espace dédié aux commerçants ROM_MONEY.</div>
+  <button class="btn-g" onclick="goto('s-register');showRegA()">Créer mon compte marchand</button>
+  <button class="btn-w" onclick="goto('s-login');setupLoginScreen()">J'ai déjà un compte</button>
+</div>
+
+<!-- REGISTER -->
+<div class="screen" id="s-register">
+  <div class="reg-header">
+    <button class="back-btn" onclick="goto('s-welcome')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+  </div>
+  <div class="reg-body" id="reg-a" style="display:none">
+    <div class="reg-title">Votre boutique</div>
+    <div class="reg-sub">Ces informations seront visibles par vos clients.</div>
+    <div class="frow"><label class="flabel">Nom de la boutique *</label><input class="finput" id="r-name" placeholder="Ex: Boutique Aïcha"></div>
+    <div class="frow"><label class="flabel">Type de commerce *</label>
+      <div class="loc-toggle">
+        <button class="loc-btn on" id="loc-online" onclick="setLocType('online')">En ligne</button>
+        <button class="loc-btn" id="loc-physical" onclick="setLocType('physical')">Avec emplacement</button>
+      </div>
+    </div>
+    <div class="frow" id="addr-row" style="display:none"><label class="flabel">Adresse *</label><input class="finput" id="r-addr" placeholder="Quartier, ville..."></div>
+    <div class="frow"><label class="flabel">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" placeholder="07 00 00 00 00"></div>
+    <button class="btn-g" style="background:var(--g);color:#fff" onclick="regStep1()">Continuer</button>
+  </div>
+  <div class="reg-body" id="reg-b" style="display:none;flex-direction:column;align-items:center;text-align:center">
+    <div class="pin-av" style="background:var(--gl);color:var(--gd)">🔐</div>
+    <div class="reg-title" id="pin-phase-label">Choisissez votre PIN</div>
+    <div class="reg-sub">Code à 4 chiffres — protège votre compte marchand.</div>
+    <div class="dots" id="reg-dots">
+      <div class="dot" style="border-color:var(--bord)" id="rg0"></div><div class="dot" style="border-color:var(--bord)" id="rg1"></div>
+      <div class="dot" style="border-color:var(--bord)" id="rg2"></div><div class="dot" style="border-color:var(--bord)" id="rg3"></div>
+    </div>
+    <div class="kpad">
+      <button class="kb light" onclick="rgPin('1')">1</button><button class="kb light" onclick="rgPin('2')">2</button><button class="kb light" onclick="rgPin('3')">3</button>
+      <button class="kb light" onclick="rgPin('4')">4</button><button class="kb light" onclick="rgPin('5')">5</button><button class="kb light" onclick="rgPin('6')">6</button>
+      <button class="kb light" onclick="rgPin('7')">7</button><button class="kb light" onclick="rgPin('8')">8</button><button class="kb light" onclick="rgPin('9')">9</button>
+      <div></div><button class="kb light" onclick="rgPin('0')">0</button><button class="kb light" style="background:none" onclick="rgDel()">⌫</button>
+    </div>
+    <div class="pin-err" id="reg-pin-msg" style="color:var(--re)"></div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="screen" id="s-login">
+  <div class="pin-av">🏪</div>
+  <div class="pin-title" id="login-title">Connexion marchand</div>
+  <div id="login-phone-wrap" style="width:100%;max-width:280px;margin-bottom:16px">
+    <input id="login-phone-input" type="tel" placeholder="Numéro de téléphone"
+      style="width:100%;padding:12px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:15px;color:#fff;outline:none;text-align:center;font-family:inherit">
+  </div>
+  <div class="dots">
+    <div class="dot" id="ld0"></div><div class="dot" id="ld1"></div>
+    <div class="dot" id="ld2"></div><div class="dot" id="ld3"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="lgPin('1')">1</button><button class="kb" onclick="lgPin('2')">2</button><button class="kb" onclick="lgPin('3')">3</button>
+    <button class="kb" onclick="lgPin('4')">4</button><button class="kb" onclick="lgPin('5')">5</button><button class="kb" onclick="lgPin('6')">6</button>
+    <button class="kb" onclick="lgPin('7')">7</button><button class="kb" onclick="lgPin('8')">8</button><button class="kb" onclick="lgPin('9')">9</button>
+    <div></div><button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
+  </div>
+  <div class="pin-err" id="login-err"></div>
+  <button class="pin-link" onclick="goto('s-welcome')">← Retour</button>
+</div>
+
+<!-- PIN CONFIRM (actions sensibles) -->
+<div class="screen" id="s-pinconfirm">
+  <div class="pin-av" id="pc-av">🔐</div>
+  <div class="pin-title">Confirmation PIN</div>
+  <div class="pin-sub" id="pc-sub">Confirmez votre action</div>
+  <div class="dots">
+    <div class="dot" id="pc0"></div><div class="dot" id="pc1"></div>
+    <div class="dot" id="pc2"></div><div class="dot" id="pc3"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="pcPin('1')">1</button><button class="kb" onclick="pcPin('2')">2</button><button class="kb" onclick="pcPin('3')">3</button>
+    <button class="kb" onclick="pcPin('4')">4</button><button class="kb" onclick="pcPin('5')">5</button><button class="kb" onclick="pcPin('6')">6</button>
+    <button class="kb" onclick="pcPin('7')">7</button><button class="kb" onclick="pcPin('8')">8</button><button class="kb" onclick="pcPin('9')">9</button>
+    <div></div><button class="kb" onclick="pcPin('0')">0</button><button class="kb ghost" onclick="pcDel()">⌫</button>
+  </div>
+  <div class="pin-err" id="pc-err"></div>
+  <button class="pin-link" onclick="pinCancel()">Annuler</button>
+</div>
+
+<!-- APP -->
+<div class="screen" id="s-app">
+  <div id="main-scroll">
+    <div class="app-header">
+      <div class="hdr-top">
+        <div>
+          <div class="hdr-biz" id="hdr-biz-name">—</div>
+          <div class="hdr-loc" id="hdr-biz-loc">—</div>
+        </div>
+        <div class="hdr-bell" onclick="doLogout()">
+          <svg width="18" height="18" stroke="#fff" fill="none" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </div>
+      </div>
+      <div class="bal-label">Solde disponible</div>
+      <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur">FCFA</span></div>
+    </div>
+
+    <div class="qa-grid">
+      <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico">📷</div><span class="qa-lbl">Encaisser</span></button>
+      <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico">🔳</div><span class="qa-lbl">Mon QR</span></button>
+      <button class="qa" onclick="openSheet('virement')"><div class="qa-ico">💸</div><span class="qa-lbl">Virement</span></button>
+      <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl">Coffre</span></button>
+    </div>
+
+    <div class="page" id="pg-home">
+      <div class="section">
+        <div class="section-title">Ventes récentes <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">Tout voir</a></div>
+        <div class="card" id="home-tx-list"><div class="empty-note">Chargement...</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-coffre" style="display:none">
+      <div class="section">
+        <div class="section-title">Coffre principal</div>
+        <div class="card" style="text-align:center;padding:20px">
+          <div style="font-size:12px;color:var(--t2);margin-bottom:4px" id="vault-status-lbl">Épargne</div>
+          <div style="font-size:26px;font-weight:900;color:var(--t1)" id="vault-amt">— F</div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="chip" style="flex:1;padding:11px" onclick="openSheet('vdeposit')">Déposer</button>
+            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vwithdraw')" id="v-wb">Retirer</button>
+            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vlock')" id="v-lb">Verrouiller</button>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Sous-comptes <a onclick="openSheet('vcreate')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">+ Créer</a></div>
+        <div id="subvault-list"></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-historique" style="display:none">
+      <div class="section">
+        <div class="section-title">Historique</div>
+        <div class="card" id="hist-tx-list"><div class="empty-note">Chargement...</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-profil" style="display:none">
+      <div class="section">
+        <div class="card" style="display:flex;align-items:center;gap:12px">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>
+          <div><div style="font-weight:800;font-size:15px" id="prof-biz-name">—</div><div style="font-size:12px;color:var(--t2)" id="prof-biz-phone">—</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600">Changer le PIN</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><span style="font-size:14px;font-weight:600">Déconnexion</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nb on" id="nb-home" onclick="navGo('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span>Accueil</span></button>
+    <button class="nb" id="nb-coffre" onclick="navGo('coffre')"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Coffre</span></button>
+    <button class="nb" id="nb-historique" onclick="navGo('historique')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span>Historique</span></button>
+    <button class="nb" id="nb-profil" onclick="navGo('profil')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profil</span></button>
+  </div>
+</div>
+
+<!-- SHEET -->
+<div id="sh-bg" onclick="closeSheet()"></div>
+<div id="sh">
+  <div class="sh-handle"></div>
+  <div class="sh-head"><div class="sh-title" id="sh-title">—</div><button class="sh-close" onclick="closeSheet()">✕</button></div>
+  <div id="sh-body"></div>
+</div>
+
+<!-- QR PLEIN ECRAN -->
+<div id="qr-full">
+  <div style="color:#fff;font-weight:800;font-size:16px;margin-bottom:4px" id="qrf-name">—</div>
+  <div style="color:rgba(255,255,255,.6);font-size:12px;margin-bottom:20px">Présentez ce code à votre client</div>
+  <div class="qr-box" id="qrf-box"></div>
+  <button class="btn-w" style="max-width:280px" onclick="document.getElementById('qr-full').classList.remove('on')">Fermer</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.3.1/dist/jsQR.min.js"></script>
+<script>
+var API_URL = 'https://rom-money-backend.onrender.com';
+
+var APP = {
+  businessName:'', phone:'', locationType:'online', address:'',
+  merchantId:'', pinHash:'', token:'',
+  balance:0, vaultBal:0, vaultLocked:false, vaultDate:null,
+  subVaults:[], qrSeed:''
+};
+var PIN_MEM = '';
+var txList = [];
+
+function sha256Hex(str){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function(buf){
+    return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+function setPin(plain){ PIN_MEM = plain; return sha256Hex(plain).then(function(h){ APP.pinHash = h; }); }
+function checkPinLocal(buf){
+  if(!APP.pinHash) return Promise.resolve(false);
+  return sha256Hex(buf).then(function(h){ return h===APP.pinHash; });
+}
+
+function save(){ try{ localStorage.setItem('rombiz', JSON.stringify(APP)); }catch(e){} }
+function load(){
+  try{
+    var raw = localStorage.getItem('rombiz');
+    if(!raw) return false;
+    var o = JSON.parse(raw);
+    for(var k in o) APP[k]=o[k];
+    return true;
+  }catch(e){ return false; }
+}
+function getToken(){ return APP.token||''; }
+
+function apiCall(endpoint, method, data, token){
+  if(!navigator.onLine) return Promise.resolve({success:false, message:'Pas de connexion internet', offline:true});
+  var opts={ method:method||'GET', headers:{'Content-Type':'application/json'} };
+  if(token) opts.headers['Authorization']='Bearer '+token;
+  if(data && method!=='GET') opts.body=JSON.stringify(data);
+  return fetch(API_URL+endpoint, opts)
+    .then(function(r){ return r.json(); })
+    .catch(function(e){ return {success:false,message:'Erreur reseau: '+e.message}; });
+}
+
+function goto(id){
+  var all=['s-splash','s-welcome','s-register','s-login','s-pinconfirm','s-app'];
+  for(var i=0;i<all.length;i++){
+    var el=document.getElementById(all[i]);
+    if(el) el.classList.toggle('on', all[i]===id);
+  }
+}
+function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
+function toast(msg, isErr){
+  var el=document.getElementById('toast');
+  if(!el) return;
+  el.textContent=msg; el.className='toast on'+(isErr?' err':'');
+  setTimeout(function(){ el.className='toast'; }, 2600);
+}
+
+// ── INSCRIPTION ──
+function showRegA(){
+  document.getElementById('reg-a').style.display='block';
+  document.getElementById('reg-b').style.display='none';
+}
+function setLocType(t){
+  APP.locationType = t;
+  document.getElementById('loc-online').classList.toggle('on', t==='online');
+  document.getElementById('loc-physical').classList.toggle('on', t==='physical');
+  document.getElementById('addr-row').style.display = t==='physical' ? 'block' : 'none';
+}
+function regStep1(){
+  var name = document.getElementById('r-name').value.trim();
+  var addr = document.getElementById('r-addr').value.trim();
+  var phone = document.getElementById('r-phone').value.trim();
+  if(!name){ toast('Le nom de la boutique est requis', true); return; }
+  if(APP.locationType==='physical' && !addr){ toast("L'adresse est requise", true); return; }
+  if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast('Numéro de téléphone invalide', true); return; }
+  APP.businessName = name; APP.address = addr; APP.phone = phone;
+  document.getElementById('reg-a').style.display='none';
+  document.getElementById('reg-b').style.display='flex';
+  rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
+  document.getElementById('pin-phase-label').textContent='Choisissez votre PIN';
+  document.getElementById('reg-pin-msg').textContent='';
+}
+var rgBuf='', rgPhase=1, rgPin1='';
+function updateRgDots(){
+  for(var i=0;i<4;i++){ var el=document.getElementById('rg'+i); if(el) el.classList.toggle('on', i<rgBuf.length); }
+}
+function rgDel(){ if(rgBuf.length>0){ rgBuf=rgBuf.slice(0,-1); updateRgDots(); } }
+function rgPin(d){
+  if(rgBuf.length>=4) return;
+  rgBuf+=d; updateRgDots();
+  if(rgBuf.length===4){
+    var buf=rgBuf;
+    setTimeout(function(){
+      if(rgPhase===1){
+        rgPin1=buf; rgBuf=''; rgPhase=2; updateRgDots();
+        document.getElementById('pin-phase-label').textContent='Confirmez votre PIN';
+        document.getElementById('reg-pin-msg').textContent='';
+      } else {
+        if(buf===rgPin1){
+          setPin(buf);
+          finishRegister();
+        } else {
+          rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
+          document.getElementById('pin-phase-label').textContent='Choisissez votre PIN';
+          document.getElementById('reg-pin-msg').textContent='Les codes ne correspondent pas';
+        }
+      }
+    }, 150);
+  }
+}
+function finishRegister(){
+  toast('Création du compte...');
+  apiCall('/merchant?action=register','POST',{
+    business_name:APP.businessName, phone:APP.phone, pin:PIN_MEM,
+    location_type:APP.locationType, address:APP.address
+  }).then(function(res){
+    if(res && res.success && res.data){
+      APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
+      APP.qrSeed=res.data.qr_seed; save();
+      launchApp();
+    } else {
+      toast((res&&res.message)||'Erreur lors de la création', true);
+    }
+  });
+}
+
+// ── CONNEXION ──
+function setupLoginScreen(){
+  var known = APP.phone;
+  var wrap = document.getElementById('login-phone-wrap');
+  var input = document.getElementById('login-phone-input');
+  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=APP.businessName||'Connexion marchand'; }
+  else { wrap.style.display='block'; input.value=''; }
+  lgBuf=''; updateLgDots();
+  document.getElementById('login-err').textContent='';
+}
+var lgBuf='';
+function updateLgDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('ld'+i); if(el) el.classList.toggle('on', i<lgBuf.length); } }
+function lgDel(){ if(lgBuf.length>0){ lgBuf=lgBuf.slice(0,-1); updateLgDots(); } }
+function lgPin(d){
+  if(lgBuf.length>=4) return;
+  lgBuf+=d; updateLgDots();
+  if(lgBuf.length===4){
+    var buf=lgBuf;
+    setTimeout(function(){
+      var phoneInput=document.getElementById('login-phone-input');
+      var phone=(phoneInput&&phoneInput.value.trim())||APP.phone||'';
+      if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent='Entrez votre numéro'; return; }
+      apiCall('/merchant?action=login','POST',{phone:phone,pin:buf}).then(function(res){
+        if(res && res.success && res.data){
+          APP.phone=phone; APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
+          APP.businessName=res.data.business_name; APP.locationType=res.data.location_type;
+          APP.address=res.data.address; APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
+          APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date; APP.qrSeed=res.data.qr_seed;
+          setPin(buf).then(function(){ save(); launchApp(); });
+        } else {
+          lgBuf=''; updateLgDots();
+          document.getElementById('login-err').textContent=(res&&res.message)||'Numéro ou PIN incorrect';
+        }
+      });
+    }, 150);
+  }
+}
+
+// ── PIN CONFIRM GENERIQUE ──
+var pcBuf='', pcCallback=null;
+function requirePin(subtitle, cb){
+  pcBuf=''; pcCallback=cb; updatePcDots();
+  document.getElementById('pc-sub').textContent=subtitle;
+  document.getElementById('pc-err').textContent='';
+  closeSheet();
+  setTimeout(function(){ goto('s-pinconfirm'); }, 50);
+}
+function updatePcDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('pc'+i); if(el) el.classList.toggle('on', i<pcBuf.length); } }
+function pcDel(){ if(pcBuf.length>0){ pcBuf=pcBuf.slice(0,-1); updatePcDots(); } }
+function pinCancel(){ pcCallback=null; goto('s-app'); }
+function pcPin(d){
+  if(pcBuf.length>=4) return;
+  pcBuf+=d; updatePcDots();
+  if(pcBuf.length===4){
+    var buf=pcBuf;
+    setTimeout(function(){
+      checkPinLocal(buf).then(function(match){
+        if(match){
+          PIN_MEM=buf; goto('s-app');
+          if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+          return;
+        }
+        apiCall('/merchant?action=login','POST',{phone:APP.phone,pin:buf}).then(function(res){
+          if(res && res.success && res.data && res.data.token){
+            APP.token=res.data.token;
+            setPin(buf).then(save);
+            goto('s-app');
+            if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+          } else {
+            pcBuf=''; updatePcDots();
+            document.getElementById('pc-err').textContent='PIN incorrect';
+          }
+        });
+      });
+    }, 150);
+  }
+}
+
+// ── LANCEMENT APP ──
+function launchApp(){
+  goto('s-app');
+  document.getElementById('hdr-biz-name').textContent = APP.businessName;
+  document.getElementById('hdr-biz-loc').textContent = APP.locationType==='physical' ? (APP.address||'Avec emplacement') : 'Commerce en ligne';
+  document.getElementById('prof-biz-name').textContent = APP.businessName;
+  document.getElementById('prof-biz-phone').textContent = APP.phone;
+  updateBalDisplay();
+  refreshBalance();
+  refreshHistory();
+}
+function updateBalDisplay(){
+  document.getElementById('hdr-balance').textContent = fmt(APP.balance);
+}
+function refreshBalance(){
+  apiCall('/merchant?action=balance','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
+      APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date;
+      APP.qrSeed=res.data.qr_seed; save();
+      updateBalDisplay(); renderVault();
+    }
+  });
+}
+function doLogout(){
+  if(!confirm('Se déconnecter de ROM_BUSINESS ?')) return;
+  APP.token=''; save();
+  goto('s-welcome');
+}
+
+// ── NAVIGATION ──
+var PAGES=['home','coffre','historique','profil'];
+function navGo(p){
+  PAGES.forEach(function(pg){
+    var el=document.getElementById('pg-'+pg); if(el) el.style.display = pg===p?'block':'none';
+    var nb=document.getElementById('nb-'+pg); if(nb) nb.classList.toggle('on', pg===p);
+  });
+  document.getElementById('main-scroll').scrollTop=0;
+  if(p==='coffre'){ renderVault(); }
+  if(p==='historique'){ refreshHistory(true); }
+}
+
+// ── HISTORIQUE / TRANSACTIONS ──
+function txIcon(t){
+  if(t.type==='vault_deposit'||t.type==='vault_withdrawal') return {ico:'🔒',bg:'var(--gl)'};
+  if(t.direction==='credit') return {ico:'💰',bg:'var(--gl)'};
+  return {ico:'💸',bg:'var(--rl)'};
+}
+function renderTxRows(rows, containerId){
+  var c=document.getElementById(containerId);
+  if(!c) return;
+  if(!rows.length){ c.innerHTML='<div class="empty-note">Aucune transaction pour le moment.</div>'; return; }
+  var h='';
+  rows.forEach(function(t){
+    var isCredit = t.direction==='credit';
+    var name = isCredit ? (t.sender_verified_name||t.sender_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'Virement');
+    var ic = txIcon(t);
+    var d = new Date(t.created_at);
+    h+='<div class="tx-row"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+      +'<div><div class="tx-name">'+name+'</div><div class="tx-date">'+d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</div></div>'
+      +'<div class="tx-amt" style="color:'+(isCredit?'var(--g)':'var(--re)')+'">'+(isCredit?'+':'-')+fmt(t.amount)+' F</div></div>';
+  });
+  c.innerHTML=h;
+}
+function refreshHistory(full){
+  apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      txList = res.data.transactions||[];
+      renderTxRows(txList.slice(0,5), 'home-tx-list');
+      if(full) renderTxRows(txList, 'hist-tx-list');
+    }
+  });
+}
+
+// ── SHEET ──
+var SHEET_TITLES={
+  encaisser:'Encaisser', monqr:'Mon QR', virement:'Virement',
+  vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
+  vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN'
+};
+function openSheet(type, extra){
+  document.getElementById('sh-title').textContent = SHEET_TITLES[type]||'—';
+  var b=document.getElementById('sh-body');
+  buildSheet(type, b, extra);
+  document.getElementById('sh-bg').classList.add('on');
+  setTimeout(function(){ document.getElementById('sh').classList.add('on'); }, 10);
+}
+function closeSheet(){
+  document.getElementById('sh').classList.remove('on');
+  document.getElementById('sh-bg').classList.remove('on');
+  stopMerchantScan();
+}
+function buildSheet(type, b, extra){
+  if(type==='encaisser') shEncaisser(b);
+  else if(type==='monqr') shMonQr(b);
+  else if(type==='virement') shVirement(b);
+  else if(type==='vdeposit') shVDeposit(b);
+  else if(type==='vwithdraw') shVWithdraw(b);
+  else if(type==='vlock') shVLock(b);
+  else if(type==='vcreate') shVCreate(b);
+  else if(type==='svdeposit') shSVDeposit(b, extra);
+  else if(type==='svwithdraw') shSVWithdraw(b, extra);
+  else if(type==='change-pin') shChangePin(b);
+}
+
+// ── MON QR ──
+function shMonQr(b){
+  b.innerHTML='<div style="text-align:center;padding:10px 0 20px">'
+    +'<div id="mqr-box" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;border:.5px solid var(--bord)"></div>'
+    +'<div style="font-size:12px;color:var(--t2);margin-top:14px">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff;margin-top:16px" onclick="showQrFullscreen()">Afficher en plein écran</button>'
+    +'</div>';
+  setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
+}
+function merchantQrText(){ return 'M|'+APP.merchantId+'|'+APP.qrSeed; }
+function drawMerchantQR(elId, size){
+  var el=document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML='';
+  try{ new QRCode(el, {text:merchantQrText(), width:size, height:size, colorDark:'#085041', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+}
+function showQrFullscreen(){
+  document.getElementById('qrf-name').textContent = APP.businessName;
+  drawMerchantQR('qrf-box', 230);
+  document.getElementById('qr-full').classList.add('on');
+}
+
+// ── ENCAISSER (scanner un client) ──
+var encStream=null, encRAF=null;
+function shEncaisser(b){
+  b.innerHTML='<div class="scan-wrap"><video id="enc-vid" autoplay playsinline muted style="width:100%;display:block"></video><canvas id="enc-canvas"></canvas></div>'
+    +'<div id="enc-msg" style="text-align:center;font-size:12px;color:var(--t2);margin-bottom:10px">Demande d\'accès à la caméra...</div>'
+    +'<div id="enc-form"></div>';
+  startMerchantScan();
+}
+function stopMerchantScan(){
+  if(encRAF){ cancelAnimationFrame(encRAF); encRAF=null; }
+  if(encStream){ encStream.getTracks().forEach(function(t){ t.stop(); }); encStream=null; }
+}
+function startMerchantScan(){
+  var msg=document.getElementById('enc-msg');
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
+    encStream=stream;
+    var v=document.getElementById('enc-vid');
+    if(!v) return;
+    v.srcObject=stream;
+    v.play().then(function(){ if(msg) msg.textContent='Visez le QR personnel du client'; encScanLoop(); });
+  }).catch(function(){ if(msg) msg.textContent='Accès caméra refusé'; });
+}
+function encScanLoop(){
+  if(!encStream) return;
+  var v=document.getElementById('enc-vid'), c=document.getElementById('enc-canvas');
+  if(!v||!c||v.readyState!==v.HAVE_ENOUGH_DATA){ encRAF=requestAnimationFrame(encScanLoop); return; }
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  var ctx=c.getContext('2d'); ctx.drawImage(v,0,0,c.width,c.height);
+  var img; try{ img=ctx.getImageData(0,0,c.width,c.height); }catch(e){ encRAF=requestAnimationFrame(encScanLoop); return; }
+  var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
+  if(code && code.data){ stopMerchantScan(); onEncaisserScanned(code.data); return; }
+  encRAF=requestAnimationFrame(encScanLoop);
+}
+function onEncaisserScanned(text){
+  var parts=text.split('|');
+  var phone = parts.length===3 ? parts[2] : text.replace(/\s/g,'');
+  if(!phone || phone.length<8){ toast('QR non reconnu', true); openSheet('encaisser'); return; }
+  var form=document.getElementById('enc-form');
+  if(!form) return;
+  window._encPayerPhone = phone;
+  form.innerHTML = '<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="chips">'+[1000,2000,5000,10000,25000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'enc-amt\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
+    +'<div class="frow"><label class="flabel">Motif (optionnel)</label><input class="finput" id="enc-motif" placeholder="Ex: Vente article"></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doEncaisser()">Encaisser</button>';
+}
+function doEncaisser(){
+  var amt=parseFloat(document.getElementById('enc-amt').value)||0;
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
+  var payerPhone=window._encPayerPhone;
+  requirePin('Encaisser '+fmt(amt)+' F', function(){
+    apiCall('/merchant?action=collect','POST',{payer_phone:payerPhone,amount:amt,pin:PIN_MEM,description:motif},getToken()).then(function(res){
+      if(res && res.success){
+        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
+        closeSheet();
+        toast(fmt(amt)+' F encaissé de '+(res.data.payer_name||'client')+' !');
+      } else {
+        toast((res&&res.message)||'Échec encaissement', true);
+      }
+    });
+  });
+}
+
+// ── VIREMENT ──
+function shVirement(b){
+  b.innerHTML='<div class="frow"><label class="flabel">Numéro du destinataire</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee()"></div>'
+    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">F</span></div></div>'
+    +'<div id="vir-fee" class="fee-note">Entrez un numéro et un montant pour voir les frais.</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">Envoyer</button>';
+}
+function updateVirFee(){
+  var phone=document.getElementById('vir-phone').value.trim();
+  var amt=parseFloat(document.getElementById('vir-amt').value)||0;
+  var el=document.getElementById('vir-fee');
+  if(!phone||amt<=0){ el.className='fee-note'; el.textContent='Entrez un numéro et un montant pour voir les frais.'; return; }
+  var isOwn = phone===APP.phone;
+  if(isOwn){ el.className='fee-note free'; el.textContent='Gratuit — vers votre propre numéro ROM_MONEY.'; }
+  else { el.className='fee-note paid'; el.textContent='Frais 1% : '+fmt(Math.round(amt*0.01))+' F — total débité '+fmt(amt+Math.round(amt*0.01))+' F.'; }
+}
+function doVirement(){
+  var phone=document.getElementById('vir-phone').value.trim();
+  var amt=parseFloat(document.getElementById('vir-amt').value)||0;
+  if(!phone){ toast('Numéro requis', true); return; }
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  requirePin('Virement de '+fmt(amt)+' F', function(){
+    apiCall('/merchant?action=withdraw','POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      if(res && res.success){
+        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
+        closeSheet();
+        toast(fmt(amt)+' F envoyé'+(res.data.fee>0?' (frais: '+fmt(res.data.fee)+' F)':'')+' !');
+      } else {
+        toast((res&&res.message)||'Échec du virement', true);
+      }
+    });
+  });
+}
+
+// ── COFFRE ──
+function renderVault(){
+  var lk=APP.vaultLocked;
+  document.getElementById('vault-amt').textContent=fmt(APP.vaultBal)+' F';
+  document.getElementById('vault-status-lbl').textContent = lk ? 'Coffre verrouillé' : 'Épargne';
+  var wb=document.getElementById('v-wb'); wb.disabled=lk; wb.style.opacity=lk?.4:1;
+  var lb=document.getElementById('v-lb'); lb.disabled=lk; lb.style.opacity=lk?.4:1;
+  loadSubVaults();
+}
+function loadSubVaults(){
+  apiCall('/merchant?action=subvault-list','GET',null,getToken()).then(function(res){
+    if(res && res.success){
+      APP.subVaults=(res.data||[]).map(function(sv){
+        return {id:sv.id,name:sv.name,amt:parseFloat(sv.balance)||0,goal:sv.goal_amount?parseFloat(sv.goal_amount):0,locked:!!sv.locked,lockDate:sv.lock_date};
+      });
+      renderSubVaults();
+    }
+  });
+}
+function renderSubVaults(){
+  var list=document.getElementById('subvault-list');
+  var subs=APP.subVaults||[];
+  if(!subs.length){ list.innerHTML='<div class="card empty-note">Aucun sous-compte pour le moment.</div>'; return; }
+  var h='';
+  subs.forEach(function(sv){
+    var hasGoal=sv.goal>0;
+    var pct=hasGoal?Math.round(Math.min(sv.amt/sv.goal*100,100)):0;
+    h+='<div class="card" style="margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-weight:700;font-size:14px">'+sv.name+'</span>'
+      +'<span style="font-weight:800;color:var(--g)">'+(hasGoal?pct+'%':fmt(sv.amt)+' F')+'</span></div>'
+      +(hasGoal?'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+fmt(sv.amt)+' F / '+fmt(sv.goal)+' F</div>':'')
+      +'<div style="display:flex;gap:6px">'
+      +'<button class="chip" style="flex:1" onclick="openSheet(\'svdeposit\',\''+sv.id+'\')">Déposer</button>'
+      +'<button class="chip" style="flex:1;background:var(--bg);color:var(--t1)" onclick="openSheet(\'svwithdraw\',\''+sv.id+'\')">Retirer</button>'
+      +'<button class="chip" style="background:var(--rl);color:var(--rd)" onclick="doDeleteSubVault(\''+sv.id+'\')">🗑</button>'
+      +'</div></div>';
+  });
+  list.innerHTML=h;
+}
+function findSubVault(id){ for(var i=0;i<APP.subVaults.length;i++) if(APP.subVaults[i].id===id) return APP.subVaults[i]; return null; }
+
+function shVDeposit(b){
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Solde disponible : <strong>'+fmt(APP.balance)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVDeposit()">Déposer</button>';
+}
+function doVDeposit(){
+  var amt=parseFloat(document.getElementById('vd-amt').value)||0;
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  if(amt>APP.balance){ toast('Solde insuffisant', true); return; }
+  apiCall('/merchant?action=vault-deposit','POST',{amount:amt},getToken()).then(function(res){
+    if(res && res.success){
+      APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
+      updateBalDisplay(); renderVault(); closeSheet(); toast(fmt(amt)+' F déposés au coffre');
+    } else { toast((res&&res.message)||'Erreur', true); }
+  });
+}
+function shVWithdraw(b){
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre : <strong>'+fmt(APP.vaultBal)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqVWithdraw()">Retirer</button>';
+}
+function reqVWithdraw(){
+  var amt=parseFloat(document.getElementById('vw-amt').value)||0;
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  if(amt>APP.vaultBal){ toast('Solde du coffre insuffisant', true); return; }
+  requirePin('Retrait coffre '+fmt(amt)+' F', function(){
+    apiCall('/merchant?action=vault-withdraw','POST',{amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      if(res && res.success){
+        APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
+        updateBalDisplay(); renderVault(); toast(fmt(amt)+' F retirés du coffre');
+      } else { toast((res&&res.message)||'Erreur', true); }
+    });
+  });
+}
+function shVLock(b){
+  var minDate=new Date(Date.now()+86400000).toISOString().split('T')[0];
+  b.innerHTML='<div class="frow"><label class="flabel">Verrouiller jusqu\'au</label><input class="finput" id="vl-date" type="date" min="'+minDate+'"></div>'
+    +'<div style="font-size:12px;color:var(--gold-text,#8a5a10);background:var(--gold-l);padding:10px 12px;border-radius:10px;margin-bottom:14px">Le coffre sera bloqué jusqu\'à cette date.</div>'
+    +'<button class="btn-g" style="background:#8a5a10" onclick="doVLock()">Verrouiller</button>';
+}
+function doVLock(){
+  var date=document.getElementById('vl-date').value;
+  if(!date){ toast('Choisissez une date', true); return; }
+  apiCall('/merchant?action=vault-lock','POST',{lock_date:date},getToken()).then(function(res){
+    if(res && res.success){
+      APP.vaultLocked=true; APP.vaultDate=date; save(); renderVault(); closeSheet(); toast('Coffre verrouillé');
+    } else { toast((res&&res.message)||'Erreur', true); }
+  });
+}
+function shVCreate(b){
+  b.innerHTML='<div class="frow"><label class="flabel">Nom du sous-compte</label><input class="finput" id="svc-name" placeholder="Ex: Fournisseurs"></div>'
+    +'<div class="frow"><label class="flabel">Montant initial (optionnel)</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">Disponible au coffre : '+fmt(APP.vaultBal)+' F</div></div>'
+    +'<div class="frow"><label class="flabel">Objectif (optionnel)</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVCreate()">Créer</button>';
+}
+function doVCreate(){
+  var name=document.getElementById('svc-name').value.trim();
+  var amt=parseFloat(document.getElementById('svc-amt').value)||0;
+  var goal=parseFloat(document.getElementById('svc-goal').value)||0;
+  if(!name){ toast('Nom requis', true); return; }
+  if(amt>APP.vaultBal){ toast('Solde du coffre principal insuffisant', true); return; }
+  apiCall('/merchant?action=subvault-create','POST',{name:name,amount:amt,goal:goal||''},getToken()).then(function(res){
+    if(res && res.success){
+      APP.vaultBal=res.data.vault_balance;
+      APP.subVaults.push({id:res.data.id,name:res.data.name,amt:parseFloat(res.data.balance)||0,goal:res.data.goal_amount?parseFloat(res.data.goal_amount):0});
+      renderVault(); closeSheet(); toast('Sous-compte créé');
+    } else { toast((res&&res.message)||'Erreur', true); }
+  });
+}
+function shSVDeposit(b, id){
+  var sv=findSubVault(id); if(!sv) return;
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre principal : <strong>'+fmt(APP.vaultBal)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">Vers "'+sv.name+'"</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">Déposer</button>';
+}
+function doSVDeposit(id){
+  var sv=findSubVault(id); if(!sv) return;
+  var amt=parseFloat(document.getElementById('svd-amt').value)||0;
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  if(amt>APP.vaultBal){ toast('Solde du coffre principal insuffisant', true); return; }
+  apiCall('/merchant?action=subvault-deposit','POST',{id:id,amount:amt},getToken()).then(function(res){
+    if(res && res.success){
+      APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
+      renderVault(); closeSheet(); toast('Dépôt effectué');
+    } else { toast((res&&res.message)||'Erreur', true); }
+  });
+}
+function shSVWithdraw(b, id){
+  var sv=findSubVault(id); if(!sv) return;
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'" : <strong>'+fmt(sv.amt)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">Retour vers le coffre principal</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">Retirer</button>';
+}
+function reqSVWithdraw(id){
+  var sv=findSubVault(id); if(!sv) return;
+  var amt=parseFloat(document.getElementById('svw-amt').value)||0;
+  if(amt<=0){ toast('Montant invalide', true); return; }
+  if(amt>sv.amt){ toast('Solde du sous-compte insuffisant', true); return; }
+  requirePin('Retrait "'+sv.name+'" '+fmt(amt)+' F', function(){
+    apiCall('/merchant?action=subvault-withdraw','POST',{id:id,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      if(res && res.success){
+        APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
+        renderVault(); toast('Retrait effectué');
+      } else { toast((res&&res.message)||'Erreur', true); }
+    });
+  });
+}
+function doDeleteSubVault(id){
+  var sv=findSubVault(id); if(!sv) return;
+  if(!confirm('Supprimer "'+sv.name+'" ? Le solde ('+fmt(sv.amt)+' F) revient au coffre principal.')) return;
+  apiCall('/merchant?action=subvault-delete','POST',{id:id},getToken()).then(function(res){
+    if(res && res.success){
+      APP.vaultBal=res.data.vault_balance;
+      APP.subVaults=APP.subVaults.filter(function(s){ return s.id!==id; });
+      renderVault(); toast('Sous-compte supprimé');
+    } else { toast((res&&res.message)||'Erreur', true); }
+  });
+}
+
+// ── CHANGER LE PIN ──
+function shChangePin(b){
+  b.innerHTML='<div class="frow"><label class="flabel">PIN actuel</label><input class="finput" id="cp-cur" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">Nouveau PIN</label><input class="finput" id="cp-new" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">Confirmer le nouveau PIN</label><input class="finput" id="cp-new2" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doChangePin()">Valider</button>';
+}
+function doChangePin(){
+  var cur=document.getElementById('cp-cur').value.trim();
+  var np=document.getElementById('cp-new').value.trim();
+  var np2=document.getElementById('cp-new2').value.trim();
+  if(!/^\d{4}$/.test(cur)||!/^\d{4}$/.test(np)){ toast('PIN invalide (4 chiffres)', true); return; }
+  if(np!==np2){ toast('Les nouveaux PIN ne correspondent pas', true); return; }
+  checkPinLocal(cur).then(function(match){
+    var proceed = function(){
+      apiCall('/merchant?action=change-pin','POST',{current_pin:cur,new_pin:np},getToken()).then(function(res){
+        if(res && res.success){
+          setPin(np).then(function(){ save(); closeSheet(); toast('PIN mis à jour'); });
+        } else { toast((res&&res.message)||'Erreur', true); }
+      });
+    };
+    proceed();
+  });
+}
+
+// ── DEMARRAGE ──
+window.addEventListener('load', function(){
+  var found = load();
+  setTimeout(function(){
+    if(found && APP.token && APP.merchantId){
+      launchApp();
+    } else if(found && APP.pinHash){
+      goto('s-login'); setupLoginScreen();
+    } else {
+      goto('s-welcome');
+    }
+  }, 700);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+});
+</script>
+</body>
+</html>
