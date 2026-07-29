@@ -835,6 +835,19 @@ function auth_change_pin() {
     ok(null,'PIN mis a jour');
 }
 
+function merchant_change_pin() {
+    $pl = merchant_auth(); $b = body();
+    $cur = trim($b['current_pin'] ?? '');
+    $new = trim($b['new_pin']     ?? '');
+    if(!preg_match('/^\d{4}$/',$cur)) fail('PIN actuel invalide');
+    if(!preg_match('/^\d{4}$/',$new)) fail('Nouveau PIN invalide');
+    if(is_weak_pin($new)) fail('Ce code est trop simple, choisissez une autre combinaison');
+    $m = q("SELECT pin_hash FROM merchants WHERE id=?", [$pl['sub']])->fetch();
+    if(!password_verify($cur, $m['pin_hash'])) fail('PIN actuel incorrect', 401);
+    q("UPDATE merchants SET pin_hash=? WHERE id=?", [password_hash($new,PASSWORD_BCRYPT), $pl['sub']]);
+    ok(null,'PIN mis a jour');
+}
+
 // WALLET
 function route_wallet($action) {
     match($action) {
@@ -1072,6 +1085,7 @@ function route_merchant($action) {
         'subvault-unlock'    => merchant_subvault_unlock(),
         'subvault-delete'    => merchant_subvault_delete(),
         'history'            => merchant_tx_history(),
+        'change-pin'         => merchant_change_pin(),
         default              => fail('Action inconnue',404)
     };
 }
@@ -1089,7 +1103,14 @@ function merchant_register() {
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if($locationType==='physical' && !$address) fail('Adresse requise pour un commerce avec emplacement');
-    $exists = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    try {
+        $exists = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        // Table 'merchants' pas encore creee sur cette base (migration SQL pas
+        // encore executee) : message clair au lieu de laisser fuiter une page
+        // d'erreur PHP brute (non-JSON) qui casse le parsing cote app.
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
+    }
     if($exists) fail('Ce numero est deja enregistre comme marchand');
 
     db()->beginTransaction();
@@ -1116,7 +1137,11 @@ function merchant_login() {
     $phone = trim($b['phone'] ?? '');
     $pin = trim($b['pin'] ?? '');
     if(!$phone || !$pin) fail('Telephone et PIN requis');
-    $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    try {
+        $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
+    }
     if(!$m) fail('Numero ou PIN incorrect', 401);
     merchant_pin_check($m['id'], $pin, $m['pin_hash']);
     if($m['status'] !== 'active') fail('Compte suspendu', 403);
