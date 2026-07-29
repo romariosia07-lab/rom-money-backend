@@ -1084,6 +1084,7 @@ function route_merchant($action) {
         'subvault-lock'      => merchant_subvault_lock(),
         'subvault-unlock'    => merchant_subvault_unlock(),
         'subvault-delete'    => merchant_subvault_delete(),
+        'resolve-payer'      => merchant_resolve_payer(),
         'history'            => merchant_tx_history(),
         'stats'              => merchant_stats(),
         'change-pin'         => merchant_change_pin(),
@@ -1179,6 +1180,19 @@ function merchant_renew_qr() {
 // (comme un ROM_MONEY qui encaisse un autre ROM_MONEY), le client tape son
 // PIN sur l'appareil du marchand. Contrairement au paiement via QR marchand
 // (tx_pay_merchant, gratuit), celui-ci suit la meme logique que tx_collect.
+// Identifie le client AVANT l'encaissement (nom affiche pendant que le
+// marchand tape le montant/PIN) - meme principe que tx_resolve() cote
+// personnel, mais accessible avec un token marchand (merchant_auth()).
+function merchant_resolve_payer() {
+    merchant_auth();
+    $phone = $_GET['phone']??'';
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
+    $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Aucun compte trouve',404);
+    ok(['full_name'=>$u['verified_name']?:$u['full_name'],'phone_number'=>$u['phone_number'],
+        'is_verified'=>!empty($u['verified_name'])]);
+}
+
 function merchant_collect() {
     $pl = merchant_auth(); $b = body();
     $payerPhone = trim($b['payer_phone']??'');

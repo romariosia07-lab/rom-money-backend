@@ -15,6 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:'DM Sans',sans-serif}
+@keyframes spin{to{transform:rotate(360deg)}}
 :root{
   --g:#1D9E75;--gd:#0F6E56;--gdd:#085041;--gl:#E1F5EE;--gm:#9FE1CB;
   --gold:#F5A623;--gold-l:#FFF3DC;
@@ -77,7 +78,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .hdr-biz{color:#fff;font-size:15px;font-weight:800}
 .hdr-loc{color:rgba(255,255,255,.6);font-size:11px;margin-top:2px}
-.hdr-bell{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .bal-label{color:rgba(255,255,255,.65);font-size:12px;margin-bottom:4px}
 .bal-amt{color:#fff;font-size:32px;font-weight:900}
 .bal-amt .cur{font-size:15px;font-weight:600;margin-left:4px;opacity:.8}
@@ -239,17 +239,19 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <div class="hdr-biz" id="hdr-biz-name">—</div>
           <div class="hdr-loc" id="hdr-biz-loc">—</div>
         </div>
-        <div class="hdr-bell" onclick="doLogout()">
-          <svg width="18" height="18" stroke="#fff" fill="none" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </div>
       </div>
-      <div class="bal-label">Solde disponible</div>
+      <div class="bal-label">Solde disponible
+        <svg id="eye-icon" onclick="toggleBal()" width="15" height="15" stroke="rgba(255,255,255,.8)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="cursor:pointer;vertical-align:middle;margin-left:4px">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
       <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur">FCFA</span></div>
     </div>
 
     <div class="qa-grid">
-      <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico">🔳</div><span class="qa-lbl">Mon QR</span></button>
-      <button class="qa" onclick="openSheet('virement')"><div class="qa-ico">💸</div><span class="qa-lbl">Virement</span></button>
+      <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-encaisser.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl">Encaisser</span></button>
+      <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./wallet-icon.jpg" style="width:38px;height:38px;object-fit:contain;border-radius:50%"></div><span class="qa-lbl">Mon QR</span></button>
+      <button class="qa" onclick="openSheet('virement')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-envoyer.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl">Envoyer</span></button>
       <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl">Coffre</span></button>
     </div>
 
@@ -364,7 +366,7 @@ var APP = {
   businessName:'', phone:'', locationType:'online', address:'',
   merchantId:'', pinHash:'', token:'',
   balance:0, vaultBal:0, vaultLocked:false, vaultDate:null,
-  subVaults:[], qrSeed:''
+  subVaults:[], qrSeed:'', balHidden:false
 };
 var PIN_MEM = '';
 var txList = [];
@@ -582,6 +584,7 @@ function launchApp(){
   document.getElementById('hdr-biz-loc').textContent = APP.locationType==='physical' ? (APP.address||'Avec emplacement') : 'Commerce en ligne';
   document.getElementById('prof-biz-phone').textContent = APP.phone;
   updateBalDisplay();
+  syncEyeIcon();
   refreshBalance();
   refreshHistory();
   loadDashboardStats();
@@ -647,7 +650,19 @@ if(!window._dbTooltipDocListener){
   });
 }
 function updateBalDisplay(){
-  document.getElementById('hdr-balance').textContent = fmt(APP.balance);
+  document.getElementById('hdr-balance').textContent = APP.balHidden ? '••••••' : fmt(APP.balance);
+}
+function syncEyeIcon(){
+  var icon = document.getElementById('eye-icon');
+  if(!icon) return;
+  icon.innerHTML = APP.balHidden
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+function toggleBal(){
+  APP.balHidden = !APP.balHidden; save();
+  updateBalDisplay();
+  syncEyeIcon();
 }
 function renderVerifiedBadges(){
   var hdr=document.getElementById('hdr-biz-name');
@@ -812,7 +827,7 @@ function refreshHistory(full){
 
 // ── SHEET ──
 var SHEET_TITLES={
-  monqr:'Mon QR', virement:'Virement',
+  encaisser:'Encaisser', monqr:'Mon QR', virement:'Envoyer',
   vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
   vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN'
 };
@@ -829,7 +844,8 @@ function closeSheet(){
   stopMerchantScan();
 }
 function buildSheet(type, b, extra){
-  if(type==='monqr') shMonQr(b);
+  if(type==='encaisser') shEncaisser(b);
+  else if(type==='monqr') shMonQr(b);
   else if(type==='virement') shVirement(b);
   else if(type==='vdeposit') shVDeposit(b);
   else if(type==='vwithdraw') shVWithdraw(b);
@@ -840,45 +856,14 @@ function buildSheet(type, b, extra){
   else if(type==='change-pin') shChangePin(b);
 }
 
-// ── MON QR (2 onglets : Mon QR / Scanner — meme principe que le Wallet de ROM_MONEY) ──
+// ── MON QR (affichage seul du QR marchand) ──
 function shMonQr(b){
-  var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
-  var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
-  b.innerHTML = '<div style="display:flex;gap:0;background:#f4f4f4;border-radius:12px;padding:3px;margin-bottom:16px">'
-    +'<button id="mqr-tab-qr" onclick="switchMonQrTab(\'qr\')" style="'+s1+'">Mon QR</button>'
-    +'<button id="mqr-tab-scan" onclick="switchMonQrTab(\'scan\')" style="'+s2+'">Scanner</button>'
-    +'</div>'
-    +'<div id="mqr-qr-view" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">'
-    +'<div style="font-size:12px;color:var(--t2);text-align:center">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
-    +'<div id="mqr-box" style="padding:16px;background:#fff;border-radius:16px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff;width:100%" onclick="showQrFullscreen()">Afficher en plein écran</button>'
-    +'</div>'
-    +'<div id="mqr-scan-view" style="display:none"></div>';
+  b.innerHTML='<div style="text-align:center;padding:10px 0 20px">'
+    +'<div id="mqr-box" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
+    +'<div style="font-size:12px;color:var(--t2);margin-top:14px">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff;margin-top:16px" onclick="showQrFullscreen()">Afficher en plein écran</button>'
+    +'</div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
-}
-function switchMonQrTab(tab){
-  var qrV=document.getElementById('mqr-qr-view'), scV=document.getElementById('mqr-scan-view');
-  var tQR=document.getElementById('mqr-tab-qr'), tSC=document.getElementById('mqr-tab-scan');
-  var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
-  var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
-  if(tab==='qr'){
-    if(qrV) qrV.style.display='flex';
-    if(scV) scV.style.display='none';
-    if(tQR) tQR.style.cssText=s1;
-    if(tSC) tSC.style.cssText=s2;
-    stopMerchantScan();
-  } else {
-    if(qrV) qrV.style.display='none';
-    if(scV){
-      scV.style.display='block';
-      scV.innerHTML='<div class="scan-wrap"><video id="enc-vid" autoplay playsinline muted style="width:100%;display:block"></video><canvas id="enc-canvas" style="display:none"></canvas></div>'
-        +'<div id="enc-msg" style="text-align:center;font-size:12px;color:var(--t2);margin-bottom:10px">Demande d\'accès à la caméra...</div>'
-        +'<div id="enc-form"></div>';
-      startMerchantScan();
-    }
-    if(tQR) tQR.style.cssText=s2;
-    if(tSC) tSC.style.cssText=s1;
-  }
 }
 function merchantQrText(){ return 'M|'+APP.merchantId+'|'+APP.qrSeed; }
 function drawMerchantQR(elId, size){
@@ -893,21 +878,56 @@ function showQrFullscreen(){
   document.getElementById('qr-full').classList.add('on');
 }
 
-// ── ENCAISSER (scanner un client, onglet "Scanner" de la sheet Mon QR) ──
+// ── ENCAISSER (identique au flux "Encaisser" de ROM_MONEY : montant d'abord,
+// puis scan du QR personnel du client, puis PIN saisi directement sur place) ──
+function ini(n){
+  var p=(n||'').trim().split(' ');
+  if(p.length>=2) return (p[0][0]+p[1][0]).toUpperCase();
+  return (n||'--').substring(0,2).toUpperCase();
+}
+function shEncaisser(b){
+  b.innerHTML = ''
+    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="chips">'+[1000,2000,5000,10000,25000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'enc-amt\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
+    +'<div class="frow"><label class="flabel">Motif (optionnel)</label><input class="finput" id="enc-motif" placeholder="Ex: Vente article"></div>'
+    +'<button onclick="startMerchantScan()" class="btn-g" style="display:flex;align-items:center;justify-content:center;gap:8px">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>'
+    +'Scanner le QR du client'
+    +'</button>'
+    +'<div id="enc-scanner" style="display:none;margin-top:12px">'
+    +'<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
+    +'<video id="enc-vid" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
+    +'<canvas id="enc-canvas" style="display:none"></canvas>'
+    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
+    +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
+    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">Visez le QR personnel du client</p>'
+    +'</div>'
+    +'<button onclick="stopMerchantEncScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">Annuler</button>'
+    +'</div>'
+    +'<div id="enc-result" style="display:none"></div>';
+}
 var encStream=null, encRAF=null;
 function stopMerchantScan(){
   if(encRAF){ cancelAnimationFrame(encRAF); encRAF=null; }
   if(encStream){ encStream.getTracks().forEach(function(t){ t.stop(); }); encStream=null; }
 }
+function stopMerchantEncScan(){
+  stopMerchantScan();
+  var el=document.getElementById('enc-scanner');
+  if(el) el.style.display='none';
+}
 function startMerchantScan(){
-  var msg=document.getElementById('enc-msg');
+  var amt=parseFloat(document.getElementById('enc-amt').value)||0;
+  if(amt<=0){ toast('Entrez un montant', true); return; }
+  var el=document.getElementById('enc-scanner');
+  if(el) el.style.display='block';
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
     encStream=stream;
     var v=document.getElementById('enc-vid');
     if(!v) return;
     v.srcObject=stream;
-    v.play().then(function(){ if(msg) msg.textContent='Visez le QR personnel du client'; encScanLoop(); });
-  }).catch(function(){ if(msg) msg.textContent='Accès caméra refusé'; });
+    v.play().then(function(){ encScanLoop(); });
+  }).catch(function(){ toast('Accès caméra refusé', true); });
 }
 function encScanLoop(){
   if(!encStream) return;
@@ -917,37 +937,87 @@ function encScanLoop(){
   var ctx=c.getContext('2d'); ctx.drawImage(v,0,0,c.width,c.height);
   var img; try{ img=ctx.getImageData(0,0,c.width,c.height); }catch(e){ encRAF=requestAnimationFrame(encScanLoop); return; }
   var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
-  if(code && code.data){ stopMerchantScan(); onEncaisserScanned(code.data); return; }
+  if(code && code.data){ stopMerchantEncScan(); onEncaisserScanned(code.data); return; }
   encRAF=requestAnimationFrame(encScanLoop);
 }
 function onEncaisserScanned(text){
   var parts=text.split('|');
   var phone = parts.length===3 ? parts[2] : text.replace(/\s/g,'');
-  if(!phone || phone.length<8){ toast('QR non reconnu', true); switchMonQrTab('scan'); return; }
-  var form=document.getElementById('enc-form');
-  if(!form) return;
-  window._encPayerPhone = phone;
-  form.innerHTML = '<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<div class="chips">'+[1000,2000,5000,10000,25000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'enc-amt\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
-    +'<div class="frow"><label class="flabel">Motif (optionnel)</label><input class="finput" id="enc-motif" placeholder="Ex: Vente article"></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doEncaisser()">Encaisser</button>';
+  if(!phone || phone.length<8){ toast('QR non reconnu', true); return; }
+  var result=document.getElementById('enc-result');
+  if(!result) return;
+  result.style.display='block';
+  result.innerHTML='<div style="text-align:center;padding:16px">'
+    +'<div style="width:28px;height:28px;border:3px solid var(--gl);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 8px"></div>'
+    +'<div style="font-size:12px;color:var(--t2)">Identification...</div></div>';
+  apiCall('/merchant?action=resolve-payer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var name=res.data.full_name||phone;
+      window._encPayerPhone=phone; window._encPayerName=name; window._encPinBuf='';
+      var amt=parseFloat(document.getElementById('enc-amt').value)||0;
+      result.innerHTML=''
+        +'<div style="background:var(--gl);border-radius:14px;padding:14px;border:.5px solid var(--gm);margin-top:8px">'
+        +'<div style="display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:.5px solid var(--div)">'
+        +'<div style="width:44px;height:44px;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff">'+ini(name)+'</div>'
+        +'<div><div style="font-size:14px;font-weight:800;color:var(--t1)">'+name+'</div>'
+        +'<div style="font-size:12px;color:var(--t2)">'+phone+'</div></div>'
+        +'</div>'
+        +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>Montant</span><span>'+fmt(amt)+' F</span></div>'
+        +'<div style="padding-top:12px">'
+        +'<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Le client entre son PIN pour confirmer</div>'
+        +'<div class="dots" style="margin:0 auto 12px">'
+        +'<div class="dot" id="ep0"></div><div class="dot" id="ep1"></div><div class="dot" id="ep2"></div><div class="dot" id="ep3"></div>'
+        +'</div>'
+        +'<div class="kpad">'
+        +'<button class="kb light" onclick="encPin(\'1\')">1</button><button class="kb light" onclick="encPin(\'2\')">2</button><button class="kb light" onclick="encPin(\'3\')">3</button>'
+        +'<button class="kb light" onclick="encPin(\'4\')">4</button><button class="kb light" onclick="encPin(\'5\')">5</button><button class="kb light" onclick="encPin(\'6\')">6</button>'
+        +'<button class="kb light" onclick="encPin(\'7\')">7</button><button class="kb light" onclick="encPin(\'8\')">8</button><button class="kb light" onclick="encPin(\'9\')">9</button>'
+        +'<button class="kb light" onclick="encPin(\'C\')">⌫</button><button class="kb light" onclick="encPin(\'0\')">0</button><button class="kb" style="background:var(--g);color:#fff" onclick="encPin(\'OK\')">OK</button>'
+        +'</div>'
+        +'</div>'
+        +'</div>'
+        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit;margin-top:8px">Scanner à nouveau</button>';
+    } else {
+      result.innerHTML='<div style="text-align:center;padding:16px;background:var(--rl);border-radius:12px;margin-top:8px">'
+        +'<div style="font-size:28px;margin-bottom:8px">⚠️</div>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--rd)">Compte introuvable</div></div>'
+        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:12px;background:var(--gl);border:.5px solid var(--gm);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit;margin-top:10px">Scanner à nouveau</button>';
+    }
+  }).catch(function(){
+    result.innerHTML='<div style="font-size:12px;color:var(--rd);text-align:center;padding:12px">Erreur réseau</div>';
+  });
 }
-function doEncaisser(){
+function encPin(v){
+  if(!window._encPinBuf) window._encPinBuf='';
+  if(v==='C'){ window._encPinBuf=window._encPinBuf.slice(0,-1); }
+  else if(v==='OK'){
+    if(window._encPinBuf.length!==4){ toast('PIN incomplet', true); return; }
+    doEncaisserWithPin(window._encPayerPhone, window._encPayerName, window._encPinBuf);
+    return;
+  } else {
+    if(window._encPinBuf.length>=4) return;
+    window._encPinBuf+=v;
+  }
+  for(var j=0;j<4;j++){
+    var d=document.getElementById('ep'+j);
+    if(d) d.classList.toggle('on', j<window._encPinBuf.length);
+  }
+}
+function doEncaisserWithPin(phone, name, pin){
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
-  if(amt<=0){ toast('Montant invalide', true); return; }
   var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
-  var payerPhone=window._encPayerPhone;
-  requirePin('Encaisser '+fmt(amt)+' F', function(){
-    apiCall('/merchant?action=collect','POST',{payer_phone:payerPhone,amount:amt,pin:PIN_MEM,description:motif},getToken()).then(function(res){
-      if(res && res.success){
-        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
-        toast(fmt(amt)+' F encaissé de '+(res.data.payer_name||'client')+' !');
-        openReceipt({amount:amt, direction:'credit', type:'merchant_payment',
-          created_at:new Date().toISOString(), reference:res.data.reference, payer_name:res.data.payer_name});
-      } else {
-        toast((res&&res.message)||'Échec encaissement', true);
-      }
-    });
+  toast('Traitement en cours...');
+  apiCall('/merchant?action=collect','POST',{payer_phone:phone,amount:amt,pin:pin,description:motif},getToken()).then(function(res){
+    if(res && res.success){
+      APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
+      toast(fmt(amt)+' F encaissé de '+(res.data.payer_name||name||'client')+' !');
+      openReceipt({amount:amt, direction:'credit', type:'merchant_payment',
+        created_at:new Date().toISOString(), reference:res.data.reference, payer_name:res.data.payer_name||name});
+    } else {
+      toast((res&&res.message)||'Échec encaissement', true);
+      window._encPinBuf='';
+      for(var j=0;j<4;j++){ var d=document.getElementById('ep'+j); if(d) d.classList.remove('on'); }
+    }
   });
 }
 
