@@ -1085,6 +1085,7 @@ function route_merchant($action) {
         'subvault-unlock'    => merchant_subvault_unlock(),
         'subvault-delete'    => merchant_subvault_delete(),
         'history'            => merchant_tx_history(),
+        'stats'              => merchant_stats(),
         'change-pin'         => merchant_change_pin(),
         default              => fail('Action inconnue',404)
     };
@@ -1149,6 +1150,7 @@ function merchant_login() {
     $token = jwt_make(['sub'=>$m['id'],'phone'=>$phone,'typ'=>'merchant']);
     ok(['token'=>$token,'merchant_id'=>$m['id'],'business_name'=>$m['business_name'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],
+        'verified'=>(bool)($m['verified']??false),
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
         'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null,
         'qr_seed'=>$w['qr_seed']??null],'Connexion reussie');
@@ -1156,13 +1158,14 @@ function merchant_login() {
 
 function merchant_balance() {
     $pl = merchant_auth();
-    $m = q("SELECT business_name,location_type,address FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $m = q("SELECT business_name,location_type,address,verified FROM merchants WHERE id=?",[$pl['sub']])->fetch();
     $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
     if(!$w) fail('Portefeuille introuvable',404);
     ok(['balance'=>(float)$w['balance'],'vault_balance'=>(float)$w['vault_balance'],
         'vault_locked'=>(bool)$w['vault_locked'],'vault_lock_date'=>$w['vault_lock_date'],
         'qr_seed'=>$w['qr_seed'],'business_name'=>$m['business_name'],
-        'location_type'=>$m['location_type'],'address'=>$m['address'],'currency'=>$w['currency']]);
+        'location_type'=>$m['location_type'],'address'=>$m['address'],'currency'=>$w['currency'],
+        'verified'=>(bool)($m['verified']??false)]);
 }
 
 function merchant_renew_qr() {
@@ -1433,6 +1436,33 @@ function merchant_tx_history() {
     ok(['transactions'=>$rows]);
 }
 
+// Tableau de bord marchand : ventes (encaissement + paiement QR marchand,
+// les deux tombent sous type='merchant_payment') du jour/semaine/mois +
+// repartition des 7 derniers jours pour le petit graphique. Les virements
+// sortants et operations de coffre ne sont pas des "ventes", donc exclus.
+function merchant_stats() {
+    $pl = merchant_auth();
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    if(!$wid) fail('Portefeuille introuvable',404);
+    $today = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+        WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+        AND created_at::date = CURRENT_DATE",[$wid])->fetch();
+    $week = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+        WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+        AND created_at >= date_trunc('week', CURRENT_DATE)",[$wid])->fetch();
+    $month = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+        WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+        AND created_at >= date_trunc('month', CURRENT_DATE)",[$wid])->fetch();
+    $daily = q("SELECT to_char(created_at,'YYYY-MM-DD') d, COALESCE(SUM(amount),0) total FROM transactions
+        WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+        AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY d ORDER BY d",[$wid])->fetchAll();
+    ok(['today'=>['total'=>(float)$today['total'],'count'=>(int)$today['cnt']],
+        'week'=>['total'=>(float)$week['total'],'count'=>(int)$week['cnt']],
+        'month'=>['total'=>(float)$month['total'],'count'=>(int)$month['cnt']],
+        'daily'=>$daily]);
+}
+
 function wallet_renew_qr() {
     $pl = auth();
     $seed = strtoupper(bin2hex(random_bytes(5)));
@@ -1461,8 +1491,9 @@ function wallet_resolve_merchant_qr() {
     if(!$qr) fail('QR requis');
     $parts = explode('|',$qr);
     if(count($parts)<3 || $parts[0]!=='M') fail('QR invalide');
-    $m = q("SELECT m.id,m.business_name,m.location_type FROM merchants m JOIN merchant_wallets mw ON mw.merchant_id=m.id WHERE m.id=? AND mw.qr_seed=?",[$parts[1],$parts[2]])->fetch();
+    $m = q("SELECT m.id,m.business_name,m.location_type,m.verified FROM merchants m JOIN merchant_wallets mw ON mw.merchant_id=m.id WHERE m.id=? AND mw.qr_seed=?",[$parts[1],$parts[2]])->fetch();
     if(!$m) fail('QR invalide',404);
+    $m['verified'] = (bool)($m['verified']??false);
     ok($m,'Marchand trouve');
 }
 
@@ -3211,6 +3242,8 @@ function route_admin($action) {
         'list-frozen'    => admin_list_frozen(),
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
+        'merchant-search'          => admin_merchant_search(),
+        'merchant-toggle-verified' => admin_merchant_toggle_verified(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3557,6 +3590,43 @@ function admin_search_by_phone() {
         'referral'=>['referred_count'=>$referredCount,'total_earned'=>$referralEarned],
         'transactions'=>$rows
     ]);
+}
+
+// Recherche un compte marchand ROM_BUSINESS par numero (independant de la
+// recherche de compte personnel ci-dessus : un numero peut avoir les deux,
+// ou un marchand seul sans compte ROM_MONEY personnel).
+function admin_merchant_search() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    if(!$phone) fail('Numero requis');
+    try {
+        $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+    }
+    if(!$m) fail('Aucun compte marchand pour ce numero',404);
+    $w = q("SELECT balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    ok(['id'=>$m['id'],'business_name'=>$m['business_name'],'phone_number'=>$m['phone_number'],
+        'location_type'=>$m['location_type'],'address'=>$m['address'],'status'=>$m['status'],
+        'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
+        'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0)]);
+}
+
+// Bascule le badge "commerce verifie" - purement declaratif cote admin (pas
+// de KYC marchand pour le moment), affiche ensuite chez le marchand et sur
+// l'ecran de paiement du client qui scanne son QR.
+function admin_merchant_toggle_verified() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['merchant_id']??'');
+    if(!$id) fail('Marchand requis');
+    $m = q("SELECT id,business_name,verified FROM merchants WHERE id=?",[$id])->fetch();
+    if(!$m) fail('Marchand introuvable',404);
+    $newVal = $m['verified'] ? 0 : 1;
+    q("UPDATE merchants SET verified=? WHERE id=?",[$newVal,$id]);
+    admin_log('merchant_toggle_verified','success',null,'Marchand '.$m['business_name'].' -> '.($newVal?'verifie':'non verifie'));
+    ok(['verified'=>(bool)$newVal],$newVal?'Marchand verifie':'Verification retiree');
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
@@ -4624,6 +4694,7 @@ function route_install() {
         pin_locked_until TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified SMALLINT DEFAULT 0",
     "CREATE TABLE IF NOT EXISTS merchant_wallets (
         id VARCHAR(36) PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL UNIQUE,

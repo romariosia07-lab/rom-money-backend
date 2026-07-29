@@ -256,6 +256,30 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
     <div class="page" id="pg-home">
       <div class="section">
+        <div class="section-title">Tableau de bord</div>
+        <div style="display:flex;gap:8px">
+          <div class="card" style="flex:1;padding:12px;text-align:center">
+            <div style="font-size:11px;color:var(--t2)">Aujourd'hui</div>
+            <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-today-total">— F</div>
+            <div style="font-size:10px;color:var(--t3)" id="db-today-cnt">—</div>
+          </div>
+          <div class="card" style="flex:1;padding:12px;text-align:center">
+            <div style="font-size:11px;color:var(--t2)">Cette semaine</div>
+            <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-week-total">— F</div>
+            <div style="font-size:10px;color:var(--t3)" id="db-week-cnt">—</div>
+          </div>
+          <div class="card" style="flex:1;padding:12px;text-align:center">
+            <div style="font-size:11px;color:var(--t2)">Ce mois</div>
+            <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-month-total">— F</div>
+            <div style="font-size:10px;color:var(--t3)" id="db-month-cnt">—</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:8px;padding:14px">
+          <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Ventes des 7 derniers jours</div>
+          <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px"></div>
+        </div>
+      </div>
+      <div class="section">
         <div class="section-title">Ventes récentes <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">Tout voir</a></div>
         <div class="card" id="home-tx-list"><div class="empty-note">Chargement...</div></div>
       </div>
@@ -342,6 +366,16 @@ var APP = {
 };
 var PIN_MEM = '';
 var txList = [];
+var APP_LOGO_B64='./logo.jpg';
+var APP_LOGO_B64_CACHE=null;
+function getLogoBase64(cb){
+  if(APP_LOGO_B64_CACHE){ cb(APP_LOGO_B64_CACHE); return; }
+  fetch(APP_LOGO_B64).then(function(r){ return r.blob(); }).then(function(blob){
+    var reader = new FileReader();
+    reader.onloadend = function(){ APP_LOGO_B64_CACHE = reader.result; cb(APP_LOGO_B64_CACHE); };
+    reader.readAsDataURL(blob);
+  }).catch(function(){ cb(null); });
+}
 
 function sha256Hex(str){
   return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function(buf){
@@ -488,6 +522,7 @@ function lgPin(d){
           APP.businessName=res.data.business_name; APP.locationType=res.data.location_type;
           APP.address=res.data.address; APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
           APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date; APP.qrSeed=res.data.qr_seed;
+          APP.verified=!!res.data.verified;
           setPin(buf).then(function(){ save(); launchApp(); });
         } else {
           lgBuf=''; updateLgDots();
@@ -541,24 +576,68 @@ function pcPin(d){
 // ── LANCEMENT APP ──
 function launchApp(){
   goto('s-app');
-  document.getElementById('hdr-biz-name').textContent = APP.businessName;
+  renderVerifiedBadges();
   document.getElementById('hdr-biz-loc').textContent = APP.locationType==='physical' ? (APP.address||'Avec emplacement') : 'Commerce en ligne';
-  document.getElementById('prof-biz-name').textContent = APP.businessName;
   document.getElementById('prof-biz-phone').textContent = APP.phone;
   updateBalDisplay();
   refreshBalance();
   refreshHistory();
+  loadDashboardStats();
+}
+function loadDashboardStats(){
+  apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
+    if(!res || !res.success || !res.data) return;
+    var d = res.data;
+    document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
+    document.getElementById('db-today-cnt').textContent = d.today.count+' vente'+(d.today.count>1?'s':'');
+    document.getElementById('db-week-total').textContent = fmt(d.week.total)+' F';
+    document.getElementById('db-week-cnt').textContent = d.week.count+' vente'+(d.week.count>1?'s':'');
+    document.getElementById('db-month-total').textContent = fmt(d.month.total)+' F';
+    document.getElementById('db-month-cnt').textContent = d.month.count+' vente'+(d.month.count>1?'s':'');
+    renderDashboardChart(d.daily||[]);
+  });
+}
+function renderDashboardChart(daily){
+  var byDay={};
+  daily.forEach(function(r){ byDay[r.d]=parseFloat(r.total)||0; });
+  var days=[], max=1;
+  for(var i=6;i>=0;i--){
+    var dt=new Date(Date.now()-i*86400000);
+    var key=dt.toISOString().slice(0,10);
+    var v=byDay[key]||0;
+    days.push({label:dt.toLocaleDateString('fr-FR',{weekday:'short'}).slice(0,3),v:v});
+    if(v>max) max=v;
+  }
+  var el=document.getElementById('db-chart');
+  if(!el) return;
+  var h='';
+  days.forEach(function(d){
+    var barH=Math.max(Math.round((d.v/max)*54),d.v>0?3:0);
+    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:70px">'
+      +'<div style="width:100%;max-width:22px;height:'+barH+'px;background:'+(d.v>0?'var(--g)':'var(--div)')+';border-radius:4px 4px 0 0"></div>'
+      +'<div style="font-size:9px;color:var(--t3);margin-top:4px;text-transform:capitalize">'+d.label+'</div>'
+      +'</div>';
+  });
+  el.innerHTML=h;
 }
 function updateBalDisplay(){
   document.getElementById('hdr-balance').textContent = fmt(APP.balance);
+}
+function renderVerifiedBadges(){
+  var hdr=document.getElementById('hdr-biz-name');
+  if(hdr) hdr.innerHTML = APP.businessName + (APP.verified?' <span style="color:#fff" title="Commerce vérifié">✓</span>':'');
+  var prof=document.getElementById('prof-biz-name');
+  if(prof) prof.innerHTML = APP.businessName + (APP.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'');
+  var qrf=document.getElementById('qrf-name');
+  if(qrf) qrf.innerHTML = APP.businessName + (APP.verified?' <span style="color:#9FE1CB" title="Commerce vérifié">✓</span>':'');
 }
 function refreshBalance(){
   apiCall('/merchant?action=balance','GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
       APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date;
-      APP.qrSeed=res.data.qr_seed; save();
-      updateBalDisplay(); renderVault();
+      APP.qrSeed=res.data.qr_seed; APP.verified=!!res.data.verified; save();
+      updateBalDisplay(); renderVault(); renderVerifiedBadges();
     }
   });
 }
@@ -578,6 +657,7 @@ function navGo(p){
   document.getElementById('main-scroll').scrollTop=0;
   if(p==='coffre'){ renderVault(); }
   if(p==='historique'){ refreshHistory(true); }
+  if(p==='home'){ loadDashboardStats(); }
 }
 
 // ── HISTORIQUE / TRANSACTIONS ──
@@ -596,11 +676,103 @@ function renderTxRows(rows, containerId){
     var name = isCredit ? (t.sender_verified_name||t.sender_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'Virement');
     var ic = txIcon(t);
     var d = new Date(t.created_at);
-    h+='<div class="tx-row"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+    h+='<div class="tx-row" style="cursor:pointer" onclick="openReceiptById(\''+t.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
       +'<div><div class="tx-name">'+name+'</div><div class="tx-date">'+d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</div></div>'
       +'<div class="tx-amt" style="color:'+(isCredit?'var(--g)':'var(--re)')+'">'+(isCredit?'+':'-')+fmt(t.amount)+' F</div></div>';
   });
   c.innerHTML=h;
+}
+
+// ── REÇU NUMÉRIQUE ──
+function txTypeLabel(t){
+  if(t.type==='merchant_payment') return t.direction==='credit' ? 'Vente' : 'Paiement';
+  if(t.type==='merchant_withdraw') return 'Virement';
+  if(t.type==='vault_deposit') return 'Dépôt coffre';
+  if(t.type==='vault_withdraw') return 'Retrait coffre';
+  return 'Transaction';
+}
+function openReceiptById(id){
+  var t=null;
+  for(var i=0;i<txList.length;i++){ if(String(txList[i].id)===String(id)){ t=txList[i]; break; } }
+  if(!t){ toast('Transaction introuvable', true); return; }
+  openReceipt(t);
+}
+function openReceipt(t){
+  window._receiptTx = t;
+  var isCredit = t.direction==='credit';
+  var sign = isCredit?'+':'-';
+  var color = isCredit?'var(--g)':'var(--re)';
+  var d = new Date(t.created_at);
+  var dateStr = d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  var counterName = isCredit ? (t.sender_verified_name||t.sender_name||t.payer_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'—');
+  var html = '<div style="text-align:center;padding:10px 0 18px">'
+    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(t.amount)+' F</div>'
+    +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
+    +'</div>'
+    +'<div style="background:var(--gl);border-radius:14px;padding:14px;margin-bottom:16px">'
+    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(isCredit?'Client':'Destinataire')+'</span><span style="font-weight:700;font-size:13px">'+counterName+'</span></div>'
+    +(t.reference?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">Référence</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+t.reference+'</span></div>':'')
+    +'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">Type</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(t)+'</span></div>'
+    +'</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="shareReceiptPdf(window._receiptTx)">📤 Partager le reçu</button>';
+  document.getElementById('sh-title').textContent = 'Reçu';
+  document.getElementById('sh-body').innerHTML = html;
+  document.getElementById('sh-bg').classList.add('on');
+  document.getElementById('sh').classList.add('on');
+}
+function shareReceiptPdf(t){
+  if(!t) return;
+  var isCredit = t.direction==='credit';
+  var sign = isCredit?'+':'-';
+  var d = new Date(t.created_at);
+  var dateStr = d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  var counterName = isCredit ? (t.sender_verified_name||t.sender_name||t.payer_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'—');
+  function buildF(ld){
+    var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
+    if(!jsPDF){ toast('Impossible de générer le PDF', true); return; }
+    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
+    var pw=148,cx=74,y=12;
+    if(ld) doc.addImage(ld,'JPEG',cx-15,y,30,30);
+    y+=34;
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(8,80,65);
+    doc.text('REÇU ROM_BUSINESS',cx,y,{align:'center'});y+=7;
+    if(t.reference){ doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text('Réf: '+t.reference,cx,y,{align:'center'});y+=5; }
+    doc.setFont('helvetica','bold');doc.setFontSize(20);
+    doc.setTextColor(isCredit?34:220,isCredit?139:50,isCredit?34:50);
+    doc.text(sign+fmt(t.amount)+' FCFA',cx,y+5,{align:'center'});y+=13;
+    doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
+    var rows=[['Date',dateStr],['Boutique',APP.businessName||''],[isCredit?'Client':'Destinataire',counterName],['Type',txTypeLabel(t)]];
+    rows.forEach(function(row){
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,80);doc.text(row[0],14,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(20,20,20);doc.text(String(row[1]),pw-14,y,{align:'right'});
+      doc.setDrawColor(220,220,220);doc.setLineWidth(0.15);doc.line(14,y+2,pw-14,y+2);y+=8;
+    });
+    y+=4;
+    doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(150,150,150);
+    doc.text('ROM_BUSINESS — encaissez avec ROM_MONEY',cx,y,{align:'center'});y+=4;
+    doc.text('Généré le '+new Date().toLocaleString('fr-FR'),cx,y,{align:'center'});
+    doc.setDrawColor(8,80,65);doc.setLineWidth(0.4);doc.roundedRect(5,5,pw-10,y+5,3,3);
+    var fn='Recu_ROMBUSINESS_'+(t.reference||t.id||Date.now())+'.pdf';
+    var blob=doc.output('blob');
+    var file=new File([blob],fn,{type:'application/pdf'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({title:'Reçu ROM_BUSINESS',text:'Reçu de transaction',files:[file]}).catch(function(e){ if(e.name!=='AbortError') doc.save(fn); });
+    } else if(navigator.share){
+      navigator.share({title:'Reçu ROM_BUSINESS',text:sign+fmt(t.amount)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
+    } else {
+      doc.save(fn); toast('Reçu téléchargé !');
+    }
+  }
+  getLogoBase64(function(ld){
+    if(window.jspdf){ buildF(ld); }
+    else {
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload=function(){ buildF(ld); };
+      s.onerror=function(){ toast('Erreur chargement PDF', true); };
+      document.head.appendChild(s);
+    }
+  });
 }
 function refreshHistory(full){
   apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
@@ -660,7 +832,7 @@ function drawMerchantQR(elId, size){
   try{ new QRCode(el, {text:merchantQrText(), width:size, height:size, colorDark:'#085041', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
 }
 function showQrFullscreen(){
-  document.getElementById('qrf-name').textContent = APP.businessName;
+  renderVerifiedBadges();
   drawMerchantQR('qrf-box', 230);
   document.getElementById('qr-full').classList.add('on');
 }
@@ -718,9 +890,10 @@ function doEncaisser(){
   requirePin('Encaisser '+fmt(amt)+' F', function(){
     apiCall('/merchant?action=collect','POST',{payer_phone:payerPhone,amount:amt,pin:PIN_MEM,description:motif},getToken()).then(function(res){
       if(res && res.success){
-        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
-        closeSheet();
+        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
         toast(fmt(amt)+' F encaissé de '+(res.data.payer_name||'client')+' !');
+        openReceipt({amount:amt, direction:'credit', type:'merchant_payment',
+          created_at:new Date().toISOString(), reference:res.data.reference, payer_name:res.data.payer_name});
       } else {
         toast((res&&res.message)||'Échec encaissement', true);
       }
