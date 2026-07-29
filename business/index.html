@@ -146,16 +146,16 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 <div class="screen on" id="s-splash">
   <div class="splash-logo"><img src="./logo.jpg" alt="ROM_BUSINESS"></div>
   <div class="splash-title">ROM_BUSINESS</div>
-  <div class="splash-sub">Encaissez avec ROM_MONEY</div>
+  <div class="splash-sub" data-i18n="splash_sub">Encaissez avec ROM_MONEY</div>
 </div>
 
 <!-- WELCOME -->
 <div class="screen" id="s-welcome">
   <div class="splash-logo" style="width:90px;height:90px;border-radius:22px;margin-bottom:6px"><img src="./logo.jpg" style="width:100%;height:100%;object-fit:cover"></div>
-  <div class="welcome-title">Bienvenue sur ROM_BUSINESS</div>
-  <div class="welcome-sub">Encaissez vos ventes, gérez votre trésorerie et épargnez — l'espace dédié aux commerçants ROM_MONEY.</div>
-  <button class="btn-g" onclick="goto('s-register');showRegA()">Créer mon compte marchand</button>
-  <button class="btn-w" onclick="goto('s-login');setupLoginScreen()">J'ai déjà un compte</button>
+  <div class="welcome-title" data-i18n="welcome_title">Bienvenue sur ROM_BUSINESS</div>
+  <div class="welcome-sub" data-i18n="welcome_sub">Encaissez vos ventes, gérez votre trésorerie et épargnez — l'espace dédié aux commerçants ROM_MONEY.</div>
+  <button class="btn-g" onclick="goto('s-register');showRegA()" data-i18n="welcome_btn_create">Créer mon compte marchand</button>
+  <button class="btn-w" onclick="goto('s-login');setupLoginScreen()" data-i18n="welcome_btn_login">J'ai déjà un compte</button>
 </div>
 
 <!-- REGISTER -->
@@ -164,23 +164,23 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <button class="back-btn" onclick="goto('s-welcome')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
   </div>
   <div class="reg-body" id="reg-a" style="display:none">
-    <div class="reg-title">Votre boutique</div>
-    <div class="reg-sub">Ces informations seront visibles par vos clients.</div>
-    <div class="frow"><label class="flabel">Nom de la boutique *</label><input class="finput" id="r-name" placeholder="Ex: Boutique Aïcha"></div>
-    <div class="frow"><label class="flabel">Type de commerce *</label>
+    <div class="reg-title" data-i18n="reg_title_shop">Votre boutique</div>
+    <div class="reg-sub" data-i18n="reg_sub_shop">Ces informations seront visibles par vos clients.</div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_shop_name">Nom de la boutique *</label><input class="finput" id="r-name" data-i18n-ph="reg_ph_shop_name" placeholder="Ex: Boutique Aïcha"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_shop_type">Type de commerce *</label>
       <div class="loc-toggle">
-        <button class="loc-btn on" id="loc-online" onclick="setLocType('online')">En ligne</button>
-        <button class="loc-btn" id="loc-physical" onclick="setLocType('physical')">Avec emplacement</button>
+        <button class="loc-btn on" id="loc-online" onclick="setLocType('online')" data-i18n="reg_loc_online">En ligne</button>
+        <button class="loc-btn" id="loc-physical" onclick="setLocType('physical')" data-i18n="reg_loc_physical">Avec emplacement</button>
       </div>
     </div>
-    <div class="frow" id="addr-row" style="display:none"><label class="flabel">Adresse *</label><input class="finput" id="r-addr" placeholder="Quartier, ville..."></div>
-    <div class="frow"><label class="flabel">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" placeholder="07 00 00 00 00"></div>
-    <button class="btn-g" style="background:var(--g);color:#fff" onclick="regStep1()">Continuer</button>
+    <div class="frow" id="addr-row" style="display:none"><label class="flabel" data-i18n="reg_label_address">Adresse *</label><input class="finput" id="r-addr" data-i18n-ph="reg_ph_address" placeholder="Quartier, ville..."></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="07 00 00 00 00"></div>
+    <button class="btn-g" style="background:var(--g);color:#fff" onclick="regStep1()" data-i18n="reg_btn_continue">Continuer</button>
   </div>
   <div class="reg-body" id="reg-b" style="display:none;flex-direction:column;align-items:center;text-align:center">
     <div class="pin-av" style="background:var(--gl);color:var(--gd)">🔐</div>
-    <div class="reg-title" id="pin-phase-label">Choisissez votre PIN</div>
-    <div class="reg-sub">Code à 4 chiffres — protège votre compte marchand.</div>
+    <div class="reg-title" id="pin-phase-label" data-i18n="reg_pin_choose">Choisissez votre PIN</div>
+    <div class="reg-sub" data-i18n="reg_pin_sub">Code à 4 chiffres — protège votre compte marchand.</div>
     <div class="dots" id="reg-dots">
       <div class="dot" style="border-color:var(--bord)" id="rg0"></div><div class="dot" style="border-color:var(--bord)" id="rg1"></div>
       <div class="dot" style="border-color:var(--bord)" id="rg2"></div><div class="dot" style="border-color:var(--bord)" id="rg3"></div>
@@ -198,9 +198,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 <!-- LOGIN -->
 <div class="screen" id="s-login">
   <div class="pin-av">🏪</div>
-  <div class="pin-title" id="login-title">Connexion marchand</div>
+  <div class="pin-title" id="login-title" data-i18n="login_title_default">Connexion marchand</div>
   <div id="login-phone-wrap" style="width:100%;max-width:280px;margin-bottom:16px">
-    <input id="login-phone-input" type="tel" placeholder="Numéro de téléphone"
+    <input id="login-phone-input" type="tel" data-i18n-ph="login_ph_phone" placeholder="Numéro de téléphone"
       style="width:100%;padding:12px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:15px;color:#fff;outline:none;text-align:center;font-family:inherit">
   </div>
   <div class="dots">
@@ -215,14 +215,14 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
   </div>
   <div class="pin-err" id="login-err"></div>
-  <button class="pin-link" onclick="_addAccountMode ? cancelAddAccount() : goto('s-welcome')">← Retour</button>
+  <button class="pin-link" onclick="_addAccountMode ? cancelAddAccount() : goto('s-welcome')" data-i18n="login_back">← Retour</button>
 </div>
 
 <!-- PIN CONFIRM (actions sensibles) -->
 <div class="screen" id="s-pinconfirm">
   <div class="pin-av" id="pc-av">🔐</div>
-  <div class="pin-title">Confirmation PIN</div>
-  <div class="pin-sub" id="pc-sub">Confirmez votre action</div>
+  <div class="pin-title" data-i18n="pinconfirm_title">Confirmation PIN</div>
+  <div class="pin-sub" id="pc-sub" data-i18n="pinconfirm_sub">Confirmez votre action</div>
   <div class="dots">
     <div class="dot" id="pc0"></div><div class="dot" id="pc1"></div>
     <div class="dot" id="pc2"></div><div class="dot" id="pc3"></div>
@@ -234,7 +234,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div></div><button class="kb" onclick="pcPin('0')">0</button><button class="kb ghost" onclick="pcDel()">⌫</button>
   </div>
   <div class="pin-err" id="pc-err"></div>
-  <button class="pin-link" onclick="pinCancel()">Annuler</button>
+  <button class="pin-link" onclick="pinCancel()" data-i18n="cancel">Annuler</button>
 </div>
 
 <!-- APP -->
@@ -247,7 +247,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <div class="hdr-loc" id="hdr-biz-loc">—</div>
         </div>
       </div>
-      <div class="bal-label">Solde disponible
+      <div class="bal-label"><span data-i18n="bal_label">Solde disponible</span>
         <svg id="eye-icon" onclick="toggleBal()" width="15" height="15" stroke="rgba(255,255,255,.8)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="cursor:pointer;vertical-align:middle;margin-left:4px">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
         </svg>
@@ -256,41 +256,41 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div class="qa-grid">
-      <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-encaisser.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl">Encaisser</span></button>
-      <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./wallet-icon.jpg" style="width:38px;height:38px;object-fit:contain;border-radius:50%"></div><span class="qa-lbl">Mon QR</span></button>
-      <button class="qa" onclick="openSheet('virement')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-envoyer.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl">Envoyer</span></button>
-      <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl">Coffre</span></button>
+      <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-encaisser.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl" data-i18n="qa_encaisser">Encaisser</span></button>
+      <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./wallet-icon.jpg" style="width:38px;height:38px;object-fit:contain;border-radius:50%"></div><span class="qa-lbl" data-i18n="qa_monqr">Mon QR</span></button>
+      <button class="qa" onclick="openSheet('virement')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-envoyer.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl" data-i18n="qa_envoyer">Envoyer</span></button>
+      <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl" data-i18n="qa_coffre">Coffre</span></button>
     </div>
 
     <div class="page" id="pg-home">
       <div class="section">
-        <div class="section-title">Ventes récentes <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">Tout voir</a></div>
-        <div class="card" id="home-tx-list"><div class="empty-note">Chargement...</div></div>
+        <div class="section-title"><span data-i18n="home_recent_sales">Ventes récentes</span> <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700" data-i18n="see_all">Tout voir</a></div>
+        <div class="card" id="home-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
       </div>
     </div>
 
     <div class="page" id="pg-stats" style="display:none">
       <div class="section">
-        <div class="section-title">Tableau de bord</div>
+        <div class="section-title" data-i18n="stats_title">Tableau de bord</div>
         <div style="display:flex;gap:8px">
           <div class="card" style="flex:1;padding:12px;text-align:center">
-            <div style="font-size:11px;color:var(--t2)">Aujourd'hui</div>
+            <div style="font-size:11px;color:var(--t2)" data-i18n="stats_today">Aujourd'hui</div>
             <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-today-total">— F</div>
             <div style="font-size:10px;color:var(--t3)" id="db-today-cnt">—</div>
           </div>
           <div class="card" style="flex:1;padding:12px;text-align:center">
-            <div style="font-size:11px;color:var(--t2)">Cette semaine</div>
+            <div style="font-size:11px;color:var(--t2)" data-i18n="stats_week">Cette semaine</div>
             <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-week-total">— F</div>
             <div style="font-size:10px;color:var(--t3)" id="db-week-cnt">—</div>
           </div>
           <div class="card" style="flex:1;padding:12px;text-align:center">
-            <div style="font-size:11px;color:var(--t2)">Ce mois</div>
+            <div style="font-size:11px;color:var(--t2)" data-i18n="stats_month">Ce mois</div>
             <div style="font-size:16px;font-weight:900;color:var(--t1)" id="db-month-total">— F</div>
             <div style="font-size:10px;color:var(--t3)" id="db-month-cnt">—</div>
           </div>
         </div>
         <div class="card" style="margin-top:8px;padding:14px;position:relative">
-          <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Ventes des 7 derniers jours</div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:10px" data-i18n="stats_chart_title">Ventes des 7 derniers jours</div>
           <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px;position:relative"></div>
         </div>
       </div>
@@ -298,27 +298,27 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
     <div class="page" id="pg-coffre" style="display:none">
       <div class="section">
-        <div class="section-title">Coffre principal</div>
+        <div class="section-title" data-i18n="vault_title">Coffre principal</div>
         <div class="card" style="text-align:center;padding:20px">
-          <div style="font-size:12px;color:var(--t2);margin-bottom:4px" id="vault-status-lbl">Épargne</div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:4px" id="vault-status-lbl" data-i18n="vault_savings">Épargne</div>
           <div style="font-size:26px;font-weight:900;color:var(--t1)" id="vault-amt">— F</div>
           <div style="display:flex;gap:8px;margin-top:14px">
-            <button class="chip" style="flex:1;padding:11px" onclick="openSheet('vdeposit')">Déposer</button>
-            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vwithdraw')" id="v-wb">Retirer</button>
-            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vlock')" id="v-lb">Verrouiller</button>
+            <button class="chip" style="flex:1;padding:11px" onclick="openSheet('vdeposit')" data-i18n="btn_deposit">Déposer</button>
+            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vwithdraw')" id="v-wb" data-i18n="btn_withdraw">Retirer</button>
+            <button class="chip" style="flex:1;padding:11px;background:var(--bg);color:var(--t1)" onclick="openSheet('vlock')" id="v-lb" data-i18n="btn_lock">Verrouiller</button>
           </div>
         </div>
       </div>
       <div class="section">
-        <div class="section-title">Sous-comptes <a onclick="openSheet('vcreate')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">+ Créer</a></div>
+        <div class="section-title"><span data-i18n="vault_subaccounts">Sous-comptes</span> <a onclick="openSheet('vcreate')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700" data-i18n="btn_create_short">+ Créer</a></div>
         <div id="subvault-list"></div>
       </div>
     </div>
 
     <div class="page" id="pg-historique" style="display:none">
       <div class="section">
-        <div class="section-title">Historique</div>
-        <div class="card" id="hist-tx-list"><div class="empty-note">Chargement...</div></div>
+        <div class="section-title" data-i18n="history_title">Historique</div>
+        <div class="card" id="hist-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
       </div>
     </div>
 
@@ -331,24 +331,25 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div class="section">
         <div class="card" style="padding:0;overflow:hidden">
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('notif-settings')"><span style="font-size:14px;font-weight:600">Notifications</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600">Changer le PIN</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('notif-settings')"><span style="font-size:14px;font-weight:600" data-i18n="profil_notifications">Notifications</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600" data-i18n="profil_change_pin">Changer le PIN</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="toggleBio()"><span style="font-size:14px;font-weight:600" id="prof-bio-label">Biométrie : Désactivée</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('appearance')"><span style="font-size:14px;font-weight:600">Apparence</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><span style="font-size:14px;font-weight:600">Mes appareils</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('export-history')"><span style="font-size:14px;font-weight:600">Exporter mon historique</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('account-switch')"><span style="font-size:14px;font-weight:600">Ajouter un compte</span></div>
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><span style="font-size:14px;font-weight:600">Déconnexion</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('appearance')"><span style="font-size:14px;font-weight:600" data-i18n="profil_appearance">Apparence</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><span style="font-size:14px;font-weight:600" data-i18n="profil_devices">Mes appareils</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('export-history')"><span style="font-size:14px;font-weight:600" data-i18n="profil_export">Exporter mon historique</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('account-switch')"><span style="font-size:14px;font-weight:600" data-i18n="profil_add_account">Ajouter un compte</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('language')"><span style="font-size:14px;font-weight:600" data-i18n="profil_language">Langue</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><span style="font-size:14px;font-weight:600" data-i18n="profil_logout">Déconnexion</span></div>
         </div>
       </div>
     </div>
   </div>
 
   <div class="bottom-nav">
-    <button class="nb on" id="nb-home" onclick="navGo('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span>Accueil</span></button>
-    <button class="nb" id="nb-stats" onclick="navGo('stats')"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Stat</span></button>
-    <button class="nb" id="nb-historique" onclick="navGo('historique')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span>Historique</span></button>
-    <button class="nb" id="nb-profil" onclick="navGo('profil')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profil</span></button>
+    <button class="nb on" id="nb-home" onclick="navGo('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span data-i18n="nav_home">Accueil</span></button>
+    <button class="nb" id="nb-stats" onclick="navGo('stats')"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span data-i18n="nav_stats">Stat</span></button>
+    <button class="nb" id="nb-historique" onclick="navGo('historique')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span data-i18n="nav_history">Historique</span></button>
+    <button class="nb" id="nb-profil" onclick="navGo('profil')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="nav_profile">Profil</span></button>
   </div>
 </div>
 
@@ -363,9 +364,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 <!-- QR PLEIN ECRAN -->
 <div id="qr-full">
   <div style="color:#fff;font-weight:800;font-size:16px;margin-bottom:4px" id="qrf-name">—</div>
-  <div style="color:rgba(255,255,255,.6);font-size:12px;margin-bottom:20px">Présentez ce code à votre client</div>
+  <div style="color:rgba(255,255,255,.6);font-size:12px;margin-bottom:20px" data-i18n="qrfull_present">Présentez ce code à votre client</div>
   <div class="qr-box" id="qrf-box"></div>
-  <button class="btn-w" style="max-width:280px" onclick="document.getElementById('qr-full').classList.remove('on')">Fermer</button>
+  <button class="btn-w" style="max-width:280px" onclick="document.getElementById('qr-full').classList.remove('on')" data-i18n="close">Fermer</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -380,8 +381,246 @@ var APP = {
   merchantId:'', pinHash:'', token:'',
   balance:0, vaultBal:0, vaultLocked:false, vaultDate:null,
   subVaults:[], qrSeed:'', balHidden:false,
-  bioEnabled:false, bioCredId:'', theme:'system'
+  bioEnabled:false, bioCredId:'', theme:'system', lang:'fr'
 };
+
+// ── I18N (FR/EN) ──
+var I18N = {
+  splash_sub:{fr:'Encaissez avec ROM_MONEY',en:'Get paid with ROM_MONEY'},
+  welcome_title:{fr:'Bienvenue sur ROM_BUSINESS',en:'Welcome to ROM_BUSINESS'},
+  welcome_sub:{fr:"Encaissez vos ventes, gérez votre trésorerie et épargnez — l'espace dédié aux commerçants ROM_MONEY.",en:'Collect your sales, manage your cash flow and save — the dedicated space for ROM_MONEY merchants.'},
+  welcome_btn_create:{fr:'Créer mon compte marchand',en:'Create my merchant account'},
+  welcome_btn_login:{fr:"J'ai déjà un compte",en:'I already have an account'},
+  reg_title_shop:{fr:'Votre boutique',en:'Your shop'},
+  reg_sub_shop:{fr:'Ces informations seront visibles par vos clients.',en:'This information will be visible to your customers.'},
+  reg_label_shop_name:{fr:'Nom de la boutique *',en:'Shop name *'},
+  reg_ph_shop_name:{fr:'Ex: Boutique Aïcha',en:'E.g. Aïcha Shop'},
+  reg_label_shop_type:{fr:'Type de commerce *',en:'Business type *'},
+  reg_loc_online:{fr:'En ligne',en:'Online'},
+  reg_loc_physical:{fr:'Avec emplacement',en:'Physical location'},
+  reg_label_address:{fr:'Adresse *',en:'Address *'},
+  reg_ph_address:{fr:'Quartier, ville...',en:'District, city...'},
+  reg_label_phone:{fr:'Numéro de téléphone *',en:'Phone number *'},
+  reg_ph_phone_sample:{fr:'07 00 00 00 00',en:'07 00 00 00 00'},
+  reg_btn_continue:{fr:'Continuer',en:'Continue'},
+  reg_pin_choose:{fr:'Choisissez votre PIN',en:'Choose your PIN'},
+  reg_pin_confirm_title:{fr:'Confirmez votre PIN',en:'Confirm your PIN'},
+  reg_pin_sub:{fr:'Code à 4 chiffres — protège votre compte marchand.',en:'4-digit code — protects your merchant account.'},
+  reg_pin_mismatch:{fr:'Les codes ne correspondent pas',en:'Codes do not match'},
+  reg_err_name:{fr:'Le nom de la boutique est requis',en:'Shop name is required'},
+  reg_err_address:{fr:"L'adresse est requise",en:'Address is required'},
+  reg_err_phone:{fr:'Numéro de téléphone invalide',en:'Invalid phone number'},
+  reg_creating:{fr:'Création du compte...',en:'Creating account...'},
+  reg_err_create:{fr:'Erreur lors de la création',en:'Error while creating account'},
+  login_title_default:{fr:'Connexion marchand',en:'Merchant login'},
+  login_title_add:{fr:'Connexion',en:'Login'},
+  login_ph_phone:{fr:'Numéro de téléphone',en:'Phone number'},
+  login_back:{fr:'← Retour',en:'← Back'},
+  login_err_phone_required:{fr:'Entrez votre numéro',en:'Enter your phone number'},
+  login_err_wrong:{fr:'Numéro ou PIN incorrect',en:'Wrong phone number or PIN'},
+  pinconfirm_title:{fr:'Confirmation PIN',en:'PIN confirmation'},
+  pinconfirm_sub:{fr:'Confirmez votre action',en:'Confirm your action'},
+  pinconfirm_wrong:{fr:'PIN incorrect',en:'Wrong PIN'},
+  cancel:{fr:'Annuler',en:'Cancel'},
+  bal_label:{fr:'Solde disponible',en:'Available balance'},
+  qa_encaisser:{fr:'Encaisser',en:'Collect'},
+  qa_monqr:{fr:'Mon QR',en:'My QR'},
+  qa_envoyer:{fr:'Envoyer',en:'Send'},
+  qa_coffre:{fr:'Coffre',en:'Vault'},
+  home_recent_sales:{fr:'Ventes récentes',en:'Recent sales'},
+  see_all:{fr:'Tout voir',en:'See all'},
+  loading:{fr:'Chargement...',en:'Loading...'},
+  stats_title:{fr:'Tableau de bord',en:'Dashboard'},
+  stats_today:{fr:"Aujourd'hui",en:'Today'},
+  stats_week:{fr:'Cette semaine',en:'This week'},
+  stats_month:{fr:'Ce mois',en:'This month'},
+  stats_chart_title:{fr:'Ventes des 7 derniers jours',en:'Sales over the last 7 days'},
+  sale_singular:{fr:'vente',en:'sale'},
+  sale_plural:{fr:'ventes',en:'sales'},
+  vault_title:{fr:'Coffre principal',en:'Main vault'},
+  vault_savings:{fr:'Épargne',en:'Savings'},
+  vault_locked_label:{fr:'Coffre verrouillé',en:'Vault locked'},
+  btn_deposit:{fr:'Déposer',en:'Deposit'},
+  btn_withdraw:{fr:'Retirer',en:'Withdraw'},
+  btn_lock:{fr:'Verrouiller',en:'Lock'},
+  vault_subaccounts:{fr:'Sous-comptes',en:'Sub-accounts'},
+  btn_create_short:{fr:'+ Créer',en:'+ Create'},
+  history_title:{fr:'Historique',en:'History'},
+  profil_notifications:{fr:'Notifications',en:'Notifications'},
+  profil_change_pin:{fr:'Changer le PIN',en:'Change PIN'},
+  profil_bio_prefix:{fr:'Biométrie : ',en:'Biometrics: '},
+  bio_on:{fr:'Activée',en:'Enabled'},
+  bio_off:{fr:'Désactivée',en:'Disabled'},
+  profil_appearance:{fr:'Apparence',en:'Appearance'},
+  profil_devices:{fr:'Mes appareils',en:'My devices'},
+  profil_export:{fr:'Exporter mon historique',en:'Export my history'},
+  profil_add_account:{fr:'Ajouter un compte',en:'Add an account'},
+  profil_language:{fr:'Langue',en:'Language'},
+  profil_logout:{fr:'Déconnexion',en:'Log out'},
+  nav_home:{fr:'Accueil',en:'Home'},
+  nav_stats:{fr:'Stat',en:'Stats'},
+  nav_history:{fr:'Historique',en:'History'},
+  nav_profile:{fr:'Profil',en:'Profile'},
+  qrfull_present:{fr:'Présentez ce code à votre client',en:'Show this code to your customer'},
+  close:{fr:'Fermer',en:'Close'},
+  amount_label:{fr:'Montant',en:'Amount'},
+  motif_label:{fr:'Motif (optionnel)',en:'Note (optional)'},
+  motif_ph:{fr:'Ex: Vente article',en:'E.g. Item sale'},
+  scan_client_qr_btn:{fr:'Scanner le QR du client',en:"Scan customer's QR"},
+  scan_point_qr:{fr:'Visez le QR personnel du client',en:"Aim at the customer's personal QR"},
+  enc_err_amount:{fr:'Entrez un montant',en:'Enter an amount'},
+  camera_denied:{fr:'Accès caméra refusé',en:'Camera access denied'},
+  qr_not_recognized:{fr:'QR non reconnu',en:'QR not recognized'},
+  identifying:{fr:'Identification...',en:'Identifying...'},
+  label_client:{fr:'Client',en:'Customer'},
+  label_recipient:{fr:'Destinataire',en:'Recipient'},
+  enc_pin_prompt:{fr:'Le client entre son PIN pour confirmer',en:'The customer enters their PIN to confirm'},
+  scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
+  account_not_found:{fr:'Compte introuvable',en:'Account not found'},
+  network_error:{fr:'Erreur réseau',en:'Network error'},
+  pin_incomplete:{fr:'PIN incomplet',en:'PIN incomplete'},
+  processing:{fr:'Traitement en cours...',en:'Processing...'},
+  enc_success_suffix:{fr:' F encaissé de ',en:' F collected from '},
+  enc_err_generic:{fr:'Échec encaissement',en:'Collection failed'},
+  vir_label_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
+  vir_fee_prompt:{fr:'Entrez un numéro et un montant pour voir les frais.',en:'Enter a phone number and amount to see the fees.'},
+  vir_free_own:{fr:'Gratuit — vers votre propre numéro ROM_MONEY.',en:'Free — to your own ROM_MONEY number.'},
+  vir_fee_paid:{fr:'Frais 1% : {fee} F — total débité {total} F.',en:'1% fee: {fee} F — total debited {total} F.'},
+  vir_err_phone:{fr:'Numéro requis',en:'Phone number required'},
+  err_amount_invalid:{fr:'Montant invalide',en:'Invalid amount'},
+  vir_pin_confirm:{fr:'Virement de {amt} F',en:'Transfer of {amt} F'},
+  vir_success_suffix:{fr:' F envoyé',en:' F sent'},
+  vir_fee_suffix:{fr:' (frais: {fee} F)',en:' (fee: {fee} F)'},
+  vir_err_generic:{fr:'Échec du virement',en:'Transfer failed'},
+  vault_balance_avail:{fr:'Solde disponible : ',en:'Available balance: '},
+  vault_label_short:{fr:'Coffre : ',en:'Vault: '},
+  err_balance:{fr:'Solde insuffisant',en:'Insufficient balance'},
+  vault_err_balance:{fr:'Solde du coffre insuffisant',en:'Insufficient vault balance'},
+  vault_deposited:{fr:' F déposés au coffre',en:' F deposited to the vault'},
+  err_generic:{fr:'Erreur',en:'Error'},
+  vault_withdrawn:{fr:' F retirés du coffre',en:' F withdrawn from the vault'},
+  vault_withdraw_pin:{fr:'Retrait coffre {amt} F',en:'Vault withdrawal {amt} F'},
+  vault_lock_until:{fr:"Verrouiller jusqu'au",en:'Lock until'},
+  vault_lock_note:{fr:"Le coffre sera bloqué jusqu'à cette date.",en:'The vault will be locked until this date.'},
+  vault_choose_date:{fr:'Choisissez une date',en:'Choose a date'},
+  vault_locked_toast:{fr:'Coffre verrouillé',en:'Vault locked'},
+  sv_name_label:{fr:'Nom du sous-compte',en:'Sub-account name'},
+  sv_name_ph:{fr:'Ex: Fournisseurs',en:'E.g. Suppliers'},
+  sv_initial_amount:{fr:'Montant initial (optionnel)',en:'Initial amount (optional)'},
+  sv_available_vault:{fr:'Disponible au coffre : ',en:'Available in vault: '},
+  sv_goal_label:{fr:'Objectif (optionnel)',en:'Goal (optional)'},
+  btn_create:{fr:'Créer',en:'Create'},
+  err_name_required:{fr:'Nom requis',en:'Name required'},
+  vault_err_main_balance:{fr:'Solde du coffre principal insuffisant',en:'Insufficient main vault balance'},
+  sv_created:{fr:'Sous-compte créé',en:'Sub-account created'},
+  sv_no_subaccounts:{fr:'Aucun sous-compte pour le moment.',en:'No sub-accounts yet.'},
+  sv_towards:{fr:'Vers "{name}"',en:'To "{name}"'},
+  sv_main_vault:{fr:'Coffre principal : ',en:'Main vault: '},
+  sv_deposit_done:{fr:'Dépôt effectué',en:'Deposit completed'},
+  sv_back_to_main:{fr:'Retour vers le coffre principal',en:'Back to main vault'},
+  sv_err_balance:{fr:'Solde du sous-compte insuffisant',en:'Insufficient sub-account balance'},
+  sv_withdraw_pin:{fr:'Retrait "{name}" {amt} F',en:'Withdrawal "{name}" {amt} F'},
+  sv_withdraw_done:{fr:'Retrait effectué',en:'Withdrawal completed'},
+  sv_delete_confirm:{fr:'Supprimer "{name}" ? Le solde ({amt} F) revient au coffre principal.',en:'Delete "{name}"? The balance ({amt} F) returns to the main vault.'},
+  sv_deleted:{fr:'Sous-compte supprimé',en:'Sub-account deleted'},
+  cp_current:{fr:'PIN actuel',en:'Current PIN'},
+  cp_new:{fr:'Nouveau PIN',en:'New PIN'},
+  cp_confirm_new:{fr:'Confirmer le nouveau PIN',en:'Confirm new PIN'},
+  btn_validate:{fr:'Valider',en:'Confirm'},
+  cp_err_invalid:{fr:'PIN invalide (4 chiffres)',en:'Invalid PIN (4 digits)'},
+  cp_err_mismatch:{fr:'Les nouveaux PIN ne correspondent pas',en:'New PINs do not match'},
+  cp_updated:{fr:'PIN mis à jour',en:'PIN updated'},
+  exp_choose_period:{fr:'Choisissez la période à exporter',en:'Choose the period to export'},
+  exp_period_month:{fr:'Ce mois',en:'This month'},
+  exp_period_custom:{fr:'Période',en:'Period'},
+  exp_period_all:{fr:'Tout',en:'All'},
+  exp_from:{fr:'Du',en:'From'},
+  exp_to:{fr:'Au',en:'To'},
+  exp_choose_format:{fr:'Choisissez le format',en:'Choose the format'},
+  exp_preparing:{fr:'Préparation...',en:'Preparing...'},
+  exp_format_xlsx:{fr:'Excel (.xlsx)',en:'Excel (.xlsx)'},
+  exp_format_pdf:{fr:'PDF',en:'PDF'},
+  exp_select_period:{fr:'Sélectionnez une période',en:'Select a period'},
+  exp_invalid_range:{fr:'Période invalide (du > au)',en:'Invalid period (from > to)'},
+  exp_preparing_file:{fr:'Préparation du fichier...',en:'Preparing file...'},
+  exp_server_error:{fr:'Erreur serveur',en:'Server error'},
+  exp_download_started:{fr:'Téléchargement lancé',en:'Download started'},
+  exp_err_generic:{fr:"Erreur lors de l'export",en:'Export error'},
+  dev_load_error:{fr:'Erreur de chargement',en:'Loading error'},
+  dev_none:{fr:'Aucun appareil enregistré pour le moment.',en:'No device registered yet.'},
+  dev_this_one:{fr:'Cet appareil',en:'This device'},
+  dev_revoked:{fr:'Déconnecté',en:'Disconnected'},
+  dev_disconnect_btn:{fr:'Déconnecter',en:'Disconnect'},
+  dev_seen_on:{fr:'Vu le ',en:'Last seen on '},
+  dev_revoke_confirm:{fr:'Déconnecter cet appareil ? Il devra se reconnecter avec le PIN pour continuer.',en:'Disconnect this device? It will need to log in again with the PIN to continue.'},
+  dev_revoked_toast:{fr:'Appareil déconnecté',en:'Device disconnected'},
+  acc_none:{fr:'Aucun compte enregistré pour le moment.',en:'No account registered yet.'},
+  acc_default_name:{fr:'Boutique',en:'Shop'},
+  acc_default_this:{fr:'ce compte',en:'this account'},
+  acc_remove_confirm:{fr:'Retirer {name} de cet appareil ?',en:'Remove {name} from this device?'},
+  notif_sale_label:{fr:'Notifications de vente',en:'Sale notifications'},
+  notif_sale_desc:{fr:'Recevez une alerte à chaque vente, même app fermée',en:'Get alerted on every sale, even with the app closed'},
+  notif_unsupported:{fr:'Notifications non supportées sur cet appareil',en:'Notifications not supported on this device'},
+  notif_denied:{fr:'Autorisation refusée',en:'Permission denied'},
+  notif_enabled:{fr:'Notifications activées',en:'Notifications enabled'},
+  notif_disabled:{fr:'Notifications désactivées',en:'Notifications disabled'},
+  bio_fingerprint_unrecognized:{fr:'Empreinte non reconnue, utilisez votre PIN',en:'Fingerprint not recognized, use your PIN'},
+  bio_unavailable:{fr:'Biométrie non disponible sur cet appareil',en:'Biometrics unavailable on this device'},
+  bio_disabled_toast:{fr:'Biométrie désactivée',en:'Biometrics disabled'},
+  bio_verifying:{fr:'Vérification biométrique...',en:'Verifying biometrics...'},
+  bio_enabled_toast:{fr:'Biométrie activée',en:'Biometrics enabled'},
+  bio_unavailable_device:{fr:'Biométrie indisponible sur cet appareil',en:'Biometrics unavailable on this device'},
+  theme_light:{fr:'Clair',en:'Light'},
+  theme_dark:{fr:'Sombre',en:'Dark'},
+  theme_system:{fr:'Système',en:'System'},
+  lang_fr:{fr:'Français',en:'French'},
+  lang_en:{fr:'Anglais',en:'English'},
+  sheet_title_vdeposit:{fr:'Déposer au coffre',en:'Deposit to vault'},
+  sheet_title_vwithdraw:{fr:'Retirer du coffre',en:'Withdraw from vault'},
+  sheet_title_vlock:{fr:'Verrouiller le coffre',en:'Lock the vault'},
+  sheet_title_vcreate:{fr:'Créer un sous-compte',en:'Create a sub-account'},
+  sheet_title_accounts:{fr:'Mes comptes',en:'My accounts'},
+  logout_confirm:{fr:'Se déconnecter de ROM_BUSINESS ?',en:'Log out of ROM_BUSINESS?'},
+  mqr_desc:{fr:'Votre client scanne ce code pour vous payer directement — sans frais.',en:'Your customer scans this code to pay you directly — free of charge.'},
+  mqr_print:{fr:'Imprimer',en:'Print'},
+  mqr_fullscreen:{fr:'Plein écran',en:'Full screen'},
+  mqr_qr_gen_error:{fr:'Erreur de génération du QR',en:'QR generation error'},
+  mqr_pdf_unavailable:{fr:'PDF non disponible',en:'PDF unavailable'},
+  mqr_scan_to_pay:{fr:'SCANNEZ POUR PAYER',en:'SCAN TO PAY'},
+  mqr_tagline:{fr:'ENCAISSEZ AVEC ROM_MONEY',en:'GET PAID WITH ROM_MONEY'},
+  mqr_downloaded:{fr:'QR téléchargé !',en:'QR downloaded!'},
+  pdf_load_error:{fr:'Erreur chargement PDF',en:'PDF loading error'},
+  vault_online:{fr:'Commerce en ligne',en:'Online business'},
+  vault_with_location:{fr:'Avec emplacement',en:'Physical location'},
+  hist_no_tx:{fr:'Aucune transaction pour le moment.',en:'No transactions yet.'},
+  tx_not_found:{fr:'Transaction introuvable',en:'Transaction not found'},
+  receipt_title:{fr:'Reçu',en:'Receipt'},
+  receipt_share_btn:{fr:'📤 Partager le reçu',en:'📤 Share receipt'},
+  receipt_reference:{fr:'Référence',en:'Reference'},
+  receipt_type:{fr:'Type',en:'Type'},
+  receipt_pdf_error:{fr:'Impossible de générer le PDF',en:'Unable to generate PDF'},
+  receipt_pdf_title:{fr:'REÇU ROM_BUSINESS',en:'ROM_BUSINESS RECEIPT'},
+  receipt_ref_prefix:{fr:'Réf: ',en:'Ref: '},
+  receipt_row_date:{fr:'Date',en:'Date'},
+  receipt_row_shop:{fr:'Boutique',en:'Shop'},
+  receipt_footer_tagline:{fr:'ROM_BUSINESS — encaissez avec ROM_MONEY',en:'ROM_BUSINESS — get paid with ROM_MONEY'},
+  receipt_generated_on:{fr:'Généré le ',en:'Generated on '},
+  receipt_share_title:{fr:'Reçu ROM_BUSINESS',en:'ROM_BUSINESS receipt'},
+  receipt_share_text:{fr:'Reçu de transaction',en:'Transaction receipt'},
+  receipt_downloaded:{fr:'Reçu téléchargé !',en:'Receipt downloaded!'},
+  tx_type_sale:{fr:'Vente',en:'Sale'},
+  tx_type_payment:{fr:'Paiement',en:'Payment'},
+  tx_type_transfer:{fr:'Virement',en:'Transfer'},
+  tx_type_vault_deposit:{fr:'Dépôt coffre',en:'Vault deposit'},
+  tx_type_vault_withdraw:{fr:'Retrait coffre',en:'Vault withdrawal'},
+  tx_type_generic:{fr:'Transaction',en:'Transaction'},
+  verified_business_title:{fr:'Commerce vérifié',en:'Verified business'}
+};
+function t(key){ return (I18N[key] && I18N[key][APP.lang||'fr']) || key; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = t(el.getAttribute('data-i18n-ph')); });
+}
 var PIN_MEM = '';
 var txList = [];
 var APP_LOGO_B64='./logo.jpg';
@@ -511,14 +750,14 @@ function regStep1(){
   var name = document.getElementById('r-name').value.trim();
   var addr = document.getElementById('r-addr').value.trim();
   var phone = document.getElementById('r-phone').value.trim();
-  if(!name){ toast('Le nom de la boutique est requis', true); return; }
-  if(APP.locationType==='physical' && !addr){ toast("L'adresse est requise", true); return; }
-  if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast('Numéro de téléphone invalide', true); return; }
+  if(!name){ toast(t('reg_err_name'), true); return; }
+  if(APP.locationType==='physical' && !addr){ toast(t('reg_err_address'), true); return; }
+  if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast(t('reg_err_phone'), true); return; }
   APP.businessName = name; APP.address = addr; APP.phone = phone;
   document.getElementById('reg-a').style.display='none';
   document.getElementById('reg-b').style.display='flex';
   rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
-  document.getElementById('pin-phase-label').textContent='Choisissez votre PIN';
+  document.getElementById('pin-phase-label').textContent=t('reg_pin_choose');
   document.getElementById('reg-pin-msg').textContent='';
 }
 var rgBuf='', rgPhase=1, rgPin1='';
@@ -534,7 +773,7 @@ function rgPin(d){
     setTimeout(function(){
       if(rgPhase===1){
         rgPin1=buf; rgBuf=''; rgPhase=2; updateRgDots();
-        document.getElementById('pin-phase-label').textContent='Confirmez votre PIN';
+        document.getElementById('pin-phase-label').textContent=t('reg_pin_confirm_title');
         document.getElementById('reg-pin-msg').textContent='';
       } else {
         if(buf===rgPin1){
@@ -542,15 +781,15 @@ function rgPin(d){
           finishRegister();
         } else {
           rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
-          document.getElementById('pin-phase-label').textContent='Choisissez votre PIN';
-          document.getElementById('reg-pin-msg').textContent='Les codes ne correspondent pas';
+          document.getElementById('pin-phase-label').textContent=t('reg_pin_choose');
+          document.getElementById('reg-pin-msg').textContent=t('reg_pin_mismatch');
         }
       }
     }, 150);
   }
 }
 function finishRegister(){
-  toast('Création du compte...');
+  toast(t('reg_creating'));
   apiCall('/merchant?action=register','POST',{
     business_name:APP.businessName, phone:APP.phone, pin:PIN_MEM,
     location_type:APP.locationType, address:APP.address, device_id:getDeviceId()
@@ -560,7 +799,7 @@ function finishRegister(){
       APP.qrSeed=res.data.qr_seed; save();
       launchApp();
     } else {
-      toast((res&&res.message)||'Erreur lors de la création', true);
+      toast((res&&res.message)||t('reg_err_create'), true);
     }
   });
 }
@@ -585,8 +824,8 @@ function setupLoginScreen(){
   var known = _addAccountMode ? _switchPrefillPhone : APP.phone;
   var wrap = document.getElementById('login-phone-wrap');
   var input = document.getElementById('login-phone-input');
-  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?'Connexion':(APP.businessName||'Connexion marchand'); }
-  else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent='Connexion marchand'; }
+  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?t('login_title_add'):(APP.businessName||t('login_title_default')); }
+  else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent=t('login_title_default'); }
   lgBuf=''; updateLgDots();
   document.getElementById('login-err').textContent='';
   var bio=document.getElementById('bio-btn');
@@ -603,7 +842,7 @@ function lgPin(d){
     setTimeout(function(){
       var phoneInput=document.getElementById('login-phone-input');
       var phone=(phoneInput&&phoneInput.value.trim())||APP.phone||'';
-      if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent='Entrez votre numéro'; return; }
+      if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent=t('login_err_phone_required'); return; }
       apiCall('/merchant?action=login','POST',{phone:phone,pin:buf,device_id:getDeviceId()}).then(function(res){
         if(res && res.success && res.data){
           APP.phone=phone; APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
@@ -615,7 +854,7 @@ function lgPin(d){
           setPin(buf).then(function(){ save(); launchApp(); });
         } else {
           lgBuf=''; updateLgDots();
-          document.getElementById('login-err').textContent=(res&&res.message)||'Numéro ou PIN incorrect';
+          document.getElementById('login-err').textContent=(res&&res.message)||t('login_err_wrong');
         }
       });
     }, 150);
@@ -654,7 +893,7 @@ function pcPin(d){
             if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
           } else {
             pcBuf=''; updatePcDots();
-            document.getElementById('pc-err').textContent='PIN incorrect';
+            document.getElementById('pc-err').textContent=t('pinconfirm_wrong');
           }
         });
       });
@@ -666,7 +905,7 @@ function pcPin(d){
 function launchApp(){
   goto('s-app');
   renderVerifiedBadges();
-  document.getElementById('hdr-biz-loc').textContent = APP.locationType==='physical' ? (APP.address||'Avec emplacement') : 'Commerce en ligne';
+  document.getElementById('hdr-biz-loc').textContent = APP.locationType==='physical' ? (APP.address||t('vault_with_location')) : t('vault_online');
   document.getElementById('prof-biz-phone').textContent = APP.phone;
   updateBalDisplay();
   syncEyeIcon();
@@ -680,11 +919,11 @@ function loadDashboardStats(){
     if(!res || !res.success || !res.data) return;
     var d = res.data;
     document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
-    document.getElementById('db-today-cnt').textContent = d.today.count+' vente'+(d.today.count>1?'s':'');
+    document.getElementById('db-today-cnt').textContent = d.today.count+' '+(d.today.count>1?t('sale_plural'):t('sale_singular'));
     document.getElementById('db-week-total').textContent = fmt(d.week.total)+' F';
-    document.getElementById('db-week-cnt').textContent = d.week.count+' vente'+(d.week.count>1?'s':'');
+    document.getElementById('db-week-cnt').textContent = d.week.count+' '+(d.week.count>1?t('sale_plural'):t('sale_singular'));
     document.getElementById('db-month-total').textContent = fmt(d.month.total)+' F';
-    document.getElementById('db-month-cnt').textContent = d.month.count+' vente'+(d.month.count>1?'s':'');
+    document.getElementById('db-month-cnt').textContent = d.month.count+' '+(d.month.count>1?t('sale_plural'):t('sale_singular'));
     renderDashboardChart(d.daily||[]);
   });
 }
@@ -696,7 +935,7 @@ function renderDashboardChart(daily){
     var dt=new Date(Date.now()-i*86400000);
     var key=dt.toISOString().slice(0,10);
     var v=byDay[key]||0;
-    days.push({label:dt.toLocaleDateString('fr-FR',{weekday:'short'}).slice(0,3),v:v});
+    days.push({label:dt.toLocaleDateString(APP.lang==='en'?'en-US':'fr-FR',{weekday:'short'}).slice(0,3),v:v});
     if(v>max) max=v;
   }
   var el=document.getElementById('db-chart');
@@ -751,12 +990,13 @@ function toggleBal(){
   syncEyeIcon();
 }
 function renderVerifiedBadges(){
+  var vt = t('verified_business_title');
   var hdr=document.getElementById('hdr-biz-name');
-  if(hdr) hdr.innerHTML = APP.businessName + (APP.verified?' <span style="color:#fff" title="Commerce vérifié">✓</span>':'');
+  if(hdr) hdr.innerHTML = APP.businessName + (APP.verified?' <span style="color:#fff" title="'+vt+'">✓</span>':'');
   var prof=document.getElementById('prof-biz-name');
-  if(prof) prof.innerHTML = APP.businessName + (APP.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'');
+  if(prof) prof.innerHTML = APP.businessName + (APP.verified?' <span style="color:var(--g)" title="'+vt+'">✓</span>':'');
   var qrf=document.getElementById('qrf-name');
-  if(qrf) qrf.innerHTML = APP.businessName + (APP.verified?' <span style="color:#9FE1CB" title="Commerce vérifié">✓</span>':'');
+  if(qrf) qrf.innerHTML = APP.businessName + (APP.verified?' <span style="color:#9FE1CB" title="'+vt+'">✓</span>':'');
 }
 function refreshBalance(){
   apiCall('/merchant?action=balance','GET',null,getToken()).then(function(res){
@@ -769,7 +1009,7 @@ function refreshBalance(){
   });
 }
 function doLogout(){
-  if(!confirm('Se déconnecter de ROM_BUSINESS ?')) return;
+  if(!confirm(t('logout_confirm'))) return;
   APP.token=''; save();
   goto('s-welcome');
 }
@@ -788,87 +1028,90 @@ function navGo(p){
 }
 
 // ── HISTORIQUE / TRANSACTIONS ──
-function txIcon(t){
-  if(t.type==='vault_deposit'||t.type==='vault_withdrawal') return {ico:'🔒',bg:'var(--gl)'};
-  if(t.direction==='credit') return {ico:'💰',bg:'var(--gl)'};
+function txIcon(tx){
+  if(tx.type==='vault_deposit'||tx.type==='vault_withdrawal') return {ico:'🔒',bg:'var(--gl)'};
+  if(tx.direction==='credit') return {ico:'💰',bg:'var(--gl)'};
   return {ico:'💸',bg:'var(--rl)'};
 }
 function renderTxRows(rows, containerId){
   var c=document.getElementById(containerId);
   if(!c) return;
-  if(!rows.length){ c.innerHTML='<div class="empty-note">Aucune transaction pour le moment.</div>'; return; }
+  if(!rows.length){ c.innerHTML='<div class="empty-note">'+t('hist_no_tx')+'</div>'; return; }
   var h='';
-  rows.forEach(function(t){
-    var isCredit = t.direction==='credit';
-    var name = isCredit ? (t.sender_verified_name||t.sender_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'Virement');
-    var ic = txIcon(t);
-    var d = new Date(t.created_at);
-    h+='<div class="tx-row" style="cursor:pointer" onclick="openReceiptById(\''+t.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
-      +'<div><div class="tx-name">'+name+'</div><div class="tx-date">'+d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</div></div>'
-      +'<div class="tx-amt" style="color:'+(isCredit?'var(--g)':'var(--re)')+'">'+(isCredit?'+':'-')+fmt(t.amount)+' F</div></div>';
+  var loc = APP.lang==='en'?'en-US':'fr-FR';
+  rows.forEach(function(tx){
+    var isCredit = tx.direction==='credit';
+    var name = isCredit ? (tx.sender_verified_name||tx.sender_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||t('tx_type_transfer'));
+    var ic = txIcon(tx);
+    var d = new Date(tx.created_at);
+    h+='<div class="tx-row" style="cursor:pointer" onclick="openReceiptById(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+      +'<div><div class="tx-name">'+name+'</div><div class="tx-date">'+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
+      +'<div class="tx-amt" style="color:'+(isCredit?'var(--g)':'var(--re)')+'">'+(isCredit?'+':'-')+fmt(tx.amount)+' F</div></div>';
   });
   c.innerHTML=h;
 }
 
 // ── REÇU NUMÉRIQUE ──
-function txTypeLabel(t){
-  if(t.type==='merchant_payment') return t.direction==='credit' ? 'Vente' : 'Paiement';
-  if(t.type==='merchant_withdraw') return 'Virement';
-  if(t.type==='vault_deposit') return 'Dépôt coffre';
-  if(t.type==='vault_withdraw') return 'Retrait coffre';
-  return 'Transaction';
+function txTypeLabel(tx){
+  if(tx.type==='merchant_payment') return tx.direction==='credit' ? t('tx_type_sale') : t('tx_type_payment');
+  if(tx.type==='merchant_withdraw') return t('tx_type_transfer');
+  if(tx.type==='vault_deposit') return t('tx_type_vault_deposit');
+  if(tx.type==='vault_withdraw') return t('tx_type_vault_withdraw');
+  return t('tx_type_generic');
 }
 function openReceiptById(id){
-  var t=null;
-  for(var i=0;i<txList.length;i++){ if(String(txList[i].id)===String(id)){ t=txList[i]; break; } }
-  if(!t){ toast('Transaction introuvable', true); return; }
-  openReceipt(t);
+  var tx=null;
+  for(var i=0;i<txList.length;i++){ if(String(txList[i].id)===String(id)){ tx=txList[i]; break; } }
+  if(!tx){ toast(t('tx_not_found'), true); return; }
+  openReceipt(tx);
 }
-function openReceipt(t){
-  window._receiptTx = t;
-  var isCredit = t.direction==='credit';
+function openReceipt(tx){
+  window._receiptTx = tx;
+  var isCredit = tx.direction==='credit';
   var sign = isCredit?'+':'-';
   var color = isCredit?'var(--g)':'var(--re)';
-  var d = new Date(t.created_at);
-  var dateStr = d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-  var counterName = isCredit ? (t.sender_verified_name||t.sender_name||t.payer_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'—');
+  var loc = APP.lang==='en'?'en-US':'fr-FR';
+  var d = new Date(tx.created_at);
+  var dateStr = d.toLocaleDateString(loc)+' '+(APP.lang==='en'?'at':'à')+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
+  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||'—');
   var html = '<div style="text-align:center;padding:10px 0 18px">'
-    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(t.amount)+' F</div>'
+    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(tx.amount)+' F</div>'
     +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
     +'</div>'
     +'<div style="background:var(--gl);border-radius:14px;padding:14px;margin-bottom:16px">'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(isCredit?'Client':'Destinataire')+'</span><span style="font-weight:700;font-size:13px">'+counterName+'</span></div>'
-    +(t.reference?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">Référence</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+t.reference+'</span></div>':'')
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">Type</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(t)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(isCredit?t('label_client'):t('label_recipient'))+'</span><span style="font-weight:700;font-size:13px">'+counterName+'</span></div>'
+    +(tx.reference?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('receipt_reference')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.reference+'</span></div>':'')
+    +'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('receipt_type')+'</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(tx)+'</span></div>'
     +'</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="shareReceiptPdf(window._receiptTx)">📤 Partager le reçu</button>';
-  document.getElementById('sh-title').textContent = 'Reçu';
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="shareReceiptPdf(window._receiptTx)">'+t('receipt_share_btn')+'</button>';
+  document.getElementById('sh-title').textContent = t('receipt_title');
   document.getElementById('sh-body').innerHTML = html;
   document.getElementById('sh-bg').classList.add('on');
   document.getElementById('sh').classList.add('on');
 }
-function shareReceiptPdf(t){
-  if(!t) return;
-  var isCredit = t.direction==='credit';
+function shareReceiptPdf(tx){
+  if(!tx) return;
+  var isCredit = tx.direction==='credit';
   var sign = isCredit?'+':'-';
-  var d = new Date(t.created_at);
-  var dateStr = d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-  var counterName = isCredit ? (t.sender_verified_name||t.sender_name||t.payer_name||'Client') : (t.receiver_verified_name||t.receiver_name||t.description||'—');
+  var loc = APP.lang==='en'?'en-US':'fr-FR';
+  var d = new Date(tx.created_at);
+  var dateStr = d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
+  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||'—');
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
-    if(!jsPDF){ toast('Impossible de générer le PDF', true); return; }
+    if(!jsPDF){ toast(t('receipt_pdf_error'), true); return; }
     var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
     var pw=148,cx=74,y=12;
     if(ld) doc.addImage(ld,'JPEG',cx-15,y,30,30);
     y+=34;
     doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(8,80,65);
-    doc.text('REÇU ROM_BUSINESS',cx,y,{align:'center'});y+=7;
-    if(t.reference){ doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text('Réf: '+t.reference,cx,y,{align:'center'});y+=5; }
+    doc.text(t('receipt_pdf_title'),cx,y,{align:'center'});y+=7;
+    if(tx.reference){ doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('receipt_ref_prefix')+tx.reference,cx,y,{align:'center'});y+=5; }
     doc.setFont('helvetica','bold');doc.setFontSize(20);
     doc.setTextColor(isCredit?34:220,isCredit?139:50,isCredit?34:50);
-    doc.text(sign+fmt(t.amount)+' FCFA',cx,y+5,{align:'center'});y+=13;
+    doc.text(sign+fmt(tx.amount)+' FCFA',cx,y+5,{align:'center'});y+=13;
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
-    var rows=[['Date',dateStr],['Boutique',APP.businessName||''],[isCredit?'Client':'Destinataire',counterName],['Type',txTypeLabel(t)]];
+    var rows=[[t('receipt_row_date'),dateStr],[t('receipt_row_shop'),APP.businessName||''],[isCredit?t('label_client'):t('label_recipient'),counterName],[t('receipt_type'),txTypeLabel(tx)]];
     rows.forEach(function(row){
       doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,80);doc.text(row[0],14,y);
       doc.setFont('helvetica','normal');doc.setTextColor(20,20,20);doc.text(String(row[1]),pw-14,y,{align:'right'});
@@ -876,18 +1119,18 @@ function shareReceiptPdf(t){
     });
     y+=4;
     doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(150,150,150);
-    doc.text('ROM_BUSINESS — encaissez avec ROM_MONEY',cx,y,{align:'center'});y+=4;
-    doc.text('Généré le '+new Date().toLocaleString('fr-FR'),cx,y,{align:'center'});
+    doc.text(t('receipt_footer_tagline'),cx,y,{align:'center'});y+=4;
+    doc.text(t('receipt_generated_on')+new Date().toLocaleString(loc),cx,y,{align:'center'});
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.4);doc.roundedRect(5,5,pw-10,y+5,3,3);
-    var fn='Recu_ROMBUSINESS_'+(t.reference||t.id||Date.now())+'.pdf';
+    var fn='Recu_ROMBUSINESS_'+(tx.reference||tx.id||Date.now())+'.pdf';
     var blob=doc.output('blob');
     var file=new File([blob],fn,{type:'application/pdf'});
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({title:'Reçu ROM_BUSINESS',text:'Reçu de transaction',files:[file]}).catch(function(e){ if(e.name!=='AbortError') doc.save(fn); });
+      navigator.share({title:t('receipt_share_title'),text:t('receipt_share_text'),files:[file]}).catch(function(e){ if(e.name!=='AbortError') doc.save(fn); });
     } else if(navigator.share){
-      navigator.share({title:'Reçu ROM_BUSINESS',text:sign+fmt(t.amount)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
+      navigator.share({title:t('receipt_share_title'),text:sign+fmt(tx.amount)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
     } else {
-      doc.save(fn); toast('Reçu téléchargé !');
+      doc.save(fn); toast(t('receipt_downloaded'));
     }
   }
   getLogoBase64(function(ld){
@@ -896,7 +1139,7 @@ function shareReceiptPdf(t){
       var s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
       s.onload=function(){ buildF(ld); };
-      s.onerror=function(){ toast('Erreur chargement PDF', true); };
+      s.onerror=function(){ toast(t('pdf_load_error'), true); };
       document.head.appendChild(s);
     }
   });
@@ -912,15 +1155,15 @@ function refreshHistory(full){
 }
 
 // ── SHEET ──
-var SHEET_TITLES={
-  encaisser:'Encaisser', monqr:'Mon QR', virement:'Envoyer',
-  vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
-  vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN', 'export-history':'Exporter mon historique',
-  devices:'Mes appareils', 'account-switch':'Mes comptes', 'notif-settings':'Notifications',
-  appearance:'Apparence'
+var SHEET_TITLE_KEYS={
+  encaisser:'qa_encaisser', monqr:'qa_monqr', virement:'qa_envoyer',
+  vdeposit:'sheet_title_vdeposit', vwithdraw:'sheet_title_vwithdraw', vlock:'sheet_title_vlock',
+  vcreate:'sheet_title_vcreate', 'change-pin':'profil_change_pin', 'export-history':'profil_export',
+  devices:'profil_devices', 'account-switch':'sheet_title_accounts', 'notif-settings':'profil_notifications',
+  appearance:'profil_appearance', language:'profil_language'
 };
 function openSheet(type, extra){
-  document.getElementById('sh-title').textContent = SHEET_TITLES[type]||'—';
+  document.getElementById('sh-title').textContent = SHEET_TITLE_KEYS[type] ? t(SHEET_TITLE_KEYS[type]) : '—';
   var b=document.getElementById('sh-body');
   buildSheet(type, b, extra);
   document.getElementById('sh-bg').classList.add('on');
@@ -947,6 +1190,7 @@ function buildSheet(type, b, extra){
   else if(type==='account-switch') shAccountSwitch(b);
   else if(type==='notif-settings') shNotifSettings(b);
   else if(type==='appearance') shAppearance(b);
+  else if(type==='language') shLanguage(b);
 }
 
 // ── MON QR (affichage seul du QR marchand) ──
@@ -955,10 +1199,10 @@ function shMonQr(b){
   var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
   b.innerHTML='<div style="text-align:center;padding:10px 0 20px">'
     +'<div id="mqr-box" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
-    +'<div style="font-size:12px;color:var(--t2);margin-top:14px">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
+    +'<div style="font-size:12px;color:var(--t2);margin-top:14px">'+t('mqr_desc')+'</div>'
     +'<div style="display:flex;gap:10px;margin-top:16px">'
-    +'<button style="'+b1+'" onclick="imprimerMonQR()">Imprimer</button>'
-    +'<button style="'+b2+'" onclick="showQrFullscreen()">Plein écran</button>'
+    +'<button style="'+b1+'" onclick="imprimerMonQR()">'+t('mqr_print')+'</button>'
+    +'<button style="'+b2+'" onclick="showQrFullscreen()">'+t('mqr_fullscreen')+'</button>'
     +'</div>'
     +'</div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
@@ -973,10 +1217,10 @@ function imprimerMonQR(){
     var c=tmpDiv.querySelector('canvas');
     var qrURL=c?c.toDataURL('image/png'):'';
     document.body.removeChild(tmpDiv);
-    if(!qrURL){ toast('Erreur de génération du QR', true); return; }
+    if(!qrURL){ toast(t('mqr_qr_gen_error'), true); return; }
     function buildPDF(qrURL, logoData){
       var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
-      if(!jsPDF){ toast('PDF non disponible', true); return; }
+      if(!jsPDF){ toast(t('mqr_pdf_unavailable'), true); return; }
       var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
       var pw=148, cx=pw/2;
 
@@ -985,12 +1229,12 @@ function imprimerMonQR(){
       if(logoData) doc.addImage(logoData,'JPEG',cx-10,y,20,20);
       y+=24;
       doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(8,80,65);
-      doc.text('SCANNEZ POUR PAYER',cx,y,{align:'center'}); y+=6;
+      doc.text(t('mqr_scan_to_pay'),cx,y,{align:'center'}); y+=6;
       doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(80,80,80);
       doc.text(APP.businessName||'',cx,y,{align:'center'}); y+=6;
       doc.addImage(qrURL,'PNG',cx-30,y,60,60); y+=64;
       doc.setFontSize(7); doc.setTextColor(245,166,35);
-      doc.text('ENCAISSEZ AVEC ROM_MONEY',cx,y,{align:'center'});
+      doc.text(t('mqr_tagline'),cx,y,{align:'center'});
       doc.setDrawColor(8,80,65); doc.setLineWidth(0.4); doc.roundedRect(8,8,pw-16,y-3,3,3);
 
       // ── PAGE 2 (2x plus grand, meme A5) ──
@@ -999,16 +1243,16 @@ function imprimerMonQR(){
       if(logoData) doc.addImage(logoData,'JPEG',cx-17.5,y2,35,35);
       y2+=40;
       doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(8,80,65);
-      doc.text('SCANNEZ POUR PAYER',cx,y2,{align:'center'}); y2+=9;
+      doc.text(t('mqr_scan_to_pay'),cx,y2,{align:'center'}); y2+=9;
       doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(80,80,80);
       doc.text(APP.businessName||'',cx,y2,{align:'center'}); y2+=10;
       doc.addImage(qrURL,'PNG',cx-50,y2,100,100); y2+=105;
       doc.setFontSize(11); doc.setTextColor(245,166,35);
-      doc.text('ENCAISSEZ AVEC ROM_MONEY',cx,y2,{align:'center'});
+      doc.text(t('mqr_tagline'),cx,y2,{align:'center'});
       doc.setDrawColor(8,80,65); doc.setLineWidth(0.4); doc.roundedRect(5,5,pw-10,y2+5,3,3);
 
       doc.save('ROM_BUSINESS_QR.pdf');
-      toast('QR téléchargé !');
+      toast(t('mqr_downloaded'));
     }
     getLogoBase64(function(logoData){
       if(window.jspdf){ buildPDF(qrURL, logoData); }
@@ -1016,7 +1260,7 @@ function imprimerMonQR(){
         var s=document.createElement('script');
         s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
         s.onload=function(){ buildPDF(qrURL, logoData); };
-        s.onerror=function(){ toast('Erreur chargement PDF', true); };
+        s.onerror=function(){ toast(t('pdf_load_error'), true); };
         document.head.appendChild(s);
       }
     });
@@ -1044,12 +1288,12 @@ function ini(n){
 }
 function shEncaisser(b){
   b.innerHTML = ''
-    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
     +'<div class="chips">'+[1000,2000,5000,10000,25000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'enc-amt\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
-    +'<div class="frow"><label class="flabel">Motif (optionnel)</label><input class="finput" id="enc-motif" placeholder="Ex: Vente article"></div>'
+    +'<div class="frow"><label class="flabel">'+t('motif_label')+'</label><input class="finput" id="enc-motif" placeholder="'+t('motif_ph')+'"></div>'
     +'<button onclick="startMerchantScan()" class="btn-g" style="display:flex;align-items:center;justify-content:center;gap:8px">'
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>'
-    +'Scanner le QR du client'
+    +t('scan_client_qr_btn')
     +'</button>'
     +'<div id="enc-scanner" style="display:none;margin-top:12px">'
     +'<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
@@ -1057,9 +1301,9 @@ function shEncaisser(b){
     +'<canvas id="enc-canvas" style="display:none"></canvas>'
     +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
     +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
-    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">Visez le QR personnel du client</p>'
+    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('scan_point_qr')+'</p>'
     +'</div>'
-    +'<button onclick="stopMerchantEncScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">Annuler</button>'
+    +'<button onclick="stopMerchantEncScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">'+t('cancel')+'</button>'
     +'</div>'
     +'<div id="enc-result" style="display:none"></div>';
 }
@@ -1075,7 +1319,7 @@ function stopMerchantEncScan(){
 }
 function startMerchantScan(){
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
-  if(amt<=0){ toast('Entrez un montant', true); return; }
+  if(amt<=0){ toast(t('enc_err_amount'), true); return; }
   var el=document.getElementById('enc-scanner');
   if(el) el.style.display='block';
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
@@ -1084,7 +1328,7 @@ function startMerchantScan(){
     if(!v) return;
     v.srcObject=stream;
     v.play().then(function(){ encScanLoop(); });
-  }).catch(function(){ toast('Accès caméra refusé', true); });
+  }).catch(function(){ toast(t('camera_denied'), true); });
 }
 function encScanLoop(){
   if(!encStream) return;
@@ -1100,13 +1344,13 @@ function encScanLoop(){
 function onEncaisserScanned(text){
   var parts=text.split('|');
   var phone = parts.length===3 ? parts[2] : text.replace(/\s/g,'');
-  if(!phone || phone.length<8){ toast('QR non reconnu', true); return; }
+  if(!phone || phone.length<8){ toast(t('qr_not_recognized'), true); return; }
   var result=document.getElementById('enc-result');
   if(!result) return;
   result.style.display='block';
   result.innerHTML='<div style="text-align:center;padding:16px">'
     +'<div style="width:28px;height:28px;border:3px solid var(--gl);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 8px"></div>'
-    +'<div style="font-size:12px;color:var(--t2)">Identification...</div></div>';
+    +'<div style="font-size:12px;color:var(--t2)">'+t('identifying')+'</div></div>';
   apiCall('/merchant?action=resolve-payer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       var name=res.data.full_name||phone;
@@ -1119,9 +1363,9 @@ function onEncaisserScanned(text){
         +'<div><div style="font-size:14px;font-weight:800;color:var(--t1)">'+name+'</div>'
         +'<div style="font-size:12px;color:var(--t2)">'+phone+'</div></div>'
         +'</div>'
-        +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>Montant</span><span>'+fmt(amt)+' F</span></div>'
+        +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('amount_label')+'</span><span>'+fmt(amt)+' F</span></div>'
         +'<div style="padding-top:12px">'
-        +'<div style="font-size:12px;color:var(--t2);margin-bottom:8px">Le client entre son PIN pour confirmer</div>'
+        +'<div style="font-size:12px;color:var(--t2);margin-bottom:8px">'+t('enc_pin_prompt')+'</div>'
         +'<div class="dots" style="margin:0 auto 12px">'
         +'<div class="dot" id="ep0"></div><div class="dot" id="ep1"></div><div class="dot" id="ep2"></div><div class="dot" id="ep3"></div>'
         +'</div>'
@@ -1133,22 +1377,22 @@ function onEncaisserScanned(text){
         +'</div>'
         +'</div>'
         +'</div>'
-        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit;margin-top:8px">Scanner à nouveau</button>';
+        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit;margin-top:8px">'+t('scan_again')+'</button>';
     } else {
       result.innerHTML='<div style="text-align:center;padding:16px;background:var(--rl);border-radius:12px;margin-top:8px">'
         +'<div style="font-size:28px;margin-bottom:8px">⚠️</div>'
-        +'<div style="font-size:13px;font-weight:700;color:var(--rd)">Compte introuvable</div></div>'
-        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:12px;background:var(--gl);border:.5px solid var(--gm);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit;margin-top:10px">Scanner à nouveau</button>';
+        +'<div style="font-size:13px;font-weight:700;color:var(--rd)">'+t('account_not_found')+'</div></div>'
+        +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';startMerchantScan()" style="width:100%;padding:12px;background:var(--gl);border:.5px solid var(--gm);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit;margin-top:10px">'+t('scan_again')+'</button>';
     }
   }).catch(function(){
-    result.innerHTML='<div style="font-size:12px;color:var(--rd);text-align:center;padding:12px">Erreur réseau</div>';
+    result.innerHTML='<div style="font-size:12px;color:var(--rd);text-align:center;padding:12px">'+t('network_error')+'</div>';
   });
 }
 function encPin(v){
   if(!window._encPinBuf) window._encPinBuf='';
   if(v==='C'){ window._encPinBuf=window._encPinBuf.slice(0,-1); }
   else if(v==='OK'){
-    if(window._encPinBuf.length!==4){ toast('PIN incomplet', true); return; }
+    if(window._encPinBuf.length!==4){ toast(t('pin_incomplete'), true); return; }
     doEncaisserWithPin(window._encPayerPhone, window._encPayerName, window._encPinBuf);
     return;
   } else {
@@ -1163,15 +1407,15 @@ function encPin(v){
 function doEncaisserWithPin(phone, name, pin){
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
   var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
-  toast('Traitement en cours...');
+  toast(t('processing'));
   apiCall('/merchant?action=collect','POST',{payer_phone:phone,amount:amt,pin:pin,description:motif},getToken()).then(function(res){
     if(res && res.success){
       APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
-      toast(fmt(amt)+' F encaissé de '+(res.data.payer_name||name||'client')+' !');
+      toast(fmt(amt)+t('enc_success_suffix')+(res.data.payer_name||name||t('label_client'))+' !');
       openReceipt({amount:amt, direction:'credit', type:'merchant_payment',
         created_at:new Date().toISOString(), reference:res.data.reference, payer_name:res.data.payer_name||name});
     } else {
-      toast((res&&res.message)||'Échec encaissement', true);
+      toast((res&&res.message)||t('enc_err_generic'), true);
       window._encPinBuf='';
       for(var j=0;j<4;j++){ var d=document.getElementById('ep'+j); if(d) d.classList.remove('on'); }
     }
@@ -1180,33 +1424,33 @@ function doEncaisserWithPin(phone, name, pin){
 
 // ── VIREMENT ──
 function shVirement(b){
-  b.innerHTML='<div class="frow"><label class="flabel">Numéro du destinataire</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee()"></div>'
-    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">F</span></div></div>'
-    +'<div id="vir-fee" class="fee-note">Entrez un numéro et un montant pour voir les frais.</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">Envoyer</button>';
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee()"></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">F</span></div></div>'
+    +'<div id="vir-fee" class="fee-note">'+t('vir_fee_prompt')+'</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">'+t('qa_envoyer')+'</button>';
 }
 function updateVirFee(){
   var phone=document.getElementById('vir-phone').value.trim();
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   var el=document.getElementById('vir-fee');
-  if(!phone||amt<=0){ el.className='fee-note'; el.textContent='Entrez un numéro et un montant pour voir les frais.'; return; }
+  if(!phone||amt<=0){ el.className='fee-note'; el.textContent=t('vir_fee_prompt'); return; }
   var isOwn = phone===APP.phone;
-  if(isOwn){ el.className='fee-note free'; el.textContent='Gratuit — vers votre propre numéro ROM_MONEY.'; }
-  else { el.className='fee-note paid'; el.textContent='Frais 1% : '+fmt(Math.round(amt*0.01))+' F — total débité '+fmt(amt+Math.round(amt*0.01))+' F.'; }
+  if(isOwn){ el.className='fee-note free'; el.textContent=t('vir_free_own'); }
+  else { el.className='fee-note paid'; el.textContent=t('vir_fee_paid').replace('{fee}',fmt(Math.round(amt*0.01))).replace('{total}',fmt(amt+Math.round(amt*0.01))); }
 }
 function doVirement(){
   var phone=document.getElementById('vir-phone').value.trim();
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
-  if(!phone){ toast('Numéro requis', true); return; }
-  if(amt<=0){ toast('Montant invalide', true); return; }
-  requirePin('Virement de '+fmt(amt)+' F', function(){
+  if(!phone){ toast(t('vir_err_phone'), true); return; }
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=withdraw','POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
       if(res && res.success){
         APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
         closeSheet();
-        toast(fmt(amt)+' F envoyé'+(res.data.fee>0?' (frais: '+fmt(res.data.fee)+' F)':'')+' !');
+        toast(fmt(amt)+t('vir_success_suffix')+(res.data.fee>0?t('vir_fee_suffix').replace('{fee}',fmt(res.data.fee)):'')+' !');
       } else {
-        toast((res&&res.message)||'Échec du virement', true);
+        toast((res&&res.message)||t('vir_err_generic'), true);
       }
     });
   });
@@ -1216,7 +1460,7 @@ function doVirement(){
 function renderVault(){
   var lk=APP.vaultLocked;
   document.getElementById('vault-amt').textContent=fmt(APP.vaultBal)+' F';
-  document.getElementById('vault-status-lbl').textContent = lk ? 'Coffre verrouillé' : 'Épargne';
+  document.getElementById('vault-status-lbl').textContent = lk ? t('vault_locked_label') : t('vault_savings');
   var wb=document.getElementById('v-wb'); wb.disabled=lk; wb.style.opacity=lk?.4:1;
   var lb=document.getElementById('v-lb'); lb.disabled=lk; lb.style.opacity=lk?.4:1;
   loadSubVaults();
@@ -1234,7 +1478,7 @@ function loadSubVaults(){
 function renderSubVaults(){
   var list=document.getElementById('subvault-list');
   var subs=APP.subVaults||[];
-  if(!subs.length){ list.innerHTML='<div class="card empty-note">Aucun sous-compte pour le moment.</div>'; return; }
+  if(!subs.length){ list.innerHTML='<div class="card empty-note">'+t('sv_no_subaccounts')+'</div>'; return; }
   var h='';
   subs.forEach(function(sv){
     var hasGoal=sv.goal>0;
@@ -1244,8 +1488,8 @@ function renderSubVaults(){
       +'<span style="font-weight:800;color:var(--g)">'+(hasGoal?pct+'%':fmt(sv.amt)+' F')+'</span></div>'
       +(hasGoal?'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+fmt(sv.amt)+' F / '+fmt(sv.goal)+' F</div>':'')
       +'<div style="display:flex;gap:6px">'
-      +'<button class="chip" style="flex:1" onclick="openSheet(\'svdeposit\',\''+sv.id+'\')">Déposer</button>'
-      +'<button class="chip" style="flex:1;background:var(--bg);color:var(--t1)" onclick="openSheet(\'svwithdraw\',\''+sv.id+'\')">Retirer</button>'
+      +'<button class="chip" style="flex:1" onclick="openSheet(\'svdeposit\',\''+sv.id+'\')">'+t('btn_deposit')+'</button>'
+      +'<button class="chip" style="flex:1;background:var(--bg);color:var(--t1)" onclick="openSheet(\'svwithdraw\',\''+sv.id+'\')">'+t('btn_withdraw')+'</button>'
       +'<button class="chip" style="background:var(--rl);color:var(--rd)" onclick="doDeleteSubVault(\''+sv.id+'\')">🗑</button>'
       +'</div></div>';
   });
@@ -1254,144 +1498,144 @@ function renderSubVaults(){
 function findSubVault(id){ for(var i=0;i<APP.subVaults.length;i++) if(APP.subVaults[i].id===id) return APP.subVaults[i]; return null; }
 
 function shVDeposit(b){
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Solde disponible : <strong>'+fmt(APP.balance)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVDeposit()">Déposer</button>';
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_balance_avail')+'<strong>'+fmt(APP.balance)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVDeposit()">'+t('btn_deposit')+'</button>';
 }
 function doVDeposit(){
   var amt=parseFloat(document.getElementById('vd-amt').value)||0;
-  if(amt<=0){ toast('Montant invalide', true); return; }
-  if(amt>APP.balance){ toast('Solde insuffisant', true); return; }
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  if(amt>APP.balance){ toast(t('err_balance'), true); return; }
   apiCall('/merchant?action=vault-deposit','POST',{amount:amt},getToken()).then(function(res){
     if(res && res.success){
       APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
-      updateBalDisplay(); renderVault(); closeSheet(); toast(fmt(amt)+' F déposés au coffre');
-    } else { toast((res&&res.message)||'Erreur', true); }
+      updateBalDisplay(); renderVault(); closeSheet(); toast(fmt(amt)+t('vault_deposited'));
+    } else { toast((res&&res.message)||t('err_generic'), true); }
   });
 }
 function shVWithdraw(b){
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre : <strong>'+fmt(APP.vaultBal)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">Montant</label><div class="amt-row"><input class="finput" id="vw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqVWithdraw()">Retirer</button>';
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_label_short')+'<strong>'+fmt(APP.vaultBal)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqVWithdraw()">'+t('btn_withdraw')+'</button>';
 }
 function reqVWithdraw(){
   var amt=parseFloat(document.getElementById('vw-amt').value)||0;
-  if(amt<=0){ toast('Montant invalide', true); return; }
-  if(amt>APP.vaultBal){ toast('Solde du coffre insuffisant', true); return; }
-  requirePin('Retrait coffre '+fmt(amt)+' F', function(){
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  if(amt>APP.vaultBal){ toast(t('vault_err_balance'), true); return; }
+  requirePin(t('vault_withdraw_pin').replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=vault-withdraw','POST',{amount:amt,pin:PIN_MEM},getToken()).then(function(res){
       if(res && res.success){
         APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
-        updateBalDisplay(); renderVault(); toast(fmt(amt)+' F retirés du coffre');
-      } else { toast((res&&res.message)||'Erreur', true); }
+        updateBalDisplay(); renderVault(); toast(fmt(amt)+t('vault_withdrawn'));
+      } else { toast((res&&res.message)||t('err_generic'), true); }
     });
   });
 }
 function shVLock(b){
   var minDate=new Date(Date.now()+86400000).toISOString().split('T')[0];
-  b.innerHTML='<div class="frow"><label class="flabel">Verrouiller jusqu\'au</label><input class="finput" id="vl-date" type="date" min="'+minDate+'"></div>'
-    +'<div style="font-size:12px;color:var(--gold-text,#8a5a10);background:var(--gold-l);padding:10px 12px;border-radius:10px;margin-bottom:14px">Le coffre sera bloqué jusqu\'à cette date.</div>'
-    +'<button class="btn-g" style="background:#8a5a10" onclick="doVLock()">Verrouiller</button>';
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('vault_lock_until')+'</label><input class="finput" id="vl-date" type="date" min="'+minDate+'"></div>'
+    +'<div style="font-size:12px;color:var(--gold-text,#8a5a10);background:var(--gold-l);padding:10px 12px;border-radius:10px;margin-bottom:14px">'+t('vault_lock_note')+'</div>'
+    +'<button class="btn-g" style="background:#8a5a10" onclick="doVLock()">'+t('btn_lock')+'</button>';
 }
 function doVLock(){
   var date=document.getElementById('vl-date').value;
-  if(!date){ toast('Choisissez une date', true); return; }
+  if(!date){ toast(t('vault_choose_date'), true); return; }
   apiCall('/merchant?action=vault-lock','POST',{lock_date:date},getToken()).then(function(res){
     if(res && res.success){
-      APP.vaultLocked=true; APP.vaultDate=date; save(); renderVault(); closeSheet(); toast('Coffre verrouillé');
-    } else { toast((res&&res.message)||'Erreur', true); }
+      APP.vaultLocked=true; APP.vaultDate=date; save(); renderVault(); closeSheet(); toast(t('vault_locked_toast'));
+    } else { toast((res&&res.message)||t('err_generic'), true); }
   });
 }
 function shVCreate(b){
-  b.innerHTML='<div class="frow"><label class="flabel">Nom du sous-compte</label><input class="finput" id="svc-name" placeholder="Ex: Fournisseurs"></div>'
-    +'<div class="frow"><label class="flabel">Montant initial (optionnel)</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div>'
-    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">Disponible au coffre : '+fmt(APP.vaultBal)+' F</div></div>'
-    +'<div class="frow"><label class="flabel">Objectif (optionnel)</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVCreate()">Créer</button>';
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('sv_name_label')+'</label><input class="finput" id="svc-name" placeholder="'+t('sv_name_ph')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_initial_amount')+'</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('sv_available_vault')+fmt(APP.vaultBal)+' F</div></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_goal_label')+'</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVCreate()">'+t('btn_create')+'</button>';
 }
 function doVCreate(){
   var name=document.getElementById('svc-name').value.trim();
   var amt=parseFloat(document.getElementById('svc-amt').value)||0;
   var goal=parseFloat(document.getElementById('svc-goal').value)||0;
-  if(!name){ toast('Nom requis', true); return; }
-  if(amt>APP.vaultBal){ toast('Solde du coffre principal insuffisant', true); return; }
+  if(!name){ toast(t('err_name_required'), true); return; }
+  if(amt>APP.vaultBal){ toast(t('vault_err_main_balance'), true); return; }
   apiCall('/merchant?action=subvault-create','POST',{name:name,amount:amt,goal:goal||''},getToken()).then(function(res){
     if(res && res.success){
       APP.vaultBal=res.data.vault_balance;
       APP.subVaults.push({id:res.data.id,name:res.data.name,amt:parseFloat(res.data.balance)||0,goal:res.data.goal_amount?parseFloat(res.data.goal_amount):0});
-      renderVault(); closeSheet(); toast('Sous-compte créé');
-    } else { toast((res&&res.message)||'Erreur', true); }
+      renderVault(); closeSheet(); toast(t('sv_created'));
+    } else { toast((res&&res.message)||t('err_generic'), true); }
   });
 }
 function shSVDeposit(b, id){
   var sv=findSubVault(id); if(!sv) return;
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">Coffre principal : <strong>'+fmt(APP.vaultBal)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">Vers "'+sv.name+'"</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">Déposer</button>';
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('sv_main_vault')+'<strong>'+fmt(APP.vaultBal)+' F</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',sv.name)+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">'+t('btn_deposit')+'</button>';
 }
 function doSVDeposit(id){
   var sv=findSubVault(id); if(!sv) return;
   var amt=parseFloat(document.getElementById('svd-amt').value)||0;
-  if(amt<=0){ toast('Montant invalide', true); return; }
-  if(amt>APP.vaultBal){ toast('Solde du coffre principal insuffisant', true); return; }
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  if(amt>APP.vaultBal){ toast(t('vault_err_main_balance'), true); return; }
   apiCall('/merchant?action=subvault-deposit','POST',{id:id,amount:amt},getToken()).then(function(res){
     if(res && res.success){
       APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
-      renderVault(); closeSheet(); toast('Dépôt effectué');
-    } else { toast((res&&res.message)||'Erreur', true); }
+      renderVault(); closeSheet(); toast(t('sv_deposit_done'));
+    } else { toast((res&&res.message)||t('err_generic'), true); }
   });
 }
 function shSVWithdraw(b, id){
   var sv=findSubVault(id); if(!sv) return;
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'" : <strong>'+fmt(sv.amt)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">Retour vers le coffre principal</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">Retirer</button>';
+    +'<div class="frow"><label class="flabel">'+t('sv_back_to_main')+'</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">'+t('btn_withdraw')+'</button>';
 }
 function reqSVWithdraw(id){
   var sv=findSubVault(id); if(!sv) return;
   var amt=parseFloat(document.getElementById('svw-amt').value)||0;
-  if(amt<=0){ toast('Montant invalide', true); return; }
-  if(amt>sv.amt){ toast('Solde du sous-compte insuffisant', true); return; }
-  requirePin('Retrait "'+sv.name+'" '+fmt(amt)+' F', function(){
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  if(amt>sv.amt){ toast(t('sv_err_balance'), true); return; }
+  requirePin(t('sv_withdraw_pin').replace('{name}',sv.name).replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=subvault-withdraw','POST',{id:id,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
       if(res && res.success){
         APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
-        renderVault(); toast('Retrait effectué');
-      } else { toast((res&&res.message)||'Erreur', true); }
+        renderVault(); toast(t('sv_withdraw_done'));
+      } else { toast((res&&res.message)||t('err_generic'), true); }
     });
   });
 }
 function doDeleteSubVault(id){
   var sv=findSubVault(id); if(!sv) return;
-  if(!confirm('Supprimer "'+sv.name+'" ? Le solde ('+fmt(sv.amt)+' F) revient au coffre principal.')) return;
+  if(!confirm(t('sv_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)))) return;
   apiCall('/merchant?action=subvault-delete','POST',{id:id},getToken()).then(function(res){
     if(res && res.success){
       APP.vaultBal=res.data.vault_balance;
       APP.subVaults=APP.subVaults.filter(function(s){ return s.id!==id; });
-      renderVault(); toast('Sous-compte supprimé');
-    } else { toast((res&&res.message)||'Erreur', true); }
+      renderVault(); toast(t('sv_deleted'));
+    } else { toast((res&&res.message)||t('err_generic'), true); }
   });
 }
 
 // ── CHANGER LE PIN ──
 function shChangePin(b){
-  b.innerHTML='<div class="frow"><label class="flabel">PIN actuel</label><input class="finput" id="cp-cur" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
-    +'<div class="frow"><label class="flabel">Nouveau PIN</label><input class="finput" id="cp-new" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
-    +'<div class="frow"><label class="flabel">Confirmer le nouveau PIN</label><input class="finput" id="cp-new2" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doChangePin()">Valider</button>';
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('cp_current')+'</label><input class="finput" id="cp-cur" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">'+t('cp_new')+'</label><input class="finput" id="cp-new" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">'+t('cp_confirm_new')+'</label><input class="finput" id="cp-new2" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doChangePin()">'+t('btn_validate')+'</button>';
 }
 function doChangePin(){
   var cur=document.getElementById('cp-cur').value.trim();
   var np=document.getElementById('cp-new').value.trim();
   var np2=document.getElementById('cp-new2').value.trim();
-  if(!/^\d{4}$/.test(cur)||!/^\d{4}$/.test(np)){ toast('PIN invalide (4 chiffres)', true); return; }
-  if(np!==np2){ toast('Les nouveaux PIN ne correspondent pas', true); return; }
+  if(!/^\d{4}$/.test(cur)||!/^\d{4}$/.test(np)){ toast(t('cp_err_invalid'), true); return; }
+  if(np!==np2){ toast(t('cp_err_mismatch'), true); return; }
   checkPinLocal(cur).then(function(match){
     var proceed = function(){
       apiCall('/merchant?action=change-pin','POST',{current_pin:cur,new_pin:np},getToken()).then(function(res){
         if(res && res.success){
-          setPin(np).then(function(){ save(); closeSheet(); toast('PIN mis à jour'); });
-        } else { toast((res&&res.message)||'Erreur', true); }
+          setPin(np).then(function(){ save(); closeSheet(); toast(t('cp_updated')); });
+        } else { toast((res&&res.message)||t('err_generic'), true); }
       });
     };
     proceed();
@@ -1400,6 +1644,8 @@ function doChangePin(){
 
 // ── EXPORTER MON HISTORIQUE ──
 var EXPORT_MONTHS_FR=['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov','Dec'];
+var EXPORT_MONTHS_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getExportMonths(){ return APP.lang==='en' ? EXPORT_MONTHS_EN : EXPORT_MONTHS_FR; }
 function shExportHistory(b){
   window._exportPeriod='month';
   renderExportScreen(b);
@@ -1407,7 +1653,8 @@ function shExportHistory(b){
 function exportMonthYearSelect(idPrefix, defaultMonthIdx, defaultYear){
   var curYear=new Date().getFullYear();
   var monthOpts='', yearOpts='';
-  for(var m=0;m<12;m++){ monthOpts+='<option value="'+(m+1)+'"'+(m===defaultMonthIdx?' selected':'')+'>'+EXPORT_MONTHS_FR[m]+'</option>'; }
+  var months=getExportMonths();
+  for(var m=0;m<12;m++){ monthOpts+='<option value="'+(m+1)+'"'+(m===defaultMonthIdx?' selected':'')+'>'+months[m]+'</option>'; }
   for(var y=curYear-5;y<=curYear;y++){ yearOpts+='<option value="'+y+'"'+(y===defaultYear?' selected':'')+'>'+y+'</option>'; }
   return '<select id="'+idPrefix+'-m" class="finput" style="flex:1">'+monthOpts+'</select>'
     +'<select id="'+idPrefix+'-y" class="finput" style="flex:1">'+yearOpts+'</select>';
@@ -1415,25 +1662,25 @@ function exportMonthYearSelect(idPrefix, defaultMonthIdx, defaultYear){
 function renderExportScreen(b){
   var period=window._exportPeriod;
   var now=new Date();
-  var html = '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">Choisissez la période à exporter</div>'
+  var html = '<div style="font-size:13px;color:var(--t2);margin-bottom:14px">'+t('exp_choose_period')+'</div>'
     +'<div style="display:flex;background:var(--div);border-radius:10px;padding:3px;margin-bottom:16px">'
-    +'<button onclick="setExportPeriod(\'month\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='month'?'var(--card)':'none')+';color:'+(period==='month'?'var(--t1)':'var(--t3)')+'">Ce mois</button>'
-    +'<button onclick="setExportPeriod(\'custom\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='custom'?'var(--card)':'none')+';color:'+(period==='custom'?'var(--t1)':'var(--t3)')+'">Période</button>'
-    +'<button onclick="setExportPeriod(\'all\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='all'?'var(--card)':'none')+';color:'+(period==='all'?'var(--t1)':'var(--t3)')+'">Tout</button>'
+    +'<button onclick="setExportPeriod(\'month\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='month'?'var(--card)':'none')+';color:'+(period==='month'?'var(--t1)':'var(--t3)')+'">'+t('exp_period_month')+'</button>'
+    +'<button onclick="setExportPeriod(\'custom\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='custom'?'var(--card)':'none')+';color:'+(period==='custom'?'var(--t1)':'var(--t3)')+'">'+t('exp_period_custom')+'</button>'
+    +'<button onclick="setExportPeriod(\'all\')" style="flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(period==='all'?'var(--card)':'none')+';color:'+(period==='all'?'var(--t1)':'var(--t3)')+'">'+t('exp_period_all')+'</button>'
     +'</div>';
   if(period==='custom'){
-    html += '<div style="font-size:11px;color:var(--t3);margin-bottom:4px">Du</div>'
+    html += '<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+t('exp_from')+'</div>'
       +'<div style="display:flex;gap:8px;margin-bottom:12px">'+exportMonthYearSelect('exp-from', now.getMonth()-1<0?0:now.getMonth()-1, now.getFullYear())+'</div>'
-      +'<div style="font-size:11px;color:var(--t3);margin-bottom:4px">Au</div>'
+      +'<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+t('exp_to')+'</div>'
       +'<div style="display:flex;gap:8px;margin-bottom:16px">'+exportMonthYearSelect('exp-to', now.getMonth(), now.getFullYear())+'</div>';
   }
   var busy=!!window._exportBusy;
   var disAttr = busy ? ' disabled' : '';
   var csvStyle = 'margin-bottom:10px' + (busy?';opacity:.5':'');
   var pdfStyle = busy ? 'opacity:.5' : '';
-  html += '<div style="font-size:13px;color:var(--t2);margin:8px 0 12px">Choisissez le format</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff;'+csvStyle+'"'+disAttr+' onclick="doExport(\'xlsx\')">'+(busy?'Préparation...':'Excel (.xlsx)')+'</button>'
-    +'<button class="btn-g" style="background:var(--bg);color:var(--t1);border:.5px solid var(--bord);'+pdfStyle+'"'+disAttr+' onclick="doExport(\'pdf\')">'+(busy?'Préparation...':'PDF')+'</button>';
+  html += '<div style="font-size:13px;color:var(--t2);margin:8px 0 12px">'+t('exp_choose_format')+'</div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff;'+csvStyle+'"'+disAttr+' onclick="doExport(\'xlsx\')">'+(busy?t('exp_preparing'):t('exp_format_xlsx'))+'</button>'
+    +'<button class="btn-g" style="background:var(--bg);color:var(--t1);border:.5px solid var(--bord);'+pdfStyle+'"'+disAttr+' onclick="doExport(\'pdf\')">'+(busy?t('exp_preparing'):t('exp_format_pdf'))+'</button>';
   b.innerHTML = html;
 }
 function setExportPeriod(p){
@@ -1448,18 +1695,18 @@ function doExport(format){
   if(period==='custom'){
     var fm=document.getElementById('exp-from-m'), fy=document.getElementById('exp-from-y');
     var tm=document.getElementById('exp-to-m'), ty=document.getElementById('exp-to-y');
-    if(!fm||!fy||!tm||!ty){ toast('Sélectionnez une période', true); return; }
+    if(!fm||!fy||!tm||!ty){ toast(t('exp_select_period'), true); return; }
     var from=fy.value+'-'+String(fm.value).padStart(2,'0');
     var to=ty.value+'-'+String(tm.value).padStart(2,'0');
-    if(from>to){ toast('Période invalide (du > au)', true); return; }
+    if(from>to){ toast(t('exp_invalid_range'), true); return; }
     url += '&from='+from+'&to='+to;
   }
   window._exportBusy=true;
   var sh=document.getElementById('sh-body');
   if(sh) renderExportScreen(sh);
-  toast('Préparation du fichier...');
+  toast(t('exp_preparing_file'));
   fetch(url, { headers: { 'Authorization': 'Bearer '+tok } }).then(function(r){
-    if(!r.ok) throw new Error('Erreur serveur');
+    if(!r.ok) throw new Error(t('exp_server_error'));
     return r.blob();
   }).then(function(blob){
     var url2=URL.createObjectURL(blob);
@@ -1470,9 +1717,9 @@ function doExport(format){
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url2); }, 1000);
-    toast('Téléchargement lancé');
+    toast(t('exp_download_started'));
   }).catch(function(){
-    toast('Erreur lors de l\'export', true);
+    toast(t('exp_err_generic'), true);
   }).finally(function(){
     window._exportBusy=false;
     var sh2=document.getElementById('sh-body');
@@ -1482,53 +1729,54 @@ function doExport(format){
 
 // ── MES APPAREILS ──
 function shDevices(b){
-  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">Chargement...</div>';
+  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">'+t('loading')+'</div>';
   loadDevicesList(b);
 }
 function loadDevicesList(b){
   apiCall('/merchant?action=devices','GET',null,getToken()).then(function(res){
-    if(!res || !res.success || !res.data){ b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Erreur de chargement</div>'; return; }
+    if(!res || !res.success || !res.data){ b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('dev_load_error')+'</div>'; return; }
     var devices = res.data.devices||[];
     if(!devices.length){
-      b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">Aucun appareil enregistré pour le moment.</div>';
+      b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">'+t('dev_none')+'</div>';
       return;
     }
     var html = '';
+    var loc = APP.lang==='en'?'en-US':'fr-FR';
     devices.forEach(function(d){
       var ua = (d.user_agent||'').length>60 ? d.user_agent.slice(0,60)+'…' : (d.user_agent||'?');
-      var when = new Date(d.last_seen).toLocaleString('fr-FR');
+      var when = new Date(d.last_seen).toLocaleString(loc);
       var statusHtml;
       if(d.is_current){
-        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--g)">Cet appareil</span>';
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--g)">'+t('dev_this_one')+'</span>';
       } else if(d.revoked){
-        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--t3)">Déconnecté</span>';
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--t3)">'+t('dev_revoked')+'</span>';
       } else {
-        statusHtml = '<button onclick="doRevokeDevice(&apos;'+d.device_id+'&apos;)" style="background:var(--rl);color:var(--rd);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Déconnecter</button>';
+        statusHtml = '<button onclick="doRevokeDevice(&apos;'+d.device_id+'&apos;)" style="background:var(--rl);color:var(--rd);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'+t('dev_disconnect_btn')+'</button>';
       }
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:.5px solid var(--bord);border-radius:12px;margin-bottom:8px;'+(d.revoked?'opacity:.5':'')+'">'
         + '<div style="min-width:0">'
         + '<div style="font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ua+'</div>'
-        + '<div style="font-size:11px;color:var(--t3);margin-top:2px">Vu le '+when+'</div>'
+        + '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('dev_seen_on')+when+'</div>'
         + '</div>'
         + '<div style="flex-shrink:0;margin-left:10px">'+statusHtml+'</div>'
         + '</div>';
     });
     b.innerHTML = html;
   }).catch(function(){
-    b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Erreur de chargement</div>';
+    b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('dev_load_error')+'</div>';
   });
 }
 function doRevokeDevice(deviceId){
-  if(!confirm('Déconnecter cet appareil ? Il devra se reconnecter avec le PIN pour continuer.')) return;
+  if(!confirm(t('dev_revoke_confirm'))) return;
   apiCall('/merchant?action=revoke-device','POST',{device_id:deviceId},getToken()).then(function(res){
     if(res && res.success){
-      toast('Appareil déconnecté');
+      toast(t('dev_revoked_toast'));
       var b = document.getElementById('sh-body');
       if(b) loadDevicesList(b);
     } else {
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||t('err_generic'), true);
     }
-  }).catch(function(){ toast('Erreur', true); });
+  }).catch(function(){ toast(t('err_generic'), true); });
 }
 
 // ── MES COMPTES ("Ajouter un compte") ──
@@ -1538,11 +1786,11 @@ function shAccountSwitch(b){
   var keys = Object.keys(accounts);
   var html = '';
   if(!keys.length){
-    html += '<div style="text-align:center;padding:20px;color:var(--t3);font-size:13px">Aucun compte enregistré pour le moment.</div>';
+    html += '<div style="text-align:center;padding:20px;color:var(--t3);font-size:13px">'+t('acc_none')+'</div>';
   }
   keys.forEach(function(key){
     var acc = accounts[key];
-    var n = acc.businessName || 'Boutique';
+    var n = acc.businessName || t('acc_default_name');
     var isActive = (key===activeKey);
     html += '<div onclick="switchToAccount(\''+key+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div);cursor:pointer">'
       +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--gdd);flex-shrink:0">'+ini(n)+'</div>'
@@ -1553,7 +1801,7 @@ function shAccountSwitch(b){
   });
   html += '<div onclick="closeSheet();startAddAccount()" style="display:flex;align-items:center;gap:12px;padding:14px 0 4px;cursor:pointer;color:var(--g)">'
     +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:700;color:var(--g)">+</div>'
-    +'<div style="font-size:14px;font-weight:700">Ajouter un compte</div></div>';
+    +'<div style="font-size:14px;font-weight:700">'+t('profil_add_account')+'</div></div>';
   b.innerHTML = html;
 }
 // Bascule vers un autre compte marchand deja enregistre sur cet appareil.
@@ -1583,8 +1831,8 @@ function confirmRemoveAccount(ev, key){
   if(ev) ev.stopPropagation();
   var accounts = getAccountsStore();
   var acc = accounts[key];
-  var n = (acc && acc.businessName) || 'ce compte';
-  if(!confirm('Retirer '+n+' de cet appareil ?')) return;
+  var n = (acc && acc.businessName) || t('acc_default_this');
+  if(!confirm(t('acc_remove_confirm').replace('{name}',n))) return;
   removeAccountAndHandleUI(key);
 }
 function removeAccountAndHandleUI(key){
@@ -1625,7 +1873,7 @@ function urlBase64ToUint8Array(base64String){
 function renderNotifSettingsHTML(){
   var checked = APP.pushEnabled===true;
   return '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0">'
-    +'<div style="flex:1;padding-right:12px"><div style="font-size:14px;font-weight:600">Notifications de vente</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Recevez une alerte à chaque vente, même app fermée</div></div>'
+    +'<div style="flex:1;padding-right:12px"><div style="font-size:14px;font-weight:600">'+t('notif_sale_label')+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('notif_sale_desc')+'</div></div>'
     +'<div onclick="toggleMerchantPush()" style="width:44px;height:26px;border-radius:13px;background:'+(checked?'var(--g)':'var(--bord)')+';position:relative;cursor:pointer;flex-shrink:0;transition:background .2s">'
     +'<div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:'+(checked?'21px':'3px')+';transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>'
     +'</div></div>';
@@ -1635,10 +1883,10 @@ function toggleMerchantPush(){
   if(APP.pushEnabled===true) disableMerchantPush(); else enableMerchantPush();
 }
 function enableMerchantPush(){
-  if(!('serviceWorker' in navigator) || !('PushManager' in window)){ toast('Notifications non supportées sur cet appareil', true); return; }
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){ toast(t('notif_unsupported'), true); return; }
   navigator.serviceWorker.ready.then(function(reg){
     return Notification.requestPermission().then(function(perm){
-      if(perm!=='granted'){ toast('Autorisation refusée', true); throw new Error('denied'); }
+      if(perm!=='granted'){ toast(t('notif_denied'), true); throw new Error('denied'); }
       return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
     });
   }).then(function(sub){
@@ -1648,9 +1896,9 @@ function enableMerchantPush(){
     if(res && res.success){
       APP.pushEnabled = true; save();
       var sh=document.getElementById('sh-body'); if(sh) sh.innerHTML=renderNotifSettingsHTML();
-      toast('Notifications activées');
+      toast(t('notif_enabled'));
     } else if(res){
-      toast((res&&res.message)||'Erreur', true);
+      toast((res&&res.message)||t('err_generic'), true);
     }
   }).catch(function(){});
 }
@@ -1662,8 +1910,8 @@ function disableMerchantPush(){
   }).then(function(){
     APP.pushEnabled = false; save();
     var sh=document.getElementById('sh-body'); if(sh) sh.innerHTML=renderNotifSettingsHTML();
-    toast('Notifications désactivées');
-  }).catch(function(){ toast('Erreur', true); });
+    toast(t('notif_disabled'));
+  }).catch(function(){ toast(t('err_generic'), true); });
 }
 
 // ── BIOMETRIE (WebAuthn local, meme principe que ROM_MONEY) ──
@@ -1718,29 +1966,29 @@ function lgBio(){
     launchApp();
   }).catch(function(){
     if(btn) btn.innerHTML=original;
-    toast('Empreinte non reconnue, utilisez votre PIN', true);
+    toast(t('bio_fingerprint_unrecognized'), true);
   });
 }
 function updateBioRowLabel(){
   var el=document.getElementById('prof-bio-label');
   if(!el) return;
   var active = APP.bioEnabled && APP.bioCredId;
-  el.textContent = 'Biométrie : ' + (active?'Activée':'Désactivée');
+  el.textContent = t('profil_bio_prefix') + (active?t('bio_on'):t('bio_off'));
 }
 function toggleBio(){
-  if(!webauthnSupported()){ toast('Biométrie non disponible sur cet appareil', true); return; }
+  if(!webauthnSupported()){ toast(t('bio_unavailable'), true); return; }
   if(APP.bioEnabled && APP.bioCredId){
     APP.bioEnabled=false; APP.bioCredId=''; save();
     updateBioRowLabel();
-    toast('Biométrie désactivée');
+    toast(t('bio_disabled_toast'));
   } else {
-    toast('Vérification biométrique...');
+    toast(t('bio_verifying'));
     registerBioCredential().then(function(){
       APP.bioEnabled=true; save();
       updateBioRowLabel();
-      toast('Biométrie activée');
+      toast(t('bio_enabled_toast'));
     }).catch(function(){
-      toast('Biométrie indisponible sur cet appareil', true);
+      toast(t('bio_unavailable_device'), true);
     });
   }
 }
@@ -1772,7 +2020,7 @@ function renderAppearanceScreen(b){
   var sunIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
   var moonIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
   var systemIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
-  b.innerHTML = row('light','Clair',sunIcon) + row('dark','Sombre',moonIcon) + row('system','Système',systemIcon);
+  b.innerHTML = row('light',t('theme_light'),sunIcon) + row('dark',t('theme_dark'),moonIcon) + row('system',t('theme_system'),systemIcon);
 }
 function shAppearance(b){ renderAppearanceScreen(b); }
 function setAppTheme(id){
@@ -1782,10 +2030,33 @@ function setAppTheme(id){
   renderAppearanceScreen(document.getElementById('sh-body'));
 }
 
+// ── LANGUE (FR/EN) ──
+function renderLanguageScreen(b){
+  var current = APP.lang || 'fr';
+  function row(id, label){
+    var selected = (current===id);
+    return '<div onclick="setAppLang(\''+id+'\')" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid '+(selected?'var(--g)':'var(--bord)')+';border-radius:14px;margin-bottom:10px;cursor:pointer;background:var(--card)">'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--t1)">'+label+'</span>'
+      +'<span style="width:20px;height:20px;border-radius:50%;border:2px solid '+(selected?'var(--g)':'var(--t3)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +(selected?'<span style="width:10px;height:10px;border-radius:50%;background:var(--g)"></span>':'')
+      +'</span></div>';
+  }
+  b.innerHTML = row('fr', t('lang_fr')) + row('en', t('lang_en'));
+}
+function shLanguage(b){ renderLanguageScreen(b); }
+function setAppLang(id){
+  APP.lang = id;
+  save();
+  applyI18n();
+  updateBioRowLabel();
+  renderLanguageScreen(document.getElementById('sh-body'));
+}
+
 // ── DEMARRAGE ──
 window.addEventListener('load', function(){
   var found = load();
   applyTheme();
+  applyI18n();
   setTimeout(function(){
     if(found && APP.token && APP.merchantId){
       launchApp();
