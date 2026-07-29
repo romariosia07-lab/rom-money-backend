@@ -248,13 +248,19 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div class="qa-grid">
-      <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico">📷</div><span class="qa-lbl">Encaisser</span></button>
       <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico">🔳</div><span class="qa-lbl">Mon QR</span></button>
       <button class="qa" onclick="openSheet('virement')"><div class="qa-ico">💸</div><span class="qa-lbl">Virement</span></button>
       <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl">Coffre</span></button>
     </div>
 
     <div class="page" id="pg-home">
+      <div class="section">
+        <div class="section-title">Ventes récentes <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">Tout voir</a></div>
+        <div class="card" id="home-tx-list"><div class="empty-note">Chargement...</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-stats" style="display:none">
       <div class="section">
         <div class="section-title">Tableau de bord</div>
         <div style="display:flex;gap:8px">
@@ -274,14 +280,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
             <div style="font-size:10px;color:var(--t3)" id="db-month-cnt">—</div>
           </div>
         </div>
-        <div class="card" style="margin-top:8px;padding:14px">
+        <div class="card" style="margin-top:8px;padding:14px;position:relative">
           <div style="font-size:12px;color:var(--t2);margin-bottom:10px">Ventes des 7 derniers jours</div>
-          <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px"></div>
+          <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px;position:relative"></div>
         </div>
-      </div>
-      <div class="section">
-        <div class="section-title">Ventes récentes <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700">Tout voir</a></div>
-        <div class="card" id="home-tx-list"><div class="empty-note">Chargement...</div></div>
       </div>
     </div>
 
@@ -329,7 +331,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
   <div class="bottom-nav">
     <button class="nb on" id="nb-home" onclick="navGo('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span>Accueil</span></button>
-    <button class="nb" id="nb-coffre" onclick="navGo('coffre')"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Coffre</span></button>
+    <button class="nb" id="nb-stats" onclick="navGo('stats')"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Stat</span></button>
     <button class="nb" id="nb-historique" onclick="navGo('historique')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span>Historique</span></button>
     <button class="nb" id="nb-profil" onclick="navGo('profil')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profil</span></button>
   </div>
@@ -614,11 +616,35 @@ function renderDashboardChart(daily){
   days.forEach(function(d){
     var barH=Math.max(Math.round((d.v/max)*54),d.v>0?3:0);
     h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:70px">'
-      +'<div style="width:100%;max-width:22px;height:'+barH+'px;background:'+(d.v>0?'var(--g)':'var(--div)')+';border-radius:4px 4px 0 0"></div>'
+      +'<div onclick="showDbTooltip(event,'+d.v+')" style="width:100%;max-width:22px;height:'+barH+'px;background:'+(d.v>0?'var(--g)':'var(--div)')+';border-radius:4px 4px 0 0;cursor:pointer"></div>'
       +'<div style="font-size:9px;color:var(--t3);margin-top:4px;text-transform:capitalize">'+d.label+'</div>'
       +'</div>';
   });
   el.innerHTML=h;
+}
+function showDbTooltip(ev,value){
+  ev.stopPropagation();
+  var chart=document.getElementById('db-chart');
+  if(!chart) return;
+  var tip=document.getElementById('db-tooltip');
+  if(!tip){
+    tip=document.createElement('div');
+    tip.id='db-tooltip';
+    tip.style.cssText='position:absolute;background:var(--gdd);color:#fff;font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px;white-space:nowrap;pointer-events:none;z-index:20;transform:translate(-50%,-100%);box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    chart.appendChild(tip);
+  }
+  var bar=ev.currentTarget;
+  tip.style.left=(bar.offsetLeft+bar.offsetWidth/2)+'px';
+  tip.style.top=(bar.offsetTop-6)+'px';
+  tip.textContent=fmt(value)+' F';
+  tip.style.display='block';
+}
+if(!window._dbTooltipDocListener){
+  window._dbTooltipDocListener=true;
+  document.addEventListener('click', function(){
+    var tip=document.getElementById('db-tooltip');
+    if(tip) tip.style.display='none';
+  });
 }
 function updateBalDisplay(){
   document.getElementById('hdr-balance').textContent = fmt(APP.balance);
@@ -648,7 +674,7 @@ function doLogout(){
 }
 
 // ── NAVIGATION ──
-var PAGES=['home','coffre','historique','profil'];
+var PAGES=['home','coffre','historique','profil','stats'];
 function navGo(p){
   PAGES.forEach(function(pg){
     var el=document.getElementById('pg-'+pg); if(el) el.style.display = pg===p?'block':'none';
@@ -657,7 +683,7 @@ function navGo(p){
   document.getElementById('main-scroll').scrollTop=0;
   if(p==='coffre'){ renderVault(); }
   if(p==='historique'){ refreshHistory(true); }
-  if(p==='home'){ loadDashboardStats(); }
+  if(p==='stats'){ loadDashboardStats(); }
 }
 
 // ── HISTORIQUE / TRANSACTIONS ──
@@ -786,7 +812,7 @@ function refreshHistory(full){
 
 // ── SHEET ──
 var SHEET_TITLES={
-  encaisser:'Encaisser', monqr:'Mon QR', virement:'Virement',
+  monqr:'Mon QR', virement:'Virement',
   vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
   vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN'
 };
@@ -803,8 +829,7 @@ function closeSheet(){
   stopMerchantScan();
 }
 function buildSheet(type, b, extra){
-  if(type==='encaisser') shEncaisser(b);
-  else if(type==='monqr') shMonQr(b);
+  if(type==='monqr') shMonQr(b);
   else if(type==='virement') shVirement(b);
   else if(type==='vdeposit') shVDeposit(b);
   else if(type==='vwithdraw') shVWithdraw(b);
@@ -815,14 +840,45 @@ function buildSheet(type, b, extra){
   else if(type==='change-pin') shChangePin(b);
 }
 
-// ── MON QR ──
+// ── MON QR (2 onglets : Mon QR / Scanner — meme principe que le Wallet de ROM_MONEY) ──
 function shMonQr(b){
-  b.innerHTML='<div style="text-align:center;padding:10px 0 20px">'
-    +'<div id="mqr-box" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;border:.5px solid var(--bord)"></div>'
-    +'<div style="font-size:12px;color:var(--t2);margin-top:14px">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff;margin-top:16px" onclick="showQrFullscreen()">Afficher en plein écran</button>'
-    +'</div>';
+  var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
+  var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
+  b.innerHTML = '<div style="display:flex;gap:0;background:#f4f4f4;border-radius:12px;padding:3px;margin-bottom:16px">'
+    +'<button id="mqr-tab-qr" onclick="switchMonQrTab(\'qr\')" style="'+s1+'">Mon QR</button>'
+    +'<button id="mqr-tab-scan" onclick="switchMonQrTab(\'scan\')" style="'+s2+'">Scanner</button>'
+    +'</div>'
+    +'<div id="mqr-qr-view" style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">'
+    +'<div style="font-size:12px;color:var(--t2);text-align:center">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
+    +'<div id="mqr-box" style="padding:16px;background:#fff;border-radius:16px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
+    +'<button class="btn-g" style="background:var(--g);color:#fff;width:100%" onclick="showQrFullscreen()">Afficher en plein écran</button>'
+    +'</div>'
+    +'<div id="mqr-scan-view" style="display:none"></div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
+}
+function switchMonQrTab(tab){
+  var qrV=document.getElementById('mqr-qr-view'), scV=document.getElementById('mqr-scan-view');
+  var tQR=document.getElementById('mqr-tab-qr'), tSC=document.getElementById('mqr-tab-scan');
+  var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
+  var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
+  if(tab==='qr'){
+    if(qrV) qrV.style.display='flex';
+    if(scV) scV.style.display='none';
+    if(tQR) tQR.style.cssText=s1;
+    if(tSC) tSC.style.cssText=s2;
+    stopMerchantScan();
+  } else {
+    if(qrV) qrV.style.display='none';
+    if(scV){
+      scV.style.display='block';
+      scV.innerHTML='<div class="scan-wrap"><video id="enc-vid" autoplay playsinline muted style="width:100%;display:block"></video><canvas id="enc-canvas" style="display:none"></canvas></div>'
+        +'<div id="enc-msg" style="text-align:center;font-size:12px;color:var(--t2);margin-bottom:10px">Demande d\'accès à la caméra...</div>'
+        +'<div id="enc-form"></div>';
+      startMerchantScan();
+    }
+    if(tQR) tQR.style.cssText=s2;
+    if(tSC) tSC.style.cssText=s1;
+  }
 }
 function merchantQrText(){ return 'M|'+APP.merchantId+'|'+APP.qrSeed; }
 function drawMerchantQR(elId, size){
@@ -837,14 +893,8 @@ function showQrFullscreen(){
   document.getElementById('qr-full').classList.add('on');
 }
 
-// ── ENCAISSER (scanner un client) ──
+// ── ENCAISSER (scanner un client, onglet "Scanner" de la sheet Mon QR) ──
 var encStream=null, encRAF=null;
-function shEncaisser(b){
-  b.innerHTML='<div class="scan-wrap"><video id="enc-vid" autoplay playsinline muted style="width:100%;display:block"></video><canvas id="enc-canvas"></canvas></div>'
-    +'<div id="enc-msg" style="text-align:center;font-size:12px;color:var(--t2);margin-bottom:10px">Demande d\'accès à la caméra...</div>'
-    +'<div id="enc-form"></div>';
-  startMerchantScan();
-}
 function stopMerchantScan(){
   if(encRAF){ cancelAnimationFrame(encRAF); encRAF=null; }
   if(encStream){ encStream.getTracks().forEach(function(t){ t.stop(); }); encStream=null; }
@@ -873,7 +923,7 @@ function encScanLoop(){
 function onEncaisserScanned(text){
   var parts=text.split('|');
   var phone = parts.length===3 ? parts[2] : text.replace(/\s/g,'');
-  if(!phone || phone.length<8){ toast('QR non reconnu', true); openSheet('encaisser'); return; }
+  if(!phone || phone.length<8){ toast('QR non reconnu', true); switchMonQrTab('scan'); return; }
   var form=document.getElementById('enc-form');
   if(!form) return;
   window._encPayerPhone = phone;
