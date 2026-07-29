@@ -1087,6 +1087,8 @@ function route_merchant($action) {
         'resolve-payer'      => merchant_resolve_payer(),
         'history'            => merchant_tx_history(),
         'stats'              => merchant_stats(),
+        'export-xlsx'        => merchant_export_xlsx(),
+        'export-pdf'         => merchant_export_pdf(),
         'change-pin'         => merchant_change_pin(),
         default              => fail('Action inconnue',404)
     };
@@ -1432,6 +1434,140 @@ function merchant_subvault_delete() {
         $bal = (float)q("SELECT vault_balance FROM merchant_wallets WHERE id=?",[$wid])->fetchColumn();
         ok(['vault_balance'=>$bal],'Sous-coffre supprime');
     } catch(Exception $e) { db()->rollBack(); fail('Erreur suppression',500); }
+}
+
+// Meme mecanique que export_get_rows()/export_xlsx()/export_pdf() cote
+// personnel, adaptee aux colonnes merchant_wallet_id (sender/receiver) et
+// sans les champs de frais (les operations marchand sont gratuites).
+function merchant_export_get_rows($pl, $period, $from=null, $to=null) {
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    $where = "(t.sender_merchant_wallet_id=? OR t.receiver_merchant_wallet_id=?) AND t.type!='fee'";
+    $params = [$wid,$wid];
+    if($period==='month'){
+        $where .= " AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW()) AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())";
+    } elseif($period==='custom' && preg_match('/^\d{4}-\d{2}$/',(string)$from) && preg_match('/^\d{4}-\d{2}$/',(string)$to)){
+        $where .= " AND t.created_at >= ?::date AND t.created_at < (date_trunc('month', ?::date) + interval '1 month')";
+        $params[] = $from.'-01';
+        $params[] = $to.'-01';
+    }
+    $countRow = q("SELECT COUNT(*) cnt FROM transactions t WHERE $where",$params)->fetch();
+    $total = (int)($countRow['cnt']??0);
+    $LIMIT = 5000;
+    $sql = "SELECT t.*,
+        CASE WHEN t.receiver_merchant_wallet_id=? THEN 'credit' ELSE 'debit' END as direction,
+        su.full_name sender_name, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE $where ORDER BY t.created_at DESC LIMIT $LIMIT";
+    $rows = q($sql, array_merge([$wid],$params))->fetchAll();
+    return ['rows'=>$rows,'total'=>$total,'truncated'=>$total>$LIMIT,'limit'=>$LIMIT];
+}
+function merchant_export_type_label($type, $isCredit) {
+    $map = ['merchant_payment'=>$isCredit?'Vente':'Paiement','merchant_withdraw'=>'Virement envoye',
+            'vault_deposit'=>'Depot coffre','vault_withdraw'=>'Retrait coffre'];
+    return $map[$type] ?? $type;
+}
+function merchant_export_xlsx() {
+    $pl = merchant_auth();
+    $periodRaw = $_GET['period']??'month';
+    $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
+    $from = $_GET['from']??null; $to = $_GET['to']??null;
+    $res = merchant_export_get_rows($pl, $period, $from, $to);
+    $rows = $res['rows'];
+
+    $data = [];
+    if($res['truncated']){
+        $data[] = [[ 'Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total.', 0, 's' ]];
+    }
+    $data[] = [ ['Date',1,'s'], ['Type',1,'s'], ['Contact',1,'s'], ['Montant',1,'s'], ['Reference',1,'s'], ['Statut',1,'s'] ];
+    foreach($rows as $t){
+        $isCredit = $t['direction']==='credit';
+        $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
+        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:'-');
+        $data[] = [
+            [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
+            [ merchant_export_type_label($t['type'],$isCredit), 2, 's' ],
+            [ $contact, 2, 's' ],
+            [ number_format($montant,0,',',' ').' F', 2, 's' ],
+            [ $t['reference'], 2, 's' ],
+            [ $t['status'], 2, 's' ]
+        ];
+    }
+    $sheetXml = xlsx_build_sheet($data);
+    $xlsxData = xlsx_build($sheetXml);
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_business_historique.xlsx"');
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
+    exit;
+}
+function merchant_export_pdf() {
+    $pl = merchant_auth();
+    $periodRaw = $_GET['period']??'month';
+    $period = in_array($periodRaw,['month','all','custom']) ? $periodRaw : 'month';
+    $from = $_GET['from']??null; $to = $_GET['to']??null;
+    $res = merchant_export_get_rows($pl, $period, $from, $to);
+    $rows = $res['rows'];
+    $m = q("SELECT business_name,phone_number FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+
+    $periodeLabel = 'Ce mois';
+    if($period==='all') $periodeLabel = "Tout l'historique";
+    elseif($period==='custom'){
+        $fmtYm = function($ym){ $p=explode('-',(string)$ym); return count($p)===2 ? $p[1].'-'.$p[0] : $ym; };
+        $periodeLabel = 'du '.$fmtYm($from).' au '.$fmtYm($to);
+    }
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,pdf_str('ROM_BUSINESS - Releve des ventes'),0,1);
+    $infoTopY = $pdf->GetY();
+    $logoPath = __DIR__.'/business/logo.jpg';
+    if(file_exists($logoPath)){
+        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+    }
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(150,6,pdf_str('Boutique : '.($m['business_name']?:'').' ('.$m['phone_number'].')'),0,1);
+    $pdf->Cell(150,6,pdf_str('Periode : '.$periodeLabel),0,1);
+    $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    if(file_exists($logoPath)){
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+    }
+    if($res['truncated']){
+        $pdf->SetTextColor(200,0,0);
+        $pdf->Cell(0,6,pdf_str('Limite aux '.$res['limit'].' dernieres transactions sur '.$res['total'].' au total.'),0,1);
+        $pdf->SetTextColor(0,0,0);
+    }
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',9);
+    $pdf->SetFillColor(230,241,251);
+    $w = [30,34,50,32,34,28];
+    $headers = ['Date','Type','Contact','Montant','Reference','Statut'];
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
+    $pdf->Ln();
+
+    $pdf->SetFont('Arial','',8);
+    foreach($rows as $t){
+        $isCredit = $t['direction']==='credit';
+        $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
+        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:'-');
+        $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
+        $pdf->Cell($w[1],7,pdf_str(merchant_export_type_label($t['type'],$isCredit)),1);
+        $pdf->Cell($w[2],7,substr(pdf_str($contact),0,26),1);
+        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
+        $pdf->Cell($w[4],7,pdf_str($t['reference']),1);
+        $pdf->Cell($w[5],7,pdf_str($t['status']),1);
+        $pdf->Ln();
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_business_releve.pdf"');
+    echo $pdf->Output('S');
+    exit;
 }
 
 function merchant_tx_history() {
