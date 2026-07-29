@@ -77,13 +77,19 @@ self.addEventListener('fetch', function(event){
 
   if(!isShellRequest) return;
 
+  // cache:'reload' force une revalidation reseau complete, sans jamais
+  // accepter la copie HTTP locale du navigateur - necessaire pour le CODE de
+  // l'app (index.html/manifest), qui doit toujours refleter le dernier
+  // deploiement. Applique uniquement a ces deux-la : le forcer aussi sur les
+  // images (favicon, icones, logo, header) ne fait que ralentir chaque
+  // ouverture de l'app pour un gain nul (ces images changent rarement, et le
+  // numero de cache ci-dessus - CACHE_NAME - suffit deja a les rafraichir
+  // quand elles changent vraiment).
+  var isCodeShell = req.mode === 'navigate' || url.pathname.endsWith('index.html') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('/');
+  var fetchOpts = isCodeShell ? {cache:'reload'} : {};
+
   event.respondWith(
-    // cache:'reload' force le navigateur a toujours revalider aupres du
-    // reseau (jamais servir une copie HTTP locale perimee), en plus de la
-    // logique "reseau prioritaire" du Service Worker lui-meme : sans ca, une
-    // mise a jour deployee pouvait rester invisible bien apres avoir ferme
-    // et rouvert l'app, tant que le cache HTTP du navigateur restait valide.
-    fetch(req, {cache:'reload'}).then(function(res){
+    fetch(req, fetchOpts).then(function(res){
       // Ne met en cache que les reponses completes et valides (200 OK pour
       // le meme-origine, ou opaque pour les CDN cross-origine sans header
       // CORS explicite). Une coupure reseau en plein telechargement peut
