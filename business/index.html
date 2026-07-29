@@ -858,12 +858,76 @@ function buildSheet(type, b, extra){
 
 // ── MON QR (affichage seul du QR marchand) ──
 function shMonQr(b){
+  var b1='flex:1;padding:11px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit';
+  var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
   b.innerHTML='<div style="text-align:center;padding:10px 0 20px">'
     +'<div id="mqr-box" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
     +'<div style="font-size:12px;color:var(--t2);margin-top:14px">Votre client scanne ce code pour vous payer directement — sans frais.</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff;margin-top:16px" onclick="showQrFullscreen()">Afficher en plein écran</button>'
+    +'<div style="display:flex;gap:10px;margin-top:16px">'
+    +'<button style="'+b1+'" onclick="imprimerMonQR()">Imprimer</button>'
+    +'<button style="'+b2+'" onclick="showQrFullscreen()">Plein écran</button>'
+    +'</div>'
     +'</div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
+}
+function imprimerMonQR(){
+  var tmpDiv=document.createElement('div');
+  tmpDiv.style.cssText='position:fixed;left:-9999px;top:-9999px;width:256px;height:256px';
+  document.body.appendChild(tmpDiv);
+  var qrText=merchantQrText();
+  try{ new QRCode(tmpDiv,{text:qrText,width:250,height:250,colorDark:'#085041',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+  setTimeout(function(){
+    var c=tmpDiv.querySelector('canvas');
+    var qrURL=c?c.toDataURL('image/png'):'';
+    document.body.removeChild(tmpDiv);
+    if(!qrURL){ toast('Erreur de génération du QR', true); return; }
+    function buildPDF(qrURL, logoData){
+      var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
+      if(!jsPDF){ toast('PDF non disponible', true); return; }
+      var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
+      var pw=148, cx=pw/2;
+
+      // ── PAGE 1 (petit format) ──
+      var y=20;
+      if(logoData) doc.addImage(logoData,'JPEG',cx-10,y,20,20);
+      y+=24;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(8,80,65);
+      doc.text('SCANNEZ POUR PAYER',cx,y,{align:'center'}); y+=6;
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(80,80,80);
+      doc.text(APP.businessName||'',cx,y,{align:'center'}); y+=6;
+      doc.addImage(qrURL,'PNG',cx-30,y,60,60); y+=64;
+      doc.setFontSize(7); doc.setTextColor(245,166,35);
+      doc.text('ENCAISSEZ AVEC ROM_MONEY',cx,y,{align:'center'});
+      doc.setDrawColor(8,80,65); doc.setLineWidth(0.4); doc.roundedRect(8,8,pw-16,y-3,3,3);
+
+      // ── PAGE 2 (2x plus grand, meme A5) ──
+      doc.addPage('a5');
+      var y2=14;
+      if(logoData) doc.addImage(logoData,'JPEG',cx-17.5,y2,35,35);
+      y2+=40;
+      doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(8,80,65);
+      doc.text('SCANNEZ POUR PAYER',cx,y2,{align:'center'}); y2+=9;
+      doc.setFont('helvetica','normal'); doc.setFontSize(13); doc.setTextColor(80,80,80);
+      doc.text(APP.businessName||'',cx,y2,{align:'center'}); y2+=10;
+      doc.addImage(qrURL,'PNG',cx-50,y2,100,100); y2+=105;
+      doc.setFontSize(11); doc.setTextColor(245,166,35);
+      doc.text('ENCAISSEZ AVEC ROM_MONEY',cx,y2,{align:'center'});
+      doc.setDrawColor(8,80,65); doc.setLineWidth(0.4); doc.roundedRect(5,5,pw-10,y2+5,3,3);
+
+      doc.save('ROM_BUSINESS_QR.pdf');
+      toast('QR téléchargé !');
+    }
+    getLogoBase64(function(logoData){
+      if(window.jspdf){ buildPDF(qrURL, logoData); }
+      else {
+        var s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload=function(){ buildPDF(qrURL, logoData); };
+        s.onerror=function(){ toast('Erreur chargement PDF', true); };
+        document.head.appendChild(s);
+      }
+    });
+  }, 500);
 }
 function merchantQrText(){ return 'M|'+APP.merchantId+'|'+APP.qrSeed; }
 function drawMerchantQR(elId, size){
