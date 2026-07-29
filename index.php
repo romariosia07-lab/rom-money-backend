@@ -120,7 +120,10 @@ function auth() {
     $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
     if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
     $pl = jwt_check(substr($h,7));
-    if(!$pl) fail('Token invalide ou expire',401);
+    // Un jeton ROM_BUSINESS (typ=merchant) ne doit jamais etre accepte ici :
+    // ce sont deux identites distinctes (voir merchant_auth()), meme si les
+    // deux systemes partagent le meme moteur de transactions.
+    if(!$pl || ($pl['typ']??'')==='merchant') fail('Token invalide ou expire',401);
     // Verifie le statut du compte a CHAQUE appel authentifie, pas seulement
     // au login, pour qu'un blocage admin coupe l'acces immediatement meme
     // si l'utilisateur a deja un token valide en cours de session.
@@ -133,6 +136,19 @@ function auth() {
         $revoked = q("SELECT revoked FROM known_devices WHERE user_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
         if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
     }
+    return $pl;
+}
+// Equivalent de auth() pour les comptes ROM_BUSINESS (table merchants,
+// distincte de users). Un jeton personnel (sans typ=merchant) est refuse ici
+// tout comme un jeton marchand est refuse par auth() - les deux identites
+// ne se substituent jamais l'une a l'autre.
+function merchant_auth() {
+    $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
+    if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
+    $pl = jwt_check(substr($h,7));
+    if(!$pl || ($pl['typ']??'')!=='merchant') fail('Token invalide ou expire',401);
+    $status = q("SELECT status FROM merchants WHERE id=?",[$pl['sub']])->fetchColumn();
+    if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
     return $pl;
 }
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
@@ -419,6 +435,30 @@ function pin_check($userId, $pin, $hash) {
     }
     return true;
 }
+// Equivalent de pin_check() pour un compte marchand (table merchants).
+function merchant_pin_check($merchantId, $pin, $hash) {
+    $m = q("SELECT pin_attempts, pin_locked_until FROM merchants WHERE id=?",[$merchantId])->fetch();
+    $lockedUntil = $m['pin_locked_until'] ?? null;
+    if($lockedUntil && strtotime($lockedUntil) > time()){
+        $mins = (int)ceil((strtotime($lockedUntil) - time())/60);
+        fail("Compte temporairement bloque suite a plusieurs PIN incorrects. Reessayez dans $mins min.", 423);
+    }
+    if(!password_verify($pin, $hash)){
+        $attempts = (int)($m['pin_attempts'] ?? 0) + 1;
+        if($attempts >= PIN_MAX_ATTEMPTS){
+            q("UPDATE merchants SET pin_attempts=0, pin_locked_until=? WHERE id=?",
+              [date('Y-m-d H:i:s', time()+PIN_LOCK_MINUTES*60), $merchantId]);
+            fail('Trop de tentatives incorrectes. Compte bloque '.PIN_LOCK_MINUTES.' minutes.', 423);
+        }
+        q("UPDATE merchants SET pin_attempts=? WHERE id=?",[$attempts, $merchantId]);
+        $restantes = PIN_MAX_ATTEMPTS - $attempts;
+        fail('PIN incorrect ('.$restantes.' tentative'.($restantes>1?'s':'').' restante'.($restantes>1?'s':'').')', 401);
+    }
+    if(($m['pin_attempts'] ?? 0) > 0){
+        q("UPDATE merchants SET pin_attempts=0, pin_locked_until=NULL WHERE id=?",[$merchantId]);
+    }
+    return true;
+}
 
 function db(): PDO {
     static $pdo = null;
@@ -492,6 +532,7 @@ if ($module !== 'health') {
 switch($module) {
     case 'auth':        route_auth($action); break;
     case 'wallet':      route_wallet($action); break;
+    case 'merchant':    route_merchant($action); break;
     case 'transactions':route_tx($action); break;
     case 'profile':     route_profile($action); break;
     case 'bank':        route_bank($action); break;
@@ -810,6 +851,7 @@ function route_wallet($action) {
         'subvault-delete'   => subvault_delete(),
         'renew-qr'       => wallet_renew_qr(),
         'resolve-qr'     => wallet_resolve_qr(),
+        'resolve-merchant-qr' => wallet_resolve_merchant_qr(),
         'stats'          => wallet_stats(),
         'stats-full'     => wallet_stats_full(),
         'limit-status'   => wallet_limit_status(),
@@ -1003,6 +1045,369 @@ function subvault_delete() {
     } catch(Exception $e) { db()->rollBack(); fail('Erreur suppression',500); }
 }
 
+// ============================================================
+// ROM_BUSINESS — moteur marchand. Reutilise le meme moteur de transactions
+// et de sous-coffres (sub_vaults) que ROM_MONEY, mais avec une identite
+// (table merchants/merchant_wallets) totalement separee des comptes
+// personnels : un meme numero de telephone peut donc avoir les deux types
+// de compte independamment (utile pour le virement gratuit "vers mon
+// numero", voir merchant_withdraw ci-dessous).
+// ============================================================
+function route_merchant($action) {
+    match($action) {
+        'register'          => merchant_register(),
+        'login'              => merchant_login(),
+        'balance'            => merchant_balance(),
+        'renew-qr'           => merchant_renew_qr(),
+        'collect'            => merchant_collect(),
+        'withdraw'           => merchant_withdraw(),
+        'vault-deposit'      => merchant_vault_deposit(),
+        'vault-withdraw'     => merchant_vault_withdraw(),
+        'vault-lock'         => merchant_vault_lock(),
+        'subvault-list'      => merchant_subvault_list(),
+        'subvault-create'    => merchant_subvault_create(),
+        'subvault-deposit'   => merchant_subvault_deposit(),
+        'subvault-withdraw'  => merchant_subvault_withdraw(),
+        'subvault-lock'      => merchant_subvault_lock(),
+        'subvault-unlock'    => merchant_subvault_unlock(),
+        'subvault-delete'    => merchant_subvault_delete(),
+        'history'            => merchant_tx_history(),
+        default              => fail('Action inconnue',404)
+    };
+}
+
+function merchant_register() {
+    rate_limit_check('merchant_register', 10, 60);
+    $b = body();
+    $businessName = trim($b['business_name'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    $pin = trim($b['pin'] ?? '');
+    $locationType = ($b['location_type'] ?? 'online')==='physical' ? 'physical' : 'online';
+    $address = trim($b['address'] ?? '');
+    if(!$businessName) fail('Nom de la boutique requis');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
+    if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
+    if($locationType==='physical' && !$address) fail('Adresse requise pour un commerce avec emplacement');
+    $exists = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if($exists) fail('Ce numero est deja enregistre comme marchand');
+
+    db()->beginTransaction();
+    try {
+        $mid = uid(); $wid = uid();
+        $pinh = password_hash($pin, PASSWORD_BCRYPT);
+        $qrseed = strtoupper(bin2hex(random_bytes(5)));
+        q("INSERT INTO merchants (id,phone_number,pin_hash,business_name,location_type,address) VALUES (?,?,?,?,?,?)",
+          [$mid,$phone,$pinh,$businessName,$locationType,$address?:null]);
+        q("INSERT INTO merchant_wallets (id,merchant_id,qr_seed) VALUES (?,?,?)",[$wid,$mid,$qrseed]);
+        $token = jwt_make(['sub'=>$mid,'phone'=>$phone,'typ'=>'merchant']);
+        db()->commit();
+        ok(['token'=>$token,'merchant_id'=>$mid,'business_name'=>$businessName,
+            'location_type'=>$locationType,'qr_seed'=>$qrseed],'Compte marchand cree',201);
+    } catch(Exception $e) {
+        db()->rollBack();
+        fail(APP_DEBUG ? $e->getMessage() : 'Erreur creation compte',500);
+    }
+}
+
+function merchant_login() {
+    rate_limit_check('merchant_login', 15, 60);
+    $b = body();
+    $phone = trim($b['phone'] ?? '');
+    $pin = trim($b['pin'] ?? '');
+    if(!$phone || !$pin) fail('Telephone et PIN requis');
+    $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if(!$m) fail('Numero ou PIN incorrect', 401);
+    merchant_pin_check($m['id'], $pin, $m['pin_hash']);
+    if($m['status'] !== 'active') fail('Compte suspendu', 403);
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    $token = jwt_make(['sub'=>$m['id'],'phone'=>$phone,'typ'=>'merchant']);
+    ok(['token'=>$token,'merchant_id'=>$m['id'],'business_name'=>$m['business_name'],
+        'location_type'=>$m['location_type'],'address'=>$m['address'],
+        'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
+        'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null,
+        'qr_seed'=>$w['qr_seed']??null],'Connexion reussie');
+}
+
+function merchant_balance() {
+    $pl = merchant_auth();
+    $m = q("SELECT business_name,location_type,address FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    if(!$w) fail('Portefeuille introuvable',404);
+    ok(['balance'=>(float)$w['balance'],'vault_balance'=>(float)$w['vault_balance'],
+        'vault_locked'=>(bool)$w['vault_locked'],'vault_lock_date'=>$w['vault_lock_date'],
+        'qr_seed'=>$w['qr_seed'],'business_name'=>$m['business_name'],
+        'location_type'=>$m['location_type'],'address'=>$m['address'],'currency'=>$w['currency']]);
+}
+
+function merchant_renew_qr() {
+    $pl = merchant_auth();
+    $seed = strtoupper(bin2hex(random_bytes(5)));
+    q("UPDATE merchant_wallets SET qr_seed=?,qr_renewed_at=NOW() WHERE merchant_id=?",[$seed,$pl['sub']]);
+    ok(['qr_seed'=>$seed],'QR renouvele');
+}
+
+// Encaisser cote marchand : le marchand scanne le QR PERSONNEL d'un client
+// (comme un ROM_MONEY qui encaisse un autre ROM_MONEY), le client tape son
+// PIN sur l'appareil du marchand. Contrairement au paiement via QR marchand
+// (tx_pay_merchant, gratuit), celui-ci suit la meme logique que tx_collect.
+function merchant_collect() {
+    $pl = merchant_auth(); $b = body();
+    $payerPhone = trim($b['payer_phone']??'');
+    $amount = (float)($b['amount']??0);
+    $pin = trim($b['pin']??'');
+    $desc = trim($b['description']??'');
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $payerPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+
+    $payer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$payerPhone])->fetch();
+    if(!$payer) fail('Payeur introuvable');
+
+    pin_check($payer['id'], $pin, $payer['pin_hash']);
+
+    $m = q("SELECT business_name FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    if(!$mw) fail('Portefeuille marchand introuvable',404);
+    if((float)$payer['balance'] < $amount) fail('Solde du payeur insuffisant');
+
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,0,'merchant_payment','pending',?,?,?)",
+          [$txid,$payer['wid'],$mw['id'],$amount,$amount,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$payer['wid'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        db()->commit();
+        $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
+            'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline,
+            'new_balance'=>$bal],'Encaissement effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
+}
+
+// Virement sortant du marchand vers un numero ROM_MONEY personnel.
+// Gratuit UNIQUEMENT si le destinataire est le numero utilise pour creer ce
+// compte marchand (donc son propre compte personnel) ; 1% vers tout autre
+// numero. Les frais rejoignent le meme compte systeme que les frais ROM_MONEY.
+function merchant_withdraw() {
+    $pl = merchant_auth(); $b = body();
+    $toPhone = trim($b['phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $toPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+
+    $m = q("SELECT * FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    merchant_pin_check($pl['sub'], $pin, $m['pin_hash']);
+
+    $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    if(!$mw) fail('Portefeuille marchand introuvable',404);
+
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$toPhone])->fetch();
+    if(!$recv) fail('Destinataire introuvable',404);
+
+    $isOwnNumber = ($toPhone === $m['phone_number']);
+    $fee = $isOwnNumber ? 0 : round($amount * 0.01);
+    $totalDebit = $amount + $fee;
+    if((float)$mw['balance'] < $totalDebit) fail('Solde insuffisant');
+
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,'merchant_withdraw','pending',?,?,?)",
+          [$txid,$mw['id'],$recv['wid'],$totalDebit,$amount,$fee,$reference,'Virement vers '.$toPhone,$deadline]);
+        $rows = q("UPDATE merchant_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$totalDebit,$mw['id'],$totalDebit])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amount,$recv['wid']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        if($fee > 0){
+            $fee_recv = q("SELECT w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
+            if($fee_recv){
+                q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,'Frais ROM_BUSINESS 1%')",
+                  [uid(),$mw['id'],$fee_recv['wid'],$fee,ref()]);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+            }
+        }
+        db()->commit();
+        web_push_send_to_user($recv['id'], 'ROM_MONEY', 'Vous avez recu '.number_format($amount,0,',',' ').' F de '.$m['business_name'], [], 'credit');
+        $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,
+            'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
+            'new_balance'=>$bal],'Virement effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec virement',500); }
+}
+
+function merchant_vault_deposit() {
+    $pl = merchant_auth(); $b = body();
+    $amt = (float)($b['amount']??0);
+    if($amt<=0) fail('Montant invalide');
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    db()->beginTransaction();
+    try {
+        $n = q("UPDATE merchant_wallets SET balance=balance-?,vault_balance=vault_balance+? WHERE id=? AND balance>=?",[$amt,$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde insuffisant'); }
+        q("INSERT INTO transactions (id,sender_merchant_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_deposit','completed',?,'Depot coffre')",[uid(),$w['id'],$amt,ref()]);
+        db()->commit();
+        $fresh = q("SELECT balance,vault_balance FROM merchant_wallets WHERE id=?",[$w['id']])->fetch();
+        ok(['amount'=>$amt,'new_balance'=>(float)$fresh['balance'],'vault_balance'=>(float)$fresh['vault_balance']],'Depose dans le coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur depot',500); }
+}
+
+function merchant_vault_withdraw() {
+    $pl = merchant_auth(); $b = body();
+    $amt = (float)($b['amount']??0); $pin = trim($b['pin']??'');
+    if($amt<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+    $m = q("SELECT pin_hash FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    merchant_pin_check($pl['sub'], $pin, $m['pin_hash']);
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    if($w['vault_locked'] && strtotime($w['vault_lock_date']??'0')>time())
+        fail("Coffre verrouille jusqu'au ".date('d/m/Y',strtotime($w['vault_lock_date'])));
+    db()->beginTransaction();
+    try {
+        $n = q("UPDATE merchant_wallets SET vault_balance=vault_balance-?,balance=balance+?,vault_locked=0 WHERE id=? AND vault_balance>=?",[$amt,$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde coffre insuffisant'); }
+        q("INSERT INTO transactions (id,receiver_merchant_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'vault_withdrawal','completed',?,'Retrait coffre')",[uid(),$w['id'],$amt,ref()]);
+        db()->commit();
+        $fresh = q("SELECT balance,vault_balance FROM merchant_wallets WHERE id=?",[$w['id']])->fetch();
+        ok(['amount'=>$amt,'new_balance'=>(float)$fresh['balance'],'vault_balance'=>(float)$fresh['vault_balance']],'Retire du coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur retrait',500); }
+}
+
+function merchant_vault_lock() {
+    $pl = merchant_auth(); $b = body();
+    $date = trim($b['lock_date']??'');
+    if(!$date || strtotime($date)<=time()) fail('Date invalide');
+    q("UPDATE merchant_wallets SET vault_locked=1,vault_lock_date=? WHERE merchant_id=?",[$date,$pl['sub']]);
+    ok(['lock_date'=>$date],'Coffre verrouille');
+}
+
+function merchant_subvault_list() {
+    $pl = merchant_auth();
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    $rows = q("SELECT id,name,balance,goal_amount,locked,lock_date FROM sub_vaults WHERE wallet_id=? ORDER BY created_at ASC",[$wid])->fetchAll();
+    ok($rows);
+}
+
+function merchant_subvault_create() {
+    $pl = merchant_auth(); $b = body();
+    $name = trim($b['name'] ?? '');
+    $amt  = (float)($b['amount'] ?? 0);
+    $goal = isset($b['goal']) && $b['goal']!=='' ? (float)$b['goal'] : null;
+    if(!$name) fail('Nom requis');
+    if($amt<0) fail('Montant invalide');
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    db()->beginTransaction();
+    try {
+        $n = q("UPDATE merchant_wallets SET vault_balance=vault_balance-? WHERE id=? AND vault_balance>=?",[$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du coffre principal insuffisant'); }
+        $id = uid();
+        q("INSERT INTO sub_vaults (id,wallet_id,name,balance,goal_amount) VALUES (?,?,?,?,?)",[$id,$w['id'],$name,$amt,$goal]);
+        db()->commit();
+        $bal = (float)q("SELECT vault_balance FROM merchant_wallets WHERE id=?",[$w['id']])->fetchColumn();
+        ok(['id'=>$id,'name'=>$name,'balance'=>$amt,'goal_amount'=>$goal,'vault_balance'=>$bal],'Sous-coffre cree');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur creation',500); }
+}
+
+function merchant_subvault_deposit() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0);
+    if($amt<=0) fail('Montant invalide');
+    $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    subvault_owned($w['id'], $id);
+    db()->beginTransaction();
+    try {
+        $n = q("UPDATE merchant_wallets SET vault_balance=vault_balance-? WHERE id=? AND vault_balance>=?",[$amt,$w['id'],$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du coffre principal insuffisant'); }
+        q("UPDATE sub_vaults SET balance=balance+? WHERE id=?",[$amt,$id]);
+        db()->commit();
+        $bal   = (float)q("SELECT vault_balance FROM merchant_wallets WHERE id=?",[$w['id']])->fetchColumn();
+        $svBal = (float)q("SELECT balance FROM sub_vaults WHERE id=?",[$id])->fetchColumn();
+        ok(['vault_balance'=>$bal,'sub_balance'=>$svBal],'Depose dans le sous-coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur depot',500); }
+}
+
+function merchant_subvault_withdraw() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $amt = (float)($b['amount'] ?? 0); $pin = trim($b['pin'] ?? '');
+    if($amt<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+    $m = q("SELECT pin_hash FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    merchant_pin_check($pl['sub'], $pin, $m['pin_hash']);
+    $w  = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    $sv = subvault_owned($w['id'], $id);
+    if($sv['locked'] && strtotime($sv['lock_date']??'0')>time())
+        fail("Sous-coffre verrouille jusqu'au ".date('d/m/Y',strtotime($sv['lock_date'])));
+    db()->beginTransaction();
+    try {
+        $n = q("UPDATE sub_vaults SET balance=balance-?,locked=0 WHERE id=? AND balance>=?",[$amt,$id,$amt])->rowCount();
+        if(!$n){ db()->rollBack(); fail('Solde du sous-coffre insuffisant'); }
+        q("UPDATE merchant_wallets SET vault_balance=vault_balance+? WHERE id=?",[$amt,$w['id']]);
+        db()->commit();
+        $bal   = (float)q("SELECT vault_balance FROM merchant_wallets WHERE id=?",[$w['id']])->fetchColumn();
+        $svBal = (float)q("SELECT balance FROM sub_vaults WHERE id=?",[$id])->fetchColumn();
+        ok(['vault_balance'=>$bal,'sub_balance'=>$svBal],'Retire du sous-coffre');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur retrait',500); }
+}
+
+function merchant_subvault_lock() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? ''); $date = trim($b['lock_date'] ?? '');
+    if(!$date || strtotime($date)<=time()) fail('Date invalide');
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    subvault_owned($wid, $id);
+    q("UPDATE sub_vaults SET locked=1,lock_date=? WHERE id=?",[$date,$id]);
+    ok(['lock_date'=>$date],'Sous-coffre verrouille');
+}
+
+function merchant_subvault_unlock() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    $sv = subvault_owned($wid, $id);
+    if($sv['locked'] && strtotime($sv['lock_date']??'0')>time())
+        fail("Verrouille jusqu'au ".date('d/m/Y',strtotime($sv['lock_date'])));
+    q("UPDATE sub_vaults SET locked=0,lock_date=NULL WHERE id=?",[$id]);
+    ok(null,'Sous-coffre deverrouille');
+}
+
+function merchant_subvault_delete() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    $sv = subvault_owned($wid, $id);
+    db()->beginTransaction();
+    try {
+        q("UPDATE merchant_wallets SET vault_balance=vault_balance+? WHERE id=?",[$sv['balance'],$wid]);
+        q("DELETE FROM sub_vaults WHERE id=?",[$id]);
+        db()->commit();
+        $bal = (float)q("SELECT vault_balance FROM merchant_wallets WHERE id=?",[$wid])->fetchColumn();
+        ok(['vault_balance'=>$bal],'Sous-coffre supprime');
+    } catch(Exception $e) { db()->rollBack(); fail('Erreur suppression',500); }
+}
+
+function merchant_tx_history() {
+    $pl = merchant_auth();
+    $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
+    $limit = min((int)($_GET['limit'] ?? 20), 100);
+    $rows = q("SELECT t.*,
+        CASE WHEN t.receiver_merchant_wallet_id=? THEN 'credit' ELSE 'debit' END as direction,
+        su.full_name sender_name, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE (t.sender_merchant_wallet_id=? OR t.receiver_merchant_wallet_id=?) AND t.type!='fee'
+        ORDER BY t.created_at DESC LIMIT ?",[$wid,$wid,$wid,$limit])->fetchAll();
+    ok(['transactions'=>$rows]);
+}
+
 function wallet_renew_qr() {
     $pl = auth();
     $seed = strtoupper(bin2hex(random_bytes(5)));
@@ -1020,6 +1425,20 @@ function wallet_resolve_qr() {
     if(!$u) fail('QR invalide',404);
     if($parts[0]===$pl['sub']) fail('Vous ne pouvez pas vous scanner vous-meme');
     ok($u,'Destinataire trouve');
+}
+
+// Resout un QR MARCHAND (prefixe "M|") scanne par un client ROM_MONEY normal
+// (auth() personnel, pas merchant_auth()) - un client n'a pas besoin d'un
+// compte ROM_BUSINESS pour payer un marchand.
+function wallet_resolve_merchant_qr() {
+    auth();
+    $qr = $_GET['qr'] ?? '';
+    if(!$qr) fail('QR requis');
+    $parts = explode('|',$qr);
+    if(count($parts)<3 || $parts[0]!=='M') fail('QR invalide');
+    $m = q("SELECT m.id,m.business_name,m.location_type FROM merchants m JOIN merchant_wallets mw ON mw.merchant_id=m.id WHERE m.id=? AND mw.qr_seed=?",[$parts[1],$parts[2]])->fetch();
+    if(!$m) fail('QR invalide',404);
+    ok($m,'Marchand trouve');
 }
 
 // Real 12-month totals (in/out) + real full-history expense breakdown by category.
@@ -1139,6 +1558,7 @@ function route_tx($action) {
         'history' => tx_history(),
         'detail'  => tx_detail(),
         'resolve' => tx_resolve(),
+        'pay-merchant' => tx_pay_merchant(),
         'check-new-recipient' => tx_check_new_recipient(),
         'fx-preview' => tx_fx_preview(),
         default   => fail('Action inconnue',404)
@@ -1600,6 +2020,49 @@ function tx_detail() {
     $tx['can_cancel'] = $tx['status']==='completed' && $tx['direction']==='debit'
         && !$tx['cancelled_at'] && strtotime($tx['cancel_deadline']??'0')>time();
     ok($tx);
+}
+
+// Paiement d'un client vers un marchand ROM_BUSINESS, scanne via le QR
+// marchand (prefixe "M|"). TOUJOURS gratuit (aucun frais, contrairement a un
+// envoi d'argent classique) - c'est la reconstruction propre de l'ancien
+// "Payer" : cette fois, l'argent va reellement quelque part (merchant_wallets),
+// au lieu de simplement disparaitre.
+function tx_pay_merchant() {
+    $pl = auth(); $b = body();
+    $merchantId = trim($b['merchant_id'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    $desc = trim($b['description'] ?? '');
+    if(!$merchantId) fail('Marchand requis');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+
+    $user = q("SELECT pin_hash FROM users WHERE id=?",[$pl['sub']])->fetch();
+    pin_check($pl['sub'], $pin, $user['pin_hash']);
+
+    $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $m  = q("SELECT * FROM merchants WHERE id=?",[$merchantId])->fetch();
+    if(!$m) fail('Marchand introuvable',404);
+    $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$merchantId])->fetch();
+    if(!$mw) fail('Marchand introuvable',404);
+    if((float)$sw['balance'] < $amount) fail('Solde insuffisant');
+
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,0,'merchant_payment','pending',?,?,?)",
+          [$txid,$sw['id'],$mw['id'],$amount,$amount,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$sw['id'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        db()->commit();
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
+            'business_name'=>$m['business_name'],'cancel_before'=>$deadline,
+            'new_balance'=>$bal],'Paiement effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
 }
 
 function tx_resolve() {
@@ -4115,6 +4578,40 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_subvaults_wallet ON sub_vaults(wallet_id)",
+    // ============================================================
+    // ROM_BUSINESS — comptes marchands, INTENTIONNELLEMENT dans des tables
+    // separees de users/wallets (pas une simple etiquette sur un compte
+    // personnel) : ca permet au MEME numero de telephone d'avoir a la fois
+    // un compte ROM_MONEY personnel et un compte ROM_BUSINESS marchand,
+    // ce qui serait impossible si les deux partageaient la contrainte
+    // d'unicite sur users.phone_number. Le moteur d'argent (transactions,
+    // sub_vaults) reste partage : seule l'identite/le profil est distinct.
+    // ============================================================
+    "CREATE TABLE IF NOT EXISTS merchants (
+        id VARCHAR(36) PRIMARY KEY,
+        phone_number VARCHAR(20) NOT NULL UNIQUE,
+        pin_hash VARCHAR(255) NOT NULL,
+        business_name VARCHAR(150) NOT NULL,
+        location_type VARCHAR(20) NOT NULL DEFAULT 'online',
+        address VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'active',
+        pin_attempts SMALLINT DEFAULT 0,
+        pin_locked_until TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS merchant_wallets (
+        id VARCHAR(36) PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL UNIQUE,
+        balance DECIMAL(15,2) DEFAULT 0.00,
+        vault_balance DECIMAL(15,2) DEFAULT 0.00,
+        vault_locked SMALLINT DEFAULT 0,
+        vault_lock_date DATE,
+        currency VARCHAR(10) DEFAULT 'XOF',
+        qr_seed VARCHAR(50) NOT NULL,
+        qr_renewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_merchant_wallets_merchant ON merchant_wallets(merchant_id)",
     "CREATE TABLE IF NOT EXISTS transactions (
         id VARCHAR(36) PRIMARY KEY,
         sender_wallet_id VARCHAR(36),
@@ -4140,6 +4637,12 @@ function route_install() {
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_currency VARCHAR(10)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fx_rate_applied DECIMAL(20,8)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_amount DECIMAL(15,2)",
+    // Une transaction impliquant un marchand remplit UNE de ces deux colonnes
+    // a la place de sender_wallet_id/receiver_wallet_id (jamais les deux a
+    // la fois pour le meme cote) : evite toute ambiguite sur quelle table
+    // (wallets ou merchant_wallets) interroger pour afficher l'historique.
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_merchant_wallet_id VARCHAR(36)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_merchant_wallet_id VARCHAR(36)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
