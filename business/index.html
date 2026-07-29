@@ -24,6 +24,12 @@
   --t1:#1A1A1A;--t2:#6B7280;--t3:#9CA3AF;
   --r:14px;--rs:10px;
 }
+html[data-theme="dark"]{
+  --gl:#14261F;--rl:#2E1A1A;
+  --bg:#101512;--card:#1B211D;--bord:#2A312D;--div:#232A26;
+  --t1:#F0F2F1;--t2:#A8B0AC;--t3:#6E7672;
+}
+html,body{transition:background-color .25s}
 html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg)}
 .screen.on{display:flex}
@@ -205,7 +211,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <button class="kb" onclick="lgPin('1')">1</button><button class="kb" onclick="lgPin('2')">2</button><button class="kb" onclick="lgPin('3')">3</button>
     <button class="kb" onclick="lgPin('4')">4</button><button class="kb" onclick="lgPin('5')">5</button><button class="kb" onclick="lgPin('6')">6</button>
     <button class="kb" onclick="lgPin('7')">7</button><button class="kb" onclick="lgPin('8')">8</button><button class="kb" onclick="lgPin('9')">9</button>
-    <div></div><button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
+    <button class="kb ghost" onclick="lgBio()" id="bio-btn" style="display:none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 012 2c0 4-1.5 6.5-3 8"/><path d="M8.5 19.5a15 15 0 001.9-7.5 1.6 1.6 0 013.2 0"/><path d="M5.5 17a12 12 0 001.1-5 5.4 5.4 0 0110.8 0 15 15 0 01-.3 3"/><path d="M3.3 14a17 17 0 00.4-8"/><path d="M20.3 6a17 17 0 01.7 6.5"/><path d="M7.5 4.2A8 8 0 0112 3a8 8 0 016 2.8"/></svg></button>
+    <button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
   </div>
   <div class="pin-err" id="login-err"></div>
   <button class="pin-link" onclick="_addAccountMode ? cancelAddAccount() : goto('s-welcome')">← Retour</button>
@@ -326,6 +333,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('notif-settings')"><span style="font-size:14px;font-weight:600">Notifications</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600">Changer le PIN</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="toggleBio()"><span style="font-size:14px;font-weight:600" id="prof-bio-label">Biométrie : Désactivée</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('appearance')"><span style="font-size:14px;font-weight:600">Apparence</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><span style="font-size:14px;font-weight:600">Mes appareils</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('export-history')"><span style="font-size:14px;font-weight:600">Exporter mon historique</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('account-switch')"><span style="font-size:14px;font-weight:600">Ajouter un compte</span></div>
@@ -370,7 +379,8 @@ var APP = {
   businessName:'', phone:'', locationType:'online', address:'',
   merchantId:'', pinHash:'', token:'',
   balance:0, vaultBal:0, vaultLocked:false, vaultDate:null,
-  subVaults:[], qrSeed:'', balHidden:false
+  subVaults:[], qrSeed:'', balHidden:false,
+  bioEnabled:false, bioCredId:'', theme:'system'
 };
 var PIN_MEM = '';
 var txList = [];
@@ -579,6 +589,8 @@ function setupLoginScreen(){
   else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent='Connexion marchand'; }
   lgBuf=''; updateLgDots();
   document.getElementById('login-err').textContent='';
+  var bio=document.getElementById('bio-btn');
+  if(bio) bio.style.display=(!_addAccountMode&&APP.bioEnabled&&APP.bioCredId&&webauthnSupported())?'flex':'none';
 }
 var lgBuf='';
 function updateLgDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('ld'+i); if(el) el.classList.toggle('on', i<lgBuf.length); } }
@@ -658,6 +670,7 @@ function launchApp(){
   document.getElementById('prof-biz-phone').textContent = APP.phone;
   updateBalDisplay();
   syncEyeIcon();
+  updateBioRowLabel();
   refreshBalance();
   refreshHistory();
   loadDashboardStats();
@@ -903,7 +916,8 @@ var SHEET_TITLES={
   encaisser:'Encaisser', monqr:'Mon QR', virement:'Envoyer',
   vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
   vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN', 'export-history':'Exporter mon historique',
-  devices:'Mes appareils', 'account-switch':'Mes comptes', 'notif-settings':'Notifications'
+  devices:'Mes appareils', 'account-switch':'Mes comptes', 'notif-settings':'Notifications',
+  appearance:'Apparence'
 };
 function openSheet(type, extra){
   document.getElementById('sh-title').textContent = SHEET_TITLES[type]||'—';
@@ -932,6 +946,7 @@ function buildSheet(type, b, extra){
   else if(type==='devices') shDevices(b);
   else if(type==='account-switch') shAccountSwitch(b);
   else if(type==='notif-settings') shNotifSettings(b);
+  else if(type==='appearance') shAppearance(b);
 }
 
 // ── MON QR (affichage seul du QR marchand) ──
@@ -1587,6 +1602,7 @@ function removeAccountAndHandleUI(key){
   APP.businessName=''; APP.phone=''; APP.locationType='online'; APP.address='';
   APP.merchantId=''; APP.pinHash=''; APP.token=''; APP.balance=0; APP.vaultBal=0;
   APP.vaultLocked=false; APP.vaultDate=null; APP.subVaults=[]; APP.qrSeed=''; APP.balHidden=false;
+  APP.bioEnabled=false; APP.bioCredId='';
   var remaining = Object.keys(accounts);
   closeSheet();
   if(remaining.length>0){
@@ -1650,9 +1666,126 @@ function disableMerchantPush(){
   }).catch(function(){ toast('Erreur', true); });
 }
 
+// ── BIOMETRIE (WebAuthn local, meme principe que ROM_MONEY) ──
+// Purement un deverrouillage rapide LOCAL a l'appareil (aucune verification
+// serveur de la signature) : en cas de succes, on considere simplement que
+// le PIN aurait ete tape correctement. Le jeton deja stocke (APP.token)
+// reste l'unique preuve d'identite cote serveur.
+function webauthnSupported(){
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+function _randChallenge(){ var a=new Uint8Array(32); crypto.getRandomValues(a); return a; }
+function _bufToB64(buf){ var b=new Uint8Array(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function _b64ToBuf(b64){ var bin=atob(b64), b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+function registerBioCredential(){
+  return new Promise(function(resolve,reject){
+    if(!webauthnSupported()){ reject(new Error('Biometrie non supportee sur cet appareil')); return; }
+    var uid=new TextEncoder().encode(String(APP.merchantId||APP.phone||'merchant').slice(0,32));
+    navigator.credentials.create({
+      publicKey:{
+        challenge:_randChallenge(),
+        rp:{ name:'ROM_BUSINESS' },
+        user:{ id:uid, name:APP.phone||'merchant', displayName:APP.businessName||'Marchand ROM_BUSINESS' },
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required' },
+        timeout:60000
+      }
+    }).then(function(cred){
+      APP.bioCredId=_bufToB64(cred.rawId);
+      resolve();
+    }).catch(reject);
+  });
+}
+function verifyBioCredential(){
+  return new Promise(function(resolve,reject){
+    if(!webauthnSupported()||!APP.bioCredId){ reject(new Error('Biometrie non configuree')); return; }
+    navigator.credentials.get({
+      publicKey:{
+        challenge:_randChallenge(),
+        allowCredentials:[{ type:'public-key', id:_b64ToBuf(APP.bioCredId), transports:['internal'] }],
+        userVerification:'required',
+        timeout:60000
+      }
+    }).then(function(){ resolve(); }).catch(reject);
+  });
+}
+function lgBio(){
+  var btn=document.getElementById('bio-btn');
+  var original=btn?btn.innerHTML:'';
+  if(btn) btn.textContent='...';
+  verifyBioCredential().then(function(){
+    if(btn) btn.innerHTML=original;
+    launchApp();
+  }).catch(function(){
+    if(btn) btn.innerHTML=original;
+    toast('Empreinte non reconnue, utilisez votre PIN', true);
+  });
+}
+function updateBioRowLabel(){
+  var el=document.getElementById('prof-bio-label');
+  if(!el) return;
+  var active = APP.bioEnabled && APP.bioCredId;
+  el.textContent = 'Biométrie : ' + (active?'Activée':'Désactivée');
+}
+function toggleBio(){
+  if(!webauthnSupported()){ toast('Biométrie non disponible sur cet appareil', true); return; }
+  if(APP.bioEnabled && APP.bioCredId){
+    APP.bioEnabled=false; APP.bioCredId=''; save();
+    updateBioRowLabel();
+    toast('Biométrie désactivée');
+  } else {
+    toast('Vérification biométrique...');
+    registerBioCredential().then(function(){
+      APP.bioEnabled=true; save();
+      updateBioRowLabel();
+      toast('Biométrie activée');
+    }).catch(function(){
+      toast('Biométrie indisponible sur cet appareil', true);
+    });
+  }
+}
+
+// ── APPARENCE (Clair / Sombre / Systeme) ──
+function applyTheme(){
+  var th = APP.theme || 'system';
+  var dark = (th==='dark') || (th==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+}
+try{
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+      if((APP.theme||'system')==='system') applyTheme();
+    });
+  }
+}catch(e){}
+function renderAppearanceScreen(b){
+  var current = APP.theme || 'system';
+  function row(id, label, iconSvg){
+    var selected = (current===id);
+    return '<div onclick="setAppTheme(\''+id+'\')" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid '+(selected?'var(--g)':'var(--bord)')+';border-radius:14px;margin-bottom:10px;cursor:pointer;background:var(--card)">'
+      +'<span style="color:var(--t2);flex-shrink:0">'+iconSvg+'</span>'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--t1)">'+label+'</span>'
+      +'<span style="width:20px;height:20px;border-radius:50%;border:2px solid '+(selected?'var(--g)':'var(--t3)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +(selected?'<span style="width:10px;height:10px;border-radius:50%;background:var(--g)"></span>':'')
+      +'</span></div>';
+  }
+  var sunIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+  var moonIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
+  var systemIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+  b.innerHTML = row('light','Clair',sunIcon) + row('dark','Sombre',moonIcon) + row('system','Système',systemIcon);
+}
+function shAppearance(b){ renderAppearanceScreen(b); }
+function setAppTheme(id){
+  APP.theme = id;
+  save();
+  applyTheme();
+  renderAppearanceScreen(document.getElementById('sh-body'));
+}
+
 // ── DEMARRAGE ──
 window.addEventListener('load', function(){
   var found = load();
+  applyTheme();
   setTimeout(function(){
     if(found && APP.token && APP.merchantId){
       launchApp();
