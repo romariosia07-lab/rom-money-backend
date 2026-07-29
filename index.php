@@ -149,6 +149,13 @@ function merchant_auth() {
     if(!$pl || ($pl['typ']??'')!=='merchant') fail('Token invalide ou expire',401);
     $status = q("SELECT status FROM merchants WHERE id=?",[$pl['sub']])->fetchColumn();
     if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
+    // Meme principe que auth() cote personnel : "Mes appareils" permet de
+    // couper a distance la session d'un appareil precis sans attendre
+    // l'expiration naturelle du jeton.
+    if(!empty($pl['device_id'])){
+        $revoked = q("SELECT revoked FROM merchant_known_devices WHERE merchant_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
+        if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
+    }
     return $pl;
 }
 function ref() { return 'REF-'.strtoupper(date('Ymd')).'-'.strtoupper(substr(uniqid(),-6)); }
@@ -848,6 +855,24 @@ function merchant_change_pin() {
     ok(null,'PIN mis a jour');
 }
 
+// "Mes appareils" cote marchand - meme principe que profile_devices()/
+// profile_revoke_device() cote personnel, table separee (merchant_known_devices).
+function merchant_devices() {
+    $pl = merchant_auth();
+    $rows = q("SELECT device_id,user_agent,first_seen,last_seen,revoked FROM merchant_known_devices WHERE merchant_id=? ORDER BY last_seen DESC",[$pl['sub']])->fetchAll();
+    foreach($rows as &$r){ $r['is_current'] = ($pl['device_id'] ?? '') !== '' && $r['device_id'] === $pl['device_id']; $r['revoked']=(bool)$r['revoked']; }
+    unset($r);
+    ok(['devices'=>$rows]);
+}
+function merchant_revoke_device() {
+    $pl = merchant_auth(); $b = body();
+    $deviceId = trim($b['device_id'] ?? '');
+    if(!$deviceId) fail('Appareil requis');
+    $n = q("UPDATE merchant_known_devices SET revoked=1 WHERE merchant_id=? AND device_id=?",[$pl['sub'],$deviceId])->rowCount();
+    if(!$n) fail('Appareil introuvable',404);
+    ok(null,'Appareil deconnecte');
+}
+
 // WALLET
 function route_wallet($action) {
     match($action) {
@@ -1090,6 +1115,8 @@ function route_merchant($action) {
         'export-xlsx'        => merchant_export_xlsx(),
         'export-pdf'         => merchant_export_pdf(),
         'change-pin'         => merchant_change_pin(),
+        'devices'            => merchant_devices(),
+        'revoke-device'      => merchant_revoke_device(),
         default              => fail('Action inconnue',404)
     };
 }
@@ -1102,6 +1129,7 @@ function merchant_register() {
     $pin = trim($b['pin'] ?? '');
     $locationType = ($b['location_type'] ?? 'online')==='physical' ? 'physical' : 'online';
     $address = trim($b['address'] ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
     if(!$businessName) fail('Nom de la boutique requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
@@ -1125,7 +1153,13 @@ function merchant_register() {
         q("INSERT INTO merchants (id,phone_number,pin_hash,business_name,location_type,address) VALUES (?,?,?,?,?,?)",
           [$mid,$phone,$pinh,$businessName,$locationType,$address?:null]);
         q("INSERT INTO merchant_wallets (id,merchant_id,qr_seed) VALUES (?,?,?)",[$wid,$mid,$qrseed]);
-        $token = jwt_make(['sub'=>$mid,'phone'=>$phone,'typ'=>'merchant']);
+        if($deviceId){
+            $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+            q("INSERT INTO merchant_known_devices (merchant_id,device_id,user_agent) VALUES (?,?,?)
+               ON CONFLICT (merchant_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
+              [$mid, $deviceId, $ua]);
+        }
+        $token = jwt_make(['sub'=>$mid,'phone'=>$phone,'typ'=>'merchant','device_id'=>$deviceId]);
         db()->commit();
         ok(['token'=>$token,'merchant_id'=>$mid,'business_name'=>$businessName,
             'location_type'=>$locationType,'qr_seed'=>$qrseed],'Compte marchand cree',201);
@@ -1140,6 +1174,7 @@ function merchant_login() {
     $b = body();
     $phone = trim($b['phone'] ?? '');
     $pin = trim($b['pin'] ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
     if(!$phone || !$pin) fail('Telephone et PIN requis');
     try {
         $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
@@ -1149,8 +1184,14 @@ function merchant_login() {
     if(!$m) fail('Numero ou PIN incorrect', 401);
     merchant_pin_check($m['id'], $pin, $m['pin_hash']);
     if($m['status'] !== 'active') fail('Compte suspendu', 403);
+    if($deviceId){
+        $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+        q("INSERT INTO merchant_known_devices (merchant_id,device_id,user_agent) VALUES (?,?,?)
+           ON CONFLICT (merchant_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
+          [$m['id'], $deviceId, $ua]);
+    }
     $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
-    $token = jwt_make(['sub'=>$m['id'],'phone'=>$phone,'typ'=>'merchant']);
+    $token = jwt_make(['sub'=>$m['id'],'phone'=>$phone,'typ'=>'merchant','device_id'=>$deviceId]);
     ok(['token'=>$token,'merchant_id'=>$m['id'],'business_name'=>$m['business_name'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],
         'verified'=>(bool)($m['verified']??false),
@@ -4845,6 +4886,16 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified SMALLINT DEFAULT 0",
+    "CREATE TABLE IF NOT EXISTS merchant_known_devices (
+        id SERIAL PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        device_id VARCHAR(64) NOT NULL,
+        user_agent TEXT,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked SMALLINT DEFAULT 0,
+        UNIQUE(merchant_id, device_id)
+    )",
     "CREATE TABLE IF NOT EXISTS merchant_wallets (
         id VARCHAR(36) PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL UNIQUE,

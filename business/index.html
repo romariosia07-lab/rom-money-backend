@@ -325,6 +325,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="section">
         <div class="card" style="padding:0;overflow:hidden">
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600">Changer le PIN</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><span style="font-size:14px;font-weight:600">Mes appareils</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('export-history')"><span style="font-size:14px;font-weight:600">Exporter mon historique</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><span style="font-size:14px;font-weight:600">Déconnexion</span></div>
         </div>
@@ -404,6 +405,20 @@ function load(){
   }catch(e){ return false; }
 }
 function getToken(){ return APP.token||''; }
+// Identifiant d'appareil unique et persistant, utilise par le backend pour
+// "Mes appareils" (deconnexion a distance) - meme principe que ROM_MONEY,
+// mais cle localStorage distincte pour rester independant de son compte
+// personnel eventuel sur le meme telephone.
+function getDeviceId(){
+  try{
+    var id = localStorage.getItem('rombiz_device_id');
+    if(!id){
+      id = 'dev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12);
+      localStorage.setItem('rombiz_device_id', id);
+    }
+    return id;
+  }catch(e){ return ''; }
+}
 
 function apiCall(endpoint, method, data, token){
   if(!navigator.onLine) return Promise.resolve({success:false, message:'Pas de connexion internet', offline:true});
@@ -487,7 +502,7 @@ function finishRegister(){
   toast('Création du compte...');
   apiCall('/merchant?action=register','POST',{
     business_name:APP.businessName, phone:APP.phone, pin:PIN_MEM,
-    location_type:APP.locationType, address:APP.address
+    location_type:APP.locationType, address:APP.address, device_id:getDeviceId()
   }).then(function(res){
     if(res && res.success && res.data){
       APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
@@ -521,7 +536,7 @@ function lgPin(d){
       var phoneInput=document.getElementById('login-phone-input');
       var phone=(phoneInput&&phoneInput.value.trim())||APP.phone||'';
       if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent='Entrez votre numéro'; return; }
-      apiCall('/merchant?action=login','POST',{phone:phone,pin:buf}).then(function(res){
+      apiCall('/merchant?action=login','POST',{phone:phone,pin:buf,device_id:getDeviceId()}).then(function(res){
         if(res && res.success && res.data){
           APP.phone=phone; APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
           APP.businessName=res.data.business_name; APP.locationType=res.data.location_type;
@@ -562,7 +577,7 @@ function pcPin(d){
           if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
           return;
         }
-        apiCall('/merchant?action=login','POST',{phone:APP.phone,pin:buf}).then(function(res){
+        apiCall('/merchant?action=login','POST',{phone:APP.phone,pin:buf,device_id:getDeviceId()}).then(function(res){
           if(res && res.success && res.data && res.data.token){
             APP.token=res.data.token;
             setPin(buf).then(save);
@@ -830,7 +845,8 @@ function refreshHistory(full){
 var SHEET_TITLES={
   encaisser:'Encaisser', monqr:'Mon QR', virement:'Envoyer',
   vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
-  vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN', 'export-history':'Exporter mon historique'
+  vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN', 'export-history':'Exporter mon historique',
+  devices:'Mes appareils'
 };
 function openSheet(type, extra){
   document.getElementById('sh-title').textContent = SHEET_TITLES[type]||'—';
@@ -856,6 +872,7 @@ function buildSheet(type, b, extra){
   else if(type==='svwithdraw') shSVWithdraw(b, extra);
   else if(type==='change-pin') shChangePin(b);
   else if(type==='export-history') shExportHistory(b);
+  else if(type==='devices') shDevices(b);
 }
 
 // ── MON QR (affichage seul du QR marchand) ──
@@ -1387,6 +1404,57 @@ function doExport(format){
     var sh2=document.getElementById('sh-body');
     if(sh2 && sh2.querySelector('[onclick*="doExport"]')) renderExportScreen(sh2);
   });
+}
+
+// ── MES APPAREILS ──
+function shDevices(b){
+  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">Chargement...</div>';
+  loadDevicesList(b);
+}
+function loadDevicesList(b){
+  apiCall('/merchant?action=devices','GET',null,getToken()).then(function(res){
+    if(!res || !res.success || !res.data){ b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Erreur de chargement</div>'; return; }
+    var devices = res.data.devices||[];
+    if(!devices.length){
+      b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">Aucun appareil enregistré pour le moment.</div>';
+      return;
+    }
+    var html = '';
+    devices.forEach(function(d){
+      var ua = (d.user_agent||'').length>60 ? d.user_agent.slice(0,60)+'…' : (d.user_agent||'?');
+      var when = new Date(d.last_seen).toLocaleString('fr-FR');
+      var statusHtml;
+      if(d.is_current){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--g)">Cet appareil</span>';
+      } else if(d.revoked){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--t3)">Déconnecté</span>';
+      } else {
+        statusHtml = '<button onclick="doRevokeDevice(&apos;'+d.device_id+'&apos;)" style="background:var(--rl);color:var(--rd);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Déconnecter</button>';
+      }
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:.5px solid var(--bord);border-radius:12px;margin-bottom:8px;'+(d.revoked?'opacity:.5':'')+'">'
+        + '<div style="min-width:0">'
+        + '<div style="font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ua+'</div>'
+        + '<div style="font-size:11px;color:var(--t3);margin-top:2px">Vu le '+when+'</div>'
+        + '</div>'
+        + '<div style="flex-shrink:0;margin-left:10px">'+statusHtml+'</div>'
+        + '</div>';
+    });
+    b.innerHTML = html;
+  }).catch(function(){
+    b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">Erreur de chargement</div>';
+  });
+}
+function doRevokeDevice(deviceId){
+  if(!confirm('Déconnecter cet appareil ? Il devra se reconnecter avec le PIN pour continuer.')) return;
+  apiCall('/merchant?action=revoke-device','POST',{device_id:deviceId},getToken()).then(function(res){
+    if(res && res.success){
+      toast('Appareil déconnecté');
+      var b = document.getElementById('sh-body');
+      if(b) loadDevicesList(b);
+    } else {
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){ toast('Erreur', true); });
 }
 
 // ── DEMARRAGE ──
