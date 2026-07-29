@@ -322,6 +322,16 @@ function web_push_send_to_user($userId, $title, $body, $extra = [], $category = 
     } catch(Exception $e) {}
 }
 
+// Equivalent de web_push_send_to_user() pour un compte ROM_BUSINESS - table
+// dediee (merchant_push_subscriptions) puisque l'identite marchand est
+// separee de celle des utilisateurs personnels.
+function web_push_send_to_merchant($merchantId, $title, $body, $extra = []) {
+    try {
+        $subs = q("SELECT * FROM merchant_push_subscriptions WHERE merchant_id=?", [$merchantId])->fetchAll();
+        foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
+    } catch(Exception $e) {}
+}
+
 // Alerte push vers TOI (admin), pour les actions les plus sensibles - pour
 // ne pas devoir aller consulter le journal d'audit pour t'en rendre compte.
 function web_push_send_to_admin($title, $body, $extra = []) {
@@ -2305,6 +2315,8 @@ function tx_pay_merchant() {
         q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         db()->commit();
+        web_push_send_to_merchant($mw['merchant_id'], 'ROM_BUSINESS',
+            'Vous avez recu '.number_format($amount,0,',',' ').' F via votre QR');
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
             'business_name'=>$m['business_name'],'cancel_before'=>$deadline,
@@ -3333,6 +3345,32 @@ function route_push($action) {
                 q("DELETE FROM admin_push_subscriptions");
             }
             ok(null, 'Notifications push admin desactivees');
+            break;
+        }
+        // Abonnement push cote ROM_BUSINESS : meme principe que ci-dessus mais
+        // avec merchant_auth() et sa propre table (identite marchand separee).
+        case 'merchant-subscribe': {
+            $pl = merchant_auth(); $b = body();
+            $endpoint = trim($b['endpoint'] ?? '');
+            $p256dh   = trim($b['p256dh'] ?? '');
+            $authKey  = trim($b['auth'] ?? '');
+            if(!$endpoint || !$p256dh || !$authKey) fail('Abonnement push invalide');
+            q("INSERT INTO merchant_push_subscriptions (merchant_id,endpoint,p256dh_key,auth_key)
+               VALUES (?,?,?,?)
+               ON CONFLICT (merchant_id, endpoint) DO UPDATE SET p256dh_key=EXCLUDED.p256dh_key, auth_key=EXCLUDED.auth_key",
+              [$pl['sub'], $endpoint, $p256dh, $authKey]);
+            ok(null, 'Notifications push activees');
+            break;
+        }
+        case 'merchant-unsubscribe': {
+            $pl = merchant_auth(); $b = body();
+            $endpoint = trim($b['endpoint'] ?? '');
+            if($endpoint){
+                q("DELETE FROM merchant_push_subscriptions WHERE merchant_id=? AND endpoint=?", [$pl['sub'], $endpoint]);
+            } else {
+                q("DELETE FROM merchant_push_subscriptions WHERE merchant_id=?", [$pl['sub']]);
+            }
+            ok(null, 'Notifications push desactivees');
             break;
         }
         default: fail('Action inconnue', 404);
@@ -5087,6 +5125,15 @@ function route_install() {
         p256dh_key TEXT NOT NULL,
         auth_key TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS merchant_push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh_key TEXT NOT NULL,
+        auth_key TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(merchant_id, endpoint)
     )",
     "CREATE TABLE IF NOT EXISTS known_devices (
         id SERIAL PRIMARY KEY,

@@ -208,7 +208,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div></div><button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
   </div>
   <div class="pin-err" id="login-err"></div>
-  <button class="pin-link" onclick="goto('s-welcome')">← Retour</button>
+  <button class="pin-link" onclick="_addAccountMode ? cancelAddAccount() : goto('s-welcome')">← Retour</button>
 </div>
 
 <!-- PIN CONFIRM (actions sensibles) -->
@@ -324,9 +324,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div class="section">
         <div class="card" style="padding:0;overflow:hidden">
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('notif-settings')"><span style="font-size:14px;font-weight:600">Notifications</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><span style="font-size:14px;font-weight:600">Changer le PIN</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><span style="font-size:14px;font-weight:600">Mes appareils</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('export-history')"><span style="font-size:14px;font-weight:600">Exporter mon historique</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('account-switch')"><span style="font-size:14px;font-weight:600">Ajouter un compte</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><span style="font-size:14px;font-weight:600">Déconnexion</span></div>
         </div>
       </div>
@@ -394,7 +396,46 @@ function checkPinLocal(buf){
   return sha256Hex(buf).then(function(h){ return h===APP.pinHash; });
 }
 
-function save(){ try{ localStorage.setItem('rombiz', JSON.stringify(APP)); }catch(e){} }
+// ── MULTI-COMPTES ("Ajouter un compte") ──
+// Meme mecanique que ROM_MONEY : chaque save() enregistre aussi un instantane
+// de APP dans un registre indexe par numero (rombiz_accounts), pour pouvoir
+// re-basculer instantanement sur un autre compte marchand deja connu sur cet
+// appareil sans re-saisir son PIN (si le jeton est encore valide).
+function accountKey(phone){ return (phone||'').replace(/[^0-9+]/g,''); }
+function getAccountsStore(){
+  try{ var d=localStorage.getItem('rombiz_accounts'); return d?JSON.parse(d):{}; }catch(e){ return {}; }
+}
+function setAccountsStore(obj){ try{ localStorage.setItem('rombiz_accounts', JSON.stringify(obj)); }catch(e){} }
+function getActivePhoneKey(){ try{ return localStorage.getItem('rombiz_active_phone')||''; }catch(e){ return ''; } }
+function setActivePhoneKey(k){ try{ localStorage.setItem('rombiz_active_phone', k||''); }catch(e){} }
+function jwtDecodePayload(token){
+  try{
+    var parts=(token||'').split('.');
+    if(parts.length!==3) return null;
+    var b64=parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length%4) b64+='=';
+    var json=decodeURIComponent(atob(b64).split('').map(function(c){
+      return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+function isTokenValid(token){
+  var pl=jwtDecodePayload(token);
+  return !!(pl && pl.exp && pl.exp*1000>Date.now());
+}
+function save(){
+  try{
+    localStorage.setItem('rombiz', JSON.stringify(APP));
+    if(APP.phone){
+      var key=accountKey(APP.phone);
+      var accounts=getAccountsStore();
+      accounts[key]=APP;
+      setAccountsStore(accounts);
+      setActivePhoneKey(key);
+    }
+  }catch(e){}
+}
 function load(){
   try{
     var raw = localStorage.getItem('rombiz');
@@ -515,12 +556,27 @@ function finishRegister(){
 }
 
 // ── CONNEXION ──
+var _addAccountMode = false;
+var _switchPrefillPhone = '';
+function startAddAccount(){
+  save();
+  _addAccountMode = true;
+  _switchPrefillPhone = '';
+  var pi=document.getElementById('login-phone-input'); if(pi) pi.value='';
+  goto('s-login');
+  setupLoginScreen();
+}
+function cancelAddAccount(){
+  _addAccountMode = false;
+  _switchPrefillPhone = '';
+  goto('s-app');
+}
 function setupLoginScreen(){
-  var known = APP.phone;
+  var known = _addAccountMode ? _switchPrefillPhone : APP.phone;
   var wrap = document.getElementById('login-phone-wrap');
   var input = document.getElementById('login-phone-input');
-  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=APP.businessName||'Connexion marchand'; }
-  else { wrap.style.display='block'; input.value=''; }
+  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?'Connexion':(APP.businessName||'Connexion marchand'); }
+  else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent='Connexion marchand'; }
   lgBuf=''; updateLgDots();
   document.getElementById('login-err').textContent='';
 }
@@ -543,6 +599,7 @@ function lgPin(d){
           APP.address=res.data.address; APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
           APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date; APP.qrSeed=res.data.qr_seed;
           APP.verified=!!res.data.verified;
+          _addAccountMode=false; _switchPrefillPhone='';
           setPin(buf).then(function(){ save(); launchApp(); });
         } else {
           lgBuf=''; updateLgDots();
@@ -846,7 +903,7 @@ var SHEET_TITLES={
   encaisser:'Encaisser', monqr:'Mon QR', virement:'Envoyer',
   vdeposit:'Déposer au coffre', vwithdraw:'Retirer du coffre', vlock:'Verrouiller le coffre',
   vcreate:'Créer un sous-compte', 'change-pin':'Changer le PIN', 'export-history':'Exporter mon historique',
-  devices:'Mes appareils'
+  devices:'Mes appareils', 'account-switch':'Mes comptes', 'notif-settings':'Notifications'
 };
 function openSheet(type, extra){
   document.getElementById('sh-title').textContent = SHEET_TITLES[type]||'—';
@@ -873,6 +930,8 @@ function buildSheet(type, b, extra){
   else if(type==='change-pin') shChangePin(b);
   else if(type==='export-history') shExportHistory(b);
   else if(type==='devices') shDevices(b);
+  else if(type==='account-switch') shAccountSwitch(b);
+  else if(type==='notif-settings') shNotifSettings(b);
 }
 
 // ── MON QR (affichage seul du QR marchand) ──
@@ -1454,6 +1513,140 @@ function doRevokeDevice(deviceId){
     } else {
       toast((res&&res.message)||'Erreur', true);
     }
+  }).catch(function(){ toast('Erreur', true); });
+}
+
+// ── MES COMPTES ("Ajouter un compte") ──
+function shAccountSwitch(b){
+  var accounts = getAccountsStore();
+  var activeKey = getActivePhoneKey();
+  var keys = Object.keys(accounts);
+  var html = '';
+  if(!keys.length){
+    html += '<div style="text-align:center;padding:20px;color:var(--t3);font-size:13px">Aucun compte enregistré pour le moment.</div>';
+  }
+  keys.forEach(function(key){
+    var acc = accounts[key];
+    var n = acc.businessName || 'Boutique';
+    var isActive = (key===activeKey);
+    html += '<div onclick="switchToAccount(\''+key+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div);cursor:pointer">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--gdd);flex-shrink:0">'+ini(n)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+n+'</div><div style="font-size:11px;color:var(--t3)">'+(acc.phone||key)+'</div></div>'
+      +(isActive?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>':'')
+      +'<span onclick="confirmRemoveAccount(event,\''+key+'\')" style="padding:8px;flex-shrink:0;color:var(--t3);cursor:pointer;font-size:15px">✕</span>'
+      +'</div>';
+  });
+  html += '<div onclick="closeSheet();startAddAccount()" style="display:flex;align-items:center;gap:12px;padding:14px 0 4px;cursor:pointer;color:var(--g)">'
+    +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:700;color:var(--g)">+</div>'
+    +'<div style="font-size:14px;font-weight:700">Ajouter un compte</div></div>';
+  b.innerHTML = html;
+}
+// Bascule vers un autre compte marchand deja enregistre sur cet appareil.
+// Instantane si son jeton est encore valide, sinon ouvre l'ecran de
+// connexion pre-rempli avec son numero (juste le PIN a resaisir).
+function switchToAccount(key){
+  var accounts = getAccountsStore();
+  var acc = accounts[key];
+  if(!acc) return;
+  if(key===getActivePhoneKey()){ closeSheet(); return; }
+  save();
+  if(isTokenValid(acc.token)){
+    for(var k in acc) APP[k]=acc[k];
+    setActivePhoneKey(key);
+    save();
+    closeSheet();
+    launchApp();
+  } else {
+    closeSheet();
+    _addAccountMode = true;
+    _switchPrefillPhone = acc.phone || key;
+    goto('s-login');
+    setupLoginScreen();
+  }
+}
+function confirmRemoveAccount(ev, key){
+  if(ev) ev.stopPropagation();
+  var accounts = getAccountsStore();
+  var acc = accounts[key];
+  var n = (acc && acc.businessName) || 'ce compte';
+  if(!confirm('Retirer '+n+' de cet appareil ?')) return;
+  removeAccountAndHandleUI(key);
+}
+function removeAccountAndHandleUI(key){
+  var wasActive = (key===getActivePhoneKey());
+  var accounts = getAccountsStore();
+  delete accounts[key];
+  setAccountsStore(accounts);
+  if(!wasActive){
+    var b=document.getElementById('sh-body');
+    if(b && document.getElementById('sh').classList.contains('on')) shAccountSwitch(b);
+    return;
+  }
+  setActivePhoneKey('');
+  try{ localStorage.removeItem('rombiz'); }catch(e){}
+  APP.businessName=''; APP.phone=''; APP.locationType='online'; APP.address='';
+  APP.merchantId=''; APP.pinHash=''; APP.token=''; APP.balance=0; APP.vaultBal=0;
+  APP.vaultLocked=false; APP.vaultDate=null; APP.subVaults=[]; APP.qrSeed=''; APP.balHidden=false;
+  var remaining = Object.keys(accounts);
+  closeSheet();
+  if(remaining.length>0){
+    switchToAccount(remaining[0]);
+  } else {
+    goto('s-welcome');
+  }
+}
+
+// ── NOTIFICATIONS PUSH ──
+var VAPID_PUBLIC_KEY = 'BKdX0VYx7EkhmZmKkErhdT4jXqigeNOTb-nKS0n3ZceHocyN36sYDE5ABBfp6ZZrqDEoHuNLxoMQsQhfK6T3hc8';
+function urlBase64ToUint8Array(base64String){
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+function renderNotifSettingsHTML(){
+  var checked = APP.pushEnabled===true;
+  return '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0">'
+    +'<div style="flex:1;padding-right:12px"><div style="font-size:14px;font-weight:600">Notifications de vente</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Recevez une alerte à chaque vente, même app fermée</div></div>'
+    +'<div onclick="toggleMerchantPush()" style="width:44px;height:26px;border-radius:13px;background:'+(checked?'var(--g)':'var(--bord)')+';position:relative;cursor:pointer;flex-shrink:0;transition:background .2s">'
+    +'<div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:3px;left:'+(checked?'21px':'3px')+';transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>'
+    +'</div></div>';
+}
+function shNotifSettings(b){ b.innerHTML = renderNotifSettingsHTML(); }
+function toggleMerchantPush(){
+  if(APP.pushEnabled===true) disableMerchantPush(); else enableMerchantPush();
+}
+function enableMerchantPush(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){ toast('Notifications non supportées sur cet appareil', true); return; }
+  navigator.serviceWorker.ready.then(function(reg){
+    return Notification.requestPermission().then(function(perm){
+      if(perm!=='granted'){ toast('Autorisation refusée', true); throw new Error('denied'); }
+      return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+    });
+  }).then(function(sub){
+    var json = sub.toJSON();
+    return apiCall('/push?action=merchant-subscribe','POST',{endpoint:json.endpoint,p256dh:json.keys.p256dh,auth:json.keys.auth},getToken());
+  }).then(function(res){
+    if(res && res.success){
+      APP.pushEnabled = true; save();
+      var sh=document.getElementById('sh-body'); if(sh) sh.innerHTML=renderNotifSettingsHTML();
+      toast('Notifications activées');
+    } else if(res){
+      toast((res&&res.message)||'Erreur', true);
+    }
+  }).catch(function(){});
+}
+function disableMerchantPush(){
+  navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(sub){
+    var endpoint = sub ? sub.endpoint : null;
+    var unsubP = sub ? sub.unsubscribe() : Promise.resolve();
+    return unsubP.then(function(){ return apiCall('/push?action=merchant-unsubscribe','POST', endpoint?{endpoint:endpoint}:{}, getToken()); });
+  }).then(function(){
+    APP.pushEnabled = false; save();
+    var sh=document.getElementById('sh-body'); if(sh) sh.innerHTML=renderNotifSettingsHTML();
+    toast('Notifications désactivées');
   }).catch(function(){ toast('Erreur', true); });
 }
 

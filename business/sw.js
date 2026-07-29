@@ -74,3 +74,36 @@ self.addEventListener('fetch', function(event){
     })
   );
 });
+
+// ═══════════════════════════════════════════
+// NOTIFICATIONS PUSH REELLES — meme mecanique que ROM_MONEY (voir ses
+// commentaires) : reception/affichage meme app fermee, ouverture au clic.
+// ═══════════════════════════════════════════
+self.addEventListener('push', function(event){
+  var data = {};
+  try{ data = event.data ? event.data.json() : {}; }catch(e){}
+  var title = data.title || 'ROM_BUSINESS';
+  var options = {
+    body: data.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: data.url || './' },
+    vibrate: [100, 50, 100],
+    requireInteraction: true
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function(event){
+  event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList){
+      for(var i=0; i<clientList.length; i++){
+        var c = clientList[i];
+        if('focus' in c) return c.focus();
+      }
+      if(clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
