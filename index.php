@@ -3477,6 +3477,7 @@ function route_admin($action) {
         'merchant-unblock'         => admin_merchant_unblock(),
         'merchant-reset-pin'       => admin_merchant_reset_pin(),
         'merchant-list'            => admin_merchant_list(),
+        'add-note'                 => admin_add_note(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3804,6 +3805,8 @@ function admin_search_by_phone() {
     $referredCount = (int)(q("SELECT COUNT(*) c FROM users WHERE referred_by=?",[$u['id']])->fetch()['c']??0);
     $referralEarned = (float)(q("SELECT COALESCE(SUM(bonus_amount),0) t FROM referral_bonuses WHERE referrer_id=?",[$u['id']])->fetch()['t']??0);
 
+    $notes = q("SELECT id,note,created_at FROM admin_notes WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+
     ok([
         'account_name'=>$u['verified_name']?:$u['full_name'],
         'account_verified'=>!empty($u['verified_name']),
@@ -3821,8 +3824,26 @@ function admin_search_by_phone() {
         'known_devices'=>$devices,
         'linked_banks'=>$banks,
         'referral'=>['referred_count'=>$referredCount,'total_earned'=>$referralEarned],
+        'notes'=>$notes,
         'transactions'=>$rows
     ]);
+}
+
+// Ajoute une note admin en texte libre sur un compte (contexte humain, pas
+// une action structuree - reste distinct de audit_logs). Append-only : pas
+// d'edition/suppression, comme le journal d'audit.
+function admin_add_note() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone'] ?? '');
+    $note = trim($b['note'] ?? '');
+    if(!$phone) fail('Numero requis');
+    if(!$note) fail('Note vide');
+    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Compte introuvable',404);
+    q("INSERT INTO admin_notes (user_id,note) VALUES (?,?)",[$u['id'],$note]);
+    admin_log('account_note_added','success',$phone,mb_substr($note,0,120));
+    ok(null,'Note ajoutee');
 }
 
 // Recherche un compte marchand ROM_BUSINESS par numero (independant de la
@@ -5062,6 +5083,16 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified SMALLINT DEFAULT 0",
+    // Notes admin en texte libre sur un compte personnel - contexte humain
+    // (appel client, litige en cours...) distinct du journal d'actions
+    // automatique (audit_logs), qui ne trace que les actions structurees.
+    "CREATE TABLE IF NOT EXISTS admin_notes (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        note TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_admin_notes_user ON admin_notes(user_id)",
     "CREATE TABLE IF NOT EXISTS merchant_known_devices (
         id SERIAL PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL,

@@ -3781,6 +3781,25 @@ function adminSearchByPhone(){
         html+='</div>';
       }
 
+      // ── Notes admin (contexte libre, distinct du journal d'audit) ──
+      var notes = d.notes||[];
+      window._adminNotePhone = phone;
+      html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px">'
+        +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:8px">Notes admin ('+notes.length+')</div>';
+      if(notes.length===0){
+        html+='<div class="admin-empty">Aucune note pour ce compte</div>';
+      } else {
+        notes.forEach(function(n){
+          html+='<div style="padding:8px 0;border-top:1px solid var(--bord)">'
+            +'<div style="white-space:pre-wrap">'+adminEsc(n.note)+'</div>'
+            +'<div style="color:var(--t3);font-size:10px;margin-top:4px">'+new Date(n.created_at).toLocaleString()+'</div>'
+            +'</div>';
+        });
+      }
+      html+='<textarea id="admin-note-input" placeholder="Ajouter une note (contexte, litige, appel client...)" style="width:100%;margin-top:10px;padding:10px;background:var(--card);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);font-family:inherit;resize:vertical;min-height:60px;box-sizing:border-box"></textarea>'
+        +'<button class="btn-w" style="margin-top:8px" onclick="adminAddNote()">Ajouter la note</button>'
+        +'</div>';
+
       // ── Transactions ──
       window._adminTxCache = txs;
       html+='<div style="font-size:13px;font-weight:800;color:var(--accent-text);margin-bottom:10px">'+at('admin_recent_tx_title').replace('{count}',txs.length)+'</div>';
@@ -3803,6 +3822,28 @@ function adminSearchByPhone(){
       box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||at('admin_not_found'))+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// Ajoute une note admin en texte libre sur le compte actuellement affiche
+// (window._adminNotePhone, defini par adminSearchByPhone()). Append-only,
+// pas d'edition/suppression - meme principe que le journal d'audit.
+function adminAddNote(){
+  var phone = window._adminNotePhone;
+  var input = document.getElementById('admin-note-input');
+  var note = input ? input.value.trim() : '';
+  if(!phone){ toast('Compte introuvable', true); return; }
+  if(!note){ toast('Note vide', true); return; }
+  apiCall('/admin?action=add-note','POST',{admin_password:window._adminPw,phone:phone,note:note},'').then(function(res){
+    if(res&&res.success){
+      toast('Note ajoutée');
+      document.getElementById('srch-phone').value = phone;
+      adminSearchByPhone();
+    } else {
+      toast((res&&res.message)||'Échec', true);
+    }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 
 // Transforme un User-Agent brut en resume lisible (ex: "Android · Chrome
