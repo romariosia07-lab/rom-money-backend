@@ -612,6 +612,7 @@ var I18N = {
   vault_online:{fr:'Commerce en ligne',en:'Online business'},
   vault_with_location:{fr:'Avec emplacement',en:'Physical location'},
   hist_no_tx:{fr:'Aucune transaction pour le moment.',en:'No transactions yet.'},
+  send_searching:{fr:'Recherche...',en:'Searching...'},
   tx_not_found:{fr:'Transaction introuvable',en:'Transaction not found'},
   receipt_title:{fr:'Reçu',en:'Receipt'},
   receipt_share_btn:{fr:'📤 Partager le reçu',en:'📤 Share receipt'},
@@ -1529,7 +1530,8 @@ function doEncaisserWithPin(phone, name, pin){
 // ── VIREMENT ──
 function shVirement(b){
   var chipStyle='flex:1;padding:11px;display:flex;align-items:center;justify-content:center;gap:6px';
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee()"></div>'
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee();resolveVirPhone()"></div>'
+    +'<div id="vir-rn" style="font-size:13px;font-weight:700;color:var(--g);margin:-10px 0 12px;min-height:16px"></div>'
     +'<div style="display:flex;gap:8px;margin:-8px 0 16px">'
     +'<button class="chip" style="'+chipStyle+'" onclick="virFillOwnNumber()">'+t('vir_own_account')+'</button>'
     +'<button class="chip" style="'+chipStyle+'" onclick="virPickContact()">'
@@ -1545,7 +1547,7 @@ function virFillOwnNumber(){
   var input=document.getElementById('vir-phone');
   if(!input) return;
   input.value=APP.phone;
-  updateVirFee();
+  updateVirFee(); resolveVirPhone();
 }
 function virPickContact(){
   if(!('contacts' in navigator) || !('ContactsManager' in window)){
@@ -1555,9 +1557,30 @@ function virPickContact(){
   navigator.contacts.select(['tel'], {multiple:false}).then(function(contacts){
     if(contacts && contacts.length && contacts[0].tel && contacts[0].tel.length){
       var input=document.getElementById('vir-phone');
-      if(input){ input.value=contacts[0].tel[0].replace(/[\s\-]/g,''); updateVirFee(); }
+      if(input){ input.value=contacts[0].tel[0].replace(/[\s\-]/g,''); updateVirFee(); resolveVirPhone(); }
     }
   }).catch(function(){});
+}
+// Recherche en direct du nom du destinataire pendant la saisie du numero -
+// meme principe que resolvePhone() cote ROM_MONEY personnel, adapte a
+// l'auth marchand via l'endpoint merchant_resolve_payer() (deja utilise
+// pour Encaisser). Reste silencieux (pas de toast) si rien n'est trouve :
+// le champ vide suffit, la validation reelle se fait au moment d'Envoyer.
+function resolveVirPhone(){
+  var input=document.getElementById('vir-phone');
+  var rn=document.getElementById('vir-rn');
+  if(!input||!rn) return;
+  var phone=input.value.trim();
+  if(phone.length<8){ rn.textContent=''; return; }
+  rn.textContent=t('send_searching');
+  apiCall('/merchant?action=resolve-payer&phone='+encodeURIComponent(phone),'GET',null,getToken())
+    .then(function(res){
+      if(res && res.success && res.data){
+        rn.textContent=(res.data.full_name||phone)+(res.data.is_verified?' ✓':'');
+      } else {
+        rn.textContent='';
+      }
+    }).catch(function(){ rn.textContent=''; });
 }
 function updateVirFee(){
   var phone=document.getElementById('vir-phone').value.trim();
