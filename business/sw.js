@@ -8,7 +8,7 @@
 // rapides (les forcer aussi ralentirait l'app pour rien).
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rombiz-shell-v3';
+var CACHE_NAME = 'rombiz-shell-v4';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './logo.jpg',
   './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg',
