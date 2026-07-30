@@ -2694,7 +2694,7 @@ function adminLoadDashboard(){
         +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:18px">'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
+        +'<div style="display:flex;flex-direction:column;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.today_volume), true)
         +adminStatBox('Gains générés', fmt(mrcStats.today_fees), true)
         +adminStatBox('Nombre de paiements', mrcStats.today_count, true)
