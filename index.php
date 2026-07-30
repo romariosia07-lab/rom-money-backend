@@ -25,6 +25,13 @@ define('JWT_EXPIRY', 43200); // 12h (etait 24h/86400s)
 define('APP_ENV',    getenv('APP_ENV')    ?: 'development');
 define('APP_DEBUG',  APP_ENV === 'development');
 define('CANCEL_MINS', 5);
+// Types de documents "entreprise" (KYB) acceptes - meme liste des deux
+// cotes (upload marchand + affichage admin). Photo chiffree au repos avec
+// la meme fonction que les photos KYC personnelles (kyc_encrypt/decrypt) :
+// meme sensibilite, meme protection. Doit rester defini avant le routeur
+// ($module/switch plus bas) : un define() est execute dans l'ordre du
+// fichier, contrairement aux fonctions qui sont disponibles partout.
+define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop_photo']);
 
 // Cles VAPID pour les notifications Web Push (RFC 8292). Generees une seule
 // fois via OpenSSL (courbe prime256v1) - NE JAMAIS LES CHANGER une fois en
@@ -882,12 +889,6 @@ function merchant_revoke_device() {
     if(!$n) fail('Appareil introuvable',404);
     ok(null,'Appareil deconnecte');
 }
-
-// Types de documents "entreprise" (KYB) acceptes - meme liste des deux
-// cotes (upload marchand + affichage admin). Photo chiffree au repos avec
-// la meme fonction que les photos KYC personnelles (kyc_encrypt/decrypt) :
-// meme sensibilite, meme protection.
-define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop_photo','owner_photo']);
 
 // Un merchant_documents.doc_type par marchand : reenvoyer le meme type
 // remplace simplement l'ancien (ON CONFLICT), pas d'historique de versions -
