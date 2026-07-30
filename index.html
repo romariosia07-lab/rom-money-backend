@@ -975,6 +975,29 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchant()">Rechercher</button>
       <div id="mrc-result"></div>
 
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Recherche avancée (montant / date / statut)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Retrouver une transaction marchande (encaissement ou virement) sans connaître le numéro du marchand.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="finput" id="mrctx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" style="margin-bottom:0">
+        <input class="finput" id="mrctx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" style="margin-bottom:0">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0">Du</label>
+        <input class="finput" id="mrctx-date-from" type="date" style="margin-bottom:0">
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0">au</label>
+        <input class="finput" id="mrctx-date-to" type="date" style="margin-bottom:0">
+      </div>
+      <select class="finput" id="mrctx-status">
+        <option value="">Statut : Tous</option>
+        <option value="completed">Complétée</option>
+        <option value="pending">En attente</option>
+        <option value="cancelled">Annulée</option>
+        <option value="frozen">Gelée</option>
+      </select>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchantTxAdvanced(1)">Rechercher</button>
+      <div id="mrctx-box"></div>
+      <div id="mrctx-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Liste des marchands</div>
       <div class="frow"><label class="flabel">Nom de boutique ou numéro</label><input class="finput" id="mrclist-search" placeholder="Nom de boutique ou numéro" oninput="adminLoadMerchants(1)"></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -4114,6 +4137,58 @@ function adminSearchTxAdvanced(page){
         pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._advTxPage<=1?'disabled':'')+' onclick="adminSearchTxAdvanced('+(window._advTxPage-1)+')">'+at('admin_users_prev_page')+'</button>'
           +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',window._advTxPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
           +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._advTxPage>=totalPages?'disabled':'')+' onclick="adminSearchTxAdvanced('+(window._advTxPage+1)+')">'+at('admin_users_next_page')+'</button>';
+      }
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+// Equivalent de adminSearchTxAdvanced() mais restreint aux transactions
+// marchandes (encaissements et virements). Chaque resultat ouvre la fiche
+// du marchand concerne (pas le contact personnel de l'autre cote).
+function adminSearchMerchantTxAdvanced(page){
+  window._mrcTxPage = page || window._mrcTxPage || 1;
+  var box=document.getElementById('mrctx-box');
+  var pag=document.getElementById('mrctx-pagination');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  if(pag) pag.innerHTML='';
+  apiCall('/admin?action=merchant-search-tx-advanced','POST',{
+    admin_password: window._adminPw,
+    amount_min: document.getElementById('mrctx-amt-min').value,
+    amount_max: document.getElementById('mrctx-amt-max').value,
+    date_from: document.getElementById('mrctx-date-from').value,
+    date_to: document.getElementById('mrctx-date-to').value,
+    status: document.getElementById('mrctx-status').value,
+    page: window._mrcTxPage
+  },'').then(function(res){
+    if(res&&res.success&&res.data){
+      var txs = res.data.transactions||[];
+      var total = res.data.total||0;
+      var perPage = res.data.per_page||25;
+      if(txs.length===0){
+        box.innerHTML='<div class="admin-empty">Aucune transaction trouvée</div>';
+        return;
+      }
+      var html='';
+      txs.forEach(function(t){
+        var senderDisp = t.sender_merchant_name || adminNameDisplay(t.sender_name,t.sender_verified_name);
+        var receiverDisp = t.receiver_merchant_name || adminNameDisplay(t.receiver_name,t.receiver_verified_name);
+        var merchantPhone = t.sender_merchant_phone || t.receiver_merchant_phone || '';
+        html+='<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenMerchantFromList(\''+merchantPhone+'\')">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+fmt(parseFloat(t.amount))+'</b>'+statusPill(t.status)+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+(TYPE_FR_GET(t.type)||t.type)+' · '+senderDisp+' → '+receiverDisp+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+t.reference+' — '+new Date(t.created_at).toLocaleString()+'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+
+      var totalPages = Math.max(1, Math.ceil(total/perPage));
+      if(pag){
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._mrcTxPage<=1?'disabled':'')+' onclick="adminSearchMerchantTxAdvanced('+(window._mrcTxPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',window._mrcTxPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._mrcTxPage>=totalPages?'disabled':'')+' onclick="adminSearchMerchantTxAdvanced('+(window._mrcTxPage+1)+')">'+at('admin_users_next_page')+'</button>';
       }
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
