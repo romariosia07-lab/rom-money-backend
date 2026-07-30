@@ -301,7 +301,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="db-stats-error" class="empty-note" style="display:none;color:var(--rd)"></div>
         <div class="card" style="margin-top:8px;padding:14px;position:relative">
           <div style="font-size:12px;color:var(--t2);margin-bottom:10px" data-i18n="stats_chart_title">Ventes des 7 derniers jours</div>
-          <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px;position:relative"></div>
+          <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:240px;position:relative"></div>
         </div>
       </div>
     </div>
@@ -1118,8 +1118,8 @@ function renderDashboardChart(daily){
   if(!el) return;
   var h='';
   days.forEach(function(d){
-    var barH=Math.max(Math.round((d.v/max)*54),d.v>0?3:0);
-    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:70px">'
+    var barH=Math.max(Math.round((d.v/max)*215),d.v>0?3:0);
+    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:240px">'
       +'<div onclick="showDbTooltip(event,'+d.v+')" style="width:100%;max-width:22px;height:'+barH+'px;background:'+(d.v>0?'var(--g)':'var(--div)')+';border-radius:4px 4px 0 0;cursor:pointer"></div>'
       +'<div style="font-size:9px;color:var(--t3);margin-top:4px;text-transform:capitalize">'+d.label+'</div>'
       +'</div>';
@@ -1760,7 +1760,7 @@ function renderKybDocs(b){
       +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
       +'<div style="display:flex;gap:8px">'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()">📁 '+t('kyb_import')+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'
       +'</div>'
       +'</div>';
   });
