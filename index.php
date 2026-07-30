@@ -4272,6 +4272,13 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     try {
         $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
         $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
+        // "Aujourd'hui" - toujours fixe, meme principe que todayVolume/todayFees.
+        $merchantVolumeToday = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantFeeToday    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
+        // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
+        $merchantVolumePeriod = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
+        $merchantFeePeriod    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        // Cumule (depuis toujours), independant du filtre de periode.
         $merchantVolume    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
         // Part du pot commun de frais generee specifiquement par BUSINESS : le
         // 1% preleve sur un virement marchand vers un numero autre que le sien
@@ -4288,6 +4295,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             LIMIT 10")->fetchAll();
     } catch(Exception $e) {
         $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $merchantFeeRevenue = 0; $topMerchants = [];
+        $merchantVolumeToday = 0; $merchantFeeToday = 0; $merchantVolumePeriod = 0; $merchantFeePeriod = 0;
     }
 
     return [
@@ -4308,6 +4316,10 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             'verified' => $merchantsVerified,
             'volume'   => $merchantVolume,
             'fee_revenue' => $merchantFeeRevenue,
+            'today_volume' => $merchantVolumeToday,
+            'today_fees'   => $merchantFeeToday,
+            'period_volume' => $merchantVolumePeriod,
+            'period_fees'   => $merchantFeePeriod,
             'top'      => $topMerchants
         ]
     ];

@@ -2682,17 +2682,28 @@ function adminLoadDashboard(){
           +'</div>';
       }
 
-      // ── Marchands ROM_BUSINESS ──
-      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,top:[]};
+      // ── Marchands ROM_BUSINESS (meme structure Aujourd'hui / Periode / Cumule que le bloc personnel ci-dessus) ──
+      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,today_volume:0,today_fees:0,period_volume:0,period_fees:0,top:[]};
       var mrcHtml='<div class="admin-stitle">Marchands ROM_BUSINESS</div>'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
         +adminStatBox('Marchands', mrcStats.total, true)
         +adminStatBox('Vérifiés', mrcStats.verified, true)
         +'</div>'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
-        +adminStatBox('Volume encaissé', fmt(mrcStats.volume), true)
-        +adminStatBox('Gains générés par BUSINESS', fmt(mrcStats.fee_revenue), true)
-        +'</div>';
+        +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:8px">'
+        +'<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_today')+'</div>'
+        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:18px">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
+        +adminStatBox('Volume encaissé', fmt(mrcStats.today_volume), true)
+        +adminStatBox('Gains générés', fmt(mrcStats.today_fees), true)
+        +'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
+        +adminStatBox('Volume encaissé', fmt(mrcStats.period_volume), true)
+        +adminStatBox('Gains générés', fmt(mrcStats.period_fees), true)
+        +'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé · '+fmt(mrcStats.fee_revenue)+' de gains générés</div>';
       var topMerchants=mrcStats.top||[];
       mrcHtml+='<div class="admin-stitle">Top 10 marchands</div>';
       if(topMerchants.length===0){
