@@ -251,6 +251,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 <!-- APP -->
 <div class="screen" id="s-app">
   <div id="main-scroll">
+    <div id="ptr-indicator" style="height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <div id="ptr-spinner" style="width:22px;height:22px;border:3px solid var(--gl);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite"></div>
+    </div>
     <div class="app-header">
       <div class="bal-label" style="padding-top:4px"><span data-i18n="bal_label">Solde disponible</span>
         <svg id="eye-icon" onclick="toggleBal()" width="15" height="15" stroke="rgba(255,255,255,.8)" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="cursor:pointer;vertical-align:middle;margin-left:4px">
@@ -975,6 +978,68 @@ function launchApp(){
   refreshHistory();
   loadDashboardStats();
   startInactivityTimer();
+  initPullToRefresh();
+}
+
+// ── TIRER POUR RAFRAICHIR (pull-to-refresh) ──
+// #main-scroll est le seul conteneur scrollable de l'app (toutes les pages
+// y vivent) : on ne declenche que si on est deja tout en haut (scrollTop=0)
+// et qu'on tire vers le bas, sinon ce serait un simple scroll normal.
+// L'indicateur (spinner) prend de la hauteur pendant qu'on tire (relache le
+// contenu vers le bas naturellement, pas besoin de transform), puis se
+// resorbe une fois le rafraichissement de la page active termine.
+var _ptrInited=false, _ptrStartY=0, _ptrPulling=false, _ptrRefreshing=false;
+var PTR_TRIGGER=64, PTR_MAX=90;
+function initPullToRefresh(){
+  if(_ptrInited) return;
+  _ptrInited=true;
+  var scrollEl=document.getElementById('main-scroll');
+  if(!scrollEl) return;
+  scrollEl.addEventListener('touchstart', function(e){
+    if(_ptrRefreshing || scrollEl.scrollTop>0){ _ptrPulling=false; return; }
+    _ptrStartY=e.touches[0].clientY; _ptrPulling=true;
+  }, {passive:true});
+  scrollEl.addEventListener('touchmove', function(e){
+    if(!_ptrPulling || _ptrRefreshing) return;
+    var dy=e.touches[0].clientY-_ptrStartY;
+    if(dy<=0 || scrollEl.scrollTop>0){ _ptrPulling=false; setPtrHeight(0); return; }
+    e.preventDefault();
+    setPtrHeight(Math.min(dy*0.5, PTR_MAX));
+  }, {passive:false});
+  scrollEl.addEventListener('touchend', function(){
+    if(!_ptrPulling || _ptrRefreshing) return;
+    _ptrPulling=false;
+    var ind=document.getElementById('ptr-indicator');
+    var h=ind?ind.offsetHeight:0;
+    if(h>=PTR_TRIGGER*0.5) ptrDoRefresh();
+    else setPtrHeight(0);
+  }, {passive:true});
+}
+function setPtrHeight(h){
+  var ind=document.getElementById('ptr-indicator');
+  if(ind) ind.style.height=h+'px';
+}
+function ptrCurrentPage(){
+  for(var i=0;i<PAGES.length;i++){
+    var el=document.getElementById('pg-'+PAGES[i]);
+    if(el && el.style.display!=='none') return PAGES[i];
+  }
+  return 'home';
+}
+function ptrDoRefresh(){
+  _ptrRefreshing=true;
+  setPtrHeight(48);
+  var page=ptrCurrentPage();
+  var tasks=[];
+  if(page==='home') tasks=[refreshBalance(),refreshHistory(),loadDashboardStats()];
+  else if(page==='historique') tasks=[refreshHistory(true)];
+  else if(page==='stats') tasks=[loadDashboardStats()];
+  else if(page==='coffre') tasks=[refreshBalance()];
+  else tasks=[refreshBalance()];
+  Promise.all(tasks).catch(function(){}).then(function(){
+    _ptrRefreshing=false;
+    setPtrHeight(0);
+  });
 }
 
 // ── AUTO-VERROUILLAGE apres 5 min d'inactivite OU verrouillage de l'ecran ──
@@ -1020,7 +1085,7 @@ function startInactivityTimer(){
 }
 function loadDashboardStats(){
   var errEl = document.getElementById('db-stats-error');
-  apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
+  return apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
     if(!res || !res.success || !res.data){
       var msg = (res && res.message) || t('network_error');
       if(errEl){ errEl.style.display='block'; errEl.innerHTML=msg+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
@@ -1105,7 +1170,7 @@ function renderVerifiedBadges(){
   if(prof) prof.innerHTML = APP.businessName + (APP.verified?' <span style="color:var(--g)" title="'+vt+'">✓</span>':'');
 }
 function refreshBalance(){
-  apiCall('/merchant?action=balance','GET',null,getToken()).then(function(res){
+  return apiCall('/merchant?action=balance','GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
       APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date;
@@ -1257,7 +1322,7 @@ function shareReceiptPdf(tx){
   });
 }
 function refreshHistory(full){
-  apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
+  return apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       txList = res.data.transactions||[];
       renderTxRows(txList.slice(0,5), 'home-tx-list');
