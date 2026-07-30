@@ -1902,6 +1902,8 @@ var I18N = {
   send_err_invalid_amount: {fr:'Montant invalide', en:'Invalid amount'},
   send_err_insufficient_balance: {fr:'Solde insuffisant', en:'Insufficient balance'},
   send_err_account_not_found: {fr:'Compte ROM_MONEY introuvable', en:'ROM_MONEY account not found'},
+  send_is_merchant_label: {fr:'compte marchand', en:'business account'},
+  send_err_is_merchant: {fr:'Ce numéro est un compte marchand : utilisez "Payer" pour lui envoyer de l\'argent.', en:'This number is a business account: use "Pay" to send money to it.'},
   send_pin_confirm: {fr:'Envoyer {amt} à {name}', en:'Send {amt} to {name}'},
   send_pin_confirm_fee: {fr:' (frais: {fee})', en:' (fee: {fee})'},
   send_success_toast: {fr:'{amt} envoyé à {name}', en:'{amt} sent to {name}'},
@@ -7144,6 +7146,7 @@ function resolvePhone(){
   var sph = document.getElementById('sph');
   if(!sph) return;
   var phone = sph.value.trim();
+  window._sphIsMerchant = false;
   if(phone.length < 8) return;
   var tok = getToken();
   var srn = document.getElementById('srn');
@@ -7152,7 +7155,17 @@ function resolvePhone(){
     .then(function(res){
       if(res && res.success && res.data){
         var name = res.data.full_name || res.data.name || phone;
-        if(srn) srn.textContent = name + (res.data.is_verified ? ' ✓' : '');
+        if(res.data.is_merchant){
+          // "Envoyer" est un virement personnel classique (tx_send) : il ne
+          // peut pas atteindre un merchant_wallet, seul "Payer" (scan du QR
+          // marchand) le peut. On le detecte et l'explique au lieu de laisser
+          // l'utilisateur decouvrir l'echec seulement apres avoir tape son PIN.
+          window._sphIsMerchant = true;
+          if(srn) srn.textContent = name + ' ('+t('send_is_merchant_label')+')';
+        } else {
+          window._sphIsMerchant = false;
+          if(srn) srn.textContent = name + (res.data.is_verified ? ' ✓' : '');
+        }
       } else if(res && res.offline){
         if(srn) srn.textContent = t('offline_unavailable');
       } else {
@@ -7174,6 +7187,7 @@ function doSend(){
 
   if(!phone){ toast(t('send_err_enter_number'), true); return; }
   if(!navigator.onLine){ toast(t('offline_unavailable'), true); return; }
+  if(window._sphIsMerchant){ toast(t('send_err_is_merchant'), true); return; }
   if(brut<=0){ toast(t('send_err_invalid_amount'), true); return; }
   if(brut>APP.balance){ toast(t('send_err_insufficient_balance'), true); return; }
   if(receiverName==='Numéro non trouvé sur ROM_MONEY'||!receiverName){

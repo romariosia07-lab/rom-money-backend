@@ -2306,11 +2306,13 @@ function tx_history() {
     elseif($fil==='cancelled'){$where.=" AND t.status='cancelled'";}
     $txs = db()->prepare("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
-        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        COALESCE(su.full_name, sm.business_name) sender_name, COALESCE(su.phone_number, sm.phone_number) sender_phone, su.verified_name sender_verified_name,
+        COALESCE(ru.full_name, rm.business_name) receiver_name, COALESCE(ru.phone_number, rm.phone_number) receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         $where ORDER BY t.created_at DESC LIMIT $lim OFFSET $off");
     $txs->execute($params);
     ok(['transactions'=>$txs->fetchAll(),'page'=>$page,'limit'=>$lim]);
@@ -2323,11 +2325,13 @@ function tx_detail() {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
-        su.full_name sender_name, su.verified_name sender_verified_name, su.country sender_country,
-        ru.full_name receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
+        COALESCE(su.full_name, sm.business_name) sender_name, su.verified_name sender_verified_name, su.country sender_country,
+        COALESCE(ru.full_name, rm.business_name) receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE t.id=? AND (t.sender_wallet_id='$wid' OR t.receiver_wallet_id='$wid')",[$id])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     $tx['can_cancel'] = $tx['status']==='completed' && $tx['direction']==='debit'
@@ -2386,19 +2390,37 @@ function tx_resolve() {
     $phone = $_GET['phone']??'';
     if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
     $u = q("SELECT full_name,phone_number,is_kyc,verified_name FROM users WHERE phone_number=? AND id!=?",[$phone,$pl['sub']])->fetch();
-    if(!$u) fail('Aucun compte trouve',404);
-    // Priorite au nom verifie KYC (comme partout ailleurs dans l'app : historique,
-    // recus PDF, panneau admin) plutot qu'au seul nom de profil, librement
-    // modifiable par n'importe qui vers n'importe quoi. Avant ce correctif,
-    // c'etait la seule fonction de toute l'app a ne pas suivre cette regle -
-    // exactement l'endroit ou ca compte le plus, puisque c'est le nom que
-    // l'expediteur voit juste avant de confirmer l'envoi de son argent.
-    ok([
-        'full_name'   => $u['verified_name'] ?: $u['full_name'],
-        'phone_number'=> $u['phone_number'],
-        'is_kyc'      => $u['is_kyc'],
-        'is_verified' => !empty($u['verified_name']),
-    ], 'Compte trouve');
+    if($u){
+        // Priorite au nom verifie KYC (comme partout ailleurs dans l'app : historique,
+        // recus PDF, panneau admin) plutot qu'au seul nom de profil, librement
+        // modifiable par n'importe qui vers n'importe quoi. Avant ce correctif,
+        // c'etait la seule fonction de toute l'app a ne pas suivre cette regle -
+        // exactement l'endroit ou ca compte le plus, puisque c'est le nom que
+        // l'expediteur voit juste avant de confirmer l'envoi de son argent.
+        ok([
+            'full_name'   => $u['verified_name'] ?: $u['full_name'],
+            'phone_number'=> $u['phone_number'],
+            'is_kyc'      => $u['is_kyc'],
+            'is_verified' => !empty($u['verified_name']),
+            'is_merchant' => false,
+        ], 'Compte trouve');
+    }
+    // Pas de compte personnel sur ce numero : verifie si c'est un compte
+    // marchand. "Envoyer" (virement personnel classique, tx_send()) ne peut
+    // pas atteindre un merchant_wallet - seul "Payer" (scan du QR marchand,
+    // tx_pay_merchant()) le peut. Avant ce correctif, l'utilisateur se
+    // retrouvait juste face a un champ vide sans aucune explication.
+    $m = q("SELECT business_name FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if($m){
+        ok([
+            'full_name'   => $m['business_name'],
+            'phone_number'=> $phone,
+            'is_kyc'      => false,
+            'is_verified' => false,
+            'is_merchant' => true,
+        ], 'Compte marchand trouve');
+    }
+    fail('Aucun compte trouve',404);
 }
 
 // PROFILE
