@@ -4266,6 +4266,25 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         ORDER BY total_volume DESC
         LIMIT 10")->fetchAll();
 
+    // Bloc marchands ROM_BUSINESS - protege par try/catch au cas ou les
+    // tables merchants/merchant_wallets ne seraient pas encore creees sur
+    // cette base (meme precaution que merchant_register()/merchant_login()).
+    try {
+        $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
+        $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
+        $merchantVolume    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
+        $topMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
+                COALESCE(SUM(t.amount),0) AS total_volume, COUNT(t.id) AS tx_count
+            FROM merchants m
+            JOIN merchant_wallets mw ON mw.merchant_id = m.id
+            LEFT JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment'
+            GROUP BY m.id, m.business_name, m.phone_number, m.verified
+            ORDER BY total_volume DESC
+            LIMIT 10")->fetchAll();
+    } catch(Exception $e) {
+        $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $topMerchants = [];
+    }
+
     return [
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
@@ -4278,7 +4297,13 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs,
         'daily_volume'   => $dailyVolume,
-        'top_users'      => $topUsers
+        'top_users'      => $topUsers,
+        'merchants'      => [
+            'total'    => $merchantsTotal,
+            'verified' => $merchantsVerified,
+            'volume'   => $merchantVolume,
+            'top'      => $topMerchants
+        ]
     ];
 }
 
