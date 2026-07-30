@@ -3482,6 +3482,7 @@ function route_admin($action) {
         'users-export-xlsx'        => admin_users_export_xlsx(),
         'users-export-pdf'         => admin_users_export_pdf(),
         'list-near-limit'          => admin_list_near_limit(),
+        'merchant-add-note'        => admin_merchant_add_note(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3915,10 +3916,36 @@ function admin_merchant_search() {
     }
     if(!$m) fail('Aucun compte marchand pour ce numero',404);
     $w = q("SELECT balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    try {
+        $notes = q("SELECT id,note,created_at FROM merchant_notes WHERE merchant_id=? ORDER BY created_at DESC",[$m['id']])->fetchAll();
+    } catch(Exception $e) {
+        $notes = [];
+    }
     ok(['id'=>$m['id'],'business_name'=>$m['business_name'],'phone_number'=>$m['phone_number'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],'status'=>$m['status'],
         'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
-        'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0)]);
+        'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
+        'notes'=>$notes]);
+}
+
+// Ajoute une note admin en texte libre sur un compte marchand - equivalent
+// de admin_add_note() cote personnel, table separee (merchant_notes).
+function admin_merchant_add_note() {
+    $b = body();
+    check_admin_password($b);
+    $merchantId = trim($b['merchant_id'] ?? '');
+    $note = trim($b['note'] ?? '');
+    if(!$merchantId) fail('Marchand requis');
+    if(!$note) fail('Note vide');
+    $m = q("SELECT id,phone_number FROM merchants WHERE id=?",[$merchantId])->fetch();
+    if(!$m) fail('Marchand introuvable',404);
+    try {
+        q("INSERT INTO merchant_notes (merchant_id,note) VALUES (?,?)",[$m['id'],$note]);
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Table des notes non initialisee (migration a executer).', 503);
+    }
+    admin_log('merchant_note_added','success',$m['phone_number'],mb_substr($note,0,120));
+    ok(null,'Note ajoutee');
 }
 
 // Bascule le badge "commerce verifie" - purement declaratif cote admin (pas
@@ -5279,6 +5306,16 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_admin_notes_user ON admin_notes(user_id)",
+    // Equivalent de admin_notes mais pour un compte marchand ROM_BUSINESS -
+    // table separee (comme merchant_known_devices vs known_devices) plutot
+    // que reutiliser admin_notes.user_id pour un ID marchand.
+    "CREATE TABLE IF NOT EXISTS merchant_notes (
+        id SERIAL PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        note TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_merchant_notes_merchant ON merchant_notes(merchant_id)",
     "CREATE TABLE IF NOT EXISTS merchant_known_devices (
         id SERIAL PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL,

@@ -3713,6 +3713,24 @@ function adminSearchMerchant(){
         +'<input class="finput" id="mrcpin-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
         +'<button class="btn-g" style="margin-top:10px" onclick="adminResetMerchantPin(\''+m.id+'\')">Réinitialiser le PIN</button>';
+
+      // ── Notes admin (contexte libre) ──
+      var mNotes = m.notes||[];
+      window._adminMerchantNoteId = m.id;
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Notes admin ('+mNotes.length+')</div>';
+      if(mNotes.length===0){
+        html += '<div class="admin-empty">Aucune note pour ce marchand</div>';
+      } else {
+        mNotes.forEach(function(n){
+          html += '<div style="padding:8px 0;border-top:1px solid var(--bord);font-size:12px">'
+            +'<div style="white-space:pre-wrap">'+adminEsc(n.note)+'</div>'
+            +'<div style="color:var(--t3);font-size:10px;margin-top:4px">'+new Date(n.created_at).toLocaleString()+'</div>'
+            +'</div>';
+        });
+      }
+      html += '<textarea id="admin-merchant-note-input" placeholder="Ajouter une note (contexte, litige, appel...)" style="width:100%;margin-top:10px;padding:10px;background:var(--card);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);font-family:inherit;resize:vertical;min-height:60px;box-sizing:border-box"></textarea>'
+        +'<button class="btn-w" style="margin-top:8px" onclick="adminAddMerchantNote()">Ajouter la note</button>';
+
       box.innerHTML=html;
       resetReasonField('mrc');
       resetReasonField('mrcpin');
@@ -3772,6 +3790,21 @@ function adminResetMerchantPin(merchantId){
       });
     }
   });
+}
+function adminAddMerchantNote(){
+  var merchantId = window._adminMerchantNoteId;
+  var input = document.getElementById('admin-merchant-note-input');
+  var note = input ? input.value.trim() : '';
+  if(!merchantId){ toast('Marchand introuvable', true); return; }
+  if(!note){ toast('Note vide', true); return; }
+  apiCall('/admin?action=merchant-add-note','POST',{admin_password:window._adminPw,merchant_id:merchantId,note:note},'').then(function(res){
+    if(res&&res.success){
+      toast('Note ajoutée');
+      adminSearchMerchant();
+    } else {
+      toast((res&&res.message)||'Échec', true);
+    }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminSearchByPhone(){
   var phone=document.getElementById('srch-phone').value.trim();
