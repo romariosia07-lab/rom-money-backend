@@ -337,6 +337,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div class="section">
         <div class="card" style="padding:0;overflow:hidden">
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('kyb-docs')"><div class="set-ico" style="background:rgba(138,90,16,.12);color:#8a5a10"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_kyb_docs">Documents de l'entreprise</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('notif-settings')"><div class="set-ico" style="background:rgba(29,158,117,.12);color:var(--g)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_notifications">Notifications</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><div class="set-ico" style="background:rgba(15,110,86,.12);color:var(--gd)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_change_pin">Changer le PIN</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="toggleBio()"><div class="set-ico" style="background:rgba(29,158,117,.12);color:var(--g)"><svg viewBox="0 0 24 24"><path d="M12 1a5 5 0 00-5 5v3"/><path d="M12 1a5 5 0 015 5v3"/><path d="M7 9a5 5 0 0010 0"/><path d="M5 11.5a7 7 0 0014 0"/></svg></div><span style="font-size:14px;font-weight:600" id="prof-bio-label">Biométrie : Désactivée</span></div>
@@ -613,6 +614,22 @@ var I18N = {
   vault_with_location:{fr:'Avec emplacement',en:'Physical location'},
   hist_no_tx:{fr:'Aucune transaction pour le moment.',en:'No transactions yet.'},
   send_searching:{fr:'Recherche...',en:'Searching...'},
+  profil_kyb_docs:{fr:"Documents de l'entreprise",en:'Business documents'},
+  kyb_docs_intro:{fr:"Ces documents servent de preuve avant l'obtention du badge \"commerce vérifié\". Une coche verte confirme qu'un document est bien enregistré.",en:'These documents serve as proof before getting the "verified business" badge. A green check confirms a document was saved.'},
+  kyb_doc_id_recto:{fr:"Pièce d'identité du gérant (recto)",en:"Manager's ID (front)"},
+  kyb_doc_id_verso:{fr:"Pièce d'identité du gérant (verso)",en:"Manager's ID (back)"},
+  kyb_doc_rccm:{fr:'RCCM (Registre du Commerce)',en:'RCCM (Trade Register)'},
+  kyb_doc_dfe:{fr:"DFE (Déclaration Fiscale d'Existence)",en:'Tax registration (DFE)'},
+  kyb_doc_patente:{fr:'Patente / registre fiscal',en:'Business license'},
+  kyb_doc_shop_photo:{fr:'Photo du magasin / local commercial',en:'Photo of the shop / premises'},
+  kyb_doc_owner_photo:{fr:'Photo du gérant devant le commerce',en:'Photo of the manager at the shop'},
+  kyb_uploaded_on:{fr:'Enregistré le {date}',en:'Saved on {date}'},
+  kyb_take_photo:{fr:'Photo',en:'Photo'},
+  kyb_retake:{fr:'Reprendre',en:'Retake'},
+  kyb_import:{fr:'Importer',en:'Import'},
+  kyb_uploading:{fr:'Envoi en cours...',en:'Uploading...'},
+  kyb_upload_success:{fr:'Document enregistré',en:'Document saved'},
+  kyb_upload_error:{fr:"Échec de l'enregistrement",en:'Failed to save'},
   tx_not_found:{fr:'Transaction introuvable',en:'Transaction not found'},
   receipt_title:{fr:'Reçu',en:'Receipt'},
   receipt_share_btn:{fr:'📤 Partager le reçu',en:'📤 Share receipt'},
@@ -1261,7 +1278,7 @@ var SHEET_TITLE_KEYS={
   vdeposit:'sheet_title_vdeposit', vwithdraw:'sheet_title_vwithdraw', vlock:'sheet_title_vlock',
   vcreate:'sheet_title_vcreate', 'change-pin':'profil_change_pin', 'export-history':'profil_export',
   devices:'profil_devices', 'account-switch':'sheet_title_accounts', 'notif-settings':'profil_notifications',
-  appearance:'profil_appearance', language:'profil_language'
+  appearance:'profil_appearance', language:'profil_language', 'kyb-docs':'profil_kyb_docs'
 };
 function openSheet(type, extra){
   document.getElementById('sh-title').textContent = SHEET_TITLE_KEYS[type] ? t(SHEET_TITLE_KEYS[type]) : '—';
@@ -1292,6 +1309,7 @@ function buildSheet(type, b, extra){
   else if(type==='notif-settings') shNotifSettings(b);
   else if(type==='appearance') shAppearance(b);
   else if(type==='language') shLanguage(b);
+  else if(type==='kyb-docs') shKybDocs(b);
 }
 
 // ── MON QR (affichage seul du QR marchand) ──
@@ -1407,6 +1425,7 @@ function shEncaisser(b){
     +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
     +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
     +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('scan_point_qr')+'</p>'
+    +torchToggleBtnHtml('torch-enc')
     +'</div>'
     +'<button onclick="stopMerchantEncScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">'+t('cancel')+'</button>'
     +'</div>'
@@ -1432,8 +1451,33 @@ function startMerchantScan(){
     var v=document.getElementById('enc-vid');
     if(!v) return;
     v.srcObject=stream;
-    v.play().then(function(){ encScanLoop(); });
+    v.play().then(function(){ encScanLoop(); torchCheckAndShow(stream,'torch-enc'); });
   }).catch(function(){ toast(t('camera_denied'), true); });
+}
+// ── TORCHE (lampe) pendant un scan QR ── track.getCapabilities().torch n'est
+// disponible que sur certains navigateurs (Chrome/Android essentiellement -
+// Safari/iOS ne l'expose pas via le web) : le bouton reste cache si non
+// supporte plutot que d'afficher un controle qui ne ferait rien.
+function torchToggleBtnHtml(id){
+  return '<button id="'+id+'" onclick="event.stopPropagation();toggleTorchBtn(this)" style="position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);border:none;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:17px;z-index:2" data-on="0">🔦</button>';
+}
+function torchCheckAndShow(stream, btnId){
+  var btn=document.getElementById(btnId);
+  if(!btn) return;
+  var track = stream ? stream.getVideoTracks()[0] : null;
+  if(!track || !track.getCapabilities) return;
+  var caps;
+  try{ caps=track.getCapabilities(); }catch(e){ return; }
+  if(caps && caps.torch){ btn.style.display='flex'; btn._track=track; btn.setAttribute('data-on','0'); }
+}
+function toggleTorchBtn(btn){
+  var track=btn._track;
+  if(!track) return;
+  var on=btn.getAttribute('data-on')==='1';
+  track.applyConstraints({advanced:[{torch:!on}]}).then(function(){
+    btn.setAttribute('data-on', on?'0':'1');
+    btn.style.background = on ? 'rgba(0,0,0,.45)' : 'var(--g)';
+  }).catch(function(){});
 }
 function encScanLoop(){
   if(!encStream) return;
@@ -1607,6 +1651,88 @@ function doVirement(){
       }
     });
   });
+}
+
+// ── DOCUMENTS DE L'ENTREPRISE (KYB) ──
+// Preuves a l'appui avant qu'un admin accorde le badge "commerce verifie" :
+// piece d'identite du gerant, RCCM, DFE, patente, photo du magasin, photo
+// du gerant. Chaque type est independant (upload immediat, pas d'assistant
+// multi-etapes comme le KYC personnel) : une case se coche des que la
+// photo est enregistree avec succes cote serveur.
+var KYB_DOC_TYPES=[
+  {key:'id_recto', label:'kyb_doc_id_recto'},
+  {key:'id_verso', label:'kyb_doc_id_verso'},
+  {key:'rccm', label:'kyb_doc_rccm'},
+  {key:'dfe', label:'kyb_doc_dfe'},
+  {key:'patente', label:'kyb_doc_patente'},
+  {key:'shop_photo', label:'kyb_doc_shop_photo'},
+  {key:'owner_photo', label:'kyb_doc_owner_photo'}
+];
+function shKybDocs(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/merchant?action=doc-list','GET',null,getToken()).then(function(res){
+    window._kybDocStatus={};
+    if(res && res.success && res.data){
+      (res.data.documents||[]).forEach(function(d){ window._kybDocStatus[d.doc_type]=d.uploaded_at; });
+      renderKybDocs(b);
+    } else {
+      b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+((res&&res.message)||t('network_error'))+'</div>';
+    }
+  }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+function renderKybDocs(b){
+  var status=window._kybDocStatus||{};
+  var loc=APP.lang==='en'?'en-US':'fr-FR';
+  var h='<div style="font-size:11px;color:var(--t2);margin-bottom:14px">'+t('kyb_docs_intro')+'</div>';
+  KYB_DOC_TYPES.forEach(function(d){
+    var uploadedAt=status[d.key];
+    h+='<div class="card" style="padding:12px;margin-bottom:10px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:'+(uploadedAt?'4px':'8px')+'">'
+      +'<span style="font-size:13px;font-weight:700">'+t(d.label)+'</span>'
+      +(uploadedAt?'<span style="color:var(--g);font-size:17px;font-weight:900">✓</span>':'')
+      +'</div>'
+      +(uploadedAt?'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">'+t('kyb_uploaded_on').replace('{date}',new Date(uploadedAt).toLocaleDateString(loc))+'</div>':'')
+      +'<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+      +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()">📁 '+t('kyb_import')+'</button>'
+      +'</div>'
+      +'</div>';
+  });
+  b.innerHTML=h;
+}
+function handleKybDocFile(input, key){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var MAX=1200; // document lisible (RCCM/DFE souvent du texte dense)
+      var w=img.width, h=img.height;
+      if(w>h){ if(w>MAX){ h=Math.round(h*MAX/w); w=MAX; } } else { if(h>MAX){ w=Math.round(w*MAX/h); h=MAX; } }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      uploadKybDoc(key, cv.toDataURL('image/jpeg',0.8));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value='';
+}
+function uploadKybDoc(key, photo){
+  toast(t('kyb_uploading'));
+  apiCall('/merchant?action=doc-upload','POST',{doc_type:key,photo:photo},getToken()).then(function(res){
+    if(res && res.success){
+      window._kybDocStatus=window._kybDocStatus||{};
+      window._kybDocStatus[key]=(res.data&&res.data.uploaded_at)||new Date().toISOString();
+      var body=document.getElementById('sh-body');
+      if(body) renderKybDocs(body);
+      toast(t('kyb_upload_success'));
+    } else {
+      toast((res&&res.message)||t('kyb_upload_error'), true);
+    }
+  }).catch(function(){ toast(t('network_error'), true); });
 }
 
 // ── COFFRE ──

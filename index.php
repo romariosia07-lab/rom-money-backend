@@ -883,6 +883,44 @@ function merchant_revoke_device() {
     ok(null,'Appareil deconnecte');
 }
 
+// Types de documents "entreprise" (KYB) acceptes - meme liste des deux
+// cotes (upload marchand + affichage admin). Photo chiffree au repos avec
+// la meme fonction que les photos KYC personnelles (kyc_encrypt/decrypt) :
+// meme sensibilite, meme protection.
+define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop_photo','owner_photo']);
+
+// Un merchant_documents.doc_type par marchand : reenvoyer le meme type
+// remplace simplement l'ancien (ON CONFLICT), pas d'historique de versions -
+// ce n'est pas necessaire ici (contrairement au KYC personnel qui garde tout
+// l'historique de demandes pour l'audit).
+function merchant_document_upload() {
+    $pl = merchant_auth(); $b = body();
+    $docType = trim($b['doc_type'] ?? '');
+    $photo = trim($b['photo'] ?? '');
+    if(!in_array($docType, MERCHANT_DOC_TYPES, true)) fail('Type de document invalide');
+    if(!$photo) fail('Photo requise');
+    if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
+    $encrypted = kyc_encrypt($photo);
+    try {
+        q("INSERT INTO merchant_documents (merchant_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())
+           ON CONFLICT (merchant_id,doc_type) DO UPDATE SET photo=EXCLUDED.photo, uploaded_at=NOW()",
+          [$pl['sub'],$docType,$encrypted]);
+    } catch(Exception $e) {
+        fail(APP_DEBUG?$e->getMessage():'Service indisponible (base non initialisee).', 503);
+    }
+    ok(['uploaded_at'=>date('c')], 'Document enregistre');
+}
+
+function merchant_document_list() {
+    $pl = merchant_auth();
+    try {
+        $rows = q("SELECT doc_type, uploaded_at FROM merchant_documents WHERE merchant_id=?",[$pl['sub']])->fetchAll();
+    } catch(Exception $e) {
+        $rows = [];
+    }
+    ok(['documents'=>$rows]);
+}
+
 // WALLET
 function route_wallet($action) {
     match($action) {
@@ -1127,6 +1165,8 @@ function route_merchant($action) {
         'change-pin'         => merchant_change_pin(),
         'devices'            => merchant_devices(),
         'revoke-device'      => merchant_revoke_device(),
+        'doc-upload'         => merchant_document_upload(),
+        'doc-list'           => merchant_document_list(),
         default              => fail('Action inconnue',404)
     };
 }
@@ -3565,6 +3605,7 @@ function route_admin($action) {
         'merchant-search-tx-advanced' => admin_merchant_search_tx_advanced(),
         'merchants-export-xlsx'    => admin_merchants_export_xlsx(),
         'merchants-export-pdf'     => admin_merchants_export_pdf(),
+        'merchant-documents'       => admin_merchant_documents(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -4089,6 +4130,26 @@ function admin_merchant_add_note() {
     }
     admin_log('merchant_note_added','success',$m['phone_number'],mb_substr($note,0,120));
     ok(null,'Note ajoutee');
+}
+
+// Documents "entreprise" (KYB) envoyes par le marchand - preuves a l'appui
+// avant d'accorder le badge "commerce verifie" (voir admin_merchant_toggle_verified).
+// Dechiffre a la volee, uniquement quand un admin les consulte explicitement
+// (pas inclus dans admin_merchant_search() pour ne pas alourdir chaque
+// recherche avec des photos potentiellement lourdes).
+function admin_merchant_documents() {
+    $b = body();
+    check_admin_password($b);
+    $merchantId = trim($b['merchant_id'] ?? '');
+    if(!$merchantId) fail('Marchand requis');
+    try {
+        $rows = q("SELECT doc_type, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type",[$merchantId])->fetchAll();
+    } catch(Exception $e) {
+        $rows = [];
+    }
+    foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
+    unset($r);
+    ok(['documents'=>$rows]);
 }
 
 // Bascule le badge "commerce verifie" - purement declaratif cote admin (pas
@@ -5645,6 +5706,18 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_merchant_notes_merchant ON merchant_notes(merchant_id)",
+    // Documents "entreprise" (KYB) : piece d'identite, RCCM, DFE, patente,
+    // photo du magasin, photo du gerant. Un seul enregistrement par
+    // (marchand, type de document) - renvoyer le meme type remplace l'ancien.
+    "CREATE TABLE IF NOT EXISTS merchant_documents (
+        id SERIAL PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        doc_type VARCHAR(30) NOT NULL,
+        photo TEXT NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(merchant_id, doc_type)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_merchant_documents_merchant ON merchant_documents(merchant_id)",
     "CREATE TABLE IF NOT EXISTS merchant_known_devices (
         id SERIAL PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL,

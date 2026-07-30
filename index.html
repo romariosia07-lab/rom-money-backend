@@ -3027,6 +3027,33 @@ function toast(msg, err){
   el._t=setTimeout(function(){ el.classList.remove('on'); }, 2800);
 }
 
+// ── TORCHE (lampe) pendant un scan QR ── track.getCapabilities().torch
+// n'est disponible que sur certains navigateurs (Chrome/Android
+// essentiellement - Safari/iOS ne l'expose pas via le web) : le bouton
+// reste cache si non supporte plutot que d'afficher un controle inactif.
+// Partage par les 4 ecrans de scan de l'app (Envoyer/Wallet/Payer/Encaisser).
+function torchToggleBtnHtml(id){
+  return '<button id="'+id+'" onclick="event.stopPropagation();toggleTorchBtn(this)" style="position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.45);border:none;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:17px;z-index:2" data-on="0">🔦</button>';
+}
+function torchCheckAndShow(stream, btnId){
+  var btn=document.getElementById(btnId);
+  if(!btn) return;
+  var track = stream ? stream.getVideoTracks()[0] : null;
+  if(!track || !track.getCapabilities) return;
+  var caps;
+  try{ caps=track.getCapabilities(); }catch(e){ return; }
+  if(caps && caps.torch){ btn.style.display='flex'; btn._track=track; btn.setAttribute('data-on','0'); }
+}
+function toggleTorchBtn(btn){
+  var track=btn._track;
+  if(!track) return;
+  var on=btn.getAttribute('data-on')==='1';
+  track.applyConstraints({advanced:[{torch:!on}]}).then(function(){
+    btn.setAttribute('data-on', on?'0':'1');
+    btn.style.background = on ? 'rgba(0,0,0,.45)' : 'var(--g)';
+  }).catch(function(){});
+}
+
 // ═══════════════════════════════════════════
 // REGISTRE MULTI-COMPTES (fondation)
 // ═══════════════════════════════════════════
@@ -3765,6 +3792,10 @@ function adminSearchMerchant(){
         +'<input class="finput" id="mrc-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
         +'<button style="width:100%;padding:13px;margin-top:10px;background:'+(m.status==='blocked'?'var(--gl)':'var(--rl)')+';color:'+(m.status==='blocked'?'var(--g)':'var(--re)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantBlock(\''+m.id+'\',\''+(m.status==='blocked'?'unblock':'block')+'\')">'+(m.status==='blocked'?'Débloquer ce marchand':'Bloquer ce marchand')+'</button>'
+        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Documents de l\'entreprise</div>'
+        +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pieces justificatives envoyees par le marchand (identite, RCCM, DFE...), a consulter avant d\'accorder le badge verifie.</div>'
+        +'<button class="btn-w" onclick="adminLoadMerchantDocuments(\''+m.id+'\')">Voir les documents</button>'
+        +'<div id="admin-merchant-docs-box" style="margin-top:10px"></div>'
         +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Réinitialiser le PIN</div>'
         +'<div class="frow"><label class="flabel">Nouveau PIN (4 chiffres)</label><input class="finput" id="mrcpin-newpin" maxlength="4" inputmode="numeric" placeholder="0000"></div>'
         +'<div class="frow" style="margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
@@ -3889,6 +3920,42 @@ function adminAddMerchantNote(){
       toast((res&&res.message)||'Échec', true);
     }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+var ADMIN_KYB_DOC_LABELS={
+  id_recto:"Pièce d'identité (recto)", id_verso:"Pièce d'identité (verso)",
+  rccm:'RCCM (Registre du Commerce)', dfe:"DFE (Déclaration Fiscale d'Existence)",
+  patente:'Patente / registre fiscal', shop_photo:'Photo du magasin / local',
+  owner_photo:'Photo du gérant devant le commerce'
+};
+// Documents KYB envoyes par le marchand (voir shKybDocs() cote ROM_BUSINESS) -
+// charges a la demande seulement (bouton "Voir les documents"), pas inclus
+// dans adminSearchMerchant() pour ne pas alourdir chaque recherche avec des
+// photos potentiellement lourdes.
+function adminLoadMerchantDocuments(merchantId){
+  var box=document.getElementById('admin-merchant-docs-box');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=merchant-documents','POST',{admin_password:window._adminPw,merchant_id:merchantId},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var docs=res.data.documents||[];
+      if(docs.length===0){
+        box.innerHTML='<div class="admin-empty">Aucun document envoyé par ce marchand</div>';
+        return;
+      }
+      var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+      docs.forEach(function(d){
+        html+='<div>'
+          +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(ADMIN_KYB_DOC_LABELS[d.doc_type]||d.doc_type)+'</div>'
+          +'<img src="'+d.photo+'" style="width:100%;border-radius:8px;border:1px solid var(--bord);cursor:pointer" onclick="window.open(this.src)">'
+          +'<div style="font-size:9px;color:var(--t3);margin-top:2px">'+new Date(d.uploaded_at).toLocaleString()+'</div>'
+          +'</div>';
+      });
+      html+='</div>';
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminSearchByPhone(){
   var phone=document.getElementById('srch-phone').value.trim();
@@ -5936,6 +6003,7 @@ function switchWalletTab(tab){
         +'<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:5%"></div>'
         +'</div></div>'
         +'<p id="cam-msg" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('wallet_camera_activating')+'</p>'
+        +torchToggleBtnHtml('torch-svid')
         +'</div>'
         +'<button onclick="stopScan();switchWalletTab(\'qr\')" style="width:100%;padding:11px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">'+t('wallet_btn_stop_camera')+'</button>';
       if(tQR) tQR.style.cssText=s2;
@@ -5969,12 +6037,13 @@ function tryCamera2(){
     +'<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:10%"></div>'
     +'</div></div>'
     +'<p id="cam-msg2" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.75);margin:0">Connexion camera...</p>'
+    +torchToggleBtnHtml('torch-svid2')
     +'</div>';
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}})
     .then(function(stream){
       scanStream=stream;
       var v=document.getElementById('svid2');
-      if(v){ v.srcObject=stream; v.play().then(function(){ var m=document.getElementById('cam-msg2'); if(m) m.textContent='Camera active'; startScan2(); }); }
+      if(v){ v.srcObject=stream; v.play().then(function(){ var m=document.getElementById('cam-msg2'); if(m) m.textContent='Camera active'; startScan2(); torchCheckAndShow(stream,'torch-svid2'); }); }
     })
     .catch(function(){ var m=document.getElementById('cam-msg2'); if(m) m.textContent='Acces camera refuse'; });
 }
@@ -7334,6 +7403,7 @@ function tryCamera(){
     '<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:10%"></div>',
     '</div></div>',
     '<p id="cam-msg" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.75);margin:0">'+t('scan_camera_connecting')+'</p>',
+    torchToggleBtnHtml('torch-svid'),
     '</div>'
   ].join('');
   startScan();
@@ -7356,6 +7426,7 @@ function startScan(){
       v.play().then(function(){
         setMsg(t('scan_camera_active'));
         scanLoop();
+        torchCheckAndShow(stream,'torch-svid');
       }).catch(function(e){ setMsg(t('scan_camera_error_prefix')+e.message); });
     }
   })
@@ -8564,6 +8635,7 @@ function shEncaisser(b){
     +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
     +'<div style="width:150px;height:150px;border:2px solid var(--gold);border-radius:12px"></div></div>'
     +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('enc_point_qr')+'</p>'
+    +torchToggleBtnHtml('torch-encvid')
     +'</div>'
     +'<button onclick="stopEncaisserScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">'+t('cross_country_btn_cancel')+'</button>'
     +'</div>'
@@ -9337,7 +9409,8 @@ function startWalletScan(){
     + '<div style="width:160px;height:160px;border:2.5px solid var(--gold);border-radius:12px;position:relative;overflow:hidden">'
     + '<div style="position:absolute;left:0;right:0;height:2px;background:var(--gold);animation:scl 2s ease-in-out infinite;top:5%"></div>'
     + '</div></div>'
-    + '<p id="scan-status" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:#fff;margin:0;background:rgba(0,0,0,.4);padding:4px">Pointez vers un QR Code</p>';
+    + '<p id="scan-status" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:#fff;margin:0;background:rgba(0,0,0,.4);padding:4px">Pointez vers un QR Code</p>'
+    + torchToggleBtnHtml('torch-scanvid');
   wrap.style.position = 'relative';
 
   navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}})
@@ -9348,6 +9421,7 @@ function startWalletScan(){
         v.srcObject = stream;
         v.play().then(function(){
           scanLoopWallet();
+          torchCheckAndShow(stream,'torch-scanvid');
         });
       }
     })
@@ -10188,6 +10262,7 @@ function startEncaisserScan(){
       window._encStream = stream;
       var vid = document.getElementById('enc-vid');
       if(vid){ vid.srcObject=stream; vid.play(); }
+      torchCheckAndShow(stream,'torch-encvid');
       window._encLoop = setInterval(function(){
         var v=document.getElementById('enc-vid');
         var c=document.getElementById('enc-canvas');
