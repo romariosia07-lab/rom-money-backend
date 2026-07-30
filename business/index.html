@@ -101,6 +101,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .tx-name{font-size:13px;font-weight:700;color:var(--t1)}
 .tx-date{font-size:11px;color:var(--t3);margin-top:1px}
 .tx-amt{font-size:14px;font-weight:800;margin-left:auto;white-space:nowrap}
+.tx-type{font-size:11px;color:var(--t2)}
+.badge-ann{font-size:10px;background:var(--rl);color:var(--rd);padding:2px 6px;border-radius:4px;margin-left:4px}
+.badge-frozen{font-size:10px;background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:4px;margin-left:4px}
 .empty-note{text-align:center;padding:30px 10px;color:var(--t3);font-size:13px}
 
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:.5px solid var(--bord);display:flex;padding:8px 0 calc(env(safe-area-inset-bottom,0px) + 6px);z-index:5}
@@ -630,6 +633,8 @@ var I18N = {
   tx_type_vault_deposit:{fr:'Dépôt coffre',en:'Vault deposit'},
   tx_type_vault_withdraw:{fr:'Retrait coffre',en:'Vault withdrawal'},
   tx_type_generic:{fr:'Transaction',en:'Transaction'},
+  tx_badge_cancelled:{fr:'Annulée',en:'Cancelled'},
+  tx_badge_frozen:{fr:'❄ En vérification',en:'❄ Under review'},
   verified_business_title:{fr:'Commerce vérifié',en:'Verified business'}
 };
 function t(key){ return (I18N[key] && I18N[key][APP.lang||'fr']) || key; }
@@ -1125,12 +1130,18 @@ function renderTxRows(rows, containerId){
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   rows.forEach(function(tx){
     var isCredit = tx.direction==='credit';
+    var isAnn = tx.status==='cancelled';
+    var isFrozen = tx.status==='frozen';
     var name = isCredit ? (tx.sender_verified_name||tx.sender_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||t('tx_type_transfer'));
     var ic = txIcon(tx);
     var d = new Date(tx.created_at);
-    h+='<div class="tx-row" style="cursor:pointer" onclick="openReceiptById(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
-      +'<div><div class="tx-name">'+name+'</div><div class="tx-date">'+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
-      +'<div class="tx-amt" style="color:'+(isCredit?'var(--g)':'var(--re)')+'">'+(isCredit?'+':'-')+fmt(tx.amount)+' F</div></div>';
+    var typeLabel = txTypeLabel(tx);
+    var badge = isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':(isFrozen?'<span class="badge-frozen">'+t('tx_badge_frozen')+'</span>':'');
+    var amtColor = isAnn?'var(--t3)':isFrozen?'#1565C0':(isCredit?'var(--g)':'var(--re)');
+    var amtText = isAnn?'---':(isCredit?'+':'-')+fmt(tx.amount)+' F';
+    h+='<div class="tx-row" style="cursor:pointer;opacity:'+(isAnn?'.55':'1')+'" onclick="openReceiptById(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+      +'<div><div class="tx-name">'+name+badge+'</div><div class="tx-date"><span class="tx-type">'+typeLabel+'</span> · '+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
+      +'<div class="tx-amt" style="color:'+amtColor+'">'+amtText+'</div></div>';
   });
   c.innerHTML=h;
 }
