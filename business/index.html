@@ -134,18 +134,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .toast.on{opacity:1}
 .toast.err{background:var(--re)}
 
-#qr-full{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:24px}
-#qr-full .qr-real-card{transform:translateY(-28px)}
+#qr-full{position:fixed;inset:0;background:#012a1f;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:200;padding:24px}
 #qr-full.on{display:flex}
-.qr-close-btn{position:absolute;top:28px;left:20px;background:none;border:none;color:var(--t1);cursor:pointer;padding:6px;z-index:1}
-.qr-real-card{width:100%;max-width:300px;aspect-ratio:0.6;background-color:#0d4a30;background-image:repeating-linear-gradient(135deg,rgba(245,166,35,.05) 0 10px,transparent 10px 26px),linear-gradient(155deg,#146b45 0%,#0d4a30 55%,#073321 100%);border:1.5px solid rgba(245,166,35,.4);border-radius:32px;padding:24px;display:flex;flex-direction:column;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08);position:relative;overflow:hidden;margin:0 auto}
-.qr-real-card::before{content:'';position:absolute;right:-30px;bottom:-25px;width:220px;height:220px;background:url('./icon-watermark.png') no-repeat center/contain;opacity:.13;pointer-events:none;z-index:0}
-.qr-real-card-brand{display:flex;align-items:center;gap:12px;width:100%;position:relative;z-index:1}
-.qr-real-card-icon{width:46px;height:46px;border-radius:13px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2),0 0 0 2px rgba(245,166,35,.3)}
-.qr-real-card-tagline{color:rgba(245,166,35,.8);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-.qr-real-card-brandname{color:#fff;font-size:23px;font-weight:900;line-height:1.1;letter-spacing:.3px}
-.qr-real-card-brandname span{color:var(--gold)}
-.qr-real-card-box{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.1),0 0 0 2px rgba(245,166,35,.25);margin:auto 0;position:relative;z-index:1}
+.qr-close-btn{position:absolute;top:28px;left:20px;background:none;border:none;color:#fff;cursor:pointer;padding:6px;z-index:1}
+.qr-plain-box{background:#fff;border-radius:20px;padding:16px;width:80vw;max-width:300px;height:80vw;max-height:300px;box-shadow:0 2px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center}
 #svid,#scan-canvas{width:100%;border-radius:14px}
 .scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
 #scan-canvas{display:none}
@@ -373,18 +365,14 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 </div>
 
 <!-- QR PLEIN ECRAN -->
-<div id="qr-full">
+<div id="qr-full" onclick="document.getElementById('qr-full').classList.remove('on')">
   <button class="qr-close-btn" onclick="document.getElementById('qr-full').classList.remove('on')" aria-label="Fermer">
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </button>
-  <div class="qr-real-card">
-    <div class="qr-real-card-brand">
-      <img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">
-      <div><div class="qr-real-card-tagline" data-i18n="mqr_pay_with">PAYEZ AVEC</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div>
-      </div>
-    </div>
-    <div class="qr-real-card-box" id="qrf-box"></div>
-  </div>
+  <div style="font-size:22px;font-weight:900;color:#fff;text-align:center" data-i18n="mqr_scan_to_pay">Scannez pour me payer</div>
+  <div class="qr-plain-box"><div id="qrf-box"></div></div>
+  <div style="font-size:12px;font-weight:700;color:#F5A623;letter-spacing:1px;text-align:center;text-transform:uppercase" data-i18n="mqr_tagline">ENCAISSEZ AVEC ROM_BUSINESS</div>
+  <div style="font-size:11px;color:rgba(255,255,255,.4);text-align:center" data-i18n="mqr_tap_to_close">Appuyez pour fermer</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -610,8 +598,8 @@ var I18N = {
   mqr_qr_gen_error:{fr:'Erreur de génération du QR',en:'QR generation error'},
   mqr_pdf_unavailable:{fr:'PDF non disponible',en:'PDF unavailable'},
   mqr_scan_to_pay:{fr:'SCANNEZ POUR PAYER',en:'SCAN TO PAY'},
-  mqr_pay_with:{fr:'PAYEZ AVEC',en:'PAY WITH'},
   mqr_tagline:{fr:'ENCAISSEZ AVEC ROM_BUSINESS',en:'COLLECT WITH ROM_BUSINESS'},
+  mqr_tap_to_close:{fr:'Appuyez pour fermer',en:'Tap to close'},
   mqr_downloaded:{fr:'QR téléchargé !',en:'QR downloaded!'},
   pdf_load_error:{fr:'Erreur chargement PDF',en:'PDF loading error'},
   vault_online:{fr:'Commerce en ligne',en:'Online business'},
@@ -1384,18 +1372,13 @@ function buildSheet(type, b, extra){
 function shMonQr(b){
   var b1='flex:1;padding:11px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit';
   var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
-  b.innerHTML='<div class="qr-real-card">'
-    +'<div class="qr-real-card-brand">'
-    +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">'
-    +'<div><div class="qr-real-card-tagline">'+t('mqr_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div>'
-    +'</div>'
-    +'</div>'
-    +'<div class="qr-real-card-box" id="mqr-box"></div>'
-    +'</div>'
-    +'<div style="font-size:12px;color:var(--t2);margin:14px 0;text-align:center">'+t('mqr_desc')+'</div>'
-    +'<div style="display:flex;gap:10px">'
+  b.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">'
+    +'<div style="font-size:12px;color:var(--t2);text-align:center">'+t('mqr_desc')+'</div>'
+    +'<div id="mqr-box" style="padding:14px;background:#fff;border-radius:14px;border:.5px solid var(--bord);box-shadow:0 2px 12px rgba(0,0,0,.08)"></div>'
+    +'<div style="display:flex;gap:10px;width:100%">'
     +'<button style="'+b1+'" onclick="imprimerMonQR()">'+t('mqr_print')+'</button>'
     +'<button style="'+b2+'" onclick="showQrFullscreen()">'+t('mqr_fullscreen')+'</button>'
+    +'</div>'
     +'</div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
 }
