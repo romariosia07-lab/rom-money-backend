@@ -140,6 +140,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .qr-real-card-tagline{color:rgba(255,255,255,.7);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .qr-real-card-brandname{color:#fff;font-size:23px;font-weight:900;line-height:1.1;letter-spacing:.3px}
 .qr-real-card-brandname span{color:var(--gold)}
+.qr-real-card-flourish{display:block;margin-top:4px}
 .qr-real-card-box{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.08);margin:auto 0}
 #svid,#scan-canvas{width:100%;border-radius:14px}
 .scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
@@ -369,7 +370,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   <div class="qr-real-card">
     <div class="qr-real-card-brand">
       <img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">
-      <div><div class="qr-real-card-tagline" data-i18n="mqr_pay_with">PAYEZ AVEC</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div></div>
+      <div><div class="qr-real-card-tagline" data-i18n="mqr_pay_with">PAYEZ AVEC</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div>
+        <svg class="qr-real-card-flourish" width="140" height="16" viewBox="0 0 140 16" fill="none"><line x1="0" y1="3" x2="140" y2="3" stroke="rgba(255,255,255,.45)" stroke-width="1"/><circle cx="70" cy="3" r="2.5" fill="var(--gold)"/><path d="M18 3 Q 44 16 68 7" stroke="rgba(255,255,255,.45)" stroke-width="1.2" fill="none"/><path d="M122 3 Q 96 16 72 7" stroke="rgba(255,255,255,.45)" stroke-width="1.2" fill="none"/></svg>
+      </div>
     </div>
     <div class="qr-real-card-box" id="qrf-box"></div>
   </div>
@@ -1204,7 +1207,9 @@ function shMonQr(b){
   b.innerHTML='<div class="qr-real-card">'
     +'<div class="qr-real-card-brand">'
     +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">'
-    +'<div><div class="qr-real-card-tagline">'+t('mqr_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div></div>'
+    +'<div><div class="qr-real-card-tagline">'+t('mqr_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div>'
+    +'<svg class="qr-real-card-flourish" width="140" height="16" viewBox="0 0 140 16" fill="none"><line x1="0" y1="3" x2="140" y2="3" stroke="rgba(255,255,255,.45)" stroke-width="1"/><circle cx="70" cy="3" r="2.5" fill="var(--gold)"/><path d="M18 3 Q 44 16 68 7" stroke="rgba(255,255,255,.45)" stroke-width="1.2" fill="none"/><path d="M122 3 Q 96 16 72 7" stroke="rgba(255,255,255,.45)" stroke-width="1.2" fill="none"/></svg>'
+    +'</div>'
     +'</div>'
     +'<div class="qr-real-card-box" id="mqr-box"></div>'
     +'</div>'
