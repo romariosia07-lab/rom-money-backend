@@ -488,6 +488,7 @@ var I18N = {
   account_not_found:{fr:'Compte introuvable',en:'Account not found'},
   network_error:{fr:'Erreur réseau',en:'Network error'},
   retry_btn:{fr:'Réessayer',en:'Retry'},
+  session_expired_toast:{fr:'Session expirée, reconnectez-vous',en:'Session expired, please log in again'},
   pin_incomplete:{fr:'PIN incomplet',en:'PIN incomplete'},
   processing:{fr:'Traitement en cours...',en:'Processing...'},
   enc_success_suffix:{fr:' F encaissé de ',en:' F collected from '},
@@ -724,6 +725,26 @@ function getDeviceId(){
   }catch(e){ return ''; }
 }
 
+// Messages renvoyes par merchant_auth() (backend) quand le jeton n'est plus
+// valable pour une raison ou une autre. Avant, l'appelant recevait juste
+// success:false et affichait ce message dans un encart d'erreur avec un
+// bouton "Reessayer" qui ne pouvait QUE re-echouer (meme jeton perime) -
+// l'app restait bloquee sans issue. Desormais detecte ici de facon
+// centralisee (un seul endroit pour tous les appels) et renvoie directement
+// au PIN de connexion (numero deja rempli) pour obtenir un jeton frais.
+var SESSION_EXPIRED_MESSAGES = ['Token manquant','Token invalide ou expire','Session revoquee depuis un autre appareil. Reconnectez-vous.','Compte suspendu ou bloque'];
+var _sessionExpiredHandled = false;
+function handleSessionExpired(){
+  if(_sessionExpiredHandled) return;
+  _sessionExpiredHandled = true;
+  APP.token = '';
+  save();
+  closeSheet();
+  goto('s-login');
+  setupLoginScreen();
+  toast(t('session_expired_toast'), true);
+  setTimeout(function(){ _sessionExpiredHandled=false; }, 2000);
+}
 function apiCall(endpoint, method, data, token){
   if(!navigator.onLine) return Promise.resolve({success:false, message:'Pas de connexion internet', offline:true});
   var opts={ method:method||'GET', headers:{'Content-Type':'application/json'} };
@@ -731,6 +752,10 @@ function apiCall(endpoint, method, data, token){
   if(data && method!=='GET') opts.body=JSON.stringify(data);
   return fetch(API_URL+endpoint, opts)
     .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(token && res && res.success===false && SESSION_EXPIRED_MESSAGES.indexOf(res.message)!==-1) handleSessionExpired();
+      return res;
+    })
     .catch(function(e){ return {success:false,message:'Erreur reseau: '+e.message}; });
 }
 
