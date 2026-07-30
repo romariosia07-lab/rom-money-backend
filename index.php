@@ -1261,7 +1261,7 @@ function merchant_collect() {
 
     pin_check($payer['id'], $pin, $payer['pin_hash']);
 
-    $m = q("SELECT business_name FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $m = q("SELECT business_name,phone_number FROM merchants WHERE id=?",[$pl['sub']])->fetch();
     $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
     if(!$mw) fail('Portefeuille marchand introuvable',404);
     if((float)$payer['balance'] < $amount) fail('Solde du payeur insuffisant');
@@ -1277,6 +1277,7 @@ function merchant_collect() {
         q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         db()->commit();
+        fraud_check_merchant_transaction($mw['id'], $payerPhone, $amount, $txid, $reference, $m['phone_number']);
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline,
@@ -1950,6 +1951,51 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
     } catch (Exception $e) { /* la detection ne doit jamais casser un transfert deja reussi */ }
 }
 
+// Equivalent de fraud_check_transaction() cote encaissement marchand
+// (merchant_collect() et tx_pay_merchant()). Pas de verification "nouveau
+// destinataire" ici : un marchand encaisse legitimement de nouveaux clients
+// en permanence, ce serait juste du bruit. Reutilise la meme table
+// fraud_alerts (vue unifiee admin, cote client=sender_phone, cote
+// marchand=receiver_phone) plutot qu'une table separee.
+function fraud_check_merchant_transaction($merchantWalletId, $payerPhone, $amount, $txid, $reference, $merchantPhone) {
+    try {
+        $reasons = [];
+        $currency = q("SELECT currency FROM merchant_wallets WHERE id=?",[$merchantWalletId])->fetchColumn() ?: 'XOF';
+        $curSuffix = ($currency==='XOF' || $currency==='XAF') ? 'F' : $currency;
+
+        $velocityCount   = (int)get_setting('fraud_merchant_velocity_count', 15);
+        $velocityMinutes = (int)get_setting('fraud_merchant_velocity_minutes', 10);
+        $vc = q("SELECT COUNT(*) c FROM transactions
+                 WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+                 AND created_at > NOW() - (?::text || ' minutes')::interval",
+                 [$merchantWalletId, $velocityMinutes])->fetch();
+        if ($vc && (int)$vc['c'] >= $velocityCount) {
+            $reasons[] = (int)$vc['c']." paiements en {$velocityMinutes} min (seuil: {$velocityCount})";
+        }
+
+        $unusualMultiplier = (float)get_setting('fraud_merchant_unusual_multiplier', 6);
+        $unusualMinAmount  = (float)get_setting('fraud_merchant_unusual_min_amount', 30000);
+        if ($amount >= $unusualMinAmount) {
+            $avgRow = q("SELECT AVG(amount) a, COUNT(*) c FROM (
+                            SELECT amount FROM transactions
+                            WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed' AND id!=?
+                            ORDER BY created_at DESC LIMIT 20
+                         ) sub", [$merchantWalletId, $txid])->fetch();
+            if ($avgRow && (int)$avgRow['c'] >= 3 && (float)$avgRow['a'] > 0) {
+                $avg = (float)$avgRow['a'];
+                if ($amount >= $avg * $unusualMultiplier) {
+                    $reasons[] = 'Montant '.number_format($amount,0,',',' ').' '.$curSuffix.', tres superieur a la moyenne habituelle de ce marchand ('.number_format($avg,0,',',' ').' '.$curSuffix.')';
+                }
+            }
+        }
+
+        if (!empty($reasons)) {
+            q("INSERT INTO fraud_alerts (transaction_id,reference,sender_phone,receiver_phone,amount,reasons,currency) VALUES (?,?,?,?,?,?,?)",
+              [$txid, $reference, $payerPhone, $merchantPhone, $amount, implode(' | ', $reasons), $currency]);
+        }
+    } catch (Exception $e) { /* la detection ne doit jamais casser un encaissement deja reussi */ }
+}
+
 function tx_send() {
     $pl = auth(); $b = body();
     $to     = trim($b['receiver_phone']??'');
@@ -2315,6 +2361,7 @@ function tx_pay_merchant() {
         q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         db()->commit();
+        fraud_check_merchant_transaction($mw['id'], $pl['phone'] ?? '', $amount, $txid, $reference, $m['phone_number']);
         web_push_send_to_merchant($mw['merchant_id'], 'ROM_BUSINESS',
             'Vous avez recu '.number_format($amount,0,',',' ').' F via votre QR');
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
