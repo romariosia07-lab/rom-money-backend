@@ -3479,6 +3479,8 @@ function route_admin($action) {
         'merchant-list'            => admin_merchant_list(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
+        'users-export-xlsx'        => admin_users_export_xlsx(),
+        'users-export-pdf'         => admin_users_export_pdf(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -4995,17 +4997,15 @@ function admin_delete_kyc() {
 
 // Liste/recherche globale des comptes, avec filtres combinables (texte,
 // statut KYC, statut du compte, plage de dates d'inscription) et pagination.
-function admin_list_users() {
-    $b = body();
-    check_admin_password($b);
-    $search = trim($b['search'] ?? '');
-    $kycFilter = trim($b['kyc'] ?? '');
-    $statusFilter = trim($b['status'] ?? '');
-    $dateFrom = trim($b['date_from'] ?? '');
-    $dateTo = trim($b['date_to'] ?? '');
-    $page = max(1, (int)($b['page'] ?? 1));
-    $perPage = 25;
-    $offset = ($page - 1) * $perPage;
+// Construit la clause WHERE + params partagee par admin_list_users() et les
+// deux exports (xlsx/pdf), pour ne pas dupliquer 3 fois la meme logique de
+// filtre.
+function admin_users_build_where($f) {
+    $search = trim($f['search'] ?? '');
+    $kycFilter = trim($f['kyc'] ?? '');
+    $statusFilter = trim($f['status'] ?? '');
+    $dateFrom = trim($f['date_from'] ?? '');
+    $dateTo = trim($f['date_to'] ?? '');
 
     $where = "1=1"; $params = [];
     if($search){
@@ -5019,12 +5019,101 @@ function admin_list_users() {
     elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
     if($dateFrom){ $where .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
     if($dateTo){ $where .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    return [$where, $params];
+}
+
+function admin_list_users() {
+    $b = body();
+    check_admin_password($b);
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+
+    list($where, $params) = admin_users_build_where($b);
 
     $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT id,full_name,verified_name,phone_number,operator,status,is_kyc,created_at
                FROM users WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
 
     ok(['users'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+}
+
+// Export de la liste filtree (memes criteres que admin_list_users(), sans
+// pagination - plafonnee a un nombre raisonnable de lignes par securite).
+function admin_users_export_xlsx() {
+    check_admin_password_str((string)bg('admin_password',''));
+    $filters = ['search'=>(string)bg('search',''), 'kyc'=>(string)bg('kyc',''), 'status'=>(string)bg('status',''),
+        'date_from'=>(string)bg('date_from',''), 'date_to'=>(string)bg('date_to','')];
+    list($where, $params) = admin_users_build_where($filters);
+    $LIMIT = 5000;
+    $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
+    $rows = q("SELECT full_name,verified_name,phone_number,operator,country,status,is_kyc,created_at
+               FROM users WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+
+    $sheetRows = [];
+    $sheetRows[] = [[ 'ROM_MONEY - Liste des utilisateurs', 4, 's' ]];
+    $sheetRows[] = [[ 'Genere le '.date('d\m\Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':''), 0, 's' ]];
+    $sheetRows[] = [];
+    $sheetRows[] = [[ 'Nom',1,'s' ],[ 'Telephone',1,'s' ],[ 'Operateur',1,'s' ],[ 'Pays',1,'s' ],[ 'Statut',1,'s' ],[ 'KYC',1,'s' ],[ 'Inscrit le',1,'s' ]];
+    foreach($rows as $u){
+        $sheetRows[] = [
+            [ $u['verified_name']?:$u['full_name'], 2, 's' ],
+            [ $u['phone_number'], 2, 's' ],
+            [ $u['operator']?:'-', 2, 's' ],
+            [ $u['country']?:'-', 2, 's' ],
+            [ $u['status']==='blocked'?'Bloque':'Actif', 2, 's' ],
+            [ $u['is_kyc']?'Verifie':'Non verifie', 2, 's' ],
+            [ date('d/m/Y',strtotime($u['created_at'])), 2, 's' ]
+        ];
+    }
+    $sheetXml = xlsx_build_sheet($sheetRows);
+    $xlsxData = xlsx_build($sheetXml);
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_money_utilisateurs.xlsx"');
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
+    exit;
+}
+function admin_users_export_pdf() {
+    check_admin_password_str((string)bg('admin_password',''));
+    $filters = ['search'=>(string)bg('search',''), 'kyc'=>(string)bg('kyc',''), 'status'=>(string)bg('status',''),
+        'date_from'=>(string)bg('date_from',''), 'date_to'=>(string)bg('date_to','')];
+    list($where, $params) = admin_users_build_where($filters);
+    $LIMIT = 3000; // FPDF genererait un fichier trop volumineux au-dela
+    $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
+    $rows = q("SELECT full_name,verified_name,phone_number,operator,status,is_kyc,created_at
+               FROM users WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,pdf_str('ROM_MONEY - Liste des utilisateurs'),0,1);
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(0,6,pdf_str('Genere le '.date('d\m\Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':'')),0,1);
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',8);
+    $pdf->SetFillColor(230,241,251);
+    $w = [45,30,35,25,25,30];
+    $headers = ['Nom','Telephone','Operateur','Statut','KYC','Inscrit le'];
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
+    $pdf->Ln();
+    $pdf->SetFont('Arial','',8);
+    foreach($rows as $u){
+        $pdf->Cell($w[0],7,pdf_str(substr($u['verified_name']?:$u['full_name'],0,28)),1);
+        $pdf->Cell($w[1],7,$u['phone_number'],1);
+        $pdf->Cell($w[2],7,pdf_str(substr($u['operator']?:'-',0,20)),1);
+        $pdf->Cell($w[3],7,$u['status']==='blocked'?'Bloque':'Actif',1);
+        $pdf->Cell($w[4],7,$u['is_kyc']?'Verifie':'Non verifie',1);
+        $pdf->Cell($w[5],7,date('d/m/y',strtotime($u['created_at'])),1);
+        $pdf->Ln();
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_money_utilisateurs.pdf"');
+    echo $pdf->Output('S');
+    exit;
 }
 
 // Flux centralise des connexions "nouvel appareil" recentes, tous comptes

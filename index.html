@@ -948,6 +948,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_to">au</label>
         <input class="finput" id="usr-date-to" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('xlsx')">⬇ Exporter Excel</button>
+        <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('pdf')">⬇ Exporter PDF</button>
+      </div>
       <div id="usr-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="usr-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
@@ -2856,6 +2860,17 @@ function adminDownloadExport(action, payload, filename){
   }).catch(function(){ toast(at('admin_error_generic'), true); });
 }
 
+function adminExportUsers(format){
+  var payload={
+    admin_password:window._adminPw,
+    search:document.getElementById('usr-search').value.trim(),
+    kyc:document.getElementById('usr-kyc').value,
+    status:document.getElementById('usr-status').value,
+    date_from:document.getElementById('usr-date-from').value,
+    date_to:document.getElementById('usr-date-to').value
+  };
+  adminDownloadExport('users-export-'+format, payload, 'rom_money_utilisateurs.'+format);
+}
 function adminExportDashboard(format){
   var period=document.getElementById('dash-period').value;
   var payload={admin_password:window._adminPw, period:period};
