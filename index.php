@@ -4265,6 +4265,8 @@ function admin_late_cancel() {
     $senderPhone = null;
     if($tx['sender_wallet_id']){
         $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() ?: null;
+    } elseif($tx['sender_merchant_wallet_id']){
+        $senderPhone = q("SELECT m.phone_number FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$tx['sender_merchant_wallet_id']])->fetchColumn() ?: null;
     }
     if($tx['status']!=='completed'){
         admin_log('late_cancel','failed',$senderPhone,dk('d_ref_wrong_status', ['ref'=>$ref, 'status'=>$tx['status'], 'reason'=>$reason]));
@@ -4277,20 +4279,29 @@ function admin_late_cancel() {
         admin_log('late_cancel','failed',$senderPhone,dk('d_ref_deadline_passed', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Delai de 2 jours depasse : annulation tardive impossible, meme pour un admin');
     }
-    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    // Resout chaque cote sur le bon portefeuille (personnel OU marchand) :
+    // couvre desormais aussi bien un paiement marchand (receiver=merchant)
+    // qu'un virement sortant marchand (sender=merchant), en plus du
+    // transfert classique personnel<->personnel.
+    $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
+    $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
+    $sw = $senderIsMerchant ? $tx['sender_merchant_wallet_id'] : $tx['sender_wallet_id'];
+    $rw = $receiverIsMerchant ? $tx['receiver_merchant_wallet_id'] : $tx['receiver_wallet_id'];
     if(!$sw || !$rw){
         fail('Transaction sans les deux portefeuilles (depot/retrait banque) : annulation manuelle requise, pas via cet outil');
     }
-    $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
-    if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
+    $senderTable = $senderIsMerchant ? 'merchant_wallets' : 'wallets';
+    $receiverTable = $receiverIsMerchant ? 'merchant_wallets' : 'wallets';
+    $receiverBal = q("SELECT balance FROM $receiverTable WHERE id=?",[$rw])->fetch();
+    if(!$receiverBal || (float)$receiverBal['balance'] < (float)$tx['amount']){
         admin_log('late_cancel','failed',$senderPhone,dk('d_ref_insufficient_balance', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Le destinataire n\'a plus assez de solde pour annuler automatiquement cette transaction');
     }
 
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE $receiverTable SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE $senderTable SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason='admin_late_cancel' WHERE id=?",[$tx['id']]);
         admin_log('late_cancel','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
         db()->commit();
@@ -4323,7 +4334,12 @@ function admin_freeze_transaction() {
         admin_log('tx_freeze','failed',null,dk('d_ref_not_found', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Transaction introuvable',404);
     }
-    $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
+    $senderPhone = null;
+    if($tx['sender_wallet_id']){
+        $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn();
+    } elseif($tx['sender_merchant_wallet_id']){
+        $senderPhone = q("SELECT m.phone_number FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$tx['sender_merchant_wallet_id']])->fetchColumn();
+    }
     if($tx['status']!=='completed'){
         admin_log('tx_freeze','failed',$senderPhone,dk('d_ref_wrong_status', ['ref'=>$ref, 'status'=>$tx['status'], 'reason'=>$reason]));
         fail('Seule une transaction "completed" peut etre gelee (statut actuel : '.$tx['status'].')');
@@ -4331,27 +4347,43 @@ function admin_freeze_transaction() {
     if($tx['type']==='fee'){
         fail('Impossible de geler directement une ligne de frais');
     }
-    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
+    // Meme resolution personnel/marchand que admin_late_cancel().
+    $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
+    $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
+    $sw = $senderIsMerchant ? $tx['sender_merchant_wallet_id'] : $tx['sender_wallet_id'];
+    $rw = $receiverIsMerchant ? $tx['receiver_merchant_wallet_id'] : $tx['receiver_wallet_id'];
     if(!$sw || !$rw){
         fail('Transaction sans les deux portefeuilles (depot/retrait banque) : gel manuel requis, pas via cet outil');
     }
-    $receiverWallet = q("SELECT balance FROM wallets WHERE id=?",[$rw])->fetch();
-    if(!$receiverWallet || (float)$receiverWallet['balance'] < (float)$tx['amount']){
+    $senderTable = $senderIsMerchant ? 'merchant_wallets' : 'wallets';
+    $receiverTable = $receiverIsMerchant ? 'merchant_wallets' : 'wallets';
+    $receiverBal = q("SELECT balance FROM $receiverTable WHERE id=?",[$rw])->fetch();
+    if(!$receiverBal || (float)$receiverBal['balance'] < (float)$tx['amount']){
         admin_log('tx_freeze','failed',$senderPhone,dk('d_ref_insufficient_balance', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Le destinataire n\'a plus assez de solde pour geler cette transaction');
     }
 
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE $receiverTable SET balance=balance-? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE $senderTable SET balance=balance+? WHERE id=?",[$tx['amount'],$sw]);
         q("UPDATE transactions SET status='frozen', frozen_at=NOW(), frozen_reason=? WHERE id=?",[$reason,$tx['id']]);
         admin_log('tx_freeze','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
         db()->commit();
-        $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
-        $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
-        if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','Une de vos transactions ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
-        if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        if($senderIsMerchant){
+            $sid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$sw])->fetchColumn();
+            if($sid) web_push_send_to_merchant($sid,'ROM_BUSINESS','Une de vos transactions ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        } else {
+            $suid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
+            if($suid) web_push_send_to_user($suid,'ROM_MONEY','Une de vos transactions ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        }
+        if($receiverIsMerchant){
+            $rid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$rw])->fetchColumn();
+            if($rid) web_push_send_to_merchant($rid,'ROM_BUSINESS','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        } else {
+            $ruid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
+            if($ruid) web_push_send_to_user($ruid,'ROM_MONEY','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est temporairement en cours de verification.');
+        }
         ok(null,'Transaction gelee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
@@ -4371,24 +4403,44 @@ function admin_unfreeze_transaction() {
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     if($tx['status']!=='frozen') fail('Cette transaction n\'est pas geleee (statut actuel : '.$tx['status'].')');
-    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
-    $senderPhone = $sw ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$sw])->fetchColumn() : null;
-    $senderWallet = q("SELECT balance FROM wallets WHERE id=?",[$sw])->fetch();
-    if(!$senderWallet || (float)$senderWallet['balance'] < (float)$tx['amount']){
+    $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
+    $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
+    $sw = $senderIsMerchant ? $tx['sender_merchant_wallet_id'] : $tx['sender_wallet_id'];
+    $rw = $receiverIsMerchant ? $tx['receiver_merchant_wallet_id'] : $tx['receiver_wallet_id'];
+    $senderTable = $senderIsMerchant ? 'merchant_wallets' : 'wallets';
+    $receiverTable = $receiverIsMerchant ? 'merchant_wallets' : 'wallets';
+    $senderPhone = null;
+    if($sw){
+        $senderPhone = $senderIsMerchant
+            ? q("SELECT m.phone_number FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$sw])->fetchColumn()
+            : q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$sw])->fetchColumn();
+    }
+    $senderBal = q("SELECT balance FROM $senderTable WHERE id=?",[$sw])->fetch();
+    if(!$senderBal || (float)$senderBal['balance'] < (float)$tx['amount']){
         admin_log('tx_unfreeze','failed',$senderPhone,dk('d_ref_unfreeze_insufficient', ['ref'=>$ref]));
         fail('L\'expediteur n\'a plus assez de solde pour debloquer cette transaction (il a peut-etre depense l\'argent temporairement recredite)');
     }
     db()->beginTransaction();
     try {
-        q("UPDATE wallets SET balance=balance-? WHERE id=?",[$tx['amount'],$sw]);
-        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$rw]);
+        q("UPDATE $senderTable SET balance=balance-? WHERE id=?",[$tx['amount'],$sw]);
+        q("UPDATE $receiverTable SET balance=balance+? WHERE id=?",[$tx['amount'],$rw]);
         q("UPDATE transactions SET status='completed', frozen_at=NULL, frozen_reason=NULL WHERE id=?",[$tx['id']]);
         admin_log('tx_unfreeze','success',$senderPhone,dk('d_ref_unfrozen', ['ref'=>$ref]));
         db()->commit();
-        $senderUid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
-        $receiverUid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
-        if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','La verification est terminee : votre transaction ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
-        if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','La verification est terminee : la transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        if($senderIsMerchant){
+            $sid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$sw])->fetchColumn();
+            if($sid) web_push_send_to_merchant($sid,'ROM_BUSINESS','La verification est terminee : votre transaction ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        } else {
+            $suid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
+            if($suid) web_push_send_to_user($suid,'ROM_MONEY','La verification est terminee : votre transaction ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        }
+        if($receiverIsMerchant){
+            $rid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$rw])->fetchColumn();
+            if($rid) web_push_send_to_merchant($rid,'ROM_BUSINESS','La verification est terminee : la transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        } else {
+            $ruid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
+            if($ruid) web_push_send_to_user($ruid,'ROM_MONEY','La verification est terminee : la transaction recue ('.number_format($tx['amount'],0,',',' ').' F) est confirmee.');
+        }
         ok(null,'Transaction debloquee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
@@ -4410,14 +4462,32 @@ function admin_confirm_cancel_frozen() {
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     if($tx['status']!=='frozen') fail('Cette transaction n\'est pas gelee (statut actuel : '.$tx['status'].')');
-    $senderPhone = $tx['sender_wallet_id'] ? q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() : null;
+    $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
+    $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
+    $sw = $senderIsMerchant ? $tx['sender_merchant_wallet_id'] : $tx['sender_wallet_id'];
+    $rw = $receiverIsMerchant ? $tx['receiver_merchant_wallet_id'] : $tx['receiver_wallet_id'];
+    $senderPhone = null;
+    if($sw){
+        $senderPhone = $senderIsMerchant
+            ? q("SELECT m.phone_number FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$sw])->fetchColumn()
+            : q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$sw])->fetchColumn();
+    }
     q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason=? WHERE id=?",[$reason,$tx['id']]);
     admin_log('tx_freeze_confirm_cancel','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
-    $sw = $tx['sender_wallet_id']; $rw = $tx['receiver_wallet_id'];
-    $senderUid = $sw ? q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn() : null;
-    $receiverUid = $rw ? q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn() : null;
-    if($senderUid) web_push_send_to_user($senderUid,'ROM_MONEY','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
-    if($receiverUid) web_push_send_to_user($receiverUid,'ROM_MONEY','La transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    if($senderIsMerchant){
+        $sid = $sw ? q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$sw])->fetchColumn() : null;
+        if($sid) web_push_send_to_merchant($sid,'ROM_BUSINESS','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    } else {
+        $suid = $sw ? q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn() : null;
+        if($suid) web_push_send_to_user($suid,'ROM_MONEY','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    }
+    if($receiverIsMerchant){
+        $rid = $rw ? q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$rw])->fetchColumn() : null;
+        if($rid) web_push_send_to_merchant($rid,'ROM_BUSINESS','La transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    } else {
+        $ruid = $rw ? q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn() : null;
+        if($ruid) web_push_send_to_user($ruid,'ROM_MONEY','La transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete definitivement annulee suite a verification.');
+    }
     ok(null,'Annulation confirmee');
 }
 
@@ -4427,11 +4497,17 @@ function admin_list_frozen() {
     $b = body();
     check_admin_password($b);
     $rows = q("SELECT t.*,
-        su.phone_number sender_phone, su.full_name sender_name, su.verified_name sender_verified_name,
-        ru.phone_number receiver_phone, ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        COALESCE(su.phone_number, sm.phone_number) sender_phone,
+        COALESCE(su.full_name, sm.business_name) sender_name,
+        su.verified_name sender_verified_name,
+        COALESCE(ru.phone_number, rm.phone_number) receiver_phone,
+        COALESCE(ru.full_name, rm.business_name) receiver_name,
+        ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE t.status='frozen' ORDER BY t.frozen_at ASC")->fetchAll();
     ok(['frozen'=>$rows]);
 }
