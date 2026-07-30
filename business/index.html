@@ -260,7 +260,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   </div>
 
   <div class="qa-grid">
-    <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-encaisser.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl" data-i18n="qa_encaisser">Encaisser</span></button>
+    <button class="qa" onclick="openSheet('encaisser')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-encaisser.png" style="width:44px;height:44px;object-fit:contain"></div><span class="qa-lbl" data-i18n="qa_encaisser">Encaisser</span></button>
     <button class="qa" onclick="openSheet('monqr')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./wallet-icon.jpg" style="width:38px;height:38px;object-fit:contain;border-radius:50%"></div><span class="qa-lbl" data-i18n="qa_monqr">Mon QR</span></button>
     <button class="qa" onclick="openSheet('virement')"><div class="qa-ico" style="font-size:0;display:flex;align-items:center;justify-content:center"><img src="./icon-envoyer.png" style="width:38px;height:38px;object-fit:contain"></div><span class="qa-lbl" data-i18n="qa_envoyer">Envoyer</span></button>
     <button class="qa" onclick="navGo('coffre')"><div class="qa-ico">🔒</div><span class="qa-lbl" data-i18n="qa_coffre">Coffre</span></button>
@@ -1200,9 +1200,10 @@ function navGo(p){
 }
 
 // ── HISTORIQUE / TRANSACTIONS ──
+var TX_ICO_BASKET='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1.6 9.5A2 2 0 0116.4 20H7.6a2 2 0 01-2-1.5L4 9z"/><path d="M8 9V6a4 4 0 018 0v3"/><line x1="9" y1="13" x2="9.6" y2="17"/><line x1="15" y1="13" x2="14.4" y2="17"/></svg>';
 function txIcon(tx){
   if(tx.type==='vault_deposit'||tx.type==='vault_withdrawal') return {ico:'🔒',bg:'var(--gl)'};
-  if(tx.direction==='credit') return {ico:'💰',bg:'var(--gl)'};
+  if(tx.direction==='credit') return {ico:TX_ICO_BASKET,bg:'var(--gl)'};
   return {ico:'💸',bg:'var(--rl)'};
 }
 function renderTxRows(rows, containerId){
