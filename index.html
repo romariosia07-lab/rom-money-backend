@@ -958,6 +958,23 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow"><label class="flabel">Numéro du marchand</label><input class="finput" id="mrc-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('mrc-result').innerHTML=''"></div>
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchant()">Rechercher</button>
       <div id="mrc-result"></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Liste des marchands</div>
+      <div class="frow"><label class="flabel">Nom de boutique ou numéro</label><input class="finput" id="mrclist-search" placeholder="Nom de boutique ou numéro" oninput="adminLoadMerchants(1)"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <select class="finput" id="mrclist-verified" onchange="adminLoadMerchants(1)" style="margin-bottom:0">
+          <option value="">Vérifié : Tous</option>
+          <option value="verified">Vérifié : Oui</option>
+          <option value="unverified">Vérifié : Non</option>
+        </select>
+        <select class="finput" id="mrclist-status" onchange="adminLoadMerchants(1)" style="margin-bottom:0">
+          <option value="">Statut : Tous</option>
+          <option value="active">Statut : Actifs</option>
+          <option value="blocked">Statut : Bloqués</option>
+        </select>
+      </div>
+      <div id="mrclist-box"><div class="admin-empty">Chargement...</div></div>
+      <div id="mrclist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
 
     <div id="admin-panel-account" class="admin-panel" style="display:none">
@@ -3417,6 +3434,7 @@ function adminTab(name){
   if(name==='countries') adminLoadCountries();
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
+  if(name==='merchants') adminLoadMerchants(1);
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
 }
@@ -4097,6 +4115,54 @@ function adminLoadUsers(page){
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+// Liste paginee des marchands - meme mecanique que adminLoadUsers() cote
+// comptes personnels.
+function adminLoadMerchants(page){
+  window._mrcListPage = page || window._mrcListPage || 1;
+  var box = document.getElementById('mrclist-box');
+  var pag = document.getElementById('mrclist-pagination');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  if(pag) pag.innerHTML='';
+  apiCall('/admin?action=merchant-list','POST',{
+    admin_password: window._adminPw,
+    search: document.getElementById('mrclist-search').value.trim(),
+    verified: document.getElementById('mrclist-verified').value,
+    status: document.getElementById('mrclist-status').value,
+    page: window._mrcListPage
+  },'').then(function(res){
+    if(res&&res.success&&res.data){
+      var merchants = res.data.merchants||[];
+      var total = res.data.total||0;
+      var perPage = res.data.per_page||25;
+      if(merchants.length===0){
+        box.innerHTML='<div class="admin-empty">Aucun marchand trouvé</div>';
+        return;
+      }
+      var html='';
+      merchants.forEach(function(m){
+        var statusColor = m.status==='blocked' ? 'var(--re)' : 'var(--g)';
+        var statusLabel = m.status==='blocked' ? 'Bloqué' : 'Actif';
+        html+='<div class="admin-tx-card" onclick="adminOpenMerchantFromList(\''+m.phone_number+'\')">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+m.business_name+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+(m.location_type==='physical'?'Avec emplacement':'En ligne')+'</div>'
+          +'<div style="color:var(--t3);margin-top:4px">Inscrit le '+new Date(m.created_at).toLocaleDateString()+'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+
+      var totalPages = Math.max(1, Math.ceil(total/perPage));
+      if(pag){
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._mrcListPage<=1?'disabled':'')+' onclick="adminLoadMerchants('+(window._mrcListPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',window._mrcListPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._mrcListPage>=totalPages?'disabled':'')+' onclick="adminLoadMerchants('+(window._mrcListPage+1)+')">'+at('admin_users_next_page')+'</button>';
+      }
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
 }
 
 // Depuis la liste globale, ouvre directement la fiche complete du compte

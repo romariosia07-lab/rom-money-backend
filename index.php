@@ -3476,6 +3476,7 @@ function route_admin($action) {
         'merchant-block'           => admin_merchant_block(),
         'merchant-unblock'         => admin_merchant_unblock(),
         'merchant-reset-pin'       => admin_merchant_reset_pin(),
+        'merchant-list'            => admin_merchant_list(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3912,6 +3913,39 @@ function admin_merchant_reset_pin() {
       [password_hash($newPin,PASSWORD_BCRYPT), $m['id']]);
     admin_log('merchant_pin_reset','success',$m['phone_number'],'Marchand '.$m['business_name'].' : '.$reason);
     ok(null,'PIN marchand reinitialise avec succes (verrou anti-fraude aussi leve)');
+}
+
+// Liste paginee des marchands - meme mecanique que admin_list_users() cote
+// comptes personnels.
+function admin_merchant_list() {
+    $b = body();
+    check_admin_password($b);
+    $search = trim($b['search'] ?? '');
+    $verifiedFilter = trim($b['verified'] ?? '');
+    $statusFilter = trim($b['status'] ?? '');
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+
+    $where = "1=1"; $params = [];
+    if($search){
+        $where .= " AND (business_name ILIKE ? OR phone_number ILIKE ?)";
+        $like = '%'.$search.'%';
+        $params[] = $like; $params[] = $like;
+    }
+    if($verifiedFilter==='verified'){ $where .= " AND verified=1"; }
+    elseif($verifiedFilter==='unverified'){ $where .= " AND (verified=0 OR verified IS NULL)"; }
+    if($statusFilter==='active'){ $where .= " AND status='active'"; }
+    elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
+
+    try {
+        $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
+        $rows = q("SELECT id,business_name,phone_number,location_type,status,verified,created_at
+                   FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+    }
+    ok(['merchants'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
