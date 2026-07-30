@@ -3478,6 +3478,7 @@ function route_admin($action) {
         'merchant-reset-pin'       => admin_merchant_reset_pin(),
         'merchant-list'            => admin_merchant_list(),
         'add-note'                 => admin_add_note(),
+        'search-tx-advanced'       => admin_search_tx_advanced(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3763,6 +3764,45 @@ function admin_search_tx() {
         WHERE t.reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     ok(['transaction'=>$tx]);
+}
+
+// Recherche une transaction sans connaitre sa reference ni le numero du
+// compte concerne : par plage de montant, plage de dates et/ou statut.
+// Exige au moins un critere reel pour eviter de parcourir tout l'historique
+// par accident. Pagine comme admin_list_users()/admin_merchant_list().
+function admin_search_tx_advanced() {
+    $b = body();
+    check_admin_password($b);
+    $amountMin = trim($b['amount_min'] ?? '');
+    $amountMax = trim($b['amount_max'] ?? '');
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    $status = trim($b['status'] ?? '');
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+
+    if($amountMin==='' && $amountMax==='' && !$dateFrom && !$dateTo && !$status){
+        fail('Au moins un critère de recherche est requis (montant, date ou statut)');
+    }
+
+    $where = "t.type!='fee'"; $params = [];
+    if($amountMin!==''){ $where .= " AND t.amount >= ?"; $params[] = (float)$amountMin; }
+    if($amountMax!==''){ $where .= " AND t.amount <= ?"; $params[] = (float)$amountMax; }
+    if($dateFrom){ $where .= " AND t.created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if($dateTo){ $where .= " AND t.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    if($status){ $where .= " AND t.status = ?"; $params[] = $status; }
+
+    $total = (int)q("SELECT COUNT(*) FROM transactions t WHERE $where", $params)->fetchColumn();
+    $rows = q("SELECT t.*,
+        su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        WHERE $where ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+
+    ok(['transactions'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
 
 // Liste les dernieres transactions d'un compte (par numero de telephone),

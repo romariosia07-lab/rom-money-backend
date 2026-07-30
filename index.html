@@ -1057,6 +1057,29 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTx()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="admin-tx-result"></div>
 
+      <div class="admin-stitle" style="border-top:1px solid var(--bord);padding-top:20px">Recherche avancée (montant / date / statut)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Retrouver une transaction sans connaître ni la référence ni le numéro du compte.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="finput" id="advtx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" style="margin-bottom:0">
+        <input class="finput" id="advtx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" style="margin-bottom:0">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0">Du</label>
+        <input class="finput" id="advtx-date-from" type="date" style="margin-bottom:0">
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0">au</label>
+        <input class="finput" id="advtx-date-to" type="date" style="margin-bottom:0">
+      </div>
+      <select class="finput" id="advtx-status">
+        <option value="">Statut : Tous</option>
+        <option value="completed">Complétée</option>
+        <option value="pending">En attente</option>
+        <option value="cancelled">Annulée</option>
+        <option value="frozen">Gelée</option>
+      </select>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTxAdvanced(1)">Rechercher</button>
+      <div id="advtx-box"></div>
+      <div id="advtx-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_tx_freeze_title">Annulation tardive / Gel</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_tx_freeze_desc">Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l'argent revient temporairement à l'expéditeur le temps de vérifier, puis tu débloques ou confirmes l'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.</div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_tx_ref_label">Référence</label><input class="finput" id="cncl-ref" placeholder="REF-20260704-XXXXXX"></div>
@@ -3958,6 +3981,55 @@ function adminSearchTx(){
       box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||at('admin_not_found'))+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+// Recherche avancee (montant/date/statut) - retrouve une transaction sans
+// connaitre la reference exacte ni le numero du compte, meme mecanique de
+// pagination que adminLoadUsers()/adminLoadMerchants().
+function adminSearchTxAdvanced(page){
+  window._advTxPage = page || window._advTxPage || 1;
+  var box=document.getElementById('advtx-box');
+  var pag=document.getElementById('advtx-pagination');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  if(pag) pag.innerHTML='';
+  apiCall('/admin?action=search-tx-advanced','POST',{
+    admin_password: window._adminPw,
+    amount_min: document.getElementById('advtx-amt-min').value,
+    amount_max: document.getElementById('advtx-amt-max').value,
+    date_from: document.getElementById('advtx-date-from').value,
+    date_to: document.getElementById('advtx-date-to').value,
+    status: document.getElementById('advtx-status').value,
+    page: window._advTxPage
+  },'').then(function(res){
+    if(res&&res.success&&res.data){
+      var txs = res.data.transactions||[];
+      var total = res.data.total||0;
+      var perPage = res.data.per_page||25;
+      if(txs.length===0){
+        box.innerHTML='<div class="admin-empty">Aucune transaction trouvée</div>';
+        return;
+      }
+      var html='';
+      txs.forEach(function(t){
+        html+='<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenUserFromList(\''+(t.sender_phone||t.receiver_phone||'')+'\')">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+fmt(parseFloat(t.amount))+'</b>'+statusPill(t.status)+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+(TYPE_FR_GET(t.type)||t.type)+' · '+adminNameDisplay(t.sender_name,t.sender_verified_name)+' → '+adminNameDisplay(t.receiver_name,t.receiver_verified_name)+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+t.reference+' — '+new Date(t.created_at).toLocaleString()+'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+
+      var totalPages = Math.max(1, Math.ceil(total/perPage));
+      if(pag){
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._advTxPage<=1?'disabled':'')+' onclick="adminSearchTxAdvanced('+(window._advTxPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',window._advTxPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(window._advTxPage>=totalPages?'disabled':'')+' onclick="adminSearchTxAdvanced('+(window._advTxPage+1)+')">'+at('admin_users_next_page')+'</button>';
+      }
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminLateCancel(){
