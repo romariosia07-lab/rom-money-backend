@@ -3551,7 +3551,8 @@ function adminSearchMerchant(){
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
         +'<b>Badge vérifié :</b> '+(m.verified?'<span style="color:var(--g);font-weight:700">Actif</span>':'<span style="color:var(--t3)">Inactif</span>')
         +'</div>'
-        +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(m.verified?'var(--rl)':'var(--gl)')+';color:'+(m.verified?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantVerified(\''+m.id+'\')">'+(m.verified?'Retirer le badge vérifié':'Accorder le badge vérifié')+'</button>';
+        +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(m.verified?'var(--rl)':'var(--gl)')+';color:'+(m.verified?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantVerified(\''+m.id+'\')">'+(m.verified?'Retirer le badge vérifié':'Accorder le badge vérifié')+'</button>'
+        +'<button style="width:100%;padding:13px;margin-top:8px;background:'+(m.status==='blocked'?'var(--gl)':'var(--rl)')+';color:'+(m.status==='blocked'?'var(--g)':'var(--re)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantBlock(\''+m.id+'\',\''+(m.status==='blocked'?'unblock':'block')+'\')">'+(m.status==='blocked'?'Débloquer ce marchand':'Bloquer ce marchand')+'</button>';
       box.innerHTML=html;
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
@@ -3560,6 +3561,21 @@ function adminSearchMerchant(){
 }
 function adminToggleMerchantVerified(merchantId){
   apiCall('/admin?action=merchant-toggle-verified','POST',{admin_password:window._adminPw,merchant_id:merchantId},'').then(function(res){
+    if(res&&res.success){
+      toast(res.message||'Mis à jour');
+      adminSearchMerchant();
+    } else {
+      toast((res&&res.message)||'Échec', true);
+    }
+  });
+}
+function adminToggleMerchantBlock(merchantId, action){
+  var verb = action==='block' ? 'bloquer' : 'débloquer';
+  var reason = prompt('Raison pour '+verb+' ce marchand (obligatoire, journalisée) :');
+  if(reason===null) return;
+  reason = reason.trim();
+  if(!reason){ toast('Raison requise', true); return; }
+  apiCall('/admin?action=merchant-'+action,'POST',{admin_password:window._adminPw,merchant_id:merchantId,reason:reason},'').then(function(res){
     if(res&&res.success){
       toast(res.message||'Mis à jour');
       adminSearchMerchant();

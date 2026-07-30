@@ -3473,6 +3473,8 @@ function route_admin($action) {
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         'merchant-search'          => admin_merchant_search(),
         'merchant-toggle-verified' => admin_merchant_toggle_verified(),
+        'merchant-block'           => admin_merchant_block(),
+        'merchant-unblock'         => admin_merchant_unblock(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3856,6 +3858,37 @@ function admin_merchant_toggle_verified() {
     q("UPDATE merchants SET verified=? WHERE id=?",[$newVal,$id]);
     admin_log('merchant_toggle_verified','success',null,'Marchand '.$m['business_name'].' -> '.($newVal?'verifie':'non verifie'));
     ok(['verified'=>(bool)$newVal],$newVal?'Marchand verifie':'Verification retiree');
+}
+
+// Bloque/debloque un compte marchand - meme principe que admin_block_account()/
+// admin_unblock_account() cote personnel (raison obligatoire, journalisee).
+// Un marchand bloque ne peut plus se connecter (merchant_login() verifie deja
+// status==='active') ni utiliser un jeton existant (merchant_auth() aussi).
+function admin_merchant_block() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['merchant_id'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$id || !$reason) fail('Marchand et raison requis');
+    $m = q("SELECT id,business_name,phone_number,status FROM merchants WHERE id=?",[$id])->fetch();
+    if(!$m){ admin_log('merchant_block','failed',null,dk('d_account_not_found')); fail('Marchand introuvable',404); }
+    if($m['status']==='blocked'){ admin_log('merchant_block','failed',$m['phone_number'],'Marchand '.$m['business_name'].' deja bloque'); fail('Ce marchand est deja bloque'); }
+    q("UPDATE merchants SET status='blocked' WHERE id=?",[$id]);
+    admin_log('merchant_block','success',$m['phone_number'],'Marchand '.$m['business_name'].' bloque : '.$reason);
+    ok(null,'Marchand bloque avec succes');
+}
+function admin_merchant_unblock() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['merchant_id'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$id || !$reason) fail('Marchand et raison requis');
+    $m = q("SELECT id,business_name,phone_number,status FROM merchants WHERE id=?",[$id])->fetch();
+    if(!$m){ admin_log('merchant_unblock','failed',null,dk('d_account_not_found')); fail('Marchand introuvable',404); }
+    if($m['status']==='active'){ admin_log('merchant_unblock','failed',$m['phone_number'],'Marchand '.$m['business_name'].' deja actif'); fail('Ce marchand est deja actif'); }
+    q("UPDATE merchants SET status='active' WHERE id=?",[$id]);
+    admin_log('merchant_unblock','success',$m['phone_number'],'Marchand '.$m['business_name'].' debloque : '.$reason);
+    ok(null,'Marchand debloque avec succes');
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur
