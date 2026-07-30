@@ -4273,6 +4273,11 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
         $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
         $merchantVolume    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
+        // Part du pot commun de frais generee specifiquement par BUSINESS : le
+        // 1% preleve sur un virement marchand vers un numero autre que le sien
+        // (voir merchant_withdraw()), reconnaissable a sender_merchant_wallet_id
+        // non nul sur une transaction de type 'fee'.
+        $merchantFeeRevenue = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND sender_merchant_wallet_id IS NOT NULL")->fetchColumn();
         $topMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
                 COALESCE(SUM(t.amount),0) AS total_volume, COUNT(t.id) AS tx_count
             FROM merchants m
@@ -4282,7 +4287,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             ORDER BY total_volume DESC
             LIMIT 10")->fetchAll();
     } catch(Exception $e) {
-        $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $topMerchants = [];
+        $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $merchantFeeRevenue = 0; $topMerchants = [];
     }
 
     return [
@@ -4302,6 +4307,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             'total'    => $merchantsTotal,
             'verified' => $merchantsVerified,
             'volume'   => $merchantVolume,
+            'fee_revenue' => $merchantFeeRevenue,
             'top'      => $topMerchants
         ]
     ];
