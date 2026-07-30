@@ -771,6 +771,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('settings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_settings">⚙ Réglages</span></button>
       <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_alerts">⚠ Alertes</span><span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span>Marchands</span></button>
       <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_account">Compte</span></button>
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
@@ -949,6 +950,14 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div id="usr-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="usr-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+    </div>
+
+    <div id="admin-panel-merchants" class="admin-panel" style="display:none">
+      <div class="admin-stitle">Marchands ROM_BUSINESS</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Recherche un compte marchand par numéro de téléphone (indépendant d'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".</div>
+      <div class="frow"><label class="flabel">Numéro du marchand</label><input class="finput" id="mrc-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('mrc-result').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchant()">Rechercher</button>
+      <div id="mrc-result"></div>
     </div>
 
     <div id="admin-panel-account" class="admin-panel" style="display:none">
@@ -3353,7 +3362,7 @@ function adminReject(id){
 }
 
 function adminTab(name){
-  ['dashboard','announce','kyc','account','tx','audit','countries','users','alerts','settings'].forEach(function(t){
+  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','alerts','settings'].forEach(function(t){
     var panel=document.getElementById('admin-panel-'+t);
     if(panel) panel.style.display=(t===name)?'block':'none';
   });
@@ -3524,6 +3533,41 @@ function adminDeleteAccount(){
   });
 }
 
+function adminSearchMerchant(){
+  var phone=document.getElementById('mrc-phone').value.trim();
+  var box=document.getElementById('mrc-result');
+  if(!phone){ toast(at('admin_phone_required'), true); return; }
+  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_searching')+'</div>';
+  apiCall('/admin?action=merchant-search','POST',{admin_password:window._adminPw,phone:phone},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var m=res.data;
+      var statusColor = m.status==='blocked' ? 'var(--re)' : 'var(--g)';
+      var html='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;font-size:12px;line-height:1.9">'
+        +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+m.business_name+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</div>'
+        +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(m.status==='blocked'?'Bloqué':'Actif')+'</span><br>'
+        +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
+        +'<b>Type :</b> '+(m.location_type==='physical'?'Avec emplacement':'En ligne')+(m.address?' — '+m.address:'')+'<br>'
+        +'<b>Solde :</b> '+fmt(m.balance||0)+' &middot; <b>Coffre :</b> '+fmt(m.vault_balance||0)+'<br>'
+        +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
+        +'<b>Badge vérifié :</b> '+(m.verified?'<span style="color:var(--g);font-weight:700">Actif</span>':'<span style="color:var(--t3)">Inactif</span>')
+        +'</div>'
+        +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(m.verified?'var(--rl)':'var(--gl)')+';color:'+(m.verified?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantVerified(\''+m.id+'\')">'+(m.verified?'Retirer le badge vérifié':'Accorder le badge vérifié')+'</button>';
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
+    }
+  });
+}
+function adminToggleMerchantVerified(merchantId){
+  apiCall('/admin?action=merchant-toggle-verified','POST',{admin_password:window._adminPw,merchant_id:merchantId},'').then(function(res){
+    if(res&&res.success){
+      toast(res.message||'Mis à jour');
+      adminSearchMerchant();
+    } else {
+      toast((res&&res.message)||'Échec', true);
+    }
+  });
+}
 function adminSearchByPhone(){
   var phone=document.getElementById('srch-phone').value.trim();
   var box=document.getElementById('admin-phone-result');
@@ -6819,7 +6863,7 @@ function handleScannedMerchantQR(text){
   var tok = getToken();
   apiCall('/wallet?action=resolve-merchant-qr&qr='+encodeURIComponent(text),'GET',null,tok).then(function(res){
     if(res && res.success && res.data){
-      showMerchantPayForm(res.data.id, res.data.business_name);
+      showMerchantPayForm(res.data.id, res.data.business_name, res.data.verified);
     } else {
       scV.innerHTML = '<div style="text-align:center;padding:30px"><div style="font-size:48px;margin-bottom:12px">⚠️</div>'
         +'<div style="font-size:15px;font-weight:700;color:#e53e3e;margin-bottom:8px">'+t('scan_qr_invalid_title')+'</div>'
@@ -6828,15 +6872,16 @@ function handleScannedMerchantQR(text){
   });
 }
 
-function showMerchantPayForm(merchantId, businessName){
+function showMerchantPayForm(merchantId, businessName, verified){
   var scV = document.getElementById('wallet-scan-view');
   if(!scV) return;
   window._payMerchantId = merchantId;
   window._payMerchantName = businessName;
+  var badge = verified ? ' <span style="color:var(--g)" title="Commerce vérifié">✓</span>' : '';
   scV.innerHTML = '<div style="background:#fff;border-radius:16px;padding:18px;border:.5px solid var(--bord)">'
     +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:.5px solid var(--div)">'
     +'<div style="width:52px;height:52px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏪</div>'
-    +'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:800;color:var(--t1)">'+businessName+'</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:800;color:var(--t1)">'+businessName+badge+'</div>'
     +'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('merchant_pay_free_note')+'</div></div>'
     +'</div>'
     +'<div class="frow"><label class="flabel">'+t('enc_amount_label')+'</label>'
