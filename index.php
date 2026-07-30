@@ -3475,6 +3475,7 @@ function route_admin($action) {
         'merchant-toggle-verified' => admin_merchant_toggle_verified(),
         'merchant-block'           => admin_merchant_block(),
         'merchant-unblock'         => admin_merchant_unblock(),
+        'merchant-reset-pin'       => admin_merchant_reset_pin(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3889,6 +3890,28 @@ function admin_merchant_unblock() {
     q("UPDATE merchants SET status='active' WHERE id=?",[$id]);
     admin_log('merchant_unblock','success',$m['phone_number'],'Marchand '.$m['business_name'].' debloque : '.$reason);
     ok(null,'Marchand debloque avec succes');
+}
+
+// Reinitialise le PIN d'un marchand - meme principe que admin_reset_pin()
+// cote personnel : leve aussi le verrou anti-fraude (pin_attempts/pin_locked_until).
+function admin_merchant_reset_pin() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['merchant_id'] ?? '');
+    $newPin = trim($b['new_pin'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!preg_match('/^\d{4}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 4 chiffres');
+    if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $m = q("SELECT id,business_name,phone_number FROM merchants WHERE id=?",[$id])->fetch();
+    if(!$m){
+        admin_log('merchant_pin_reset','failed',null,dk('d_account_not_found_with_reason', ['reason'=>$reason]));
+        fail('Marchand introuvable',404);
+    }
+    q("UPDATE merchants SET pin_hash=?, pin_attempts=0, pin_locked_until=NULL WHERE id=?",
+      [password_hash($newPin,PASSWORD_BCRYPT), $m['id']]);
+    admin_log('merchant_pin_reset','success',$m['phone_number'],'Marchand '.$m['business_name'].' : '.$reason);
+    ok(null,'PIN marchand reinitialise avec succes (verrou anti-fraude aussi leve)');
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur

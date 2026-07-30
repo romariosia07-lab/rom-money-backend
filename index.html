@@ -3602,9 +3602,23 @@ function adminSearchMerchant(){
         +'</select>'
         +'<input class="finput" id="mrc-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
-        +'<button style="width:100%;padding:13px;margin-top:10px;background:'+(m.status==='blocked'?'var(--gl)':'var(--rl)')+';color:'+(m.status==='blocked'?'var(--g)':'var(--re)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantBlock(\''+m.id+'\',\''+(m.status==='blocked'?'unblock':'block')+'\')">'+(m.status==='blocked'?'Débloquer ce marchand':'Bloquer ce marchand')+'</button>';
+        +'<button style="width:100%;padding:13px;margin-top:10px;background:'+(m.status==='blocked'?'var(--gl)':'var(--rl)')+';color:'+(m.status==='blocked'?'var(--g)':'var(--re)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantBlock(\''+m.id+'\',\''+(m.status==='blocked'?'unblock':'block')+'\')">'+(m.status==='blocked'?'Débloquer ce marchand':'Bloquer ce marchand')+'</button>'
+        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Réinitialiser le PIN</div>'
+        +'<div class="frow"><label class="flabel">Nouveau PIN (4 chiffres)</label><input class="finput" id="mrcpin-newpin" maxlength="4" inputmode="numeric" placeholder="0000"></div>'
+        +'<div class="frow" style="margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
+        +'<select class="finput" id="mrcpin-reason-sel" onchange="toggleReasonCustom(\'mrcpin\')">'
+        +'<option value="">— Choisir une raison —</option>'
+        +'<option value="Marchand a oublié son PIN">Marchand a oublié son PIN</option>'
+        +'<option value="Compte compromis (sécurité)">Compte compromis (sécurité)</option>'
+        +'<option value="Demande du marchand">Demande du marchand</option>'
+        +'<option value="__other__">Autre raison (préciser)</option>'
+        +'</select>'
+        +'<input class="finput" id="mrcpin-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
+        +'</div>'
+        +'<button class="btn-g" style="margin-top:10px" onclick="adminResetMerchantPin(\''+m.id+'\')">Réinitialiser le PIN</button>';
       box.innerHTML=html;
       resetReasonField('mrc');
+      resetReasonField('mrcpin');
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
     }
@@ -3634,6 +3648,27 @@ function adminToggleMerchantBlock(merchantId, action){
         if(res&&res.success){
           toast(res.message||'Mis à jour');
           adminSearchMerchant();
+        } else {
+          toast((res&&res.message)||'Échec', true);
+        }
+      });
+    }
+  });
+}
+function adminResetMerchantPin(merchantId){
+  var newPin=document.getElementById('mrcpin-newpin').value.trim();
+  var reason=getReasonValue('mrcpin');
+  if(!/^\d{4}$/.test(newPin)){ toast('Le PIN doit contenir 4 chiffres', true); return; }
+  if(!reason){ toast('Raison requise', true); return; }
+  adminOpenConfirmModal({
+    icon:'🔑', title:'Réinitialiser le PIN de ce marchand ?', message:'Le marchand devra utiliser ce nouveau PIN pour se connecter.',
+    needsReason:false, confirmLabel:'Réinitialiser', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=merchant-reset-pin','POST',{admin_password:window._adminPw,merchant_id:merchantId,new_pin:newPin,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(res.message||'PIN réinitialisé');
+          document.getElementById('mrcpin-newpin').value='';
+          resetReasonField('mrcpin');
         } else {
           toast((res&&res.message)||'Échec', true);
         }
