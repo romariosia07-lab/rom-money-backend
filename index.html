@@ -2683,7 +2683,7 @@ function adminLoadDashboard(){
       }
 
       // ── Marchands ROM_BUSINESS (meme structure Aujourd'hui / Periode / Cumule que le bloc personnel ci-dessus) ──
-      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,today_volume:0,today_fees:0,period_volume:0,period_fees:0,top:[]};
+      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,today_volume:0,today_fees:0,today_count:0,period_volume:0,period_fees:0,period_count:0,top:[]};
       var mrcHtml='<div class="admin-stitle">Marchands ROM_BUSINESS</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
         +adminStatBox('Marchands', mrcStats.total, true)
@@ -2697,10 +2697,12 @@ function adminLoadDashboard(){
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.today_volume), true)
         +adminStatBox('Gains générés', fmt(mrcStats.today_fees), true)
+        +adminStatBox('Nombre de paiements', mrcStats.today_count, true)
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.period_volume), true)
         +adminStatBox('Gains générés', fmt(mrcStats.period_fees), true)
+        +adminStatBox('Nombre de paiements', mrcStats.period_count, true)
         +'</div>'
         +'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé · '+fmt(mrcStats.fee_revenue)+' de gains générés</div>';
