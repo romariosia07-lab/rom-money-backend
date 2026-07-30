@@ -2686,12 +2686,12 @@ function adminLoadDashboard(){
       var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,top:[]};
       var mrcHtml='<div class="admin-stitle">Marchands ROM_BUSINESS</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-        +adminStatBox('Marchands', mrcStats.total)
-        +adminStatBox('Vérifiés', mrcStats.verified)
+        +adminStatBox('Marchands', mrcStats.total, true)
+        +adminStatBox('Vérifiés', mrcStats.verified, true)
         +'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
-        +adminStatBox('Volume encaissé', fmt(mrcStats.volume))
-        +adminStatBox('Gains générés par BUSINESS', fmt(mrcStats.fee_revenue))
+        +adminStatBox('Volume encaissé', fmt(mrcStats.volume), true)
+        +adminStatBox('Gains générés par BUSINESS', fmt(mrcStats.fee_revenue), true)
         +'</div>';
       var topMerchants=mrcStats.top||[];
       mrcHtml+='<div class="admin-stitle">Top 10 marchands</div>';
