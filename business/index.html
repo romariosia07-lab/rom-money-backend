@@ -132,9 +132,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 #qr-full{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:24px}
 #qr-full.on{display:flex}
 .qr-close-btn{position:absolute;top:28px;left:20px;background:none;border:none;color:var(--t1);cursor:pointer;padding:6px;z-index:1}
-.qr-real-card{width:100%;max-width:320px;background:var(--gdd);background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 22px);border-radius:32px;padding:44px 20px 60px;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(0,0,0,.2);position:relative;margin:0 auto}
+.qr-real-card{width:100%;max-width:300px;aspect-ratio:0.6;background:var(--gdd);background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 22px);border-radius:32px;padding:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(0,0,0,.2);position:relative;margin:0 auto}
 .qr-real-card-box{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.qr-real-card-logo{position:absolute;left:20px;bottom:20px;width:40px;height:40px;border-radius:11px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.qr-real-card-logo{position:absolute;left:24px;bottom:28px;width:44px;height:44px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .qr-real-card-logo img{width:100%;height:100%;object-fit:cover}
 #svid,#scan-canvas{width:100%;border-radius:14px}
 .scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
@@ -1270,7 +1270,7 @@ function drawMerchantQR(elId, size){
   try{ new QRCode(el, {text:merchantQrText(), width:size, height:size, colorDark:'#085041', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
 }
 function showQrFullscreen(){
-  drawMerchantQR('qrf-box', 220);
+  drawMerchantQR('qrf-box', 200);
   document.getElementById('qr-full').classList.add('on');
 }
 
