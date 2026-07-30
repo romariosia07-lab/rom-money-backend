@@ -134,10 +134,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 #qr-full{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:24px}
 #qr-full.on{display:flex}
 .qr-close-btn{position:absolute;top:28px;left:20px;background:none;border:none;color:var(--t1);cursor:pointer;padding:6px;z-index:1}
-.qr-real-card{width:100%;max-width:300px;aspect-ratio:0.6;background:var(--gdd);background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 22px);border-radius:32px;padding:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(0,0,0,.2);position:relative;margin:0 auto}
+.qr-real-card{width:100%;max-width:300px;aspect-ratio:0.6;background:var(--gdd);background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 22px);border-radius:32px;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(0,0,0,.2);position:relative;margin:0 auto}
+.qr-real-card-brand{display:flex;align-items:center;gap:12px;width:100%;margin-bottom:28px}
+.qr-real-card-icon{width:46px;height:46px;border-radius:13px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.qr-real-card-tagline{color:rgba(255,255,255,.7);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.qr-real-card-brandname{color:#fff;font-size:23px;font-weight:900;line-height:1.1;letter-spacing:.3px}
 .qr-real-card-box{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.qr-real-card-logo{position:absolute;left:24px;bottom:28px;width:44px;height:44px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
-.qr-real-card-logo img{width:100%;height:100%;object-fit:cover}
 #svid,#scan-canvas{width:100%;border-radius:14px}
 .scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
 #scan-canvas{display:none}
@@ -364,8 +366,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </button>
   <div class="qr-real-card">
+    <div class="qr-real-card-brand">
+      <img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">
+      <div><div class="qr-real-card-tagline" data-i18n="mqr_pay_with">PAYEZ AVEC</div><div class="qr-real-card-brandname">ROM_BUSINESS</div></div>
+    </div>
     <div class="qr-real-card-box" id="qrf-box"></div>
-    <div class="qr-real-card-logo"><img src="./logo.jpg" alt="ROM_BUSINESS"></div>
   </div>
 </div>
 
@@ -589,6 +594,7 @@ var I18N = {
   mqr_qr_gen_error:{fr:'Erreur de génération du QR',en:'QR generation error'},
   mqr_pdf_unavailable:{fr:'PDF non disponible',en:'PDF unavailable'},
   mqr_scan_to_pay:{fr:'SCANNEZ POUR PAYER',en:'SCAN TO PAY'},
+  mqr_pay_with:{fr:'PAYEZ AVEC',en:'PAY WITH'},
   mqr_tagline:{fr:'ENCAISSEZ AVEC ROM_BUSINESS',en:'COLLECT WITH ROM_BUSINESS'},
   mqr_downloaded:{fr:'QR téléchargé !',en:'QR downloaded!'},
   pdf_load_error:{fr:'Erreur chargement PDF',en:'PDF loading error'},
@@ -1195,8 +1201,11 @@ function shMonQr(b){
   var b1='flex:1;padding:11px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit';
   var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
   b.innerHTML='<div class="qr-real-card">'
+    +'<div class="qr-real-card-brand">'
+    +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">'
+    +'<div><div class="qr-real-card-tagline">'+t('mqr_pay_with')+'</div><div class="qr-real-card-brandname">ROM_BUSINESS</div></div>'
+    +'</div>'
     +'<div class="qr-real-card-box" id="mqr-box"></div>'
-    +'<div class="qr-real-card-logo"><img src="./logo.jpg" alt="ROM_BUSINESS"></div>'
     +'</div>'
     +'<div style="font-size:12px;color:var(--t2);margin:14px 0;text-align:center">'+t('mqr_desc')+'</div>'
     +'<div style="display:flex;gap:10px">'
