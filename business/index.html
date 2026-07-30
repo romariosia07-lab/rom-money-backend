@@ -146,6 +146,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .qr-real-card-brandname{color:#fff;font-size:23px;font-weight:900;line-height:1.1;letter-spacing:.3px}
 .qr-real-card-brandname span{color:var(--gold)}
 .qr-real-card-box{background:#fff;border-radius:20px;padding:18px;border:2px solid rgba(245,166,35,.35);box-shadow:0 4px 16px rgba(0,0,0,.1);margin:auto 0;position:relative;z-index:1}
+.qr-real-card-slogan{color:rgba(245,166,35,.85);font-size:10.5px;font-weight:700;letter-spacing:1px;text-align:center;text-transform:uppercase;position:relative;z-index:1}
 #svid,#scan-canvas{width:100%;border-radius:14px}
 .scan-wrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:14px}
 #scan-canvas{display:none}
@@ -384,6 +385,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
     </div>
     <div class="qr-real-card-box" id="qrf-box"></div>
+    <div class="qr-real-card-slogan" data-i18n="mqr_tagline">ENCAISSEZ AVEC ROM_BUSINESS</div>
   </div>
 </div>
 
@@ -1391,6 +1393,7 @@ function shMonQr(b){
     +'</div>'
     +'</div>'
     +'<div class="qr-real-card-box" id="mqr-box"></div>'
+    +'<div class="qr-real-card-slogan">'+t('mqr_tagline')+'</div>'
     +'</div>'
     +'<div style="font-size:12px;color:var(--t2);margin:14px 0;text-align:center">'+t('mqr_desc')+'</div>'
     +'<div style="display:flex;gap:10px">'
