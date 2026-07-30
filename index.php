@@ -3484,6 +3484,8 @@ function route_admin($action) {
         'list-near-limit'          => admin_list_near_limit(),
         'merchant-add-note'        => admin_merchant_add_note(),
         'merchant-search-tx-advanced' => admin_merchant_search_tx_advanced(),
+        'merchants-export-xlsx'    => admin_merchants_export_xlsx(),
+        'merchants-export-pdf'     => admin_merchants_export_pdf(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -4064,15 +4066,12 @@ function admin_merchant_reset_pin() {
 
 // Liste paginee des marchands - meme mecanique que admin_list_users() cote
 // comptes personnels.
-function admin_merchant_list() {
-    $b = body();
-    check_admin_password($b);
-    $search = trim($b['search'] ?? '');
-    $verifiedFilter = trim($b['verified'] ?? '');
-    $statusFilter = trim($b['status'] ?? '');
-    $page = max(1, (int)($b['page'] ?? 1));
-    $perPage = 25;
-    $offset = ($page - 1) * $perPage;
+// Construit la clause WHERE + params partagee par admin_merchant_list() et
+// les deux exports (xlsx/pdf), meme principe que admin_users_build_where().
+function admin_merchants_build_where($f) {
+    $search = trim($f['search'] ?? '');
+    $verifiedFilter = trim($f['verified'] ?? '');
+    $statusFilter = trim($f['status'] ?? '');
 
     $where = "1=1"; $params = [];
     if($search){
@@ -4084,6 +4083,17 @@ function admin_merchant_list() {
     elseif($verifiedFilter==='unverified'){ $where .= " AND (verified=0 OR verified IS NULL)"; }
     if($statusFilter==='active'){ $where .= " AND status='active'"; }
     elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
+    return [$where, $params];
+}
+
+function admin_merchant_list() {
+    $b = body();
+    check_admin_password($b);
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+
+    list($where, $params) = admin_merchants_build_where($b);
 
     try {
         $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
@@ -4093,6 +4103,90 @@ function admin_merchant_list() {
         fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
     }
     ok(['merchants'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+}
+
+// Export de la liste de marchands filtree (memes criteres que
+// admin_merchant_list()), meme mecanique que admin_users_export_xlsx/pdf().
+function admin_merchants_export_xlsx() {
+    check_admin_password_str((string)bg('admin_password',''));
+    $filters = ['search'=>(string)bg('search',''), 'verified'=>(string)bg('verified',''), 'status'=>(string)bg('status','')];
+    list($where, $params) = admin_merchants_build_where($filters);
+    $LIMIT = 5000;
+    try {
+        $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
+        $rows = q("SELECT business_name,phone_number,location_type,address,status,verified,created_at
+                   FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+    }
+
+    $sheetRows = [];
+    $sheetRows[] = [[ 'ROM_BUSINESS - Liste des marchands', 4, 's' ]];
+    $sheetRows[] = [[ 'Genere le '.date('d/m/Y').' a '.date('H:i').' - '.$total.' marchand(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':''), 0, 's' ]];
+    $sheetRows[] = [];
+    $sheetRows[] = [[ 'Boutique',1,'s' ],[ 'Telephone',1,'s' ],[ 'Type',1,'s' ],[ 'Adresse',1,'s' ],[ 'Statut',1,'s' ],[ 'Verifie',1,'s' ],[ 'Inscrit le',1,'s' ]];
+    foreach($rows as $m){
+        $sheetRows[] = [
+            [ $m['business_name'], 2, 's' ],
+            [ $m['phone_number'], 2, 's' ],
+            [ $m['location_type']==='physical'?'Avec emplacement':'En ligne', 2, 's' ],
+            [ $m['address']?:'-', 2, 's' ],
+            [ $m['status']==='blocked'?'Bloque':'Actif', 2, 's' ],
+            [ $m['verified']?'Oui':'Non', 2, 's' ],
+            [ date('d/m/Y',strtotime($m['created_at'])), 2, 's' ]
+        ];
+    }
+    $sheetXml = xlsx_build_sheet($sheetRows);
+    $xlsxData = xlsx_build($sheetXml);
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="rom_business_marchands.xlsx"');
+    header('Content-Length: '.strlen($xlsxData));
+    echo $xlsxData;
+    exit;
+}
+function admin_merchants_export_pdf() {
+    check_admin_password_str((string)bg('admin_password',''));
+    $filters = ['search'=>(string)bg('search',''), 'verified'=>(string)bg('verified',''), 'status'=>(string)bg('status','')];
+    list($where, $params) = admin_merchants_build_where($filters);
+    $LIMIT = 3000;
+    try {
+        $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
+        $rows = q("SELECT business_name,phone_number,location_type,status,verified,created_at
+                   FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+    }
+
+    require_once __DIR__.'/fpdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',14);
+    $pdf->Cell(0,10,pdf_str('ROM_BUSINESS - Liste des marchands'),0,1);
+    $pdf->SetFont('Arial','',10);
+    $pdf->Cell(0,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i').' - '.$total.' marchand(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':'')),0,1);
+    $pdf->Ln(4);
+
+    $pdf->SetFont('Arial','B',8);
+    $pdf->SetFillColor(230,241,251);
+    $w = [45,30,30,25,25,35];
+    $headers = ['Boutique','Telephone','Type','Statut','Verifie','Inscrit le'];
+    foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
+    $pdf->Ln();
+    $pdf->SetFont('Arial','',8);
+    foreach($rows as $m){
+        $pdf->Cell($w[0],7,pdf_str(substr($m['business_name'],0,28)),1);
+        $pdf->Cell($w[1],7,$m['phone_number'],1);
+        $pdf->Cell($w[2],7,$m['location_type']==='physical'?'Emplacement':'En ligne',1);
+        $pdf->Cell($w[3],7,$m['status']==='blocked'?'Bloque':'Actif',1);
+        $pdf->Cell($w[4],7,$m['verified']?'Oui':'Non',1);
+        $pdf->Cell($w[5],7,date('d/m/y',strtotime($m['created_at'])),1);
+        $pdf->Ln();
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="rom_business_marchands.pdf"');
+    echo $pdf->Output('S');
+    exit;
 }
 
 // Annulation tardive - reserve admin, distincte de l'annulation utilisateur

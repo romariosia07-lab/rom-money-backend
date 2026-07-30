@@ -1012,6 +1012,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="blocked">Statut : Bloqués</option>
         </select>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('xlsx')">⬇ Exporter Excel</button>
+        <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('pdf')">⬇ Exporter PDF</button>
+      </div>
       <div id="mrclist-box"><div class="admin-empty">Chargement...</div></div>
       <div id="mrclist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
@@ -2923,6 +2927,15 @@ function adminLoadNearLimit(){
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminExportMerchants(format){
+  var payload={
+    admin_password:window._adminPw,
+    search:document.getElementById('mrclist-search').value.trim(),
+    verified:document.getElementById('mrclist-verified').value,
+    status:document.getElementById('mrclist-status').value
+  };
+  adminDownloadExport('merchants-export-'+format, payload, 'rom_business_marchands.'+format);
 }
 function adminExportUsers(format){
   var payload={
