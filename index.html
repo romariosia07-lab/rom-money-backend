@@ -998,6 +998,33 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div id="mrctx-box"></div>
       <div id="mrctx-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
 
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Annulation tardive / Gel (paiement marchand)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Reservé admin uniquement — c'est la SEULE façon d'annuler un paiement marchand déjà effectué (ni le client ni le marchand ne peuvent l'annuler eux-mêmes). "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l'argent revient temporairement à l'expéditeur le temps de vérifier, puis tu débloques ou confirmes l'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.</div>
+      <div class="frow"><label class="flabel">Référence</label><input class="finput" id="mrccncl-ref" placeholder="REF-20260704-XXXXXX"></div>
+      <div class="frow"><label class="flabel">Raison (obligatoire, journalisée)</label>
+        <select class="finput" id="mrccncl-reason-sel" onchange="toggleReasonCustom('mrccncl')">
+          <option value="">— Choisir une raison —</option>
+          <option value="Erreur de destinataire confirmée">Erreur de destinataire confirmée</option>
+          <option value="Montant incorrect envoyé par erreur">Montant incorrect envoyé par erreur</option>
+          <option value="Double encaissement par le marchand">Double encaissement par le marchand</option>
+          <option value="Remboursement demandé par le client">Remboursement demandé par le client</option>
+          <option value="Transaction frauduleuse suspectée">Transaction frauduleuse suspectée</option>
+          <option value="Erreur technique de l'application">Erreur technique de l'application</option>
+          <option value="En cours de verification">En cours de vérification</option>
+          <option value="__other__">Autre raison (préciser)</option>
+        </select>
+        <input class="finput" id="mrccncl-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button style="padding:14px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminMerchantLateCancel()">Annuler</button>
+        <button style="padding:14px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminMerchantFreezeTx()">❄ Geler</button>
+      </div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">❄ Paiements marchands gelés en attente</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Toutes les transactions marchandes actuellement gelées, en attente de ta décision finale.</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadMerchantFrozenTx()">Actualiser la liste</button>
+      <div id="mrc-frozen-box"><div class="admin-empty">Clique sur "Actualiser la liste" pour charger</div></div>
+
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Liste des marchands</div>
       <div class="frow"><label class="flabel">Nom de boutique ou numéro</label><input class="finput" id="mrclist-search" placeholder="Nom de boutique ou numéro" oninput="adminLoadMerchants(1)"></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -4207,6 +4234,122 @@ function adminSearchMerchantTxAdvanced(page){
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+// Annulation/gel d'un paiement marchand, expose dans l'onglet Marchands
+// (et pas seulement dans l'onglet Transactions generique) : ni le client
+// ni le marchand ne peuvent annuler eux-memes un paiement deja effectue
+// (voir tx_cancel() cote backend) - seul un admin, ici, le peut. Reutilise
+// les memes actions backend generiques que la version personnelle
+// (late-cancel/freeze-tx/unfreeze-tx/confirm-cancel-frozen/list-frozen,
+// deja capables de resoudre wallets OU merchant_wallets), seule la liste
+// des gelees est filtree cote client aux transactions impliquant un marchand.
+function adminMerchantLateCancel(){
+  var ref=document.getElementById('mrccncl-ref').value.trim();
+  var reason=getReasonValue('mrccncl');
+  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  adminOpenConfirmModal({
+    icon:'🚫', title:'Annuler définitivement ?',
+    message:'Le paiement '+ref+' sera annulé et remboursé immédiatement.',
+    needsReason:false, confirmLabel:'Oui, annuler', confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=late-cancel','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Transaction annulée');
+          document.getElementById('mrccncl-ref').value='';
+          resetReasonField('mrccncl');
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
+}
+
+function adminMerchantFreezeTx(){
+  var ref=document.getElementById('mrccncl-ref').value.trim();
+  var reason=getReasonValue('mrccncl');
+  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  adminOpenConfirmModal({
+    icon:'❄', title:'Geler cette transaction ?',
+    message:'Le paiement '+ref+' sera temporairement gelé (fonds provisoirement rendus).',
+    needsReason:false, confirmLabel:'Oui, geler', confirmColor:'#f5a623',
+    onConfirm:function(){
+      apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast('Transaction gelée');
+          document.getElementById('mrccncl-ref').value='';
+          resetReasonField('mrccncl');
+          adminLoadMerchantFrozenTx();
+        } else {
+          toast((res&&res.message)||'Erreur', true);
+        }
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
+}
+
+function adminLoadMerchantFrozenTx(){
+  var box=document.getElementById('mrc-frozen-box');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  apiCall('/admin?action=list-frozen','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var rows=(res.data.frozen||[]).filter(function(r){ return r.sender_merchant_wallet_id || r.receiver_merchant_wallet_id; });
+      if(rows.length===0){
+        box.innerHTML='<div class="admin-empty">Aucun paiement marchand gelé</div>';
+        return;
+      }
+      var html='';
+      rows.forEach(function(r){
+        var senderName=r.sender_verified_name||r.sender_name||r.sender_phone||'?';
+        var receiverName=r.receiver_verified_name||r.receiver_name||r.receiver_phone||'?';
+        html+='<div class="admin-tx-card" style="border-left:3px solid #f5a623">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center"><b>'+fmtCur(r.amount, r.sender_currency)+'</b><span style="font-size:10px;color:#f5a623;font-weight:700">GELÉE</span></div>'
+          +'<div style="color:var(--t3);margin-top:3px">'+senderName+' → '+receiverName+'</div>'
+          +'<div style="color:var(--t2);margin-top:4px;font-size:11px">Raison : '+(r.frozen_reason||'-')+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;margin-top:4px">Réf : '+(r.reference||'-')+' — '+new Date(r.frozen_at).toLocaleString()+'</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">'
+          +'<button style="padding:8px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminMerchantUnfreezeTx(\''+r.reference+'\')">Débloquer</button>'
+          +'<button style="padding:8px;background:var(--re);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" onclick="adminMerchantConfirmCancelFrozen(\''+r.reference+'\')">Confirmer annulation</button>'
+          +'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+}
+
+function adminMerchantUnfreezeTx(ref){
+  adminOpenConfirmModal({
+    icon:'✅', title:'Débloquer cette transaction ?',
+    message:'Le paiement '+ref+' sera restauré à son état normal (complété).',
+    needsReason:false, confirmLabel:'Oui, débloquer', confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
+        if(res&&res.success){ toast('Transaction débloquée'); adminLoadMerchantFrozenTx(); }
+        else toast((res&&res.message)||'Erreur', true);
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
+}
+
+function adminMerchantConfirmCancelFrozen(ref){
+  adminOpenConfirmModal({
+    icon:'🚫', title:'Confirmer l\'annulation définitive ?',
+    message:'Le paiement '+ref+' sera annulé définitivement.',
+    needsReason:true,
+    reasonOptions:['Erreur de destinataire confirmée','Montant incorrect envoyé par erreur','Double encaissement par le marchand','Remboursement demandé par le client','Transaction frauduleuse suspectée'],
+    confirmLabel:'Confirmer l\'annulation', confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast('Annulation confirmée'); adminLoadMerchantFrozenTx(); }
+        else toast((res&&res.message)||'Erreur', true);
+      }).catch(function(){ toast('Erreur réseau', true); });
+    }
+  });
 }
 
 function adminLateCancel(){
