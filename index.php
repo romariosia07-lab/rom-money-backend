@@ -2261,6 +2261,16 @@ function tx_cancel() {
     if($tx['status']!=='completed') fail('Transaction non annulable');
     if($tx['cancelled_at']) fail('Deja annulee');
     if(strtotime($tx['cancel_deadline']??'0')<time()) fail('Delai annulation depasse');
+    // Un paiement marchand ne peut PAS etre auto-annule par le client : (1) le
+    // "receiver" est un merchant_wallet, pas un wallet - la logique ci-dessous
+    // ne le debiterait jamais, ce qui creerait de l'argent (client rembourse
+    // + marchand garde sa recette) ; (2) meme corrige techniquement, un
+    // client ne doit pas pouvoir recuperer seul l'argent d'un achat deja
+    // livre/consomme (fraude "achat puis auto-remboursement"). Seul un admin,
+    // avec raison journalisee, peut annuler un paiement marchand.
+    if($tx['type']==='merchant_payment'){
+        fail('Un paiement marchand ne peut pas etre annule directement. Contactez le support.');
+    }
     // Meme protection que l'annulation admin : si le destinataire a deja
     // depense cet argent (ou une partie), reprendre le montant integral
     // ferait passer son solde en negatif. On refuse plutot que de risquer ca.
