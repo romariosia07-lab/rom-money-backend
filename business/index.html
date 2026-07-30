@@ -931,7 +931,8 @@ function loadDashboardStats(){
   var errEl = document.getElementById('db-stats-error');
   apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
     if(!res || !res.success || !res.data){
-      if(errEl){ errEl.style.display='block'; errEl.innerHTML=t('network_error')+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
+      var msg = (res && res.message) || t('network_error');
+      if(errEl){ errEl.style.display='block'; errEl.innerHTML=msg+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
       return;
     }
     if(errEl) errEl.style.display='none';
@@ -1159,13 +1160,14 @@ function shareReceiptPdf(tx){
   });
 }
 function refreshHistory(full){
-  var errHtml = '<div class="empty-note" style="color:var(--rd)">'+t('network_error')+' <a onclick="refreshHistory('+(full?'true':'false')+')" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a></div>';
   apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       txList = res.data.transactions||[];
       renderTxRows(txList.slice(0,5), 'home-tx-list');
       if(full) renderTxRows(txList, 'hist-tx-list');
     } else {
+      var msg = (res && res.message) || t('network_error');
+      var errHtml = '<div class="empty-note" style="color:var(--rd)">'+msg+' <a onclick="refreshHistory('+(full?'true':'false')+')" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a></div>';
       var home=document.getElementById('home-tx-list'); if(home) home.innerHTML=errHtml;
       if(full){ var hist=document.getElementById('hist-tx-list'); if(hist) hist.innerHTML=errHtml; }
     }
