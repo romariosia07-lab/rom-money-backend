@@ -3794,9 +3794,28 @@ function adminSearchMerchant(){
       html += '<textarea id="admin-merchant-note-input" placeholder="Ajouter une note (contexte, litige, appel...)" style="width:100%;margin-top:10px;padding:10px;background:var(--card);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);font-family:inherit;resize:vertical;min-height:60px;box-sizing:border-box"></textarea>'
         +'<button class="btn-w" style="margin-top:8px" onclick="adminAddMerchantNote()">Ajouter la note</button>';
 
+      // ── Transactions recentes (mêmes filtres + clic-pour-remplir la
+      // référence que côté personnel, voir renderAdminTxList()) ──
+      var mtxs = m.transactions||[];
+      window._adminMerchantTxCache = mtxs;
+      html += '<div style="font-size:13px;font-weight:800;color:var(--accent-text);margin-top:20px;margin-bottom:10px;border-top:1px solid var(--bord);padding-top:16px">Transactions récentes ('+mtxs.length+')</div>';
+      html += '<div style="display:flex;gap:8px;margin-bottom:8px">'
+        +'<input id="mtx-contact" type="text" placeholder="'+at('admin_filter_number_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<input id="mtx-amt-min" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_min_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<input id="mtx-amt-max" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_max_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'
+        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_from')+'</label>'
+        +'<input id="mtx-date-from" type="date" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_to')+'</label>'
+        +'<input id="mtx-date-to" type="date" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
+        +'</div>'
+        +'<div id="admin-merchant-tx-list-box"></div>';
+
       box.innerHTML=html;
       resetReasonField('mrc');
       resetReasonField('mrcpin');
+      renderAdminMerchantTxList();
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
     }
@@ -4082,6 +4101,55 @@ function renderAdminTxList(){
     var contactName=isDebit?adminNameDisplay(t.receiver_name,t.receiver_verified_name):adminNameDisplay(t.sender_name,t.sender_verified_name);
     var contactPhone=isDebit?(t.receiver_phone||'-'):(t.sender_phone||'-');
     html+='<div class="admin-tx-card" onclick="document.getElementById(\'srch-ref\').value=\''+t.reference+'\';document.getElementById(\'cncl-ref\').value=\''+t.reference+'\';toast(\''+at('admin_ref_copied_toast')+'\')">'
+      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmt(parseFloat(t.amount))+'</span></div>'
+      +'<div style="color:var(--t3);margin-top:2px">'+at('admin_contact_number_label').replace('{phone}',contactPhone)+'</div>'
+      +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">'+at('admin_alerts_ref_label').replace('{ref}',t.reference).replace('{date}',new Date(t.created_at).toLocaleString())+' '+statusPill(t.status)+'</div>'
+      +'</div>';
+  });
+  box.innerHTML=html;
+}
+
+// Equivalent de renderAdminTxList() mais pour la fiche marchand : clic sur
+// une transaction remplit la reference du bloc Annulation/Gel marchand
+// (mrccncl-ref) au lieu de srch-ref/cncl-ref (qui n'existent que dans
+// l'onglet Transactions generique cote personnel).
+function renderAdminMerchantTxList(){
+  var box = document.getElementById('admin-merchant-tx-list-box');
+  if(!box) return;
+  var txs = (window._adminMerchantTxCache||[]).slice();
+
+  var contactEl=document.getElementById('mtx-contact');
+  var contactTerm = contactEl ? contactEl.value.trim().toLowerCase() : '';
+  if(contactTerm){
+    txs = txs.filter(function(t){
+      var isDebit=t.direction==='debit';
+      var phone = isDebit ? (t.receiver_phone||'') : (t.sender_phone||'');
+      return phone.toLowerCase().indexOf(contactTerm)>=0;
+    });
+  }
+
+  var minEl=document.getElementById('mtx-amt-min'), maxEl=document.getElementById('mtx-amt-max');
+  var min = minEl && minEl.value!=='' ? parseFloat(minEl.value) : null;
+  var max = maxEl && maxEl.value!=='' ? parseFloat(maxEl.value) : null;
+  if(min!==null && !isNaN(min)) txs = txs.filter(function(t){ return parseFloat(t.amount)>=min; });
+  if(max!==null && !isNaN(max)) txs = txs.filter(function(t){ return parseFloat(t.amount)<=max; });
+
+  var fromEl=document.getElementById('mtx-date-from'), toEl=document.getElementById('mtx-date-to');
+  var fromTs = fromEl && fromEl.value ? new Date(fromEl.value+'T00:00:00').getTime() : null;
+  var toTs = toEl && toEl.value ? new Date(toEl.value+'T23:59:59').getTime() : null;
+  if(fromTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()>=fromTs; });
+  if(toTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()<=toTs; });
+
+  if(txs.length===0){
+    box.innerHTML='<div class="admin-empty">'+at('admin_no_result')+'</div>';
+    return;
+  }
+  var html='';
+  txs.forEach(function(t){
+    var isDebit=t.direction==='debit';
+    var contactName=isDebit?adminNameDisplay(t.receiver_name,t.receiver_verified_name):adminNameDisplay(t.sender_name,t.sender_verified_name);
+    var contactPhone=isDebit?(t.receiver_phone||'-'):(t.sender_phone||'-');
+    html+='<div class="admin-tx-card" onclick="document.getElementById(\'mrccncl-ref\').value=\''+t.reference+'\';toast(\''+at('admin_ref_copied_toast')+'\')">'
       +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmt(parseFloat(t.amount))+'</span></div>'
       +'<div style="color:var(--t3);margin-top:2px">'+at('admin_contact_number_label').replace('{phone}',contactPhone)+'</div>'
       +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">'+at('admin_alerts_ref_label').replace('{ref}',t.reference).replace('{date}',new Date(t.created_at).toLocaleString())+' '+statusPill(t.status)+'</div>'

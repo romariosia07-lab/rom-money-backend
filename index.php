@@ -4019,17 +4019,34 @@ function admin_merchant_search() {
         fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
     }
     if(!$m) fail('Aucun compte marchand pour ce numero',404);
-    $w = q("SELECT balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    $w = q("SELECT id,balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
     try {
         $notes = q("SELECT id,note,created_at FROM merchant_notes WHERE merchant_id=? ORDER BY created_at DESC",[$m['id']])->fetchAll();
     } catch(Exception $e) {
         $notes = [];
     }
+    // Transactions recentes de ce marchand (encaissements et virements), meme
+    // principe que admin_search_by_phone() cote personnel : direction calculee
+    // par rapport au merchant_wallet de ce marchand, contrepartie toujours un
+    // compte personnel (aucun flux marchand-vers-marchand dans l'app).
+    $mwid = $w['id'] ?? null;
+    $txs = [];
+    if($mwid){
+        $txs = q("SELECT t.*,
+            CASE WHEN t.sender_merchant_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
+            su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
+            ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+            FROM transactions t
+            LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+            LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+            WHERE (t.sender_merchant_wallet_id=? OR t.receiver_merchant_wallet_id=?) AND t.type!='fee'
+            ORDER BY t.created_at DESC LIMIT 30",[$mwid,$mwid,$mwid])->fetchAll();
+    }
     ok(['id'=>$m['id'],'business_name'=>$m['business_name'],'phone_number'=>$m['phone_number'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],'status'=>$m['status'],
         'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
-        'notes'=>$notes]);
+        'notes'=>$notes,'transactions'=>$txs]);
 }
 
 // Ajoute une note admin en texte libre sur un compte marchand - equivalent
