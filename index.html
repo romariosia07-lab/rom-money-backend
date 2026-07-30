@@ -954,6 +954,18 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div id="usr-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="usr-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Comptes proches du plafond mensuel</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Comptes non vérifiés (KYC) dont le total reçu ce mois approche leur plafond — à surveiller ou inviter à vérifier leur identité.</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <select class="finput" id="nlimit-threshold" style="margin-bottom:0">
+          <option value="50">Seuil : ≥ 50%</option>
+          <option value="70" selected>Seuil : ≥ 70%</option>
+          <option value="90">Seuil : ≥ 90%</option>
+        </select>
+        <button class="btn-w" style="margin-bottom:0;width:auto;padding:11px 16px" onclick="adminLoadNearLimit()">Actualiser</button>
+      </div>
+      <div id="nlimit-box"><div class="admin-empty">Clique sur "Actualiser" pour charger</div></div>
     </div>
 
     <div id="admin-panel-merchants" class="admin-panel" style="display:none">
@@ -2860,6 +2872,35 @@ function adminDownloadExport(action, payload, filename){
   }).catch(function(){ toast(at('admin_error_generic'), true); });
 }
 
+function adminLoadNearLimit(){
+  var box=document.getElementById('nlimit-box');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=list-near-limit','POST',{
+    admin_password:window._adminPw,
+    threshold:document.getElementById('nlimit-threshold').value
+  },'').then(function(res){
+    if(res&&res.success&&res.data){
+      var accounts=res.data.accounts||[];
+      if(accounts.length===0){
+        box.innerHTML='<div class="admin-empty">Aucun compte au-dessus de ce seuil</div>';
+        return;
+      }
+      var html='';
+      accounts.forEach(function(a){
+        var color = a.percent>=90?'var(--re)':(a.percent>=70?'var(--am)':'var(--g)');
+        html+='<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenUserFromList(\''+a.phone_number+'\')">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+a.name+'</b><span style="color:'+color+';font-weight:700">'+a.percent+'%</span></div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+a.phone_number+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+fmt(a.received)+' / '+fmt(a.limit)+' '+a.currency+' reçus ce mois</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
 function adminExportUsers(format){
   var payload={
     admin_password:window._adminPw,

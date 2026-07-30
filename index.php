@@ -3481,6 +3481,7 @@ function route_admin($action) {
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
         'users-export-pdf'         => admin_users_export_pdf(),
+        'list-near-limit'          => admin_list_near_limit(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -5122,6 +5123,51 @@ function admin_users_export_pdf() {
 // les appareils ajoutes APRES le premier, exactement le meme critere que
 // celui qui declenche deja la notification push d'alerte au moment de la
 // connexion. Fenetre fixe de 30 jours, plafonnee a 50 entrees.
+// Comptes non-verifies (KYC) approchant leur plafond mensuel de reception -
+// permet d'anticiper (ex: leur suggerer le KYC) plutot que de decouvrir le
+// blocage seulement quand le client appelle. Meme calcul que
+// check_receive_limit() (conversion de devise incluse), mais en lecture
+// seule et sur l'ensemble des comptes actifs non-verifies.
+function admin_list_near_limit() {
+    $b = body();
+    check_admin_password($b);
+    $threshold = (float)($b['threshold'] ?? 70) / 100;
+    $limitUnverified = (float)get_setting('limit_unverified', 2000000);
+
+    $rows = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
+            w.currency,
+            COALESCE(SUM(COALESCE(t.receiver_amount, t.net_amount, t.amount)),0) AS received_this_month
+        FROM users u
+        JOIN wallets w ON w.user_id = u.id
+        LEFT JOIN transactions t ON t.receiver_wallet_id = w.id AND t.status='completed' AND t.type!='fee'
+            AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW())
+            AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())
+        WHERE u.is_kyc=0 AND u.status='active'
+        GROUP BY u.id, name, u.phone_number, w.currency")->fetchAll();
+
+    $result = [];
+    foreach($rows as $r){
+        $currency = $r['currency'] ?: 'XOF';
+        $limit = $limitUnverified;
+        if($currency !== 'XOF'){
+            $converted = convert_currency($limitUnverified, 'XOF', $currency);
+            if($converted !== null) $limit = $converted;
+        }
+        if($limit <= 0) continue;
+        $received = (float)$r['received_this_month'];
+        $pct = $received / $limit;
+        if($pct >= $threshold){
+            $result[] = [
+                'name'=>$r['name'], 'phone_number'=>$r['phone_number'],
+                'received'=>$received, 'limit'=>$limit, 'currency'=>$currency,
+                'percent'=>round($pct*100,1)
+            ];
+        }
+    }
+    usort($result, function($a,$b){ return $b['percent'] <=> $a['percent']; });
+    ok(['accounts'=>array_slice($result,0,50), 'threshold'=>$threshold*100]);
+}
+
 function admin_list_alerts() {
     $b = body();
     check_admin_password($b);
