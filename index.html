@@ -243,12 +243,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
 /* ═══ CARTE QR "PREMIUM" (Mon Wallet / plein ecran) ═══ */
 .qr-real-card{width:100%;max-width:300px;aspect-ratio:0.6;background-color:#0d4a30;background-image:repeating-linear-gradient(135deg,rgba(245,166,35,.05) 0 10px,transparent 10px 26px),linear-gradient(155deg,#146b45 0%,#0d4a30 55%,#073321 100%);border:1.5px solid rgba(245,166,35,.4);border-radius:32px;padding:24px;display:flex;flex-direction:column;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08);position:relative;overflow:hidden;margin:0 auto}
+.qr-real-card::before{content:'';position:absolute;right:-30px;bottom:-25px;width:220px;height:220px;background:url('./icon-watermark.png') no-repeat center/contain;opacity:.13;pointer-events:none;z-index:0}
 .qr-real-card-brand{display:flex;align-items:center;gap:12px;width:100%;position:relative;z-index:1}
 .qr-real-card-icon{width:46px;height:46px;border-radius:13px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2),0 0 0 2px rgba(245,166,35,.3)}
-.qr-real-card-tagline{color:rgba(245,166,35,.8);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .qr-real-card-brandname{color:#fff;font-size:23px;font-weight:900;line-height:1.1;letter-spacing:.3px}
 .qr-real-card-brandname span{color:#F5A623}
-.qr-real-card-box{background:#fff;border-radius:20px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.1),0 0 0 2px rgba(245,166,35,.25);margin:auto 0;position:relative;z-index:1}
+.qr-real-card-box{background:#fff;border-radius:20px;padding:18px;border:2px solid rgba(245,166,35,.35);box-shadow:0 4px 16px rgba(0,0,0,.1);margin:auto 0;position:relative;z-index:1}
 
 /* ═══ NAV BAR ═══ */
 #nav-bar{
@@ -2384,7 +2384,6 @@ var I18N = {
   wallet_tab_my_qr: {fr:'📷 Mon QR', en:'📷 My QR'},
   wallet_tab_scan: {fr:'📷 Scanner', en:'📷 Scan'},
   wallet_share_qr_desc: {fr:"Partagez votre QR pour recevoir de l'argent", en:'Share your QR to receive money'},
-  wallet_pay_with: {fr:'PAYEZ AVEC', en:'PAY WITH'},
   wallet_btn_print_qr: {fr:'📄 Imprimer QR', en:'📄 Print QR'},
   wallet_btn_fullscreen: {fr:'👁 Plein écran', en:'👁 Full screen'},
   wallet_qr_gen_error: {fr:'Erreur generation QR', en:'QR generation error'},
@@ -9505,7 +9504,7 @@ function openQRMenu(){
     +'<div class="qr-real-card">'
     +'<div class="qr-real-card-brand">'
     +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_MONEY">'
-    +'<div><div class="qr-real-card-tagline">'+t('wallet_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>MONEY</span></div></div>'
+    +'<div class="qr-real-card-brandname">ROM_<span>MONEY</span></div>'
     +'</div>'
     +'<div class="qr-real-card-box" id="recv-qr-wallet"></div>'
     +'</div>'
@@ -9611,7 +9610,7 @@ function showQRFullscreen(){
     +'<div class="qr-real-card">'
     +'<div class="qr-real-card-brand">'
     +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_MONEY">'
-    +'<div><div class="qr-real-card-tagline">'+t('wallet_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>MONEY</span></div></div>'
+    +'<div class="qr-real-card-brandname">ROM_<span>MONEY</span></div>'
     +'</div>'
     +'<div class="qr-real-card-box" id="qr-fs-inner"></div>'
     +'</div>';
