@@ -3014,7 +3014,7 @@ function ini(n){
 var AVC=[['#E1F5EE','#085041'],['#E6F1FB','#0C447C'],['#FBEAF0','#72243E'],['#FAEEDA','#633806'],['#EAF3DE','#27500A']];
 function avc(n){ return AVC[n.charCodeAt(0)%AVC.length]; }
 
-function canAnn(tx){ return !tx.ann && !tx.frozen && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && tx.cat!=='QR' && tx.cat!=='Encaissement'; }
+function canAnn(tx){ return !tx.ann && !tx.frozen && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && tx.cat!=='QR' && tx.cat!=='Encaissement' && tx.cat!=='Marchand'; }
 
 function toast(msg, err){
   var el=document.getElementById('toast');
@@ -5895,7 +5895,7 @@ function launchApp(){
             id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
-            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
+            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
             ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
           };
         });
@@ -8403,7 +8403,7 @@ function refreshTxList(){
           id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
           legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
           type:t.direction, amt:displayAmt,
-          cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
+          cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
           ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
         };
       });
@@ -9993,7 +9993,7 @@ function checkNewTransactions(){
             name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
-            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
+            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
             ts:new Date(t.created_at).getTime(),
             ann:t.status==='cancelled',
             ref:t.reference, motif:(existing&&existing.motif)?existing.motif:(t.description||'')

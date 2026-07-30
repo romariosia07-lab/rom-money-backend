@@ -291,6 +291,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
             <div style="font-size:10px;color:var(--t3)" id="db-month-cnt">—</div>
           </div>
         </div>
+        <div id="db-stats-error" class="empty-note" style="display:none;color:var(--rd)"></div>
         <div class="card" style="margin-top:8px;padding:14px;position:relative">
           <div style="font-size:12px;color:var(--t2);margin-bottom:10px" data-i18n="stats_chart_title">Ventes des 7 derniers jours</div>
           <div id="db-chart" style="display:flex;align-items:flex-end;gap:6px;height:70px;position:relative"></div>
@@ -486,6 +487,7 @@ var I18N = {
   scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
   account_not_found:{fr:'Compte introuvable',en:'Account not found'},
   network_error:{fr:'Erreur réseau',en:'Network error'},
+  retry_btn:{fr:'Réessayer',en:'Retry'},
   pin_incomplete:{fr:'PIN incomplet',en:'PIN incomplete'},
   processing:{fr:'Traitement en cours...',en:'Processing...'},
   enc_success_suffix:{fr:' F encaissé de ',en:' F collected from '},
@@ -926,8 +928,13 @@ function launchApp(){
   loadDashboardStats();
 }
 function loadDashboardStats(){
+  var errEl = document.getElementById('db-stats-error');
   apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
-    if(!res || !res.success || !res.data) return;
+    if(!res || !res.success || !res.data){
+      if(errEl){ errEl.style.display='block'; errEl.innerHTML=t('network_error')+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
+      return;
+    }
+    if(errEl) errEl.style.display='none';
     var d = res.data;
     document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
     document.getElementById('db-today-cnt').textContent = d.today.count+' '+(d.today.count>1?t('sale_plural'):t('sale_singular'));
@@ -1152,11 +1159,15 @@ function shareReceiptPdf(tx){
   });
 }
 function refreshHistory(full){
+  var errHtml = '<div class="empty-note" style="color:var(--rd)">'+t('network_error')+' <a onclick="refreshHistory('+(full?'true':'false')+')" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a></div>';
   apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       txList = res.data.transactions||[];
       renderTxRows(txList.slice(0,5), 'home-tx-list');
       if(full) renderTxRows(txList, 'hist-tx-list');
+    } else {
+      var home=document.getElementById('home-tx-list'); if(home) home.innerHTML=errHtml;
+      if(full){ var hist=document.getElementById('hist-tx-list'); if(hist) hist.innerHTML=errHtml; }
     }
   });
 }
