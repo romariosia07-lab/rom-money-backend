@@ -5053,7 +5053,7 @@ function admin_users_export_xlsx() {
 
     $sheetRows = [];
     $sheetRows[] = [[ 'ROM_MONEY - Liste des utilisateurs', 4, 's' ]];
-    $sheetRows[] = [[ 'Genere le '.date('d\m\Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':''), 0, 's' ]];
+    $sheetRows[] = [[ 'Genere le '.date('d/m/Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':''), 0, 's' ]];
     $sheetRows[] = [];
     $sheetRows[] = [[ 'Nom',1,'s' ],[ 'Telephone',1,'s' ],[ 'Operateur',1,'s' ],[ 'Pays',1,'s' ],[ 'Statut',1,'s' ],[ 'KYC',1,'s' ],[ 'Inscrit le',1,'s' ]];
     foreach($rows as $u){
@@ -5091,7 +5091,7 @@ function admin_users_export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Liste des utilisateurs'),0,1);
     $pdf->SetFont('Arial','',10);
-    $pdf->Cell(0,6,pdf_str('Genere le '.date('d\m\Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':'')),0,1);
+    $pdf->Cell(0,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i').' - '.$total.' compte(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':'')),0,1);
     $pdf->Ln(4);
 
     $pdf->SetFont('Arial','B',8);
