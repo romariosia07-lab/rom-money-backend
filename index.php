@@ -3805,7 +3805,14 @@ function admin_search_by_phone() {
     $referredCount = (int)(q("SELECT COUNT(*) c FROM users WHERE referred_by=?",[$u['id']])->fetch()['c']??0);
     $referralEarned = (float)(q("SELECT COALESCE(SUM(bonus_amount),0) t FROM referral_bonuses WHERE referrer_id=?",[$u['id']])->fetch()['t']??0);
 
-    $notes = q("SELECT id,note,created_at FROM admin_notes WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+    // Protege par try/catch : ne doit jamais casser toute la fiche compte si
+    // la table admin_notes n'est pas encore creee sur cette base (migration
+    // pas encore executee).
+    try {
+        $notes = q("SELECT id,note,created_at FROM admin_notes WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+    } catch(Exception $e) {
+        $notes = [];
+    }
 
     ok([
         'account_name'=>$u['verified_name']?:$u['full_name'],
@@ -3841,7 +3848,11 @@ function admin_add_note() {
     if(!$note) fail('Note vide');
     $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
-    q("INSERT INTO admin_notes (user_id,note) VALUES (?,?)",[$u['id'],$note]);
+    try {
+        q("INSERT INTO admin_notes (user_id,note) VALUES (?,?)",[$u['id'],$note]);
+    } catch(Exception $e) {
+        fail(APP_DEBUG ? $e->getMessage() : 'Table des notes non initialisee (migration a executer).', 503);
+    }
     admin_log('account_note_added','success',$phone,mb_substr($note,0,120));
     ok(null,'Note ajoutee');
 }
