@@ -8,10 +8,11 @@
 // rapides (les forcer aussi ralentirait l'app pour rien).
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rombiz-shell-v2';
+var CACHE_NAME = 'rombiz-shell-v3';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './logo.jpg',
-  './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg'];
+  './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg',
+  './icon-watermark.png'];
 var CDN_SHELL_FILES = [
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
   'https://cdn.jsdelivr.net/npm/jsqr@1.3.1/dist/jsQR.min.js'
