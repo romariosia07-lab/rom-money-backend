@@ -489,6 +489,7 @@ var I18N = {
   network_error:{fr:'Erreur réseau',en:'Network error'},
   retry_btn:{fr:'Réessayer',en:'Retry'},
   session_expired_toast:{fr:'Session expirée, reconnectez-vous',en:'Session expired, please log in again'},
+  app_locked_toast:{fr:'Application verrouillée par sécurité',en:'App locked for security'},
   pin_incomplete:{fr:'PIN incomplet',en:'PIN incomplete'},
   processing:{fr:'Traitement en cours...',en:'Processing...'},
   enc_success_suffix:{fr:' F encaissé de ',en:' F collected from '},
@@ -951,6 +952,49 @@ function launchApp(){
   refreshBalance();
   refreshHistory();
   loadDashboardStats();
+  startInactivityTimer();
+}
+
+// ── AUTO-VERROUILLAGE apres 5 min d'inactivite OU verrouillage de l'ecran ──
+// (telephone/ordinateur mis en veille) : dans les deux cas le navigateur
+// declenche 'visibilitychange' avec document.hidden===true, ce qui verrouille
+// immediatement sans attendre le delai. Meme mecanique que le PIN de
+// connexion normal (goto('s-login')+setupLoginScreen(), numero deja rempli).
+var _inactivityTimer = null;
+var _INACTIVITY_MS = 300000; // 5 minutes
+var _inactivityListenersAttached = false;
+function lockAppForInactivity(){
+  var appScreen = document.getElementById('s-app');
+  if(appScreen && appScreen.classList.contains('on')){
+    closeSheet();
+    goto('s-login');
+    setupLoginScreen();
+    toast(t('app_locked_toast'), true);
+  }
+}
+function resetInactivityTimer(){
+  if(_inactivityTimer) clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(lockAppForInactivity, _INACTIVITY_MS);
+}
+function onVisibilityChange(){
+  if(document.hidden){ lockAppForInactivity(); return; }
+  resetInactivityTimer();
+  // Rafraichit les donnees au retour (ex: un admin a annule/gele un
+  // paiement pendant que l'app etait en arriere-plan/verrouillee) - sans
+  // ca, seule une notification push cliquee forcait un rechargement complet.
+  var appScreen = document.getElementById('s-app');
+  if(appScreen && appScreen.classList.contains('on')){
+    refreshBalance(); refreshHistory(); loadDashboardStats();
+  }
+}
+function startInactivityTimer(){
+  if(_inactivityListenersAttached) { resetInactivityTimer(); return; }
+  _inactivityListenersAttached = true;
+  ['touchstart','touchmove','click','keydown','scroll','mousemove'].forEach(function(evt){
+    document.addEventListener(evt, resetInactivityTimer, {passive:true});
+  });
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  resetInactivityTimer();
 }
 function loadDashboardStats(){
   var errEl = document.getElementById('db-stats-error');

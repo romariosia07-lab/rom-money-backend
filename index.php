@@ -4322,6 +4322,24 @@ function admin_late_cancel() {
         q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason='admin_late_cancel' WHERE id=?",[$tx['id']]);
         admin_log('late_cancel','success',$senderPhone,dk('d_ref_with_reason', ['ref'=>$ref, 'reason'=>$reason]));
         db()->commit();
+        // Notifie les deux parties : sans ca, seul le client s'en rend compte
+        // (son solde/historique change des qu'il consulte l'app), tandis que
+        // le marchand ne voit la baisse de son solde qu'au prochain rafraichissement
+        // manuel, sans jamais etre averti qu'un paiement a ete annule par l'admin.
+        if($senderIsMerchant){
+            $sid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$sw])->fetchColumn();
+            if($sid) web_push_send_to_merchant($sid,'ROM_BUSINESS','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete annulee par l\'administration. Le montant a ete recredite.');
+        } else {
+            $suid = q("SELECT user_id FROM wallets WHERE id=?",[$sw])->fetchColumn();
+            if($suid) web_push_send_to_user($suid,'ROM_MONEY','Votre transaction ('.number_format($tx['amount'],0,',',' ').' F) a ete annulee par l\'administration. Le montant a ete recredite.');
+        }
+        if($receiverIsMerchant){
+            $rid = q("SELECT merchant_id FROM merchant_wallets WHERE id=?",[$rw])->fetchColumn();
+            if($rid) web_push_send_to_merchant($rid,'ROM_BUSINESS','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) a ete annulee par l\'administration. Le montant a ete debite.');
+        } else {
+            $ruid = q("SELECT user_id FROM wallets WHERE id=?",[$rw])->fetchColumn();
+            if($ruid) web_push_send_to_user($ruid,'ROM_MONEY','Une transaction recue ('.number_format($tx['amount'],0,',',' ').' F) a ete annulee par l\'administration. Le montant a ete debite.');
+        }
         ok(null,'Transaction annulee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
