@@ -1162,6 +1162,8 @@ function route_merchant($action) {
         'renew-qr'           => merchant_renew_qr(),
         'collect'            => merchant_collect(),
         'withdraw'           => merchant_withdraw(),
+        'pay-merchant'       => merchant_pay_merchant(),
+        'resolve-recipient'  => merchant_resolve_recipient(),
         'vault-deposit'      => merchant_vault_deposit(),
         'vault-withdraw'     => merchant_vault_withdraw(),
         'vault-lock'         => merchant_vault_lock(),
@@ -1301,6 +1303,28 @@ function merchant_resolve_payer() {
         'is_verified'=>!empty($u['verified_name'])]);
 }
 
+// Resolution du destinataire pour "Envoyer" (virement) : contrairement a
+// merchant_resolve_payer() (reserve a Encaisser, ou seul un compte
+// personnel peut payer le marchand), ici le destinataire peut etre soit un
+// compte personnel (merchant_withdraw), soit un autre marchand
+// (merchant_pay_merchant) - is_merchant indique au frontend quelle action
+// appeler et quel libelle afficher.
+function merchant_resolve_recipient() {
+    merchant_auth();
+    $phone = $_GET['phone']??'';
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
+    $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    if($u){
+        ok(['full_name'=>$u['verified_name']?:$u['full_name'],'phone_number'=>$u['phone_number'],
+            'is_verified'=>!empty($u['verified_name']),'is_merchant'=>false]);
+    }
+    $m = q("SELECT business_name FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if($m){
+        ok(['full_name'=>$m['business_name'],'phone_number'=>$phone,'is_verified'=>false,'is_merchant'=>true]);
+    }
+    fail('Aucun compte trouve',404);
+}
+
 function merchant_collect() {
     $pl = merchant_auth(); $b = body();
     $payerPhone = trim($b['payer_phone']??'');
@@ -1321,20 +1345,27 @@ function merchant_collect() {
     if(!$mw) fail('Portefeuille marchand introuvable',404);
     if((float)$payer['balance'] < $amount) fail('Solde du payeur insuffisant');
 
+    // Le client paie toujours le montant plein (aucun frais de son cote) :
+    // le frais eventuel est preleve sur ce que le MARCHAND recoit, une fois
+    // son cumul du jour au-dela du seuil gratuit (voir merchant_receive_fee()).
+    $feeCalc = merchant_receive_fee($mw['id'], $amount);
+    $fee = $feeCalc['fee']; $net = $feeCalc['net'];
+
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,0,'merchant_payment','pending',?,?,?)",
-          [$txid,$payer['wid'],$mw['id'],$amount,$amount,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
+          [$txid,$payer['wid'],$mw['id'],$amount,$net,$fee,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
         $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$payer['wid'],$amount])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
-        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$net,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        credit_merchant_fee($mw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand');
         db()->commit();
         fraud_check_merchant_transaction($mw['id'], $payerPhone, $amount, $txid, $reference, $m['phone_number']);
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
-        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Encaissement effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
@@ -1392,6 +1423,62 @@ function merchant_withdraw() {
             'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Virement effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec virement',500); }
+}
+
+// Un marchand paie un autre marchand a distance (numero choisi dans ses
+// contacts, pas besoin de scanner son QR). Le marchand payeur paie
+// exactement le montant indique, sans frais de son cote - le frais
+// eventuel (voir merchant_receive_fee()) est preleve sur ce que le
+// marchand RECEVEUR encaisse, exactement comme un paiement recu d'un
+// client normal (meme cumul quotidien, meme seuil, meme table
+// transactions type='merchant_payment' pour que ca compte bien dans son
+// cumul du jour et s'affiche correctement dans son historique).
+function merchant_pay_merchant() {
+    $pl = merchant_auth(); $b = body();
+    $toPhone = trim($b['phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    $desc = trim($b['description'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $toPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
+
+    $m = q("SELECT * FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    merchant_pin_check($pl['sub'], $pin, $m['pin_hash']);
+    if($toPhone === $m['phone_number']) fail('Impossible de vous payer vous-meme');
+
+    $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
+    if(!$mw) fail('Portefeuille marchand introuvable',404);
+
+    $recvM = q("SELECT * FROM merchants WHERE phone_number=?",[$toPhone])->fetch();
+    if(!$recvM) fail('Marchand introuvable',404);
+    $recvMw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$recvM['id']])->fetch();
+    if(!$recvMw) fail('Marchand introuvable',404);
+
+    if((float)$mw['balance'] < $amount) fail('Solde insuffisant');
+
+    $feeCalc = merchant_receive_fee($recvMw['id'], $amount);
+    $fee = $feeCalc['fee']; $net = $feeCalc['net'];
+
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
+          [$txid,$mw['id'],$recvMw['id'],$amount,$net,$fee,$reference,$desc?:('Paiement vers '.$recvM['business_name']),$deadline]);
+        $rows = q("UPDATE merchant_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$mw['id'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$net,$recvMw['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        credit_merchant_fee($recvMw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand (paiement inter-marchand)');
+        db()->commit();
+        web_push_send_to_merchant($recvM['id'], 'ROM_BUSINESS',
+            'Vous avez recu '.number_format($net,0,',',' ').' F de '.$m['business_name'].($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
+        $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
+            'receiver_name'=>$recvM['business_name'],'cancel_before'=>$deadline,
+            'new_balance'=>$bal],'Paiement effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
 }
 
 function merchant_vault_deposit() {
@@ -2006,6 +2093,40 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
     } catch (Exception $e) { /* la detection ne doit jamais casser un transfert deja reussi */ }
 }
 
+// Frais preleves sur ce que le MARCHAND recoit (jamais sur ce que paie le
+// client, ni un autre marchand qui le paie a distance) : gratuit jusqu'a un
+// cumul quotidien par marchand receveur, puis un taux configurable sur la
+// partie qui depasse ce seuil. Meme principe que le plafond quotidien des
+// virements personnels (tx_send()), applique ici cote reception plutot
+// qu'envoi. Reutilise dans merchant_collect(), tx_pay_merchant() et
+// merchant_pay_merchant().
+function merchant_receive_fee($merchantWalletId, $amount){
+    $rate = (float)get_setting('fee_rate_merchant', 0.01);
+    $threshold = (float)get_setting('fee_free_threshold_merchant_daily', 25000);
+    $receivedToday = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+        WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
+        AND created_at::date=CURRENT_DATE",[$merchantWalletId])->fetch()['t']??0);
+    $remainingFree = max(0, $threshold - $receivedToday);
+    $feeable = max(0, $amount - $remainingFree);
+    $fee = round($feeable * $rate);
+    return ['fee'=>$fee, 'net'=>$amount-$fee];
+}
+// Credite le compte systeme ROM_MONEY du frais preleve sur un encaissement
+// marchand - meme compte systeme que les frais de virement personnel
+// (0160629502), meme table transactions (type='fee') pour rester coherent
+// avec le reste de la comptabilite. sender_merchant_wallet_id (pas
+// sender_wallet_id) puisque c'est bien un marchand qui "paie" ce frais,
+// preleve sur ce qu'il vient de recevoir.
+function credit_merchant_fee($merchantWalletId, $fee, $label){
+    if($fee <= 0) return;
+    $fee_recv = q("SELECT u.id,w.id wid FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
+    if(!$fee_recv) return;
+    $fee_txid = uid(); $fee_ref = ref();
+    q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
+      [$fee_txid,$merchantWalletId,$fee_recv['wid'],$fee,$fee_ref,$label]);
+    q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+}
+
 // Equivalent de fraud_check_transaction() cote encaissement marchand
 // (merchant_collect() et tx_pay_merchant()). Pas de verification "nouveau
 // destinataire" ici : un marchand encaisse legitimement de nouveaux clients
@@ -2416,10 +2537,10 @@ function tx_detail() {
 }
 
 // Paiement d'un client vers un marchand ROM_BUSINESS, scanne via le QR
-// marchand (prefixe "M|"). TOUJOURS gratuit (aucun frais, contrairement a un
-// envoi d'argent classique) - c'est la reconstruction propre de l'ancien
-// "Payer" : cette fois, l'argent va reellement quelque part (merchant_wallets),
-// au lieu de simplement disparaitre.
+// marchand (prefixe "M|"). TOUJOURS gratuit pour le CLIENT (aucun frais de
+// son cote, contrairement a un envoi d'argent classique) - le frais
+// eventuel (voir merchant_receive_fee()) est preleve sur ce que le marchand
+// recoit, une fois son cumul du jour au-dela du seuil gratuit.
 function tx_pay_merchant() {
     $pl = auth(); $b = body();
     $merchantId = trim($b['merchant_id'] ?? '');
@@ -2440,22 +2561,26 @@ function tx_pay_merchant() {
     if(!$mw) fail('Marchand introuvable',404);
     if((float)$sw['balance'] < $amount) fail('Solde insuffisant');
 
+    $feeCalc = merchant_receive_fee($mw['id'], $amount);
+    $fee = $feeCalc['fee']; $net = $feeCalc['net'];
+
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,0,'merchant_payment','pending',?,?,?)",
-          [$txid,$sw['id'],$mw['id'],$amount,$amount,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
+          [$txid,$sw['id'],$mw['id'],$amount,$net,$fee,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
         $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$sw['id'],$amount])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
-        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$net,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        credit_merchant_fee($mw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand');
         db()->commit();
         fraud_check_merchant_transaction($mw['id'], $pl['phone'] ?? '', $amount, $txid, $reference, $m['phone_number']);
         web_push_send_to_merchant($mw['merchant_id'], 'ROM_BUSINESS',
-            'Vous avez recu '.number_format($amount,0,',',' ').' F via votre QR');
+            'Vous avez recu '.number_format($net,0,',',' ').' F via votre QR'.($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
-        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
             'business_name'=>$m['business_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Paiement effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
@@ -5125,6 +5250,8 @@ function app_settings_defs() {
         'fee_rate_national'           => [0.01, 'Taux de frais national'],
         'fee_free_threshold_national' => [4000, 'Seuil de gratuite national'],
         'fee_rate_africa'             => [0.015, 'Taux de frais Transfert Afrique'],
+        'fee_rate_merchant'           => [0.01, 'Taux de frais encaissement marchand'],
+        'fee_free_threshold_merchant_daily' => [25000, 'Seuil de gratuite marchand (cumul quotidien)'],
         'limit_unverified'            => [2000000, 'Plafond mensuel non verifie'],
         'limit_verified'              => [100000000, 'Plafond mensuel verifie'],
         'admin_bf_max_attempts'       => [3, 'Tentatives admin avant blocage'],

@@ -508,6 +508,8 @@ var I18N = {
   vir_label_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
   vir_fee_prompt:{fr:'Entrez un numéro et un montant pour voir les frais.',en:'Enter a phone number and amount to see the fees.'},
   vir_free_own:{fr:'Gratuit — vers votre propre numéro ROM_MONEY.',en:'Free — to your own ROM_MONEY number.'},
+  vir_is_merchant_label:{fr:'compte marchand',en:'business account'},
+  vir_merchant_free:{fr:'Gratuit — paiement vers un autre marchand.',en:'Free — payment to another business.'},
   vir_fee_paid:{fr:'Frais 1% : {fee} F — total débité {total} F.',en:'1% fee: {fee} F — total debited {total} F.'},
   vir_err_phone:{fr:'Numéro requis',en:'Phone number required'},
   err_amount_invalid:{fr:'Montant invalide',en:'Invalid amount'},
@@ -1731,22 +1733,36 @@ function resolveVirPhone(){
   var rn=document.getElementById('vir-rn');
   if(!input||!rn) return;
   var phone=input.value.trim();
-  if(phone.length<8){ rn.textContent=''; return; }
+  window._virIsMerchant=false;
+  if(phone.length<8){ rn.textContent=''; updateVirFee(); return; }
   rn.textContent=t('send_searching');
-  apiCall('/merchant?action=resolve-payer&phone='+encodeURIComponent(phone),'GET',null,getToken())
+  // resolve-recipient (contrairement a resolve-payer, reserve a Encaisser)
+  // cherche aussi bien un compte personnel qu'un autre marchand : le
+  // destinataire d'un virement peut etre l'un ou l'autre, contrairement a
+  // un encaissement qui ne peut venir que d'un client personnel.
+  apiCall('/merchant?action=resolve-recipient&phone='+encodeURIComponent(phone),'GET',null,getToken())
     .then(function(res){
       if(res && res.success && res.data){
-        rn.textContent=(res.data.full_name||phone)+(res.data.is_verified?' ✓':'');
+        window._virIsMerchant=!!res.data.is_merchant;
+        rn.textContent=(res.data.full_name||phone)+(res.data.is_merchant?' ('+t('vir_is_merchant_label')+')':(res.data.is_verified?' ✓':''));
       } else {
         rn.textContent='';
       }
-    }).catch(function(){ rn.textContent=''; });
+      updateVirFee();
+    }).catch(function(){ rn.textContent=''; updateVirFee(); });
 }
 function updateVirFee(){
   var phone=document.getElementById('vir-phone').value.trim();
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   var el=document.getElementById('vir-fee');
   if(!phone||amt<=0){ el.className='fee-note'; el.textContent=t('vir_fee_prompt'); return; }
+  if(window._virIsMerchant){
+    // Paiement inter-marchand : le payeur ne paie jamais de frais - le frais
+    // eventuel (si le marchand receveur depasse son plafond gratuit du jour)
+    // est preleve de son cote, invisible pour le payeur.
+    el.className='fee-note free'; el.textContent=t('vir_merchant_free');
+    return;
+  }
   var isOwn = phone===APP.phone;
   if(isOwn){ el.className='fee-note free'; el.textContent=t('vir_free_own'); }
   else { el.className='fee-note paid'; el.textContent=t('vir_fee_paid').replace('{fee}',fmt(Math.round(amt*0.01))).replace('{total}',fmt(amt+Math.round(amt*0.01))); }
@@ -1756,12 +1772,14 @@ function doVirement(){
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   if(!phone){ toast(t('vir_err_phone'), true); return; }
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  var isMerchant=window._virIsMerchant;
+  var action=isMerchant?'pay-merchant':'withdraw';
   requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
-    apiCall('/merchant?action=withdraw','POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+    apiCall('/merchant?action='+action,'POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
       if(res && res.success){
         APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
         closeSheet();
-        toast(fmt(amt)+t('vir_success_suffix')+(res.data.fee>0?t('vir_fee_suffix').replace('{fee}',fmt(res.data.fee)):'')+' !');
+        toast(fmt(amt)+t('vir_success_suffix')+(!isMerchant&&res.data.fee>0?t('vir_fee_suffix').replace('{fee}',fmt(res.data.fee)):'')+' !');
       } else {
         toast((res&&res.message)||t('vir_err_generic'), true);
       }

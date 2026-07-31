@@ -839,6 +839,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_national">Taux de frais national (proportion, ex: 0.01 = 1%)</label><input class="finput" id="set-fee-national" type="number" step="0.001" min="0" max="1"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_threshold">Seuil de gratuite national (F)</label><input class="finput" id="set-fee-threshold" type="number" step="100" min="0"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_africa">Taux de frais Transfert Afrique (proportion, ex: 0.015 = 1,5%)</label><input class="finput" id="set-fee-africa" type="number" step="0.001" min="0" max="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_merchant">Taux de frais encaissement marchand (proportion, ex: 0.01 = 1%)</label><input class="finput" id="set-fee-merchant" type="number" step="0.001" min="0" max="1"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fee_merchant_threshold">Seuil de gratuite marchand (F, cumul quotidien)</label><input class="finput" id="set-fee-merchant-threshold" type="number" step="100" min="0"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_limit_unverified">Plafond mensuel non verifie KYC (F)</label><input class="finput" id="set-limit-unverified" type="number" step="1000" min="0"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_limit_verified">Plafond mensuel verifie KYC (F)</label><input class="finput" id="set-limit-verified" type="number" step="1000" min="0"></div>
 
@@ -1652,6 +1654,8 @@ var I18N = {
   admin_settings_fee_national: {fr:'Taux de frais national (proportion, ex: 0.01 = 1%)', en:'National fee rate (proportion, e.g. 0.01 = 1%)'},
   admin_settings_fee_threshold: {fr:'Seuil de gratuite national (F)', en:'National free-of-charge threshold (F)'},
   admin_settings_fee_africa: {fr:'Taux de frais Transfert Afrique (proportion, ex: 0.015 = 1,5%)', en:'Africa Transfer fee rate (proportion, e.g. 0.015 = 1.5%)'},
+  admin_settings_fee_merchant: {fr:'Taux de frais encaissement marchand (proportion, ex: 0.01 = 1%)', en:'Merchant collection fee rate (proportion, e.g. 0.01 = 1%)'},
+  admin_settings_fee_merchant_threshold: {fr:'Seuil de gratuite marchand (F, cumul quotidien)', en:'Merchant free threshold (F, daily cumulative)'},
   admin_settings_limit_unverified: {fr:'Plafond mensuel non verifie KYC (F)', en:'Monthly limit, KYC unverified (F)'},
   admin_settings_limit_verified: {fr:'Plafond mensuel verifie KYC (F)', en:'Monthly limit, KYC verified (F)'},
   admin_settings_bf_attempts: {fr:'Tentatives admin avant blocage', en:'Admin attempts before lockout'},
@@ -4844,6 +4848,8 @@ function adminLoadSettings(){
       document.getElementById('set-fee-national').value = d.fee_rate_national;
       document.getElementById('set-fee-threshold').value = d.fee_free_threshold_national;
       document.getElementById('set-fee-africa').value = d.fee_rate_africa;
+      document.getElementById('set-fee-merchant').value = d.fee_rate_merchant;
+      document.getElementById('set-fee-merchant-threshold').value = d.fee_free_threshold_merchant_daily;
       document.getElementById('set-limit-unverified').value = d.limit_unverified;
       document.getElementById('set-limit-verified').value = d.limit_verified;
       document.getElementById('set-bf-attempts').value = d.admin_bf_max_attempts;
@@ -4871,6 +4877,8 @@ function adminSaveSettings(){
     fee_rate_national: document.getElementById('set-fee-national').value,
     fee_free_threshold_national: document.getElementById('set-fee-threshold').value,
     fee_rate_africa: document.getElementById('set-fee-africa').value,
+    fee_rate_merchant: document.getElementById('set-fee-merchant').value,
+    fee_free_threshold_merchant_daily: document.getElementById('set-fee-merchant-threshold').value,
     limit_unverified: document.getElementById('set-limit-unverified').value,
     limit_verified: document.getElementById('set-limit-verified').value,
     admin_bf_max_attempts: document.getElementById('set-bf-attempts').value,
