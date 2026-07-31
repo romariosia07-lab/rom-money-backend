@@ -7312,6 +7312,12 @@ function doSend(){
         var d=res.data||{};
         APP.balance=d.new_balance!==undefined?d.new_balance:(APP.balance-brut);
         var actualBrut = d.amount!==undefined ? d.amount : brut;
+        // Garde l'apercu de frais a jour pour le reste de la session, sans
+        // attendre un rafraichissement de /wallet?action=fee-config (voir
+        // remainingFreeToday() : la gratuite est cumulee par jour cote serveur).
+        if(APP.feeConfig && APP.feeConfig.remaining_free_today!=null){
+          APP.feeConfig.remaining_free_today = Math.max(0, APP.feeConfig.remaining_free_today - actualBrut);
+        }
         txList.unshift({id:d.transaction_id||Date.now(),name:d.receiver_name||receiverName,
           type:'debit',amt:actualBrut,cat:'Transfert',motif:motif,ref:d.reference||'',ts:Date.now()});
         updateBalDisplay(); renderTx('home'); save();
@@ -10330,23 +10336,34 @@ function feePctLabel(rate){
   return (APP.lang==='en') ? s : s.replace('.', ',');
 }
 
+// La gratuite est cumulee par jour/expediteur cote serveur (voir tx_send()),
+// pas par transaction : remaining_free_today (renvoye par /wallet?action=fee-config,
+// puis decremente localement apres chaque envoi reussi, voir doSend()) reflete
+// ce qu'il reste de "gratuit" aujourd'hui. Si jamais absent (config pas encore
+// chargee), on retombe sur le plein seuil plutot que de planter.
+function remainingFreeToday(){
+  return (APP.feeConfig && APP.feeConfig.remaining_free_today != null)
+    ? APP.feeConfig.remaining_free_today
+    : (APP.feeConfig ? APP.feeConfig.fee_free_threshold_national : 0);
+}
 function calcFrais(amt){
-  if(amt < APP.feeConfig.fee_free_threshold_national) return 0;
-  return Math.round(amt * APP.feeConfig.fee_rate_national);
+  var feeable = Math.max(0, amt - remainingFreeToday());
+  return Math.round(feeable * APP.feeConfig.fee_rate_national);
 }
 
-// Le seuil de gratuite s'applique toujours au montant BRUT (ce que calcFrais()
+// Le reliquat gratuit s'applique toujours au montant BRUT (ce que calcFrais()
 // fait deja). Quand l'utilisateur tape directement le montant NET souhaite, il
-// faut donc estimer le brut correspondant AVANT de decider si c'est gratuit ou
-// non - sinon, taper "3961" en net (gratuit, car <4000) donnait un resultat
-// different que taper "4001" en brut (payant) pour un net final quasi identique :
-// une faille qui permettait d'eviter les frais pres du seuil.
-function feeFromNet(net, rate, threshold){
+// faut donc estimer le brut correspondant AVANT de decider quelle part est
+// taxable - sinon, taper un net proche du seuil pouvait donner un resultat
+// different que taper le brut equivalent : une faille qui permettait d'eviter
+// les frais pres du seuil.
+function feeFromNet(net, rate, remainingFree){
   if(net<=0) return {frais:0, brut:net};
-  var estBrut = rate < 1 ? net / (1 - rate) : net;
-  if(estBrut < threshold) return {frais:0, brut:net};
-  var frais = Math.round(estBrut * rate);
-  return {frais:frais, brut:net + frais};
+  if(net <= remainingFree) return {frais:0, brut:net};
+  var brut = Math.round((net - rate*remainingFree) / (1-rate));
+  var feeable = Math.max(0, brut - remainingFree);
+  var frais = Math.round(feeable * rate);
+  return {frais:frais, brut:brut};
 }
 
 // ═══════════════════════════════════════════
@@ -10437,7 +10454,7 @@ function getAmountIntentAfrique(brutId, netId){
 }
 
 function calcBrutFromNet(net){
-  return feeFromNet(net, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national).brut;
+  return feeFromNet(net, APP.feeConfig.fee_rate_national, remainingFreeToday()).brut;
 }
 
 // Returns the authoritative {brut, net, frais, mode, amount} based on which field
@@ -10451,7 +10468,7 @@ function getAmountIntent(brutId, netId){
   var brutEl = document.getElementById(brutId);
   if(lastField === netId){
     var netVal = netEl ? parseFloat(netEl.value)||0 : 0;
-    var r = feeFromNet(netVal, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national);
+    var r = feeFromNet(netVal, APP.feeConfig.fee_rate_national, remainingFreeToday());
     return { brut: r.brut, net: netVal, frais: r.frais, mode:'net', amount: netVal };
   }
   var brutVal = brutEl ? parseFloat(brutEl.value)||0 : 0;
@@ -10470,7 +10487,7 @@ function updateFraisDisplay(inputId, displayId, mode){
   var brut, net, frais;
   if(mode==='net'){
     net = val;
-    var r = feeFromNet(net, APP.feeConfig.fee_rate_national, APP.feeConfig.fee_free_threshold_national);
+    var r = feeFromNet(net, APP.feeConfig.fee_rate_national, remainingFreeToday());
     frais = r.frais; brut = r.brut;
   } else {
     brut = val;

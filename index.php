@@ -952,8 +952,22 @@ function route_wallet($action) {
 // au montant reellement debite cote serveur, meme si l'admin a modifie ces
 // taux depuis le panneau de reglages.
 function wallet_fee_config() {
-    auth();
-    ok(get_public_settings());
+    $pl = auth();
+    $settings = get_public_settings();
+    // Reliquat de gratuite restant aujourd'hui pour CET utilisateur (voir
+    // tx_send() : la gratuite est cumulee par jour/expediteur, pas par
+    // transaction). Permet a l'aperçu de frais cote client de refleter la
+    // meme regle que le calcul serveur, plutot que de toujours supposer le
+    // plein seuil disponible.
+    $sw = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $sentToday = 0.0;
+    if($sw){
+        $sentToday = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+            WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
+            AND created_at::date=CURRENT_DATE",[$sw['id']])->fetch()['t']??0);
+    }
+    $settings['remaining_free_today'] = max(0, $settings['fee_free_threshold_national'] - $sentToday);
+    ok($settings);
 }
 
 function wallet_balance() {
