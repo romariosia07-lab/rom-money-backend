@@ -497,6 +497,7 @@ var I18N = {
   scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
   account_not_found:{fr:'Compte introuvable',en:'Account not found'},
   network_error:{fr:'Erreur réseau',en:'Network error'},
+  offline_stale_data:{fr:'Hors ligne — dernières données connues',en:'Offline — last known data'},
   retry_btn:{fr:'Réessayer',en:'Retry'},
   session_expired_toast:{fr:'Session expirée, reconnectez-vous',en:'Session expired, please log in again'},
   app_locked_toast:{fr:'Application verrouillée par sécurité',en:'App locked for security'},
@@ -1087,23 +1088,40 @@ function startInactivityTimer(){
   document.addEventListener('visibilitychange', onVisibilityChange);
   resetInactivityTimer();
 }
+function renderDashboardStatsData(d, stale){
+  var errEl = document.getElementById('db-stats-error');
+  if(errEl){
+    if(stale){
+      errEl.style.display='block'; errEl.style.color='#8a5a10'; errEl.style.background='var(--gold-l)';
+      errEl.style.borderRadius='10px'; errEl.style.padding='8px 10px';
+      errEl.innerHTML='📴 '+t('offline_stale_data')+' <a onclick="loadDashboardStats()" style="color:var(--gdd);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>';
+    } else {
+      errEl.style.display='none'; errEl.style.background='none'; errEl.style.padding='0';
+    }
+  }
+  document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
+  document.getElementById('db-today-cnt').textContent = d.today.count+' '+(d.today.count>1?t('sale_plural'):t('sale_singular'));
+  document.getElementById('db-week-total').textContent = fmt(d.week.total)+' F';
+  document.getElementById('db-week-cnt').textContent = d.week.count+' '+(d.week.count>1?t('sale_plural'):t('sale_singular'));
+  document.getElementById('db-month-total').textContent = fmt(d.month.total)+' F';
+  document.getElementById('db-month-cnt').textContent = d.month.count+' '+(d.month.count>1?t('sale_plural'):t('sale_singular'));
+  renderDashboardChart(d.daily||[]);
+}
 function loadDashboardStats(){
   var errEl = document.getElementById('db-stats-error');
   return apiCall('/merchant?action=stats','GET',null,getToken()).then(function(res){
     if(!res || !res.success || !res.data){
+      // Hors ligne (ou erreur serveur) : plutot que de laisser l'ecran vide,
+      // on retombe sur les dernieres stats connues (voir APP.lastStats),
+      // affichees avec un badge "hors ligne" - honnete sur le fait que ce
+      // n'est plus temps reel, sans pour autant bloquer l'ecran.
+      if(APP.lastStats){ renderDashboardStatsData(APP.lastStats, true); return; }
       var msg = (res && res.message) || t('network_error');
-      if(errEl){ errEl.style.display='block'; errEl.innerHTML=msg+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
+      if(errEl){ errEl.style.display='block'; errEl.style.color='var(--rd)'; errEl.style.background='none'; errEl.style.padding='0'; errEl.innerHTML=msg+' <a onclick="loadDashboardStats()" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
       return;
     }
-    if(errEl) errEl.style.display='none';
-    var d = res.data;
-    document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
-    document.getElementById('db-today-cnt').textContent = d.today.count+' '+(d.today.count>1?t('sale_plural'):t('sale_singular'));
-    document.getElementById('db-week-total').textContent = fmt(d.week.total)+' F';
-    document.getElementById('db-week-cnt').textContent = d.week.count+' '+(d.week.count>1?t('sale_plural'):t('sale_singular'));
-    document.getElementById('db-month-total').textContent = fmt(d.month.total)+' F';
-    document.getElementById('db-month-cnt').textContent = d.month.count+' '+(d.month.count>1?t('sale_plural'):t('sale_singular'));
-    renderDashboardChart(d.daily||[]);
+    APP.lastStats = res.data; save();
+    renderDashboardStatsData(res.data, false);
   });
 }
 function renderDashboardChart(daily){
@@ -1211,11 +1229,12 @@ function txIcon(tx){
   if(tx.direction==='credit') return {ico:TX_ICO_BASKET,bg:'var(--gold-l)'};
   return {ico:'💸',bg:'var(--rl)'};
 }
-function renderTxRows(rows, containerId){
+function renderTxRows(rows, containerId, stale){
   var c=document.getElementById(containerId);
   if(!c) return;
-  if(!rows.length){ c.innerHTML='<div class="empty-note">'+t('hist_no_tx')+'</div>'; return; }
-  var h='';
+  var staleBanner = stale ? '<div class="empty-note" style="background:var(--gold-l);color:#8a5a10;border-radius:10px;padding:8px 10px;margin-bottom:8px;text-align:left;font-size:11px">📴 '+t('offline_stale_data')+'</div>' : '';
+  if(!rows.length){ c.innerHTML=staleBanner+'<div class="empty-note">'+t('hist_no_tx')+'</div>'; return; }
+  var h=staleBanner;
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   rows.forEach(function(tx){
     var isCredit = tx.direction==='credit';
@@ -1332,8 +1351,17 @@ function refreshHistory(full){
   return apiCall('/merchant?action=history&limit='+(full?100:5),'GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       txList = res.data.transactions||[];
+      APP.lastHistory = txList; save();
       renderTxRows(txList.slice(0,5), 'home-tx-list');
       if(full) renderTxRows(txList, 'hist-tx-list');
+    } else if(APP.lastHistory && APP.lastHistory.length){
+      // Hors ligne (ou erreur serveur) : on retombe sur le dernier
+      // historique connu (voir APP.lastHistory) au lieu d'un ecran vide -
+      // renderTxRows() ajoute un badge "hors ligne" pour rester honnete sur
+      // le fait que ce n'est plus a jour.
+      txList = APP.lastHistory;
+      renderTxRows(txList.slice(0,5), 'home-tx-list', true);
+      if(full) renderTxRows(txList, 'hist-tx-list', true);
     } else {
       var msg = (res && res.message) || t('network_error');
       var errHtml = '<div class="empty-note" style="color:var(--rd)">'+msg+' <a onclick="refreshHistory('+(full?'true':'false')+')" style="color:var(--g);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a></div>';
