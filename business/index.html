@@ -1110,7 +1110,7 @@ function renderDashboardStatsData(d, stale){
     if(stale){
       errEl.style.display='block'; errEl.style.color='#8a5a10'; errEl.style.background='var(--gold-l)';
       errEl.style.borderRadius='10px'; errEl.style.padding='8px 10px';
-      errEl.innerHTML='📴 '+t('offline_stale_data')+' <a onclick="loadDashboardStats()" style="color:var(--gdd);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>';
+      errEl.textContent='📴 '+t('offline_stale_data');
     } else {
       errEl.style.display='none'; errEl.style.background='none'; errEl.style.padding='0';
     }

@@ -6307,7 +6307,7 @@ function renderStats(){
       // Hors ligne (ou erreur serveur) : on retombe sur les dernieres stats
       // connues (voir APP.statsData) au lieu de laisser l'ecran fige sans
       // aucun retour - meme principe que Historique/Stat cote ROM_BUSINESS.
-      if(badge){ badge.style.display='block'; badge.innerHTML='📴 '+t('offline_stale_data')+' <a onclick="renderStats()" style="color:var(--gdd);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
+      if(badge){ badge.style.display='block'; badge.textContent='📴 '+t('offline_stale_data'); }
       window._statsData=APP.statsData;
       renderStatsChart(APP.statsData.months||[]);
       renderStatsCategories(APP.statsData.categories||[]);
