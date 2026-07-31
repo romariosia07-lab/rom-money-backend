@@ -10,11 +10,12 @@
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v11';
+var CACHE_NAME = 'rommoney-shell-v12';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './header-bg.jpg',
   './icon-envoyer.png', './icon-payer.png', './icon-encaisser.png',
-  './icon-banque.png', './wallet-icon.jpg', './logo.jpg', './icon-watermark.png'];
+  './icon-banque.png', './wallet-icon.jpg', './logo.jpg', './icon-watermark.png',
+  './icon-96.png'];
 // Bibliotheques CDN externes (autre origine) explicitement autorisees en
 // cache : uniquement du JS statique et sans risque pour le QR code. Toute
 // autre requete cross-origine (notamment le backend API) reste exclue.
@@ -24,17 +25,23 @@ var CDN_SHELL_FILES = [
 ];
 
 self.addEventListener('install', function(event){
-  self.skipWaiting();
+  // index.html est OBLIGATOIRE : si sa mise en cache echoue (coupure reseau
+  // pile pendant l'install), toute l'installation echoue et le navigateur
+  // garde l'ancien service worker actif (avec son cache encore valide) au
+  // lieu d'activer une version fraiche dont la coquille serait absente.
+  // skipWaiting() n'est appele qu'apres ce succes, jamais avant : sinon
+  // "activate" peut se declencher et supprimer l'ancien (bon) cache alors
+  // que le nouveau est encore incomplet - c'est exactement ce qui pouvait
+  // rendre l'app inutilisable hors ligne apres une mise a jour malchanceuse.
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      // Chaque fichier est mis en cache independamment : si l'un d'eux
-      // echoue (ex: manifest.json absent a cet emplacement, ou CDN
-      // temporairement indisponible), ca ne bloque pas la mise en cache
-      // des autres (notamment index.html, essentiel).
-      return Promise.all(SHELL_FILES.concat(CDN_SHELL_FILES).map(function(url){
-        return cache.add(url).catch(function(){});
-      }));
-    })
+      return cache.add('./index.html').then(function(){
+        // Coquille garantie : le reste est du confort, chacun independant
+        // (un CDN indisponible ne doit pas faire echouer toute l'install).
+        var rest = SHELL_FILES.filter(function(f){ return f!=='./index.html'; }).concat(CDN_SHELL_FILES);
+        return Promise.all(rest.map(function(url){ return cache.add(url).catch(function(){}); }));
+      });
+    }).then(function(){ self.skipWaiting(); })
   );
 });
 

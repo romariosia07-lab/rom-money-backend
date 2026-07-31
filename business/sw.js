@@ -8,24 +8,32 @@
 // rapides (les forcer aussi ralentirait l'app pour rien).
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rombiz-shell-v7';
+var CACHE_NAME = 'rombiz-shell-v8';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './logo.jpg',
   './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg',
-  './icon-watermark.png'];
+  './icon-watermark.png', './icon-96.png'];
 var CDN_SHELL_FILES = [
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
   'https://cdn.jsdelivr.net/npm/jsqr@1.3.1/dist/jsQR.min.js'
 ];
 
 self.addEventListener('install', function(event){
-  self.skipWaiting();
+  // index.html est OBLIGATOIRE : si sa mise en cache echoue (coupure reseau
+  // pile pendant l'install), toute l'installation echoue et le navigateur
+  // garde l'ancien service worker actif (avec son cache encore valide) au
+  // lieu d'activer une version fraiche dont la coquille serait absente.
+  // skipWaiting() n'est appele qu'apres ce succes, jamais avant : sinon
+  // "activate" peut se declencher et supprimer l'ancien (bon) cache alors
+  // que le nouveau est encore incomplet - c'est exactement ce qui pouvait
+  // rendre l'app inutilisable hors ligne apres une mise a jour malchanceuse.
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return Promise.all(SHELL_FILES.concat(CDN_SHELL_FILES).map(function(url){
-        return cache.add(url).catch(function(){});
-      }));
-    })
+      return cache.add('./index.html').then(function(){
+        var rest = SHELL_FILES.filter(function(f){ return f!=='./index.html'; }).concat(CDN_SHELL_FILES);
+        return Promise.all(rest.map(function(url){ return cache.add(url).catch(function(){}); }));
+      });
+    }).then(function(){ self.skipWaiting(); })
   );
 });
 
