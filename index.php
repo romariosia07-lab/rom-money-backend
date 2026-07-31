@@ -2064,6 +2064,8 @@ function tx_send() {
         fail('CROSS_COUNTRY: Ce destinataire est dans un autre pays ('.$recv['country'].'). Utilise Transfert Afrique pour cet envoi.', 422);
     }
 
+    $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+
     // Calcul du frais : national = taux configurable avec gratuite sous seuil
     // configurable. Africa = taux configurable sans palier de gratuite,
     // aligne par defaut sur le tarif international reel de Wave (verifie).
@@ -2081,19 +2083,38 @@ function tx_send() {
             $brut = $net + $fee;
         }
     } else {
+        // La gratuite sous le seuil est CUMULEE par jour et par expediteur,
+        // pas par transaction : sans ca, il suffit de fractionner un gros
+        // virement en plusieurs petits (ex: 10x 2000 F au lieu de 20000 F
+        // d'un coup) pour ne jamais payer de frais, ce qui cree une perte de
+        // revenu pour ROM_MONEY. On calcule donc d'abord ce qu'il reste de
+        // "gratuit" aujourd'hui, puis seule la partie qui depasse ce reliquat
+        // est facturee au taux normal.
+        $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+            WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
+            AND created_at::date=CURRENT_DATE",[$sw['id']])->fetch()['t']??0);
+        $remainingFree = max(0, $freeThreshold - $sentTodayNational);
         if($mode==='brut'){
             $brut = $amount;
-            $fee  = ($brut >= $freeThreshold) ? round($brut * $rateNational) : 0;
+            $feeable = max(0, $brut - $remainingFree);
+            $fee  = round($feeable * $rateNational);
             $net  = $brut - $fee;
         } else {
-            $net  = $amount;
-            $fee  = ($net >= $freeThreshold) ? round($net * $rateNational) : 0;
-            $brut = $net + $fee; // Total amount debited from sender
+            $net = $amount;
+            if($net <= $remainingFree){
+                $brut = $net; $fee = 0;
+            } else {
+                // Au-dela du reliquat gratuit, resout le brut necessaire pour
+                // que (brut - frais_sur_la_partie_taxable) = net demande.
+                $brut = round(($net - $rateNational*$remainingFree) / (1-$rateNational));
+                $feeable = max(0, $brut - $remainingFree);
+                $fee = round($feeable * $rateNational);
+                $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
+            }
         }
     }
     if($net<=0) fail('Montant invalide');
 
-    $sw = q("SELECT * FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
     if((float)$sw['balance']<$brut) fail('Solde insuffisant');
 
     // ── CONVERSION DE DEVISE (Transfert Afrique, pays a devises differentes) ──
