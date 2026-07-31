@@ -668,6 +668,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <!-- PAGE STATS -->
     <div class="page" id="pg-stats">
       <div id="hdr-stats" style="padding:16px 20px 12px;font-size:20px;font-weight:800" data-i18n="stats_title">Statistiques</div>
+      <div id="stats-offline-badge" style="display:none;margin:0 20px 12px;background:var(--gold-l,#FFF3DC);color:#8a5a10;border-radius:10px;padding:8px 10px;font-size:11px"></div>
       <div style="margin:0 20px 12px;display:flex;background:var(--div);border-radius:10px;padding:3px">
         <button id="stats-tab-month" onclick="switchStatsView('month')" style="flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--card);color:var(--t1)" data-i18n="stats_tab_month">Ce mois</button>
         <button id="stats-tab-cumul" onclick="switchStatsView('cumul')" style="flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:none;color:var(--t3)" data-i18n="stats_tab_cumul">Recap total (12 mois)</button>
@@ -2385,6 +2386,8 @@ var I18N = {
   wallet_tab_my_qr: {fr:'📷 Mon QR', en:'📷 My QR'},
   wallet_tab_scan: {fr:'📷 Scanner', en:'📷 Scan'},
   wallet_share_qr_desc: {fr:"Partagez votre QR pour recevoir de l'argent", en:'Share your QR to receive money'},
+  offline_stale_data: {fr:'Hors ligne — dernières données connues', en:'Offline — last known data'},
+  retry_btn: {fr:'Réessayer', en:'Retry'},
   wallet_btn_print_qr: {fr:'📄 Imprimer QR', en:'📄 Print QR'},
   wallet_btn_fullscreen: {fr:'👁 Plein écran', en:'👁 Full screen'},
   wallet_qr_gen_error: {fr:'Erreur generation QR', en:'QR generation error'},
@@ -6291,12 +6294,28 @@ function deleteSubVault(id){
 // ═══════════════════════════════════════════
 function renderStats(){
   var tok=getToken();
+  var badge=document.getElementById('stats-offline-badge');
   apiCall('/wallet?action=stats-full&lang='+(APP.lang||'fr'),'GET',null,tok).then(function(res){
     if(res&&res.success&&res.data){
+      APP.statsData=res.data; save();
+      if(badge) badge.style.display='none';
       window._statsData=res.data;
       renderStatsChart(res.data.months||[]);
       renderStatsCategories(res.data.categories||[]);
       switchStatsView(window._statsView||'month');
+    } else if(APP.statsData){
+      // Hors ligne (ou erreur serveur) : on retombe sur les dernieres stats
+      // connues (voir APP.statsData) au lieu de laisser l'ecran fige sans
+      // aucun retour - meme principe que Historique/Stat cote ROM_BUSINESS.
+      if(badge){ badge.style.display='block'; badge.innerHTML='📴 '+t('offline_stale_data')+' <a onclick="renderStats()" style="color:var(--gdd);font-weight:700;cursor:pointer">'+t('retry_btn')+'</a>'; }
+      window._statsData=APP.statsData;
+      renderStatsChart(APP.statsData.months||[]);
+      renderStatsCategories(APP.statsData.categories||[]);
+      switchStatsView(window._statsView||'month');
+    } else if(badge){
+      badge.style.display='block';
+      badge.style.color='var(--re,#E24B4A)'; badge.style.background='none';
+      badge.textContent=(res&&res.message)||t('network_error');
     }
   });
 }

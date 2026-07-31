@@ -922,6 +922,22 @@ function lgPin(d){
           APP.verified=!!res.data.verified;
           _addAccountMode=false; _switchPrefillPhone='';
           setPin(buf).then(function(){ save(); launchApp(); });
+        } else if(res && res.offline && !_addAccountMode && phone===APP.phone && APP.pinHash){
+          // Hors ligne : le numero et le PIN correspondent au compte deja
+          // enregistre sur cet appareil. On autorise l'entree avec les
+          // dernieres donnees connues (le solde/jeton, potentiellement
+          // perimes, se rafraichissent automatiquement au retour du reseau) -
+          // essentiel puisque c'est cet ecran qui reapparait apres le
+          // verrouillage automatique (5 min d'inactivite / ecran verrouille).
+          checkPinLocal(buf).then(function(match){
+            if(!match){
+              lgBuf=''; updateLgDots();
+              document.getElementById('login-err').textContent=t('login_err_wrong');
+              return;
+            }
+            lgBuf=''; updateLgDots();
+            launchApp();
+          });
         } else {
           lgBuf=''; updateLgDots();
           document.getElementById('login-err').textContent=(res&&res.message)||t('login_err_wrong');
