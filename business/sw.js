@@ -8,7 +8,7 @@
 // rapides (les forcer aussi ralentirait l'app pour rien).
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rombiz-shell-v5';
+var CACHE_NAME = 'rombiz-shell-v7';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './logo.jpg',
   './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg',
@@ -68,9 +68,24 @@ self.addEventListener('fetch', function(event){
       }
       return res;
     }).catch(function(){
+      // Hors ligne (ou reseau en echec) : tente d'abord la requete exacte,
+      // puis la coquille (index.html) pour toute navigation/shell. Ne DOIT
+      // jamais resoudre vers undefined ici - respondWith() exige un vrai
+      // Response, sinon Chrome affiche une erreur brute (ERR_FAILED) au lieu
+      // d'une page hors-ligne, meme quand le cache existe mais rate juste
+      // cette cle precise (ex: manifest.json dont req.mode n'est pas
+      // 'navigate', donc jamais couvert par l'ancien fallback).
       return caches.match(req).then(function(cached){
         if(cached) return cached;
-        return req.mode==='navigate' ? caches.match('./index.html') : undefined;
+        return caches.match('./index.html').then(function(shell){
+          if(shell) return shell;
+          return new Response(
+            '<!doctype html><meta charset="utf-8"><title>Hors ligne</title>'
+            +'<body style="font-family:sans-serif;padding:60px 24px;text-align:center;background:#012B1B;color:#fff">'
+            +'<h2>Connexion indisponible</h2><p>Reconnectez-vous a internet puis rouvrez l\'application.</p></body>',
+            {status:503, statusText:'Offline', headers:{'Content-Type':'text/html; charset=utf-8'}}
+          );
+        });
       });
     })
   );
