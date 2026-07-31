@@ -486,6 +486,13 @@ var I18N = {
   motif_label:{fr:'Motif (optionnel)',en:'Note (optional)'},
   motif_ph:{fr:'Ex: Vente article',en:'E.g. Item sale'},
   scan_client_qr_btn:{fr:'Scanner le QR du client',en:"Scan customer's QR"},
+  paylink_create_btn:{fr:'Envoyer un lien de paiement',en:'Send a payment link'},
+  paylink_creating:{fr:'Création du lien...',en:'Creating link...'},
+  paylink_err_generic:{fr:'Échec de la création du lien',en:'Failed to create link'},
+  paylink_share_desc:{fr:'Envoyez ce lien à votre client par SMS, WhatsApp ou tout autre moyen. Il l\'ouvre, voit le montant et paie directement.',en:'Send this link to your customer via SMS, WhatsApp or any other means. They open it, see the amount and pay directly.'},
+  paylink_share_btn:{fr:'Partager le lien',en:'Share link'},
+  paylink_share_text:{fr:'Voici le lien pour votre paiement',en:'Here is the link for your payment'},
+  paylink_copied:{fr:'Lien copié !',en:'Link copied!'},
   scan_point_qr:{fr:'Visez le QR personnel du client',en:"Aim at the customer's personal QR"},
   enc_err_amount:{fr:'Entrez un montant',en:'Enter an amount'},
   camera_denied:{fr:'Accès caméra refusé',en:'Camera access denied'},
@@ -1536,6 +1543,10 @@ function shEncaisser(b){
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/></svg>'
     +t('scan_client_qr_btn')
     +'</button>'
+    +'<button onclick="createPaymentLink()" style="width:100%;padding:14px;margin-top:8px;background:var(--bg);border:.5px solid var(--bord);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;color:var(--t1);font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">'
+    +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07L11.5 4.5"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07L12.5 19.5"/></svg>'
+    +t('paylink_create_btn')
+    +'</button>'
     +'<div id="enc-scanner" style="display:none;margin-top:12px">'
     +'<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
     +'<video id="enc-vid" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
@@ -1548,6 +1559,52 @@ function shEncaisser(b){
     +'<button onclick="stopMerchantEncScan()" style="width:100%;padding:10px;margin-top:8px;background:var(--rl);border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit">'+t('cancel')+'</button>'
     +'</div>'
     +'<div id="enc-result" style="display:none"></div>';
+}
+// ── LIEN DE PAIEMENT A DISTANCE ── le marchand indique un montant/motif
+// (memes champs que Encaisser), envoie le lien genere au client par
+// n'importe quel moyen (SMS, WhatsApp...) via le partage natif du
+// telephone. Le client l'ouvre dans ROM_MONEY, voit le montant/motif,
+// confirme avec son PIN comme un paiement normal.
+var ROM_MONEY_URL = 'https://romariosia07-lab.github.io/rom-money-backend/';
+function createPaymentLink(){
+  var amt=parseFloat(document.getElementById('enc-amt').value)||0;
+  var motifEl=document.getElementById('enc-motif');
+  var motif=motifEl?motifEl.value.trim():'';
+  if(amt<=0){ toast(t('enc_enter_amount'), true); return; }
+  toast(t('paylink_creating'));
+  apiCall('/merchant?action=create-payment-link','POST',{amount:amt,description:motif},getToken()).then(function(res){
+    if(res && res.success && res.data){
+      showPaymentLinkResult(res.data.id, amt, motif);
+    } else {
+      toast((res&&res.message)||t('paylink_err_generic'), true);
+    }
+  });
+}
+function showPaymentLinkResult(id, amt, motif){
+  var url = ROM_MONEY_URL + '?pay=' + id;
+  var result = document.getElementById('enc-result');
+  if(!result) return;
+  result.style.display='block';
+  result.innerHTML = '<div style="text-align:center;padding:16px;background:var(--gl);border-radius:14px;margin-top:8px">'
+    +'<div style="font-size:32px;margin-bottom:8px">🔗</div>'
+    +'<div style="font-size:16px;font-weight:900;color:var(--t1);margin-bottom:4px">'+fmt(amt)+' F</div>'
+    +(motif?'<div style="font-size:12px;color:var(--t2);margin-bottom:10px">'+adminEscBiz(motif)+'</div>':'<div style="margin-bottom:10px"></div>')
+    +'<div style="font-size:11px;color:var(--t2);margin-bottom:12px">'+t('paylink_share_desc')+'</div>'
+    +'<button class="btn-g" style="margin-bottom:8px" onclick="sharePaymentLink(\''+url+'\')">'+t('paylink_share_btn')+'</button>'
+    +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';document.getElementById(\'enc-result\').innerHTML=\'\'" style="width:100%;padding:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('close')+'</button>'
+    +'</div>';
+}
+function sharePaymentLink(url){
+  if(navigator.share){
+    navigator.share({title:'ROM_MONEY', text:t('paylink_share_text'), url:url}).catch(function(){});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(function(){ toast(t('paylink_copied')); }).catch(function(){ toast(url); });
+  } else {
+    toast(url);
+  }
+}
+function adminEscBiz(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 var encStream=null, encRAF=null;
 function stopMerchantScan(){

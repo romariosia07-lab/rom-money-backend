@@ -1958,6 +1958,13 @@ var I18N = {
   merchant_pay_btn: {fr:'Payer', en:'Pay'},
   merchant_pay_pin_confirm: {fr:'Paiement de {amt} à {name}', en:'Payment of {amt} to {name}'},
   merchant_pay_success_suffix: {fr:'payé à', en:'paid to'},
+  paylink_err_notfound: {fr:'Lien de paiement introuvable', en:'Payment link not found'},
+  paylink_already_paid: {fr:'Ce paiement a déjà été effectué', en:'This payment has already been made'},
+  paylink_cancelled: {fr:'Ce lien de paiement a été annulé', en:'This payment link was cancelled'},
+  paylink_expired: {fr:'Ce lien de paiement a expiré', en:'This payment link has expired'},
+  paylink_pay_to: {fr:'Payer à', en:'Pay to'},
+  paylink_pay_btn: {fr:'Payer maintenant', en:'Pay now'},
+  paylink_cancel_btn: {fr:'Annuler', en:'Cancel'},
   scan_btn_another: {fr:'Scanner un autre QR', en:'Scan another QR'},
   scan_qr_invalid_title: {fr:'QR non valide', en:'Invalid QR'},
   scan_qr_invalid_desc: {fr:"Ce QR code n'est pas un compte ROM_MONEY.", en:'This QR code is not a ROM_MONEY account.'},
@@ -3371,6 +3378,17 @@ document.addEventListener('DOMContentLoaded', function(){
       var refEl = document.getElementById('r-refcode');
       if(refEl){ refEl.value = refParam.toUpperCase(); checkRefCodeLive(); }
     }
+  }catch(e){}
+
+  // Lien de paiement marchand (?pay=<id>, partage depuis ROM_BUSINESS) :
+  // memorise l'id, verifie seulement une fois dans l'app (launchApp - voir
+  // checkPendingPaymentLink()) puisque payer exige d'etre connecte. Ne
+  // nettoie PAS l'URL ici : si l'utilisateur doit encore se connecter/
+  // s'inscrire, un rechargement de page pendant ce temps doit retrouver le
+  // parametre.
+  try{
+    var payParam = new URLSearchParams(location.search).get('pay');
+    if(payParam) window._pendingPayLinkId = payParam;
   }catch(e){}
 
   if(location.hash==='#admin'){
@@ -5923,6 +5941,7 @@ function launchApp(){
   }
   goto('s-app'); refreshUI(); renderTx('home'); renderVault(); loadSubVaults(); startInactivityTimer();
   if(APP._justRegistered){ APP._justRegistered = false; setTimeout(showOnboardingTutorial, 500); }
+  setTimeout(checkPendingPaymentLink, 600);
     // Mark existing transactions as seen before starting polling
     var tok2=getToken();
     if(tok2){
@@ -5990,6 +6009,62 @@ function launchApp(){
       }
     });
   }
+}
+
+// ── LIEN DE PAIEMENT MARCHAND (?pay=<id> partage depuis ROM_BUSINESS) ──
+// Verifie une seule fois, une fois dans l'app (payer exige d'etre
+// connecte). Nettoie l'URL apres coup pour ne pas re-declencher au
+// prochain rechargement de page.
+function checkPendingPaymentLink(){
+  var id = window._pendingPayLinkId;
+  if(!id) return;
+  window._pendingPayLinkId = null;
+  try{ if(history.replaceState) history.replaceState(null,'',location.pathname); }catch(e){}
+  var tok = getToken();
+  apiCall('/transactions?action=payment-link-detail&id='+encodeURIComponent(id),'GET',null,tok).then(function(res){
+    if(res && res.success && res.data){
+      showPaymentLinkConfirm(res.data);
+    } else {
+      toast((res&&res.message)||t('paylink_err_notfound'), true);
+    }
+  });
+}
+function showPaymentLinkConfirm(link){
+  if(link.status==='paid'){ toast(t('paylink_already_paid'), true); return; }
+  if(link.status==='cancelled'){ toast(t('paylink_cancelled'), true); return; }
+  if(link.status==='expired'){ toast(t('paylink_expired'), true); return; }
+  var overlay = document.createElement('div');
+  overlay.id='paylink-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
+  var box = document.createElement('div');
+  box.style.cssText='background:var(--card,#fff);border-radius:20px;padding:24px;width:100%;max-width:340px;text-align:center';
+  box.innerHTML = '<div style="font-size:14px;color:var(--t2);margin-bottom:6px">'+t('paylink_pay_to')+'</div>'
+    +'<div style="font-size:18px;font-weight:900;color:var(--accent-text);margin-bottom:4px">'+adminEsc(link.business_name)+(link.merchant_verified?' ✓':'')+'</div>'
+    +'<div style="font-size:32px;font-weight:900;margin:14px 0">'+fmt(link.amount)+' F</div>'
+    +(link.description?'<div style="font-size:13px;color:var(--t2);margin-bottom:16px">'+adminEsc(link.description)+'</div>':'<div style="margin-bottom:16px"></div>')
+    +'<button class="btn-g" id="paylink-pay-btn" style="margin-bottom:8px">'+t('paylink_pay_btn')+'</button>'
+    +'<button id="paylink-cancel-btn" style="width:100%;padding:12px;background:none;border:.5px solid var(--bord);border-radius:12px;font-size:13px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('paylink_cancel_btn')+'</button>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  document.getElementById('paylink-cancel-btn').onclick=function(){ overlay.remove(); };
+  document.getElementById('paylink-pay-btn').onclick=function(){
+    overlay.remove();
+    requirePin(t('merchant_pay_pin_confirm').replace('{amt}',fmt(link.amount)).replace('{name}',link.business_name), function(){
+      var tok=getToken();
+      apiCall('/transactions?action=payment-link-pay','POST',{id:link.id,pin:PIN_MEM},tok).then(function(res){
+        if(res && res.success){
+          var d=res.data||{};
+          APP.balance = d.new_balance!==undefined ? d.new_balance : APP.balance;
+          txList.unshift({id:d.transaction_id||Date.now(),name:d.business_name||link.business_name,
+            type:'debit',amt:d.amount||link.amount,cat:'Marchand',motif:link.description||'',ref:d.reference||'',ts:Date.now()});
+          updateBalDisplay(); renderTx('home'); save();
+          toast(fmt(link.amount)+' '+t('merchant_pay_success_suffix')+' '+(d.business_name||link.business_name)+' !');
+        } else {
+          toast((res&&res.message)||t('scan_err_generic'), true);
+        }
+      });
+    });
+  };
 }
 
 

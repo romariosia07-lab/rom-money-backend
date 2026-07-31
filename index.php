@@ -1164,6 +1164,9 @@ function route_merchant($action) {
         'withdraw'           => merchant_withdraw(),
         'pay-merchant'       => merchant_pay_merchant(),
         'resolve-recipient'  => merchant_resolve_recipient(),
+        'create-payment-link' => merchant_create_payment_link(),
+        'cancel-payment-link' => merchant_cancel_payment_link(),
+        'list-payment-links'  => merchant_list_payment_links(),
         'vault-deposit'      => merchant_vault_deposit(),
         'vault-withdraw'     => merchant_vault_withdraw(),
         'vault-lock'         => merchant_vault_lock(),
@@ -1959,6 +1962,8 @@ function route_tx($action) {
         'detail'  => tx_detail(),
         'resolve' => tx_resolve(),
         'pay-merchant' => tx_pay_merchant(),
+        'payment-link-detail' => payment_link_detail(),
+        'payment-link-pay' => payment_link_pay(),
         'check-new-recipient' => tx_check_new_recipient(),
         'fx-preview' => tx_fx_preview(),
         default   => fail('Action inconnue',404)
@@ -2541,13 +2546,13 @@ function tx_detail() {
 // son cote, contrairement a un envoi d'argent classique) - le frais
 // eventuel (voir merchant_receive_fee()) est preleve sur ce que le marchand
 // recoit, une fois son cumul du jour au-dela du seuil gratuit.
-function tx_pay_merchant() {
-    $pl = auth(); $b = body();
-    $merchantId = trim($b['merchant_id'] ?? '');
-    $amount = (float)($b['amount'] ?? 0);
-    $pin = trim($b['pin'] ?? '');
-    $desc = trim($b['description'] ?? '');
-    if(!$merchantId) fail('Marchand requis');
+// Coeur du paiement client->marchand, partage par tx_pay_merchant() (scan
+// direct du QR marchand) et payment_link_pay() (lien de paiement a
+// distance, voir plus bas) - memes regles dans les deux cas : gratuit pour
+// le client, frais eventuel preleve sur ce que le marchand recoit une fois
+// son cumul du jour depasse (voir merchant_receive_fee()). $source sert
+// juste a personnaliser la notification push envoyee au marchand.
+function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $source='direct'){
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
 
@@ -2577,13 +2582,91 @@ function tx_pay_merchant() {
         credit_merchant_fee($mw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand');
         db()->commit();
         fraud_check_merchant_transaction($mw['id'], $pl['phone'] ?? '', $amount, $txid, $reference, $m['phone_number']);
+        $srcLabel = $source==='link' ? ' via un lien de paiement' : ' via votre QR';
         web_push_send_to_merchant($mw['merchant_id'], 'ROM_BUSINESS',
-            'Vous avez recu '.number_format($net,0,',',' ').' F via votre QR'.($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
+            'Vous avez recu '.number_format($net,0,',',' ').' F'.$srcLabel.($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
-        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
-            'business_name'=>$m['business_name'],'cancel_before'=>$deadline,
-            'new_balance'=>$bal],'Paiement effectue');
+        return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
+            'business_name'=>$m['business_name'],'cancel_before'=>$deadline,'new_balance'=>$bal];
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
+}
+
+function tx_pay_merchant() {
+    $pl = auth(); $b = body();
+    $merchantId = trim($b['merchant_id'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    $desc = trim($b['description'] ?? '');
+    if(!$merchantId) fail('Marchand requis');
+    $result = execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, 'direct');
+    ok($result, 'Paiement effectue');
+}
+
+// ── LIEN DE PAIEMENT A DISTANCE ──
+// Le marchand indique un montant/motif, partage le lien genere par
+// n'importe quel moyen hors-app (SMS, WhatsApp...) ; le client l'ouvre dans
+// ROM_MONEY, voit le marchand/montant/motif, confirme avec son PIN comme un
+// paiement normal. L'id du lien (uid(), deja imprevisible) sert de jeton -
+// pas besoin d'un champ separe.
+function merchant_create_payment_link() {
+    $pl = merchant_auth(); $b = body();
+    $amount = (float)($b['amount'] ?? 0);
+    $desc = trim($b['description'] ?? '');
+    if($amount<=0) fail('Montant invalide');
+    $id = uid();
+    // Expire au bout de 24h : evite qu'un lien oublie/abandonne reste
+    // payable indefiniment.
+    q("INSERT INTO merchant_payment_links (id,merchant_id,amount,description,status,expires_at) VALUES (?,?,?,?,'pending',?)",
+      [$id,$pl['sub'],$amount,$desc?:null,date('Y-m-d H:i:s', time()+24*3600)]);
+    ok(['id'=>$id], 'Lien cree');
+}
+
+function merchant_cancel_payment_link() {
+    $pl = merchant_auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    if(!$id) fail('Lien requis');
+    $n = q("UPDATE merchant_payment_links SET status='cancelled' WHERE id=? AND merchant_id=? AND status='pending'",[$id,$pl['sub']])->rowCount();
+    if(!$n) fail('Lien introuvable ou deja utilise',404);
+    ok(null,'Lien annule');
+}
+
+function merchant_list_payment_links() {
+    $pl = merchant_auth();
+    $rows = q("SELECT id,amount,description,status,created_at,paid_at FROM merchant_payment_links
+        WHERE merchant_id=? ORDER BY created_at DESC LIMIT 50",[$pl['sub']])->fetchAll();
+    ok(['links'=>$rows]);
+}
+
+// Vue publique (cote client, auth() personnel classique) d'un lien de
+// paiement avant de decider de payer : nom du marchand/montant/motif, et le
+// statut pour que l'app affiche le bon ecran (deja paye/annule/expire)
+// plutot que de laisser tenter un paiement voue a l'echec.
+function payment_link_detail() {
+    auth();
+    $id = trim($_GET['id'] ?? '');
+    if(!$id) fail('Lien invalide');
+    $link = q("SELECT l.*, m.business_name, m.verified merchant_verified FROM merchant_payment_links l
+        JOIN merchants m ON l.merchant_id=m.id WHERE l.id=?",[$id])->fetch();
+    if(!$link) fail('Lien de paiement introuvable',404);
+    $expired = $link['expires_at'] && strtotime($link['expires_at']) < time();
+    ok(['id'=>$link['id'],'business_name'=>$link['business_name'],'merchant_verified'=>(bool)$link['merchant_verified'],
+        'amount'=>(float)$link['amount'],'description'=>$link['description'],
+        'status'=>$expired && $link['status']==='pending' ? 'expired' : $link['status'],
+        'created_at'=>$link['created_at']]);
+}
+
+function payment_link_pay() {
+    $pl = auth(); $b = body();
+    $linkId = trim($b['id'] ?? '');
+    $pin = trim($b['pin'] ?? '');
+    if(!$linkId) fail('Lien invalide');
+    $link = q("SELECT * FROM merchant_payment_links WHERE id=?",[$linkId])->fetch();
+    if(!$link) fail('Lien de paiement introuvable',404);
+    if($link['status']!=='pending') fail('Ce lien de paiement a deja ete utilise ou annule');
+    if($link['expires_at'] && strtotime($link['expires_at']) < time()) fail('Ce lien de paiement a expire');
+    $result = execute_merchant_payment($pl, $link['merchant_id'], (float)$link['amount'], $pin, $link['description'], 'link');
+    q("UPDATE merchant_payment_links SET status='paid', transaction_id=?, paid_at=NOW() WHERE id=?",[$result['transaction_id'],$linkId]);
+    ok($result, 'Paiement effectue');
 }
 
 function tx_resolve() {
@@ -5881,6 +5964,23 @@ function route_install() {
         UNIQUE(merchant_id, doc_type)
     )",
     "CREATE INDEX IF NOT EXISTS idx_merchant_documents_merchant ON merchant_documents(merchant_id)",
+    // Lien de paiement a distance : le marchand indique un montant/motif,
+    // partage le lien (id sert de jeton, deja imprevisible via uid()) par
+    // n'importe quel moyen hors-app (SMS, WhatsApp...), le client l'ouvre
+    // et paie depuis ROM_MONEY. 'status' evite qu'un lien deja paye (ou
+    // annule) soit repaye.
+    "CREATE TABLE IF NOT EXISTS merchant_payment_links (
+        id VARCHAR(36) PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        amount DECIMAL(15,2) NOT NULL,
+        description TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        transaction_id VARCHAR(36),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP,
+        expires_at TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_merchant_payment_links_merchant ON merchant_payment_links(merchant_id)",
     "CREATE TABLE IF NOT EXISTS merchant_known_devices (
         id SERIAL PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL,
