@@ -10,7 +10,7 @@
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v9';
+var CACHE_NAME = 'rommoney-shell-v10';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './header-bg.jpg',
   './icon-envoyer.png', './icon-payer.png', './icon-encaisser.png',
