@@ -6202,9 +6202,13 @@ function launchApp(){
   if(tok){
     apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data){
-        APP.balance=res.data.balance||APP.balance;
-        APP.vaultBal=res.data.vault_balance||APP.vaultBal;
-        APP.vaultLocked=res.data.vault_locked||APP.vaultLocked;
+        // != null (pas ||) : un solde reellement a 0 est une valeur falsy en
+        // JS, donc "res.data.balance||APP.balance" gardait a tort l'ancienne
+        // valeur (ex: le solde demo par defaut de APP) au lieu du vrai 0
+        // renvoye par le serveur pour un compte tout juste cree.
+        APP.balance=res.data.balance!=null?res.data.balance:APP.balance;
+        APP.vaultBal=res.data.vault_balance!=null?res.data.vault_balance:APP.vaultBal;
+        APP.vaultLocked=res.data.vault_locked!=null?res.data.vault_locked:APP.vaultLocked;
         APP.qrSeed=res.data.qr_seed||APP.qrSeed;
         updateBalDisplay(); save();
       }
@@ -8885,9 +8889,9 @@ function refreshCurrentPage2(){
     var tok=getToken();
     var balP = tok ? apiCall('/wallet?action=balance','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data){
-        APP.balance=res.data.balance||APP.balance;
-        APP.vaultBal=res.data.vault_balance||APP.vaultBal;
-        APP.vaultLocked=res.data.vault_locked||APP.vaultLocked;
+        APP.balance=res.data.balance!=null?res.data.balance:APP.balance;
+        APP.vaultBal=res.data.vault_balance!=null?res.data.vault_balance:APP.vaultBal;
+        APP.vaultLocked=res.data.vault_locked!=null?res.data.vault_locked:APP.vaultLocked;
         updateBalDisplay();
       }
     }).catch(function(){}) : Promise.resolve();
