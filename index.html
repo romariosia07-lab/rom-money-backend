@@ -2847,16 +2847,15 @@ function adminLoadDashboard(){
       var totalVol=daily.reduce(function(s,x){return s+x.volume;},0);
       var MONTHS_ABBR=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
       chartHtml+='<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+at('admin_dash_chart_note').replace('{max}',fmt(maxVol)).replace('{total}',fmt(totalVol))+'</div>';
-      chartHtml+='<div style="display:flex;align-items:flex-end;gap:4px;height:160px;padding:0 4px 6px;background:var(--card);border:1px solid var(--bord);border-radius:12px 12px 0 0;margin-top:8px">'
+      chartHtml+='<div id="admin-chart-inner" style="position:relative;display:flex;align-items:flex-end;gap:4px;height:160px;padding:0 4px 6px;background:var(--card);border:1px solid var(--bord);border-radius:12px 12px 0 0;margin-top:8px">'
         +daily.map(function(x){
           var ratio = x.volume/maxVol;
           var h=Math.max(3,Math.round(ratio*140));
           var col = x.volume>0 ? adminBarColor(ratio) : 'var(--bord)';
           var dObj=new Date(x.day);
           var dateLbl=dObj.getDate()+' '+MONTHS_ABBR[dObj.getMonth()]+'.';
-          var detail = x.count>0 ? (dateLbl+' : '+fmt(x.volume)+' ('+x.count+' '+at('admin_dash_tx_count_suffix')+')') : (dateLbl+' : '+at('admin_dash_no_tx_day'));
-          return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:140px;cursor:pointer" onclick="toast(\''+detail+'\')">'
-            +'<div style="background:'+col+';border-radius:2px;height:'+h+'px;min-height:3px"></div></div>';
+          return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:140px">'
+            +'<div onclick="showAdminChartTooltip(event,\''+dateLbl+'\','+x.volume+','+x.count+')" style="background:'+col+';border-radius:2px;height:'+h+'px;min-height:3px;cursor:pointer"></div></div>';
         }).join('')
         +'</div>'
         +'<div style="display:flex;gap:4px;padding:0 4px;background:var(--card);border:1px solid var(--bord);border-top:none;border-radius:0 0 12px 12px;margin-bottom:18px">'
@@ -6789,6 +6788,33 @@ if(!window._statTooltipDocListener){
   window._statTooltipDocListener=true;
   document.addEventListener('click', function(){
     var tip=document.getElementById('stat-tooltip');
+    if(tip) tip.style.display='none';
+  });
+}
+// Meme principe que showStatTooltip() ci-dessus (bulle positionnee au-dessus
+// de la barre cliquee), pour le graphique "Evolution du volume" du dashboard
+// admin - qui n'affichait jusqu'ici qu'un toast generique en bas d'ecran.
+function showAdminChartTooltip(ev, dateLbl, volume, count){
+  ev.stopPropagation();
+  var inner=document.getElementById('admin-chart-inner');
+  if(!inner) return;
+  var tip=document.getElementById('admin-chart-tooltip');
+  if(!tip){
+    tip=document.createElement('div');
+    tip.id='admin-chart-tooltip';
+    tip.style.cssText='position:absolute;background:#012a1f;color:#fff;font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px;white-space:nowrap;pointer-events:none;z-index:20;transform:translate(-50%,-100%);box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    inner.appendChild(tip);
+  }
+  var bar=ev.currentTarget;
+  tip.style.left=(bar.offsetLeft+bar.offsetWidth/2)+'px';
+  tip.style.top=(bar.offsetTop-6)+'px';
+  tip.textContent = count>0 ? (dateLbl+' : '+fmt(volume)+' ('+count+' '+at('admin_dash_tx_count_suffix')+')') : (dateLbl+' : '+at('admin_dash_no_tx_day'));
+  tip.style.display='block';
+}
+if(!window._adminChartTooltipDocListener){
+  window._adminChartTooltipDocListener=true;
+  document.addEventListener('click', function(){
+    var tip=document.getElementById('admin-chart-tooltip');
     if(tip) tip.style.display='none';
   });
 }
