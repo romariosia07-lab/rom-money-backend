@@ -1669,7 +1669,11 @@ function merchant_export_xlsx() {
     $data[] = [ ['Date',1,'s'], ['Type',1,'s'], ['Contact',1,'s'], ['Montant',1,'s'], ['Reference',1,'s'], ['Statut',1,'s'] ];
     foreach($rows as $t){
         $isCredit = $t['direction']==='credit';
-        $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
+        // Montant reellement credite/debite : le net (apres frais eventuel),
+        // pas le brut envoye par l'autre partie - sinon un encaissement de
+        // 50000F avec 250F de frais apparaitrait comme +50000F alors que
+        // seuls 49750F ont vraiment atterri sur le solde du marchand.
+        $montant = $isCredit ? (float)($t['net_amount']??$t['amount']) : -(float)$t['amount'];
         $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:'-');
         $data[] = [
             [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
@@ -1738,7 +1742,11 @@ function merchant_export_pdf() {
     $pdf->SetFont('Arial','',8);
     foreach($rows as $t){
         $isCredit = $t['direction']==='credit';
-        $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
+        // Montant reellement credite/debite : le net (apres frais eventuel),
+        // pas le brut envoye par l'autre partie - sinon un encaissement de
+        // 50000F avec 250F de frais apparaitrait comme +50000F alors que
+        // seuls 49750F ont vraiment atterri sur le solde du marchand.
+        $montant = $isCredit ? (float)($t['net_amount']??$t['amount']) : -(float)$t['amount'];
         $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:'-');
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(merchant_export_type_label($t['type'],$isCredit)),1);

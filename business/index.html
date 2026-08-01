@@ -655,6 +655,7 @@ var I18N = {
   receipt_share_btn:{fr:'📤 Partager le reçu',en:'📤 Share receipt'},
   receipt_reference:{fr:'Référence',en:'Reference'},
   receipt_type:{fr:'Type',en:'Type'},
+  receipt_fee_label:{fr:'Frais prélevés',en:'Fee deducted'},
   receipt_pdf_error:{fr:'Impossible de générer le PDF',en:'Unable to generate PDF'},
   receipt_pdf_title:{fr:'REÇU ROM_BUSINESS',en:'ROM_BUSINESS RECEIPT'},
   receipt_ref_prefix:{fr:'Réf: ',en:'Ref: '},
@@ -1275,7 +1276,11 @@ function renderTxRows(rows, containerId, stale){
     var typeLabel = txTypeLabel(tx);
     var badge = isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':(isFrozen?'<span class="badge-frozen">'+t('tx_badge_frozen')+'</span>':'');
     var amtColor = isAnn?'var(--t3)':isFrozen?'#1565C0':(isCredit?'var(--g)':'var(--re)');
-    var amtText = isAnn?'---':(isCredit?'+':'-')+fmt(tx.amount)+' F';
+    // Le net (apres frais eventuel), pas le brut envoye par l'autre partie -
+    // sinon un encaissement de 50000F avec 250F de frais afficherait +50000F
+    // alors que seuls 49750F ont vraiment atterri sur le solde.
+    var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
+    var amtText = isAnn?'---':(isCredit?'+':'-')+fmt(displayAmt)+' F';
     h+='<div class="tx-row" style="cursor:pointer;opacity:'+(isAnn?'.55':'1')+'" onclick="openReceiptById(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
       +'<div><div class="tx-name">'+name+badge+'</div><div class="tx-date"><span class="tx-type">'+typeLabel+'</span> · '+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
       +'<div class="tx-amt" style="color:'+amtColor+'">'+amtText+'</div></div>';
@@ -1306,14 +1311,17 @@ function openReceipt(tx){
   var d = new Date(tx.created_at);
   var dateStr = d.toLocaleDateString(loc)+' '+(APP.lang==='en'?'at':'à')+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
   var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—');
+  var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
+  var feeAmt = isCredit && tx.fee!=null ? parseFloat(tx.fee) : 0;
   var html = '<div style="text-align:center;padding:10px 0 18px">'
-    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(tx.amount)+' F</div>'
+    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(displayAmt)+' F</div>'
     +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
     +'</div>'
     +'<div style="background:var(--gl);border-radius:14px;padding:14px;margin-bottom:16px">'
     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(isCredit?t('label_client'):t('label_recipient'))+'</span><span style="font-weight:700;font-size:13px">'+counterName+'</span></div>'
     +(tx.reference?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('receipt_reference')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.reference+'</span></div>':'')
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('receipt_type')+'</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(tx)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;padding:8px 0'+(feeAmt>0?';border-bottom:.5px solid var(--div)':'')+'"><span style="color:var(--t2);font-size:13px">'+t('receipt_type')+'</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(tx)+'</span></div>'
+    +(feeAmt>0?'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('receipt_fee_label')+'</span><span style="font-weight:600;font-size:13px;color:var(--re)">-'+fmt(feeAmt)+' F</span></div>':'')
     +'</div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="shareReceiptPdf(window._receiptTx)">'+t('receipt_share_btn')+'</button>';
   document.getElementById('sh-title').textContent = t('receipt_title');
@@ -1329,6 +1337,8 @@ function shareReceiptPdf(tx){
   var d = new Date(tx.created_at);
   var dateStr = d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
   var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—');
+  var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
+  var feeAmt = isCredit && tx.fee!=null ? parseFloat(tx.fee) : 0;
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
     if(!jsPDF){ toast(t('receipt_pdf_error'), true); return; }
@@ -1341,9 +1351,10 @@ function shareReceiptPdf(tx){
     if(tx.reference){ doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('receipt_ref_prefix')+tx.reference,cx,y,{align:'center'});y+=5; }
     doc.setFont('helvetica','bold');doc.setFontSize(20);
     doc.setTextColor(isCredit?34:220,isCredit?139:50,isCredit?34:50);
-    doc.text(sign+fmt(tx.amount)+' FCFA',cx,y+5,{align:'center'});y+=13;
+    doc.text(sign+fmt(displayAmt)+' FCFA',cx,y+5,{align:'center'});y+=13;
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
     var rows=[[t('receipt_row_date'),dateStr],[t('receipt_row_shop'),APP.businessName||''],[isCredit?t('label_client'):t('label_recipient'),counterName],[t('receipt_type'),txTypeLabel(tx)]];
+    if(feeAmt>0) rows.push([t('receipt_fee_label'),'-'+fmt(feeAmt)+' F']);
     rows.forEach(function(row){
       doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,80);doc.text(row[0],14,y);
       doc.setFont('helvetica','normal');doc.setTextColor(20,20,20);doc.text(String(row[1]),pw-14,y,{align:'right'});
@@ -1360,7 +1371,7 @@ function shareReceiptPdf(tx){
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       navigator.share({title:t('receipt_share_title'),text:t('receipt_share_text'),files:[file]}).catch(function(e){ if(e.name!=='AbortError') doc.save(fn); });
     } else if(navigator.share){
-      navigator.share({title:t('receipt_share_title'),text:sign+fmt(tx.amount)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
+      navigator.share({title:t('receipt_share_title'),text:sign+fmt(displayAmt)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
     } else {
       doc.save(fn); toast(t('receipt_downloaded'));
     }
