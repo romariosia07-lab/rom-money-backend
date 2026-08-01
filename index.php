@@ -3796,18 +3796,24 @@ function admin_earnings_withdraw() {
     $b = body();
     check_admin_password($b);
     $amount = (float)($b['amount']??0);
+    $recipientType = trim($b['recipient_type']??'');
     $recipient = trim($b['recipient']??'');
     $reason = trim($b['reason']??'');
+    $typeLabels = ['mobile_money'=>'Mobile Money','bank'=>'Compte bancaire','other'=>'Autre'];
     if($amount<=0) fail('Montant invalide');
+    if(!isset($typeLabels[$recipientType])) fail('Le type de destinataire est obligatoire');
     if(!$recipient) fail('Le destinataire est obligatoire (journalise)');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
     if(!$w) fail('Compte systeme introuvable (0160629502)',404);
     if((float)$w['balance'] < $amount) fail('Solde insuffisant sur le compte systeme');
-    // Destinataire et raison stockes ensemble dans description (seul champ
-    // texte libre disponible sur transactions) - affiches tels quels dans
-    // l'historique admin, pas besoin d'une colonne dediee pour ce volume.
-    $description = 'Vers : '.$recipient.' — '.$reason;
+    // Type/destinataire/raison stockes ensemble dans description (seul champ
+    // texte libre disponible sur transactions) - le type prefixe le champ
+    // libre pour lever toute ambiguite a la lecture de l'historique (un
+    // meme champ texte pouvait autrement contenir aussi bien un numero
+    // Mobile Money qu'un numero de compte bancaire, sans indication claire
+    // de sa nature).
+    $description = '['.$typeLabels[$recipientType].'] Vers : '.$recipient.' — '.$reason;
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();

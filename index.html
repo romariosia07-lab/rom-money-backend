@@ -939,7 +939,15 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="earn-withdrawn-box"></div>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_amount_label">Montant retiré</label><div class="amt-row"><input class="finput" id="earn-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>
-      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_label">Destinataire (obligatoire)</label><input class="finput" id="earn-recipient" placeholder="Ex: Orange Money / MTN / Moov 07xx, ou mon compte bancaire" data-i18n-admin-ph="admin_earnings_recipient_ph"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_type_label">Type de destinataire (obligatoire)</label>
+        <select class="finput" id="earn-recipient-type">
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir —</option>
+          <option value="mobile_money" data-i18n-admin="admin_earnings_type_mobile_money">📱 Mobile Money (Orange/MTN/Moov...)</option>
+          <option value="bank" data-i18n-admin="admin_earnings_type_bank">🏦 Compte bancaire</option>
+          <option value="other" data-i18n-admin="admin_earnings_type_other">Autre</option>
+        </select>
+      </div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_label">Numéro ou identifiant du destinataire (obligatoire)</label><input class="finput" id="earn-recipient" placeholder="Ex: 07 00 00 00 00, ou numéro de compte" data-i18n-admin-ph="admin_earnings_recipient_ph"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="earn-reason-sel" onchange="toggleReasonCustom('earn')">
           <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
@@ -1383,8 +1391,13 @@ var I18N = {
   admin_earnings_balance_label: {fr:'Solde actuel', en:'Current balance'},
   admin_earnings_withdrawn_label: {fr:'Total retiré', en:'Total withdrawn'},
   admin_earnings_amount_label: {fr:'Montant retiré', en:'Amount withdrawn'},
-  admin_earnings_recipient_label: {fr:'Destinataire (obligatoire)', en:'Recipient (required)'},
-  admin_earnings_recipient_ph: {fr:'Ex: Orange Money / MTN / Moov 07xx, ou mon compte bancaire', en:'E.g: Orange Money / MTN / Moov 07xx, or my bank account'},
+  admin_earnings_recipient_type_label: {fr:'Type de destinataire (obligatoire)', en:'Recipient type (required)'},
+  admin_earnings_type_mobile_money: {fr:'📱 Mobile Money (Orange/MTN/Moov...)', en:'📱 Mobile Money (Orange/MTN/Moov...)'},
+  admin_earnings_type_bank: {fr:'🏦 Compte bancaire', en:'🏦 Bank account'},
+  admin_earnings_type_other: {fr:'Autre', en:'Other'},
+  admin_earnings_recipient_type_required: {fr:'Le type de destinataire est obligatoire', en:'Recipient type is required'},
+  admin_earnings_recipient_label: {fr:'Numéro ou identifiant du destinataire (obligatoire)', en:"Recipient's number or identifier (required)"},
+  admin_earnings_recipient_ph: {fr:'Ex: 07 00 00 00 00, ou numéro de compte', en:'E.g: 07 00 00 00 00, or account number'},
   admin_earnings_recipient_required: {fr:'Le destinataire est obligatoire', en:'Recipient is required'},
   admin_earnings_reason_momo: {fr:'Retrait vers mon compte Mobile Money personnel', en:'Withdrawal to my personal Mobile Money account'},
   admin_earnings_reason_reinvest: {fr:"Réinvestissement dans l'entreprise", en:'Reinvestment into the business'},
@@ -5005,9 +5018,11 @@ var _earningsWithdrawInFlight = false;
 function adminEarningsWithdraw(){
   if(_earningsWithdrawInFlight) return;
   var amt = parseFloat(document.getElementById('earn-amt').value)||0;
+  var recipientType = document.getElementById('earn-recipient-type').value;
   var recipient = document.getElementById('earn-recipient').value.trim();
   var reason = getReasonValue('earn');
   if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!recipientType){ toast(at('admin_earnings_recipient_type_required'), true); return; }
   if(!recipient){ toast(at('admin_earnings_recipient_required'), true); return; }
   if(!reason){ toast(at('admin_earnings_reason_required'), true); return; }
   adminOpenConfirmModal({
@@ -5015,11 +5030,12 @@ function adminEarningsWithdraw(){
     needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
     onConfirm:function(){
       _earningsWithdrawInFlight = true;
-      apiCall('/admin?action=earnings-withdraw','POST',{admin_password:window._adminPw,amount:amt,recipient:recipient,reason:reason},'').then(function(res){
+      apiCall('/admin?action=earnings-withdraw','POST',{admin_password:window._adminPw,amount:amt,recipient_type:recipientType,recipient:recipient,reason:reason},'').then(function(res){
         _earningsWithdrawInFlight = false;
         if(res&&res.success){
           toast(at('admin_earnings_success_toast'));
           document.getElementById('earn-amt').value='';
+          document.getElementById('earn-recipient-type').value='';
           document.getElementById('earn-recipient').value='';
           resetReasonField('earn');
           adminLoadEarnings();
