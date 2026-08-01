@@ -2227,8 +2227,8 @@ var I18N = {
   transfert_to_prefix: {fr:'Transfert vers ', en:'Transfer to '},
   transfert_instant_fee_note: {fr:'Transfert instantané — frais internationaux 1,5%', en:'Instant transfer — 1.5% international fee'},
   transfert_label_recipient_number: {fr:'Numéro ROM_MONEY destinataire', en:'Recipient ROM_MONEY number'},
-  transfert_label_gross: {fr:'Montant brut (FCFA)', en:'Gross amount (FCFA)'},
-  transfert_label_net: {fr:'Montant net reçu (FCFA)', en:'Net amount received (FCFA)'},
+  transfert_label_gross: {fr:'Montant brut', en:'Gross amount'},
+  transfert_label_net: {fr:'Montant net reçu', en:'Net amount received'},
   transfert_ph_reason: {fr:'Ex: Aide famille', en:'E.g: Family support'},
   transfert_btn_send_to: {fr:'Envoyer vers ', en:'Send to '},
   transfert_number_not_found: {fr:'Numéro non trouvé sur ROM_MONEY', en:'Number not found on ROM_MONEY'},
@@ -8028,7 +8028,7 @@ function showMerchantPayForm(merchantId, businessName, verified){
     +'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('merchant_pay_free_note')+'</div></div>'
     +'</div>'
     +'<div class="frow"><label class="flabel">'+t('enc_amount_label')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="mp-amount" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="mp-amount" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<div class="frow"><label class="flabel">'+t('send_label_reason')+'</label><input class="finput" id="mp-motif" placeholder="'+t('scan_ph_reason')+'"></div>'
     +'<button onclick="doPayMerchantScan()" style="width:100%;padding:14px;background:var(--g);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit">'+t('merchant_pay_btn')+'</button>'
     +'<button onclick="switchWalletTab(\'scan\')" style="width:100%;padding:11px;background:none;color:var(--t2);border:.5px solid var(--bord);border-radius:12px;font-size:13px;cursor:pointer;font-family:inherit;margin-top:8px">'+t('scan_btn_another')+'</button>'
@@ -8414,7 +8414,7 @@ function disablePushNotifications(){
 function shVD(b){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_balance_label')+'<strong>'+fmt(APP.balance)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('enc_amount_label')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="vd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="vd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="doVD()">'+t('vault_btn_deposit_to_vault')+'</button>';
 }
 
@@ -8437,7 +8437,7 @@ function doVD(){
 function shVW(b){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_label')+'<strong>'+fmt(APP.vaultBal)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('enc_amount_label')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="vw-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="vw-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="reqVW()">'+t('vault_btn_withdraw_from_vault')+'</button>';
 }
 
@@ -8485,10 +8485,10 @@ function shVCreate(b){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:14px">'+t('vault_create_desc')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('vault_label_name')+'</label><input class="finput" id="sv-name" placeholder="'+t('vault_ph_name')+'"></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_label_initial_amount')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="sv-amt" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div>'
+    +'<div class="amt-row"><input class="finput" id="sv-amt" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div>'
     +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('vault_available_main').replace('{amt}',fmt(APP.vaultBal))+'</div></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_label_goal')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="sv-goal" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="sv-goal" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="doVCreate()">'+t('vault_btn_create_sub')+'</button>'
     +'<button class="btn-w" onclick="closeSheet()">'+t('cross_country_btn_cancel')+'</button>';
 }
@@ -8520,7 +8520,7 @@ function shSVDeposit(b, id){
   if(!sv){ closeSheet(); return; }
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_main_label')+'<strong>'+fmt(APP.vaultBal)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_transfer_to').replace('{name}',sv.name)+'</label>'
-    +'<div class="amt-row"><input class="finput" id="sv-dep-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="sv-dep-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="doSVDeposit('+id+')">'+t('bank_btn_deposit')+'</button>';
 }
 
@@ -8556,7 +8556,7 @@ function shSVWithdraw(b, id){
   if(!sv){ closeSheet(); return; }
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'": <strong>'+fmt(sv.amt)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_withdraw_to_main')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="sv-wd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">F</span></div></div>'
+    +'<div class="amt-row"><input class="finput" id="sv-wd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="reqSVWithdraw('+id+')">'+t('bank_btn_withdraw')+'</button>';
 }
 
@@ -9254,6 +9254,7 @@ function selPaysTransfert(el){
   var form = document.getElementById('transfert-form');
   if(!form) return;
   var dialCode = getCountryDialCode(pays);
+  var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
   form.style.display = 'block';
   form.innerHTML = '<div style="background:var(--gl);border-radius:12px;padding:14px;margin-bottom:14px;border:.5px solid var(--gm)">'
     +'<div style="font-size:13px;font-weight:700;color:var(--accent-text)">'+t('transfert_to_prefix')+pays+'</div>'
@@ -9262,10 +9263,10 @@ function selPaysTransfert(el){
     +'<div class="frow"><label class="flabel">'+t('transfert_label_recipient_number')+'</label>'
     +'<input class="finput" id="transfert-to" type="tel" value="'+(dialCode?dialCode+' ':'')+'" oninput="resolveTransfertPhone()"></div>'
     +'<div id="transfert-name" style="font-size:13px;font-weight:700;color:var(--accent-text);margin:-8px 0 10px;min-height:18px"></div>'
-    +'<div class="frow"><label class="flabel">'+t('transfert_label_gross')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="transfert-amt" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt\',\'transfert-amt-net\',\'brut\',\'transfert-frais\')"><span class="amt-f">F</span></div></div>'
-    +'<div class="frow"><label class="flabel">'+t('transfert_label_net')+'</label>'
-    +'<div class="amt-row"><input class="finput" id="transfert-amt-net" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt-net\',\'transfert-amt\',\'net\',\'transfert-frais\')"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('transfert_label_gross')+' ('+curSuffix+')</label>'
+    +'<div class="amt-row"><input class="finput" id="transfert-amt" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt\',\'transfert-amt-net\',\'brut\',\'transfert-frais\')"><span class="amt-f">'+curSuffix+'</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('transfert_label_net')+' ('+curSuffix+')</label>'
+    +'<div class="amt-row"><input class="finput" id="transfert-amt-net" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFieldsAfrica(\'transfert-amt-net\',\'transfert-amt\',\'net\',\'transfert-frais\')"><span class="amt-f">'+curSuffix+'</span></div></div>'
     +'<div id="transfert-frais"></div>'
     +'<div id="transfert-fx-preview"></div>'
     +'<div class="frow"><label class="flabel">'+t('send_label_reason')+'</label>'
@@ -9991,6 +9992,7 @@ function genererFacture(id){
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
   var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?'Transfert Afrique':'Transfert National') : (tx.cat||'Transfert');
   var sign=dir==='debit'?'-':'+';
+  var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
     if(!jsPDF){toast(t('invoice_jspdf_not_loaded'),true);return;}
@@ -10002,7 +10004,7 @@ function genererFacture(id){
     if(tx.ref){doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('invoice_ref_prefix')+tx.ref,cx,y,{align:'center'});y+=5;}
     doc.setFont('helvetica','bold');doc.setFontSize(20);
     doc.setTextColor(dir==='debit'?220:34,dir==='debit'?50:139,dir==='debit'?50:34);
-    var amtStr=Math.round(tx.amt).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); doc.text(sign+amtStr+' FCFA',cx,y+5,{align:'center'});y+=13;
+    var amtStr=Math.round(tx.amt).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); doc.text(sign+amtStr+' '+curSuffix,cx,y+5,{align:'center'});y+=13;
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
     var rows=[[t('invoice_date_label'),dateStr],[dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'),(tx.legalName||tx.name||'N/A')],[dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'),APP.legalName||APP.name||APP.phone||t('tx_myself')],[t('tx_type_label'),typeLabel],[t('tx_status_label'),statut]];
     if(tx.motif)rows.push([t('label_motif_word'),tx.motif]);
@@ -10026,7 +10028,7 @@ function genererFacture(id){
       navigator.share({title:t('invoice_share_title'),text:t('invoice_share_text'),files:[file]})
         .catch(function(e){if(e.name!=='AbortError')doc.save(fn);});
     } else if(navigator.share){
-      navigator.share({title:t('invoice_share_title'),text:t('invoice_share_fallback_amount')+sign+tx.amt.toLocaleString(APP.lang==='en'?'en-US':'fr-FR')+' FCFA\n'+t('invoice_date_label')+': '+dateStr+(tx.motif?'\n'+t('label_motif_word')+': '+tx.motif:'')+'\n'+t('tx_status_label')+': '+statut})
+      navigator.share({title:t('invoice_share_title'),text:t('invoice_share_fallback_amount')+sign+tx.amt.toLocaleString(APP.lang==='en'?'en-US':'fr-FR')+' '+curSuffix+'\n'+t('invoice_date_label')+': '+dateStr+(tx.motif?'\n'+t('label_motif_word')+': '+tx.motif:'')+'\n'+t('tx_status_label')+': '+statut})
         .then(function(){doc.save(fn);})
         .catch(function(){doc.save(fn);});
     } else {
