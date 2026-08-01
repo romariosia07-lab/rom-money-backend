@@ -1270,7 +1270,7 @@ function renderTxRows(rows, containerId, stale){
     var isCredit = tx.direction==='credit';
     var isAnn = tx.status==='cancelled';
     var isFrozen = tx.status==='frozen';
-    var name = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||t('tx_type_transfer'));
+    var name = adminEscBiz(isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||t('tx_type_transfer')));
     var ic = txIcon(tx);
     var d = new Date(tx.created_at);
     var typeLabel = txTypeLabel(tx);
@@ -1310,7 +1310,7 @@ function openReceipt(tx){
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   var d = new Date(tx.created_at);
   var dateStr = d.toLocaleDateString(loc)+' '+(APP.lang==='en'?'at':'à')+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
-  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—');
+  var counterName = adminEscBiz(isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—'));
   var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
   var feeAmt = isCredit && tx.fee!=null ? parseFloat(tx.fee) : 0;
   var html = '<div style="text-align:center;padding:10px 0 18px">'
@@ -1429,7 +1429,12 @@ function openSheet(type, extra){
 function closeSheet(){
   document.getElementById('sh').classList.remove('on');
   document.getElementById('sh-bg').classList.remove('on');
+  // Les trois scanners caméra (Encaisser, Payer un marchand, Envoyer) doivent
+  // tous être arrêtés ici, pas seulement via leur bouton "Annuler" interne -
+  // sinon fermer la sheet par le fond ou le bouton ✕ laisse la caméra allumée.
   stopMerchantScan();
+  stopMerchantPayScan();
+  stopVirScan();
 }
 function buildSheet(type, b, extra){
   if(type==='encaisser') shEncaisser(b);
@@ -1821,8 +1826,8 @@ function onEncaisserScanned(text){
       result.innerHTML=''
         +'<div style="background:var(--gl);border-radius:14px;padding:14px;border:.5px solid var(--gm);margin-top:8px">'
         +'<div style="display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:.5px solid var(--div)">'
-        +'<div style="width:44px;height:44px;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff">'+ini(name)+'</div>'
-        +'<div><div style="font-size:14px;font-weight:800;color:var(--t1)">'+name+'</div>'
+        +'<div style="width:44px;height:44px;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff">'+adminEscBiz(ini(name))+'</div>'
+        +'<div><div style="font-size:14px;font-weight:800;color:var(--t1)">'+adminEscBiz(name)+'</div>'
         +'<div style="font-size:12px;color:var(--t2)">'+phone+'</div></div>'
         +'</div>'
         +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('amount_label')+'</span><span>'+fmt(amt)+' F</span></div>'
@@ -1873,8 +1878,9 @@ function doEncaisserWithPin(phone, name, pin){
   apiCall('/merchant?action=collect','POST',{payer_phone:phone,amount:amt,pin:pin,description:motif},getToken()).then(function(res){
     if(res && res.success){
       APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
-      toast(fmt(amt)+t('enc_success_suffix')+(res.data.payer_name||name||t('label_client'))+' !');
-      openReceipt({amount:amt, direction:'credit', type:'merchant_payment',
+      var creditedAmt = res.data.net_amount!=null ? res.data.net_amount : amt;
+      toast(fmt(creditedAmt)+t('enc_success_suffix')+(res.data.payer_name||name||t('label_client'))+' !');
+      openReceipt({amount:amt, net_amount:res.data.net_amount, fee:res.data.fee, direction:'credit', type:'merchant_payment',
         created_at:new Date().toISOString(), reference:res.data.reference, payer_name:res.data.payer_name||name});
     } else {
       toast((res&&res.message)||t('enc_err_generic'), true);

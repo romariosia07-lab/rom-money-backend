@@ -1460,6 +1460,11 @@ function merchant_pay_merchant() {
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         credit_merchant_fee($recvMw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand (paiement inter-marchand)');
         db()->commit();
+        // Meme detection de fraude que pour un encaissement classique (voir
+        // merchant_collect()) - scopee sur le portefeuille RECEVEUR, sinon un
+        // paiement inter-marchand echappait totalement au controle de
+        // velocite/montant inhabituel applique partout ailleurs.
+        fraud_check_merchant_transaction($recvMw['id'], $m['phone_number'], $amount, $txid, $reference, $recvM['phone_number']);
         web_push_send_to_merchant($recvM['id'], 'ROM_BUSINESS',
             'Vous avez recu '.number_format($net,0,',',' ').' F de '.$m['business_name'].($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
@@ -1797,16 +1802,20 @@ function merchant_stats() {
     $pl = merchant_auth();
     $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
     if(!$wid) fail('Portefeuille introuvable',404);
-    $today = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+    // SUM(COALESCE(net_amount,amount)) et non SUM(amount) : le marchand doit
+    // voir ce qu'il a vraiment encaisse (apres frais eventuel), pas le brut
+    // envoye par l'autre partie - sinon le chiffre d'affaires du jour sur
+    // l'ecran d'accueil serait gonfle des que le seuil quotidien est depasse.
+    $today = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total, COUNT(*) cnt FROM transactions
         WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
         AND created_at::date = CURRENT_DATE",[$wid])->fetch();
-    $week = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+    $week = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total, COUNT(*) cnt FROM transactions
         WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
         AND created_at >= date_trunc('week', CURRENT_DATE)",[$wid])->fetch();
-    $month = q("SELECT COALESCE(SUM(amount),0) total, COUNT(*) cnt FROM transactions
+    $month = q("SELECT COALESCE(SUM(COALESCE(net_amount,amount)),0) total, COUNT(*) cnt FROM transactions
         WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
         AND created_at >= date_trunc('month', CURRENT_DATE)",[$wid])->fetch();
-    $daily = q("SELECT to_char(created_at,'YYYY-MM-DD') d, COALESCE(SUM(amount),0) total FROM transactions
+    $daily = q("SELECT to_char(created_at,'YYYY-MM-DD') d, COALESCE(SUM(COALESCE(net_amount,amount)),0) total FROM transactions
         WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
         AND created_at >= CURRENT_DATE - INTERVAL '6 days'
         GROUP BY d ORDER BY d",[$wid])->fetchAll();
@@ -1966,7 +1975,7 @@ function wallet_stats() {
     $pl = auth();
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $stats = q("SELECT
-        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN amount ELSE 0 END) as total_in,
+        SUM(CASE WHEN receiver_wallet_id=? AND status='completed' THEN COALESCE(net_amount,amount) ELSE 0 END) as total_in,
         SUM(CASE WHEN sender_wallet_id=? AND status='completed' THEN amount ELSE 0 END) as total_out,
         COUNT(CASE WHEN (sender_wallet_id=? OR receiver_wallet_id=?) AND status='completed' THEN 1 END) as tx_count,
         COUNT(CASE WHEN sender_wallet_id=? AND status='cancelled' THEN 1 END) as cancelled
@@ -2531,7 +2540,7 @@ function tx_history() {
     elseif($fil==='debit'){$where.=" AND t.sender_wallet_id=? AND t.status='completed'";$params[]=$wid;}
     elseif($fil==='cancelled'){$where.=" AND t.status='cancelled'";}
     $txs = db()->prepare("SELECT t.*,
-        CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
+        CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END direction,
         COALESCE(su.full_name, sm.business_name) sender_name, COALESCE(su.phone_number, sm.phone_number) sender_phone, su.verified_name sender_verified_name,
         COALESCE(ru.full_name, rm.business_name) receiver_name, COALESCE(ru.phone_number, rm.phone_number) receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
@@ -2540,7 +2549,7 @@ function tx_history() {
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         $where ORDER BY t.created_at DESC LIMIT $lim OFFSET $off");
-    $txs->execute($params);
+    $txs->execute(array_merge([$wid],$params));
     ok(['transactions'=>$txs->fetchAll(),'page'=>$page,'limit'=>$lim]);
 }
 
@@ -2550,7 +2559,7 @@ function tx_detail() {
     if(!$id) fail('ID requis');
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
-        CASE WHEN t.sender_wallet_id='$wid' THEN 'debit' ELSE 'credit' END direction,
+        CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END direction,
         COALESCE(su.full_name, sm.business_name) sender_name, su.verified_name sender_verified_name, su.country sender_country,
         COALESCE(ru.full_name, rm.business_name) receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
         FROM transactions t
@@ -2558,7 +2567,7 @@ function tx_detail() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
-        WHERE t.id=? AND (t.sender_wallet_id='$wid' OR t.receiver_wallet_id='$wid')",[$id])->fetch();
+        WHERE t.id=? AND (t.sender_wallet_id=? OR t.receiver_wallet_id=?)",[$wid,$id,$wid,$wid])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     $tx['can_cancel'] = $tx['status']==='completed' && $tx['direction']==='debit'
         && !$tx['cancelled_at'] && strtotime($tx['cancel_deadline']??'0')>time();
@@ -2688,8 +2697,16 @@ function payment_link_pay() {
     if(!$link) fail('Lien de paiement introuvable',404);
     if($link['status']!=='pending') fail('Ce lien de paiement a deja ete utilise ou annule');
     if($link['expires_at'] && strtotime($link['expires_at']) < time()) fail('Ce lien de paiement a expire');
+    // Reclame le lien de facon atomique (statut pending->paid conditionne sur
+    // le statut ACTUEL en base) avant de deplacer l'argent : sans ce garde-fou,
+    // deux requetes concurrentes (double-tap, retry reseau) passeraient toutes
+    // les deux le check ci-dessus et executeraient chacune un paiement complet
+    // pour le meme lien, debitant le payeur deux fois. Meme principe que les
+    // UPDATE ... WHERE balance>=? utilises partout ailleurs pour l'argent.
+    $claimed = q("UPDATE merchant_payment_links SET status='paid' WHERE id=? AND status='pending'",[$linkId])->rowCount();
+    if(!$claimed) fail('Ce lien de paiement a deja ete utilise ou annule');
     $result = execute_merchant_payment($pl, $link['merchant_id'], (float)$link['amount'], $pin, $link['description'], 'link');
-    q("UPDATE merchant_payment_links SET status='paid', transaction_id=?, paid_at=NOW() WHERE id=?",[$result['transaction_id'],$linkId]);
+    q("UPDATE merchant_payment_links SET transaction_id=?, paid_at=NOW() WHERE id=?",[$result['transaction_id'],$linkId]);
     ok($result, 'Paiement effectue');
 }
 
@@ -3481,13 +3498,20 @@ function export_get_rows($pl, $period, $from=null, $to=null) {
     $total = (int)($countRow['cnt']??0);
 
     $LIMIT = 5000; // plafond de securite, quelle que soit la periode choisie
+    // Joint aussi merchant_wallets/merchants des deux cotes - sans ca, une
+    // ligne ou l'utilisateur a paye/ete paye par un marchand affichait "-"
+    // en Contact dans l'export, alors que l'ecran d'historique (qui fait un
+    // COALESCE equivalent) montrait bien le nom du commerce.
     $sql = "SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
+        sm.business_name sender_merchant_name, rm.business_name receiver_merchant_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE $where ORDER BY t.created_at DESC LIMIT $LIMIT";
     $rows = q($sql, array_merge([$wid],$params))->fetchAll();
     return ['rows'=>$rows, 'total'=>$total, 'truncated'=>$total>$LIMIT, 'limit'=>$LIMIT];
@@ -3562,7 +3586,7 @@ function export_xlsx() {
         $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
         $frais = max(0, $amount - $net);
         $montant = $isDebit ? -$amount : $net;
-        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
+        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:$t['sender_phone']?:'-');
         $data[] = [
             [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
             [ export_type_label($t['type'], $isDebit, $lang), 2, 's' ],
@@ -3653,7 +3677,7 @@ function export_pdf() {
         $net = $t['net_amount']!==null ? (float)$t['net_amount'] : $amount;
         $frais = max(0, $amount - $net);
         $montant = $isDebit ? -$amount : $net;
-        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_phone']?:'-');
+        $contact = $isDebit ? ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:$t['receiver_phone']?:'-') : ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:$t['sender_phone']?:'-');
 
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit,$lang)),1);
@@ -4152,10 +4176,14 @@ function admin_search_tx() {
     if(!$ref) fail('Reference requise');
     $tx = q("SELECT t.*,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name, su.operator sender_operator,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name, ru.operator receiver_operator
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name, ru.operator receiver_operator,
+        sm.business_name sender_merchant_name, sm.phone_number sender_merchant_phone,
+        rm.business_name receiver_merchant_name, rm.phone_number receiver_merchant_phone
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE t.reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     ok(['transaction'=>$tx]);
@@ -4191,10 +4219,14 @@ function admin_search_tx_advanced() {
     $total = (int)q("SELECT COUNT(*) FROM transactions t WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT t.*,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
+        sm.business_name sender_merchant_name, sm.phone_number sender_merchant_phone,
+        rm.business_name receiver_merchant_name, rm.phone_number receiver_merchant_phone
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE $where ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
 
     ok(['transactions'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
@@ -4260,13 +4292,20 @@ function admin_search_by_phone() {
     $w = q("SELECT id,balance,vault_balance,vault_locked,vault_lock_date FROM wallets WHERE user_id=?",[$u['id']])->fetch();
     $wid = $w['id'] ?? null;
 
+    // Joint aussi merchant_wallets/merchants des deux cotes - un utilisateur
+    // personnel peut avoir paye ou ete paye par un marchand ; sans cette
+    // jointure ce cas affichait "-" au lieu du nom/numero du commerce.
     $rows = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+        ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
+        sm.business_name sender_merchant_name, sm.phone_number sender_merchant_phone,
+        rm.business_name receiver_merchant_name, rm.phone_number receiver_merchant_phone
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE (t.sender_wallet_id=? OR t.receiver_wallet_id=?) AND t.type!='fee'
         ORDER BY t.created_at DESC LIMIT 30",[$wid,$wid,$wid])->fetchAll();
 
@@ -4356,20 +4395,27 @@ function admin_merchant_search() {
     } catch(Exception $e) {
         $notes = [];
     }
-    // Transactions recentes de ce marchand (encaissements et virements), meme
-    // principe que admin_search_by_phone() cote personnel : direction calculee
-    // par rapport au merchant_wallet de ce marchand, contrepartie toujours un
-    // compte personnel (aucun flux marchand-vers-marchand dans l'app).
+    // Transactions recentes de ce marchand (encaissements et virements) :
+    // direction calculee par rapport au merchant_wallet de ce marchand.
+    // Joint aussi merchant_wallets/merchants des deux cotes (en plus des
+    // tables client) - depuis l'ajout du paiement marchand-a-marchand par QR
+    // (merchant_pay_merchant()), la contrepartie n'est plus forcement un
+    // compte personnel ; sans cette jointure le nom/telephone apparaissait a
+    // tort comme "-" quand un autre marchand payait ou etait paye.
     $mwid = $w['id'] ?? null;
     $txs = [];
     if($mwid){
         $txs = q("SELECT t.*,
             CASE WHEN t.sender_merchant_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
             su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
-            ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name
+            ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
+            sm.business_name sender_merchant_name, sm.phone_number sender_merchant_phone,
+            rm.business_name receiver_merchant_name, rm.phone_number receiver_merchant_phone
             FROM transactions t
             LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
             LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+            LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+            LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
             WHERE (t.sender_merchant_wallet_id=? OR t.receiver_merchant_wallet_id=?) AND t.type!='fee'
             ORDER BY t.created_at DESC LIMIT 30",[$mwid,$mwid,$mwid])->fetchAll();
     }
