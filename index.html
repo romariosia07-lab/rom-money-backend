@@ -8778,14 +8778,18 @@ function openEditProfile(){
 }
 
 
-// Balance display (nouvelle interface FCFA)
+// Balance display - devise du compte (APP.currency, definie a l'inscription
+// selon le pays choisi, ex: GHS pour le Ghana) et non "FCFA" fige, sinon un
+// compte hors zone XOF/XAF affiche a tort une devise qui n'est pas la sienne.
 function updateBalDisplay(){
   var el = document.getElementById('bal-disp');
   if(el){
+    var cur = APP.currency || 'XOF';
+    var suffix = (cur==='XOF' || cur==='XAF') ? 'FCFA' : cur;
     if(APP.balHidden){
-      el.innerHTML = '•••••<span class="bal-cur">FCFA</span>';
+      el.innerHTML = '•••••<span class="bal-cur">'+suffix+'</span>';
     } else {
-      el.innerHTML = new Intl.NumberFormat('fr-FR').format(Math.round(APP.balance)) + '<span class="bal-cur">FCFA</span>';
+      el.innerHTML = new Intl.NumberFormat('fr-FR').format(Math.round(APP.balance)) + '<span class="bal-cur">'+suffix+'</span>';
     }
   }
 };
