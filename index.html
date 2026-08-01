@@ -780,6 +780,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('announce')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_announce">Annonces</span></button>
       <button class="admin-tab-btn" onclick="adminTab('kyc')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_kyc">Identités</span><span id="admin-kyc-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('settings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_settings">⚙ Réglages</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('earnings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_earnings">💰 Gains ROM</span></button>
       <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_alerts">⚠ Alertes</span><span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
       <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span>Marchands</span></button>
@@ -928,6 +929,30 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <button onclick="adminToggleFxRatesList()" id="admin-fx-toggle-btn" style="background:none;border:1px solid var(--bord);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--t2);cursor:pointer;margin-bottom:8px" data-i18n-admin="admin_fx_show_details_btn">Afficher le détail des taux ▾</button>
         <div id="admin-fx-rates-box" style="margin-top:10px;display:none"></div>
       </div>
+    </div>
+
+    <div id="admin-panel-earnings" class="admin-panel" style="display:none">
+      <div class="admin-stitle" data-i18n-admin="admin_earnings_title">💰 Gains ROM</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_earnings_desc">Le compte système (0160629502) accumule tous les frais prélevés par la plateforme, comme un compte personnel classique. Aucun retrait bancaire réel n'est branché pour l'instant : transfère l'argent réel toi-même (Mobile Money), puis enregistre ici le montant retiré pour garder le solde à jour.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
+        <div id="earn-balance-box"></div>
+        <div id="earn-withdrawn-box"></div>
+      </div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_amount_label">Montant retiré</label><div class="amt-row"><input class="finput" id="earn-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
+        <select class="finput" id="earn-reason-sel" onchange="toggleReasonCustom('earn')">
+          <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
+          <option value="Retrait vers mon compte Mobile Money personnel" data-i18n-admin="admin_earnings_reason_momo">Retrait vers mon compte Mobile Money personnel</option>
+          <option value="Réinvestissement dans l'entreprise" data-i18n-admin="admin_earnings_reason_reinvest">Réinvestissement dans l'entreprise</option>
+          <option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>
+        </select>
+        <input class="finput" id="earn-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">
+      </div>
+      <button class="btn-g" onclick="adminEarningsWithdraw()" data-i18n-admin="admin_earnings_btn">Enregistrer un retrait</button>
+      <div id="earn-status-box" style="margin-top:12px"></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_earnings_history_title">Historique des retraits</div>
+      <div id="earn-history-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
 
     <div id="admin-panel-alerts" class="admin-panel" style="display:none">
@@ -1351,6 +1376,22 @@ var I18N = {
   admin_tab_announce: {fr:'Annonces', en:'Announcements'},
   admin_tab_kyc: {fr:'Identités', en:'Identities'},
   admin_tab_settings: {fr:'⚙ Réglages', en:'⚙ Settings'},
+  admin_tab_earnings: {fr:'💰 Gains ROM', en:'💰 ROM earnings'},
+  admin_earnings_title: {fr:'💰 Gains ROM', en:'💰 ROM earnings'},
+  admin_earnings_desc: {fr:"Le compte système (0160629502) accumule tous les frais prélevés par la plateforme, comme un compte personnel classique. Aucun retrait bancaire réel n'est branché pour l'instant : transfère l'argent réel toi-même (Mobile Money), puis enregistre ici le montant retiré pour garder le solde à jour.", en:"The system account (0160629502) accumulates all fees collected by the platform, like a regular personal account. No real bank withdrawal is wired up yet: transfer the real money yourself (Mobile Money), then record the withdrawn amount here to keep the balance accurate."},
+  admin_earnings_balance_label: {fr:'Solde actuel', en:'Current balance'},
+  admin_earnings_withdrawn_label: {fr:'Total retiré', en:'Total withdrawn'},
+  admin_earnings_amount_label: {fr:'Montant retiré', en:'Amount withdrawn'},
+  admin_earnings_reason_momo: {fr:'Retrait vers mon compte Mobile Money personnel', en:'Withdrawal to my personal Mobile Money account'},
+  admin_earnings_reason_reinvest: {fr:"Réinvestissement dans l'entreprise", en:'Reinvestment into the business'},
+  admin_earnings_btn: {fr:'Enregistrer un retrait', en:'Record a withdrawal'},
+  admin_earnings_history_title: {fr:'Historique des retraits', en:'Withdrawal history'},
+  admin_earnings_no_withdrawals: {fr:'Aucun retrait enregistré', en:'No withdrawals recorded'},
+  admin_earnings_confirm_title: {fr:'Enregistrer ce retrait ?', en:'Record this withdrawal?'},
+  admin_earnings_confirm_msg: {fr:'{amt} F sera déduit du solde du compte système. Assure-toi d\'avoir déjà transféré cet argent réellement de ton côté.', en:'{amt} F will be deducted from the system account balance. Make sure you have already transferred that real money on your end.'},
+  admin_earnings_success_toast: {fr:'Retrait enregistré', en:'Withdrawal recorded'},
+  admin_earnings_amount_invalid: {fr:'Montant invalide', en:'Invalid amount'},
+  admin_earnings_reason_required: {fr:'La raison est obligatoire', en:'Reason is required'},
   admin_tab_alerts: {fr:'⚠ Alertes', en:'⚠ Alerts'},
   admin_tab_users: {fr:'Utilisateurs', en:'Users'},
   admin_tab_account: {fr:'Compte', en:'Account'},
@@ -3612,7 +3653,7 @@ function adminReject(id){
 }
 
 function adminTab(name){
-  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','alerts','settings'].forEach(function(t){
+  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','alerts','settings','earnings'].forEach(function(t){
     var panel=document.getElementById('admin-panel-'+t);
     if(panel) panel.style.display=(t===name)?'block':'none';
   });
@@ -3631,6 +3672,7 @@ function adminTab(name){
   if(name==='merchants') adminLoadMerchants(1);
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
+  if(name==='earnings') adminLoadEarnings();
 }
 
 function adminResetPin(){
@@ -4906,6 +4948,64 @@ function adminSaveSettings(){
         if(res&&res.success){
           toast(at('admin_settings_updated_toast'));
           if(statusBox) statusBox.innerHTML='<div style="color:var(--g);font-size:12px">'+at('admin_saved_success')+'</div>';
+        } else {
+          toast((res&&res.message)||at('admin_error_generic'), true);
+        }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+// ADMIN - Gains ROM (compte systeme 0160629502) : consultation du solde
+// accumule par les frais de la plateforme + enregistrement manuel des
+// retraits reels faits en dehors de l'app (aucun partenaire bancaire/mobile
+// money reel n'est branche, voir admin_earnings_withdraw() cote backend).
+// ═══════════════════════════════════════════
+function adminLoadEarnings(){
+  var histBox = document.getElementById('earn-history-box');
+  var balBox = document.getElementById('earn-balance-box');
+  var wdBox = document.getElementById('earn-withdrawn-box');
+  if(histBox) histBox.innerHTML = '<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=earnings-summary','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var d=res.data;
+      if(balBox) balBox.innerHTML = adminStatBox(at('admin_earnings_balance_label'), fmt(d.balance), true);
+      if(wdBox) wdBox.innerHTML = adminStatBox(at('admin_earnings_withdrawn_label'), fmt(d.total_withdrawn), true);
+      var rows = d.withdrawals||[];
+      if(!histBox) return;
+      if(rows.length===0){
+        histBox.innerHTML = '<div class="admin-empty">'+at('admin_earnings_no_withdrawals')+'</div>';
+      } else {
+        histBox.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">'
+          +rows.map(function(w){
+            return '<div class="admin-tx-card"><div style="display:flex;justify-content:space-between"><b>'+fmt(parseFloat(w.amount))+'</b><span style="color:var(--t3);font-size:11px">'+new Date(w.created_at).toLocaleString()+'</span></div>'
+              +'<div style="color:var(--t3);margin-top:2px">'+adminEsc(w.description||'')+'</div>'
+              +'</div>';
+          }).join('')
+          +'</div>';
+      }
+    } else {
+      if(histBox) histBox.innerHTML = '<div class="admin-empty" style="color:var(--re)">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
+    }
+  }).catch(function(){ if(histBox) histBox.innerHTML = '<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminEarningsWithdraw(){
+  var amt = parseFloat(document.getElementById('earn-amt').value)||0;
+  var reason = getReasonValue('earn');
+  if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!reason){ toast(at('admin_earnings_reason_required'), true); return; }
+  adminOpenConfirmModal({
+    icon:'💰', title:at('admin_earnings_confirm_title'), message:at('admin_earnings_confirm_msg').replace('{amt}',fmt(amt)),
+    needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=earnings-withdraw','POST',{admin_password:window._adminPw,amount:amt,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(at('admin_earnings_success_toast'));
+          document.getElementById('earn-amt').value='';
+          resetReasonField('earn');
+          adminLoadEarnings();
         } else {
           toast((res&&res.message)||at('admin_error_generic'), true);
         }

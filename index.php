@@ -3764,8 +3764,55 @@ function route_admin($action) {
         'merchants-export-xlsx'    => admin_merchants_export_xlsx(),
         'merchants-export-pdf'     => admin_merchants_export_pdf(),
         'merchant-documents'       => admin_merchant_documents(),
+        'earnings-summary'         => admin_earnings_summary(),
+        'earnings-withdraw'        => admin_earnings_withdraw(),
         default             => fail('Action inconnue',404)
     };
+}
+
+// ============================================================
+// GAINS ROM — le compte systeme (0160629502, meme table users/wallets
+// qu'un compte personnel classique) accumule tous les frais preleves par
+// la plateforme (voir credit_merchant_fee() et les blocs de frais dans
+// tx_send()). Tant qu'aucun partenaire bancaire/mobile money reel n'est
+// integre (voir la suppression du module banque simule), le seul moyen
+// de "sortir" cet argent est manuel : l'admin transfere lui-meme l'argent
+// reel de son cote (via son propre Mobile Money), puis enregistre ici le
+// montant retire pour que le solde du compte systeme reste le reflet
+// honnete de ce qui n'a PAS encore ete retire - aucun vrai mouvement
+// bancaire n'est declenche par cette fonction.
+function admin_earnings_summary() {
+    $b = body();
+    check_admin_password($b);
+    $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
+    if(!$w) fail('Compte systeme introuvable (0160629502)',404);
+    $totalWithdrawn = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE sender_wallet_id=? AND type='manual_withdrawal' AND status='completed'",[$w['id']])->fetchColumn();
+    $withdrawals = q("SELECT id,amount,description,reference,created_at FROM transactions WHERE sender_wallet_id=? AND type='manual_withdrawal' AND status='completed' ORDER BY created_at DESC LIMIT 50",[$w['id']])->fetchAll();
+    ok(['balance'=>(float)$w['balance'],'total_withdrawn'=>$totalWithdrawn,'withdrawals'=>$withdrawals]);
+}
+
+function admin_earnings_withdraw() {
+    $b = body();
+    check_admin_password($b);
+    $amount = (float)($b['amount']??0);
+    $reason = trim($b['reason']??'');
+    if($amount<=0) fail('Montant invalide');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
+    if(!$w) fail('Compte systeme introuvable (0160629502)',404);
+    if((float)$w['balance'] < $amount) fail('Solde insuffisant sur le compte systeme');
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'manual_withdrawal','completed',?,?)",
+          [$txid,$w['id'],$amount,$reference,$reason]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$w['id'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        db()->commit();
+        admin_log('earnings_withdraw','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
+        ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'new_balance'=>$bal],'Retrait enregistre');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'enregistrement',500); }
 }
 
 // Capture automatiquement l'IP et l'appareil/navigateur (user-agent) sur
