@@ -2817,7 +2817,7 @@ function adminLoadDashboard(){
       }
 
       // ── Marchands ROM_BUSINESS (meme structure Aujourd'hui / Periode / Cumule que le bloc personnel ci-dessus) ──
-      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,today_volume:0,today_fees:0,today_count:0,period_volume:0,period_fees:0,period_count:0,top:[]};
+      var mrcStats=d.merchants||{total:0,verified:0,volume:0,fee_revenue:0,today_volume:0,today_fees:0,today_count:0,today_volume_from_merchants:0,today_count_from_merchants:0,period_volume:0,period_fees:0,period_count:0,period_volume_from_merchants:0,period_count_from_merchants:0,volume_from_merchants:0,top:[],top_from_merchants:[]};
       var mrcHtml='<div class="admin-stitle">Marchands ROM_BUSINESS</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">'
         +adminStatBox('Marchands', mrcStats.total, true)
@@ -2832,14 +2832,16 @@ function adminLoadDashboard(){
         +adminStatBox('Volume encaissé', fmt(mrcStats.today_volume), true)
         +adminStatBox('Gains générés', fmt(mrcStats.today_fees), true)
         +adminStatBox('Nombre de paiements', mrcStats.today_count, true)
+        +(mrcStats.today_volume_from_merchants>0 ? '<div style="font-size:10px;color:var(--t3);margin-top:-4px">dont '+fmt(mrcStats.today_volume_from_merchants)+' F reçu d\'autres marchands ('+mrcStats.today_count_from_merchants+')</div>' : '')
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.period_volume), true)
         +adminStatBox('Gains générés', fmt(mrcStats.period_fees), true)
         +adminStatBox('Nombre de paiements', mrcStats.period_count, true)
+        +(mrcStats.period_volume_from_merchants>0 ? '<div style="font-size:10px;color:var(--t3);margin-top:-4px">dont '+fmt(mrcStats.period_volume_from_merchants)+' F reçu d\'autres marchands ('+mrcStats.period_count_from_merchants+')</div>' : '')
         +'</div>'
         +'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé · '+fmt(mrcStats.fee_revenue)+' de gains générés</div>';
+        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé'+(mrcStats.volume_from_merchants>0?' (dont '+fmt(mrcStats.volume_from_merchants)+' entre marchands)':'')+' · '+fmt(mrcStats.fee_revenue)+' de gains générés</div>';
       var topMerchants=mrcStats.top||[];
       mrcHtml+='<div class="admin-stitle">Top 10 marchands</div>';
       if(topMerchants.length===0){
@@ -2847,6 +2849,21 @@ function adminLoadDashboard(){
       } else {
         mrcHtml+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
           +topMerchants.map(function(m,i){
+            return '<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenMerchantFromList(\''+m.phone_number+'\')">'
+              +'<div style="display:flex;justify-content:space-between"><b>#'+(i+1)+' '+m.business_name+(m.verified?' ✓':'')+'</b><span>'+fmt(parseFloat(m.total_volume))+'</span></div>'
+              +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+m.tx_count+' '+at('admin_dash_tx_count_suffix')+'</div>'
+              +'</div>';
+          }).join('')
+          +'</div>';
+      }
+      // Visible uniquement si des marchands recoivent effectivement d'autres
+      // marchands (cas rare) - permet de reperer un marchand dont le volume
+      // vient surtout d'autres marchands plutot que de vraies ventes clients.
+      var topMerchantsFromMerchants=mrcStats.top_from_merchants||[];
+      if(topMerchantsFromMerchants.length>0){
+        mrcHtml+='<div class="admin-stitle">Marchands recevant le plus d\'autres marchands</div>'
+          +'<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
+          +topMerchantsFromMerchants.map(function(m,i){
             return '<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenMerchantFromList(\''+m.phone_number+'\')">'
               +'<div style="display:flex;justify-content:space-between"><b>#'+(i+1)+' '+m.business_name+(m.verified?' ✓':'')+'</b><span>'+fmt(parseFloat(m.total_volume))+'</span></div>'
               +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+m.tx_count+' '+at('admin_dash_tx_count_suffix')+'</div>'

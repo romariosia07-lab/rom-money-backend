@@ -5072,12 +5072,35 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantVolumeToday = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
         $merchantFeeToday    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         $merchantCountToday  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
+        // Part recue d'un AUTRE MARCHAND (et non d'un client) - reconnaissable
+        // a sender_merchant_wallet_id non nul sur une transaction de type
+        // 'merchant_payment'. Affichee separement du volume total ci-dessus
+        // pour qu'un admin puisse reperer un marchand dont l'essentiel du
+        // volume vient d'autres marchands plutot que de vraies ventes clients
+        // (signal a surveiller, pas bloque automatiquement).
+        $merchantVolumeTodayFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantCountTodayFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
         $merchantVolumePeriod = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
         $merchantFeePeriod    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
+        $merchantVolumePeriodFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         // Cumule (depuis toujours), independant du filtre de periode.
         $merchantVolume    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
+        $merchantVolumeFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL")->fetchColumn();
+        // Classement des marchands recevant le plus d'un AUTRE marchand
+        // (et non de clients) - meme logique que topMerchants ci-dessous mais
+        // filtree sur les paiements inter-marchands uniquement.
+        $topMerchantsFromMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
+                COALESCE(SUM(t.amount),0) AS total_volume, COUNT(t.id) AS tx_count
+            FROM merchants m
+            JOIN merchant_wallets mw ON mw.merchant_id = m.id
+            JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment' AND t.sender_merchant_wallet_id IS NOT NULL
+            GROUP BY m.id, m.business_name, m.phone_number, m.verified
+            HAVING COALESCE(SUM(t.amount),0) > 0
+            ORDER BY total_volume DESC
+            LIMIT 10")->fetchAll();
         // Part du pot commun de frais generee specifiquement par BUSINESS : le
         // 1% preleve sur un virement marchand vers un numero autre que le sien
         // (voir merchant_withdraw()), reconnaissable a sender_merchant_wallet_id
@@ -5095,6 +5118,9 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $merchantFeeRevenue = 0; $topMerchants = [];
         $merchantVolumeToday = 0; $merchantFeeToday = 0; $merchantCountToday = 0;
         $merchantVolumePeriod = 0; $merchantFeePeriod = 0; $merchantCountPeriod = 0;
+        $merchantVolumeTodayFromMerchants = 0; $merchantCountTodayFromMerchants = 0;
+        $merchantVolumePeriodFromMerchants = 0; $merchantCountPeriodFromMerchants = 0;
+        $merchantVolumeFromMerchants = 0; $topMerchantsFromMerchants = [];
     }
 
     return [
@@ -5118,10 +5144,16 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             'today_volume' => $merchantVolumeToday,
             'today_fees'   => $merchantFeeToday,
             'today_count'  => $merchantCountToday,
+            'today_volume_from_merchants' => $merchantVolumeTodayFromMerchants,
+            'today_count_from_merchants'  => $merchantCountTodayFromMerchants,
             'period_volume' => $merchantVolumePeriod,
             'period_fees'   => $merchantFeePeriod,
             'period_count'  => $merchantCountPeriod,
-            'top'      => $topMerchants
+            'period_volume_from_merchants' => $merchantVolumePeriodFromMerchants,
+            'period_count_from_merchants'  => $merchantCountPeriodFromMerchants,
+            'volume_from_merchants' => $merchantVolumeFromMerchants,
+            'top'      => $topMerchants,
+            'top_from_merchants' => $topMerchantsFromMerchants
         ]
     ];
 }
