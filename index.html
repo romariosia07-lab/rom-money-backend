@@ -2000,8 +2000,8 @@ var I18N = {
   kyc_verified_suffix: {fr:' Compte Vérifié', en:' Verified Account'},
   kyc_unverified_suffix: {fr:' Non vérifié', en:' Not verified'},
 
-  send_label_gross: {fr:'Montant brut (F)', en:'Gross amount (F)'},
-  send_label_net: {fr:'Net reçu (F)', en:'Net received (F)'},
+  send_label_gross: {fr:'Montant brut', en:'Gross amount'},
+  send_label_net: {fr:'Net reçu', en:'Net received'},
   send_label_reason: {fr:'Motif (optionnel)', en:'Reason (optional)'},
   send_ph_reason: {fr:'Ex: Remboursement', en:'E.g: Refund'},
   send_searching: {fr:'Recherche...', en:'Searching...'},
@@ -6730,10 +6730,11 @@ function renderStatsChart(months){
   inner.innerHTML=html;
 
   // Axe des montants (gauche) - suit le defilement VERTICAL du graphique
+  var statCurSuffix=(APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency;
   var yHtml='<div style="position:relative;height:'+chartH+'px">';
   for(var g2=0; g2<=yMax; g2+=STEP){
     var gy2=chartH-(g2/STEP)*PXSTEP;
-    var lbl=g2>=1000000?(g2/1000000).toFixed(1)+'M F':g2>=1000?Math.round(g2/1000)+'k F':g2+' F';
+    var lbl=g2>=1000000?(g2/1000000).toFixed(1)+'M '+statCurSuffix:g2>=1000?Math.round(g2/1000)+'k '+statCurSuffix:g2+' '+statCurSuffix;
     yHtml+='<div style="position:absolute;left:0;right:4px;top:'+(gy2-6)+'px;text-align:right;font-size:9px;color:#9CA3AF;white-space:nowrap">'+lbl+'</div>';
   }
   yHtml+='</div>';
@@ -7524,9 +7525,10 @@ function shSend(b){
   h.push('</button></div></div>');
   // Two amount fields
   h.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">');
-  h.push('<div><label class="flabel">'+t('send_label_gross')+'</label>');
+  var sendCurSuffix=(APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency;
+  h.push('<div><label class="flabel">'+t('send_label_gross')+' ('+sendCurSuffix+')</label>');
   h.push('<input class="finput" id="sam" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFields(\'sam\',\'sam-net\',\'brut\',\'send-frais\')"></div>');
-  h.push('<div><label class="flabel">'+t('send_label_net')+'</label>');
+  h.push('<div><label class="flabel">'+t('send_label_net')+' ('+sendCurSuffix+')</label>');
   h.push('<input class="finput" id="sam-net" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFields(\'sam-net\',\'sam\',\'net\',\'send-frais\')"></div>');
   h.push('</div>');
   h.push('<div id="send-frais" style="margin-bottom:8px"></div>');
@@ -7896,9 +7898,9 @@ function handleScannedQR(text){
       +'</div>'
       // Two amount fields
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">'
-      +'<div><label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">'+t('send_label_gross')+'</label>'
+      +'<div><label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">'+t('send_label_gross')+' ('+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+')</label>'
       +'<input id="scan-amount" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFields(\'scan-amount\',\'scan-amount-net\',\'brut\',\'scan-frais\')" style="width:100%;padding:11px 12px;border:1.5px solid var(--bord);border-radius:10px;font-size:18px;font-weight:700;outline:none;color:var(--t1);box-sizing:border-box"></div>'
-      +'<div><label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">'+t('send_label_net')+'</label>'
+      +'<div><label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">'+t('send_label_net')+' ('+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+')</label>'
       +'<input id="scan-amount-net" type="number" inputmode="numeric" placeholder="0" oninput="syncFeeFields(\'scan-amount-net\',\'scan-amount\',\'net\',\'scan-frais\')" style="width:100%;padding:11px 12px;border:1.5px solid var(--bord);border-radius:10px;font-size:18px;font-weight:700;outline:none;color:var(--g);box-sizing:border-box"></div>'
       +'</div>'
       +'<div id="scan-frais" style="margin-bottom:10px"></div>'
