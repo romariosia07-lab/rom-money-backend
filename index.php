@@ -4386,7 +4386,7 @@ function admin_search_by_phone() {
 // Credite un compte personnel a des fins de TEST uniquement (aucun vrai
 // depot bancaire n'existe dans l'app, voir la suppression du module banque
 // simule). Reserve a l'admin - jamais expose aux utilisateurs. Raison
-// obligatoire journalisee, transaction clairement etiquetee "[TEST]" dans
+// obligatoire journalisee, transaction clairement etiquetee "ROM" dans
 // l'historique pour ne jamais etre confondue avec un vrai mouvement d'argent.
 function admin_test_credit_wallet() {
     $b = body();
@@ -4405,7 +4405,7 @@ function admin_test_credit_wallet() {
     try {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'admin_test_credit','completed',?,?)",
-          [$txid,$w['id'],$amount,$reference,'[TEST] '.$reason]);
+          [$txid,$w['id'],$amount,$reference,'ROM '.$reason]);
         q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amount,$w['id']]);
         db()->commit();
         admin_log('test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
