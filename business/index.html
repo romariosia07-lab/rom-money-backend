@@ -1269,7 +1269,7 @@ function renderTxRows(rows, containerId, stale){
     var isCredit = tx.direction==='credit';
     var isAnn = tx.status==='cancelled';
     var isFrozen = tx.status==='frozen';
-    var name = isCredit ? (tx.sender_verified_name||tx.sender_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||t('tx_type_transfer'));
+    var name = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||t('tx_type_transfer'));
     var ic = txIcon(tx);
     var d = new Date(tx.created_at);
     var typeLabel = txTypeLabel(tx);
@@ -1305,7 +1305,7 @@ function openReceipt(tx){
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   var d = new Date(tx.created_at);
   var dateStr = d.toLocaleDateString(loc)+' '+(APP.lang==='en'?'at':'à')+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
-  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||'—');
+  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—');
   var html = '<div style="text-align:center;padding:10px 0 18px">'
     +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(tx.amount)+' F</div>'
     +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
@@ -1328,7 +1328,7 @@ function shareReceiptPdf(tx){
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   var d = new Date(tx.created_at);
   var dateStr = d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'});
-  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.description||'—');
+  var counterName = isCredit ? (tx.sender_verified_name||tx.sender_name||tx.sender_merchant_name||tx.payer_name||t('label_client')) : (tx.receiver_verified_name||tx.receiver_name||tx.receiver_merchant_name||tx.description||'—');
   function buildF(ld){
     var jsPDF=window.jspdf?window.jspdf.jsPDF:null;
     if(!jsPDF){ toast(t('receipt_pdf_error'), true); return; }

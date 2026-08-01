@@ -1638,10 +1638,13 @@ function merchant_export_get_rows($pl, $period, $from=null, $to=null) {
     $sql = "SELECT t.*,
         CASE WHEN t.receiver_merchant_wallet_id=? THEN 'credit' ELSE 'debit' END as direction,
         su.full_name sender_name, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        ru.full_name receiver_name, ru.verified_name receiver_verified_name,
+        sm.business_name sender_merchant_name, rm.business_name receiver_merchant_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE $where ORDER BY t.created_at DESC LIMIT $LIMIT";
     $rows = q($sql, array_merge([$wid],$params))->fetchAll();
     return ['rows'=>$rows,'total'=>$total,'truncated'=>$total>$LIMIT,'limit'=>$LIMIT];
@@ -1667,7 +1670,7 @@ function merchant_export_xlsx() {
     foreach($rows as $t){
         $isCredit = $t['direction']==='credit';
         $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
-        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:'-');
+        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:'-');
         $data[] = [
             [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
             [ merchant_export_type_label($t['type'],$isCredit), 2, 's' ],
@@ -1736,7 +1739,7 @@ function merchant_export_pdf() {
     foreach($rows as $t){
         $isCredit = $t['direction']==='credit';
         $montant = $isCredit ? (float)$t['amount'] : -(float)$t['amount'];
-        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:'-');
+        $contact = $isCredit ? ($t['sender_verified_name']?:$t['sender_name']?:$t['sender_merchant_name']?:'-') : ($t['receiver_verified_name']?:$t['receiver_name']?:$t['receiver_merchant_name']?:'-');
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(merchant_export_type_label($t['type'],$isCredit)),1);
         $pdf->Cell($w[2],7,substr(pdf_str($contact),0,26),1);
@@ -1756,13 +1759,23 @@ function merchant_tx_history() {
     $pl = merchant_auth();
     $wid = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn();
     $limit = min((int)($_GET['limit'] ?? 20), 100);
+    // Joint aussi les tables marchand (en plus des tables client) pour
+    // resoudre le nom de l'autre partie quand c'est un paiement inter-marchand
+    // (voir merchant_pay_merchant()) - sans ca, un marchand qui en paie un
+    // autre apparaissait comme "Client" generique dans l'historique du
+    // receveur, faute de jointure sur merchant_wallets/merchants. Meme
+    // logique deja utilisee par admin_merchant_search_tx_advanced().
     $rows = q("SELECT t.*,
         CASE WHEN t.receiver_merchant_wallet_id=? THEN 'credit' ELSE 'debit' END as direction,
         su.full_name sender_name, su.verified_name sender_verified_name,
-        ru.full_name receiver_name, ru.verified_name receiver_verified_name
+        ru.full_name receiver_name, ru.verified_name receiver_verified_name,
+        sm.business_name sender_merchant_name, sm.verified sender_merchant_verified,
+        rm.business_name receiver_merchant_name, rm.verified receiver_merchant_verified
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE (t.sender_merchant_wallet_id=? OR t.receiver_merchant_wallet_id=?) AND t.type!='fee'
         ORDER BY t.created_at DESC LIMIT ?",[$wid,$wid,$wid,$limit])->fetchAll();
     ok(['transactions'=>$rows]);
