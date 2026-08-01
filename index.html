@@ -2806,11 +2806,9 @@ function adminLoadDashboard(){
         +adminStatBox(at('admin_dash_transactions'), d.today_count, true)
         +adminStatBox(at('admin_dash_volume'), fmt(d.today_volume), true)
         +adminStatBox(at('admin_dash_pending_kyc'), d.kyc_pending, true)
-        +adminStatBox(at('admin_dash_gains'), fmt(d.today_fees), true)
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
         +adminStatBox(at('admin_dash_volume'), fmt(d.period_volume), true)
-        +adminStatBox(at('admin_dash_gains'), fmt(d.period_fees), true)
         +'</div>'
         +'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">'+at('admin_dash_total_volume_note').replace('{amt}',fmt(d.total_volume))+'</div>';
@@ -2899,18 +2897,16 @@ function adminLoadDashboard(){
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:18px">'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.today_volume), true)
-        +adminStatBox('Gains générés', fmt(mrcStats.today_fees), true)
         +adminStatBox('Nombre de paiements', mrcStats.today_count, true)
         +(mrcStats.today_volume_from_merchants>0 ? '<div style="font-size:10px;color:var(--t3);margin-top:-4px">dont '+fmt(mrcStats.today_volume_from_merchants)+' reçu d\'autres marchands ('+mrcStats.today_count_from_merchants+')</div>' : '')
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
         +adminStatBox('Volume encaissé', fmt(mrcStats.period_volume), true)
-        +adminStatBox('Gains générés', fmt(mrcStats.period_fees), true)
         +adminStatBox('Nombre de paiements', mrcStats.period_count, true)
         +(mrcStats.period_volume_from_merchants>0 ? '<div style="font-size:10px;color:var(--t3);margin-top:-4px">dont '+fmt(mrcStats.period_volume_from_merchants)+' reçu d\'autres marchands ('+mrcStats.period_count_from_merchants+')</div>' : '')
         +'</div>'
         +'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé'+(mrcStats.volume_from_merchants>0?' (dont '+fmt(mrcStats.volume_from_merchants)+' entre marchands)':'')+' · '+fmt(mrcStats.fee_revenue)+' de gains générés</div>';
+        +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">Depuis toujours : '+fmt(mrcStats.volume)+' encaissé'+(mrcStats.volume_from_merchants>0?' (dont '+fmt(mrcStats.volume_from_merchants)+' entre marchands)':'')+'</div>';
       var topMerchants=mrcStats.top||[];
       mrcHtml+='<div class="admin-stitle">Top 10 marchands</div>';
       if(topMerchants.length===0){

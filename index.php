@@ -5221,11 +5221,9 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     return [
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
-        'today_fees'     => (float)$todayFees,
         'kyc_pending'    => (int)$kycPending,
         'period'         => $period,
         'period_volume'  => (float)$periodVolume,
-        'period_fees'    => (float)$periodFees,
         'operator_breakdown' => $operatorBreakdown,
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs,
@@ -5235,14 +5233,11 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             'total'    => $merchantsTotal,
             'verified' => $merchantsVerified,
             'volume'   => $merchantVolume,
-            'fee_revenue' => $merchantFeeRevenue,
             'today_volume' => $merchantVolumeToday,
-            'today_fees'   => $merchantFeeToday,
             'today_count'  => $merchantCountToday,
             'today_volume_from_merchants' => $merchantVolumeTodayFromMerchants,
             'today_count_from_merchants'  => $merchantCountTodayFromMerchants,
             'period_volume' => $merchantVolumePeriod,
-            'period_fees'   => $merchantFeePeriod,
             'period_count'  => $merchantCountPeriod,
             'period_volume_from_merchants' => $merchantVolumePeriodFromMerchants,
             'period_count_from_merchants'  => $merchantCountPeriodFromMerchants,
@@ -5415,10 +5410,8 @@ function admin_dashboard_export_xlsx() {
     $rows[] = [[ 'Resume', 5, 's' ]];
     $rows[] = [[ 'Transactions aujourd\'hui', 2, 's' ], [ $d['today_count'], 3, 'n' ]];
     $rows[] = [[ 'Volume aujourd\'hui', 2, 's' ], [ $d['today_volume'], 3, 'n' ]];
-    $rows[] = [[ 'Gains aujourd\'hui', 2, 's' ], [ $d['today_fees'], 3, 'n' ]];
     $rows[] = [[ 'KYC en attente', 2, 's' ], [ $d['kyc_pending'], 3, 'n' ]];
     $rows[] = [[ 'Volume periode ('.$d['period'].')', 2, 's' ], [ $d['period_volume'], 3, 'n' ]];
-    $rows[] = [[ 'Gains periode', 2, 's' ], [ $d['period_fees'], 3, 'n' ]];
     $rows[] = [[ 'Volume total cumule', 2, 's' ], [ $d['total_volume'], 3, 'n' ]];
     $rows[] = [];
 
@@ -5540,8 +5533,8 @@ function admin_dashboard_export_pdf() {
     $pdf->SetFont('Arial','B',11);
     $pdf->Cell(0,8,pdf_str('Resume'),0,1);
     $pdf->SetFont('Arial','',9);
-    $pdf->Cell(0,6,pdf_str('Transactions aujourd\'hui : '.$d['today_count'].'  -  Volume : '.number_format($d['today_volume'],0,',',' ').' F  -  Gains : '.number_format($d['today_fees'],0,',',' ').' F'),0,1);
-    $pdf->Cell(0,6,pdf_str('Periode ('.$d['period'].') : Volume '.number_format($d['period_volume'],0,',',' ').' F  -  Gains '.number_format($d['period_fees'],0,',',' ').' F'),0,1);
+    $pdf->Cell(0,6,pdf_str('Transactions aujourd\'hui : '.$d['today_count'].'  -  Volume : '.number_format($d['today_volume'],0,',',' ').' F'),0,1);
+    $pdf->Cell(0,6,pdf_str('Periode ('.$d['period'].') : Volume '.number_format($d['period_volume'],0,',',' ').' F'),0,1);
     $pdf->Cell(0,6,pdf_str('Volume total cumule : '.number_format($d['total_volume'],0,',',' ').' F  -  KYC en attente : '.$d['kyc_pending']),0,1);
     $pdf->Ln(4);
 
