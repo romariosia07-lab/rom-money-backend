@@ -1663,6 +1663,12 @@ var I18N = {
   admin_profile_section: {fr:'Profil', en:'Profile'},
   admin_wallet_section: {fr:'Portefeuille', en:'Wallet'},
   admin_balance_label: {fr:'Solde :', en:'Balance:'},
+  admin_test_credit_desc: {fr:"Crédit de TEST uniquement (aucun vrai dépôt bancaire n'existe) — à utiliser pour tester l'app, jamais pour un vrai utilisateur.", en:'TEST credit only (no real bank deposit exists) — use for testing the app, never for a real user.'},
+  admin_test_credit_amount_ph: {fr:'Montant à créditer', en:'Amount to credit'},
+  admin_test_credit_reason_ph: {fr:'Raison (obligatoire, journalisée)', en:'Reason (required, logged)'},
+  admin_test_credit_btn: {fr:'Créditer (test)', en:'Credit (test)'},
+  admin_test_credit_reason_required: {fr:'La raison est obligatoire', en:'Reason is required'},
+  admin_test_credit_success_toast: {fr:'Crédit de test effectué', en:'Test credit applied'},
   admin_vault_label: {fr:'Coffre :', en:'Vault:'},
   admin_vault_locked_until: {fr:'🔒 verrouillé jusqu\'au {date}', en:'🔒 locked until {date}'},
   admin_vault_locked: {fr:'🔒 verrouillé', en:'🔒 locked'},
@@ -4103,6 +4109,13 @@ function adminSearchByPhone(){
         +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:6px">'+at('admin_wallet_section')+'</div>'
         +'<b>'+at('admin_balance_label')+'</b> '+fmt(w.balance||0)+'<br>'
         +'<b>'+at('admin_vault_label')+'</b> '+fmt(w.vault_balance||0)+(w.vault_locked?' <span style="color:var(--am)">'+(w.vault_lock_date?at('admin_vault_locked_until').replace('{date}',w.vault_lock_date):at('admin_vault_locked'))+'</span>':'')
+        +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bord)">'
+        +'<div style="font-size:11px;color:var(--t3);margin-bottom:6px">'+at('admin_test_credit_desc')+'</div>'
+        +'<input class="finput" id="testcredit-amt" type="number" inputmode="numeric" placeholder="'+at('admin_test_credit_amount_ph')+'" style="margin-bottom:6px">'
+        +'<input class="finput" id="testcredit-reason" placeholder="'+at('admin_test_credit_reason_ph')+'" style="margin-bottom:6px">'
+        +'<button class="btn-w" style="margin-top:0" onclick="adminTestCreditWallet(\''+phone.replace(/'/g,"\\'")+'\')">'+at('admin_test_credit_btn')+'</button>'
+        +'<div id="testcredit-status" style="margin-top:6px"></div>'
+        +'</div>'
         +'</div>';
 
       // ── KYC (historique + photos) ──
@@ -4199,6 +4212,28 @@ function adminSearchByPhone(){
       box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+((res&&res.message)||at('admin_not_found'))+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div style="text-align:center;padding:16px;color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+// Credit de TEST uniquement (aucun vrai depot bancaire n'existe dans l'app) -
+// reserve a l'admin, jamais accessible aux utilisateurs. Rafraichit la fiche
+// compte apres succes pour montrer le nouveau solde immediatement.
+var _testCreditInFlight = false;
+function adminTestCreditWallet(phone){
+  if(_testCreditInFlight) return;
+  var amt = parseFloat(document.getElementById('testcredit-amt').value)||0;
+  var reason = document.getElementById('testcredit-reason').value.trim();
+  var statusEl = document.getElementById('testcredit-status');
+  if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!reason){ toast(at('admin_test_credit_reason_required'), true); return; }
+  _testCreditInFlight = true;
+  apiCall('/admin?action=test-credit-wallet','POST',{admin_password:window._adminPw,phone:phone,amount:amt,reason:reason},'').then(function(res){
+    _testCreditInFlight = false;
+    if(res&&res.success){
+      toast(at('admin_test_credit_success_toast'));
+      adminSearchByPhone();
+    } else {
+      if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
+    }
+  }).catch(function(){ _testCreditInFlight = false; if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

@@ -3750,6 +3750,7 @@ function route_admin($action) {
         'reset-pin'         => admin_reset_pin(),
         'search-tx'         => admin_search_tx(),
         'search-phone'      => admin_search_by_phone(),
+        'test-credit-wallet' => admin_test_credit_wallet(),
         'late-cancel'       => admin_late_cancel(),
         'audit-list'        => admin_audit_list(),
         'dashboard-stats'   => admin_dashboard_stats(),
@@ -4380,6 +4381,37 @@ function admin_search_by_phone() {
         'notes'=>$notes,
         'transactions'=>$rows
     ]);
+}
+
+// Credite un compte personnel a des fins de TEST uniquement (aucun vrai
+// depot bancaire n'existe dans l'app, voir la suppression du module banque
+// simule). Reserve a l'admin - jamais expose aux utilisateurs. Raison
+// obligatoire journalisee, transaction clairement etiquetee "[TEST]" dans
+// l'historique pour ne jamais etre confondue avec un vrai mouvement d'argent.
+function admin_test_credit_wallet() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    $amount = (float)($b['amount']??0);
+    $reason = trim($b['reason']??'');
+    if(!$phone) fail('Numero requis');
+    if($amount<=0) fail('Montant invalide');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Compte introuvable',404);
+    $w = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetch();
+    if(!$w) fail('Portefeuille introuvable',404);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'admin_test_credit','completed',?,?)",
+          [$txid,$w['id'],$amount,$reference,'[TEST] '.$reason]);
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amount,$w['id']]);
+        db()->commit();
+        admin_log('test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Credit de test effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec du credit',500); }
 }
 
 // Ajoute une note admin en texte libre sur un compte (contexte humain, pas
