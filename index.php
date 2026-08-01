@@ -3766,6 +3766,7 @@ function route_admin($action) {
         'merchant-documents'       => admin_merchant_documents(),
         'earnings-summary'         => admin_earnings_summary(),
         'earnings-withdraw'        => admin_earnings_withdraw(),
+        'earnings-cancel-withdrawal' => admin_earnings_cancel_withdrawal(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3819,6 +3820,31 @@ function admin_earnings_withdraw() {
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'new_balance'=>$bal],'Retrait enregistre');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'enregistrement',500); }
+}
+
+// Corrige une entree de retrait saisie par erreur (mauvais montant, faux
+// destinataire...) : recredite le compte systeme et marque l'entree comme
+// annulee. N'est PAS une annulation de mouvement bancaire reel (il n'y en a
+// jamais eu) - juste la correction d'une erreur de saisie dans ce journal.
+function admin_earnings_cancel_withdrawal() {
+    $b = body();
+    check_admin_password($b);
+    $txid = trim($b['transaction_id']??'');
+    $reason = trim($b['reason']??'');
+    if(!$txid) fail('ID requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $tx = q("SELECT t.*,w.id wid FROM transactions t JOIN wallets w ON t.sender_wallet_id=w.id WHERE t.id=? AND t.type='manual_withdrawal'",[$txid])->fetch();
+    if(!$tx) fail('Retrait introuvable',404);
+    if($tx['status']!=='completed') fail('Ce retrait n\'est pas au statut "completed" (deja annule)');
+    db()->beginTransaction();
+    try {
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$tx['amount'],$tx['wid']]);
+        q("UPDATE transactions SET status='cancelled', cancelled_at=NOW(), cancel_reason=? WHERE id=?",[$reason,$txid]);
+        db()->commit();
+        admin_log('earnings_withdraw_cancel','success',null,dk('d_ref_with_reason', ['ref'=>$tx['reference'], 'reason'=>$reason]));
+        $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$tx['wid']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Retrait annule, solde recredite');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500); }
 }
 
 // Capture automatiquement l'IP et l'appareil/navigateur (user-agent) sur

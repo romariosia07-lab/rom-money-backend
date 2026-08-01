@@ -939,7 +939,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="earn-withdrawn-box"></div>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_amount_label">Montant retiré</label><div class="amt-row"><input class="finput" id="earn-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>
-      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_label">Destinataire (obligatoire)</label><input class="finput" id="earn-recipient" placeholder="Ex: Mon Orange Money 07 00 00 00 00" data-i18n-admin-ph="admin_earnings_recipient_ph"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_label">Destinataire (obligatoire)</label><input class="finput" id="earn-recipient" placeholder="Ex: Orange Money / MTN / Moov 07xx, ou mon compte bancaire" data-i18n-admin-ph="admin_earnings_recipient_ph"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="earn-reason-sel" onchange="toggleReasonCustom('earn')">
           <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
@@ -1384,7 +1384,7 @@ var I18N = {
   admin_earnings_withdrawn_label: {fr:'Total retiré', en:'Total withdrawn'},
   admin_earnings_amount_label: {fr:'Montant retiré', en:'Amount withdrawn'},
   admin_earnings_recipient_label: {fr:'Destinataire (obligatoire)', en:'Recipient (required)'},
-  admin_earnings_recipient_ph: {fr:'Ex: Mon Orange Money 07 00 00 00 00', en:'E.g: My Orange Money 07 00 00 00 00'},
+  admin_earnings_recipient_ph: {fr:'Ex: Orange Money / MTN / Moov 07xx, ou mon compte bancaire', en:'E.g: Orange Money / MTN / Moov 07xx, or my bank account'},
   admin_earnings_recipient_required: {fr:'Le destinataire est obligatoire', en:'Recipient is required'},
   admin_earnings_reason_momo: {fr:'Retrait vers mon compte Mobile Money personnel', en:'Withdrawal to my personal Mobile Money account'},
   admin_earnings_reason_reinvest: {fr:"Réinvestissement dans l'entreprise", en:'Reinvestment into the business'},
@@ -1396,6 +1396,11 @@ var I18N = {
   admin_earnings_success_toast: {fr:'Retrait enregistré', en:'Withdrawal recorded'},
   admin_earnings_amount_invalid: {fr:'Montant invalide', en:'Invalid amount'},
   admin_earnings_reason_required: {fr:'La raison est obligatoire', en:'Reason is required'},
+  admin_earnings_cancel_btn: {fr:'Annuler ce retrait', en:'Cancel this withdrawal'},
+  admin_earnings_cancel_confirm_title: {fr:'Annuler ce retrait ?', en:'Cancel this withdrawal?'},
+  admin_earnings_cancel_confirm_msg: {fr:'Le montant sera recrédité sur le solde du compte système. À utiliser uniquement pour corriger une erreur de saisie (pas un vrai mouvement bancaire à annuler).', en:'The amount will be credited back to the system account balance. Use this only to fix a data-entry mistake (not to reverse a real bank movement).'},
+  admin_earnings_cancel_confirm_btn: {fr:'Annuler le retrait', en:'Cancel withdrawal'},
+  admin_earnings_cancel_success_toast: {fr:'Retrait annulé, solde recrédité', en:'Withdrawal cancelled, balance credited back'},
   admin_tab_alerts: {fr:'⚠ Alertes', en:'⚠ Alerts'},
   admin_tab_users: {fr:'Utilisateurs', en:'Users'},
   admin_tab_account: {fr:'Compte', en:'Account'},
@@ -4985,6 +4990,7 @@ function adminLoadEarnings(){
           +rows.map(function(w){
             return '<div class="admin-tx-card"><div style="display:flex;justify-content:space-between"><b>'+fmt(parseFloat(w.amount))+'</b><span style="color:var(--t3);font-size:11px">'+new Date(w.created_at).toLocaleString()+'</span></div>'
               +'<div style="color:var(--t3);margin-top:2px">'+adminEsc(w.description||'')+'</div>'
+              +'<div style="text-align:right;margin-top:4px"><span onclick="adminCancelEarningsWithdrawal(\''+w.id+'\')" style="color:var(--re);font-size:11px;cursor:pointer">'+at('admin_earnings_cancel_btn')+'</span></div>'
               +'</div>';
           }).join('')
           +'</div>';
@@ -5021,6 +5027,27 @@ function adminEarningsWithdraw(){
           toast((res&&res.message)||at('admin_error_generic'), true);
         }
       }).catch(function(){ _earningsWithdrawInFlight = false; toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
+
+var _earningsCancelInFlight = false;
+function adminCancelEarningsWithdrawal(txid){
+  if(_earningsCancelInFlight) return;
+  adminOpenConfirmModal({
+    icon:'🗑', title:at('admin_earnings_cancel_confirm_title'), message:at('admin_earnings_cancel_confirm_msg'),
+    needsReason:true, confirmLabel:at('admin_earnings_cancel_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      _earningsCancelInFlight = true;
+      apiCall('/admin?action=earnings-cancel-withdrawal','POST',{admin_password:window._adminPw,transaction_id:txid,reason:reason},'').then(function(res){
+        _earningsCancelInFlight = false;
+        if(res&&res.success){
+          toast(at('admin_earnings_cancel_success_toast'));
+          adminLoadEarnings();
+        } else {
+          toast((res&&res.message)||at('admin_error_generic'), true);
+        }
+      }).catch(function(){ _earningsCancelInFlight = false; toast(at('admin_dash_error_network'), true); });
     }
   });
 }
