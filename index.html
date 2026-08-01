@@ -971,6 +971,23 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
         <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_earnings_history_title">Historique des retraits</div>
         <div id="earn-history-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
+
+        <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_earnings_fees_title">Répartition des gains par période</div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
+          <select class="finput" id="earn-fees-period" onchange="adminToggleEarnFeesCustomDates()">
+            <option value="today" data-i18n-admin="admin_period_today">Aujourd'hui</option>
+            <option value="7d" data-i18n-admin="admin_period_7d">7 derniers jours</option>
+            <option value="month" data-i18n-admin="admin_period_month">Ce mois-ci</option>
+            <option value="all" data-i18n-admin="admin_period_all">Tout</option>
+            <option value="custom" data-i18n-admin="admin_period_custom">Personnalisé</option>
+          </select>
+        </div>
+        <div id="earn-fees-custom-dates" style="display:none;gap:10px;margin-bottom:14px">
+          <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_from">Date de début</label><input class="finput" type="date" id="earn-fees-date-from"></div>
+          <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_to">Date de fin</label><input class="finput" type="date" id="earn-fees-date-to"></div>
+        </div>
+        <button class="btn-g" style="margin-bottom:16px" onclick="adminLoadEarnFeesBreakdown()" data-i18n-admin="admin_btn_apply">Appliquer</button>
+        <div id="earn-fees-box" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
       </div>
     </div>
 
@@ -1427,6 +1444,9 @@ var I18N = {
   admin_earnings_cancel_confirm_msg: {fr:'Le montant sera recrédité sur le solde du compte système. À utiliser uniquement pour corriger une erreur de saisie (pas un vrai mouvement bancaire à annuler).', en:'The amount will be credited back to the system account balance. Use this only to fix a data-entry mistake (not to reverse a real bank movement).'},
   admin_earnings_cancel_confirm_btn: {fr:'Annuler le retrait', en:'Cancel withdrawal'},
   admin_earnings_cancel_success_toast: {fr:'Retrait annulé, solde recrédité', en:'Withdrawal cancelled, balance credited back'},
+  admin_earnings_fees_title: {fr:'Répartition des gains par période', en:'Earnings breakdown by period'},
+  admin_earnings_fees_rommoney_label: {fr:'Gains ROM_MONEY', en:'ROM_MONEY earnings'},
+  admin_earnings_fees_rombusiness_label: {fr:'Gains ROM_BUSINESS (marchands)', en:'ROM_BUSINESS earnings (merchants)'},
   admin_tab_alerts: {fr:'⚠ Alertes', en:'⚠ Alerts'},
   admin_tab_users: {fr:'Utilisateurs', en:'Users'},
   admin_tab_account: {fr:'Compte', en:'Account'},
@@ -5033,11 +5053,37 @@ function adminUnlockEarnings(){
     }
   }).catch(function(){ if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:12px">'+at('admin_dash_error_network')+'</div>'; });
 }
+function adminToggleEarnFeesCustomDates(){
+  var sel=document.getElementById('earn-fees-period').value;
+  document.getElementById('earn-fees-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
+}
+function adminLoadEarnFeesBreakdown(){
+  var box = document.getElementById('earn-fees-box');
+  if(!window._earningsPw || !box) return;
+  var period = document.getElementById('earn-fees-period').value;
+  var payload = {admin_password:window._adminPw,earnings_password:window._earningsPw,period:period};
+  if(period==='custom'){
+    var df=document.getElementById('earn-fees-date-from').value, dt=document.getElementById('earn-fees-date-to').value;
+    if(!df||!dt){ toast(at('admin_dash_select_dates'), true); return; }
+    payload.date_from=df; payload.date_to=dt;
+  }
+  box.innerHTML = '<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=earnings-fees-stats','POST',payload,'').then(function(res){
+    if(res&&res.success&&res.data){
+      var d=res.data;
+      box.innerHTML = adminStatBox(at('admin_earnings_fees_rommoney_label'), fmt(d.personal_fees), true)
+        + adminStatBox(at('admin_earnings_fees_rombusiness_label'), fmt(d.merchant_fees), true);
+    } else {
+      box.innerHTML = '<div class="admin-empty" style="color:var(--re)">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
+    }
+  }).catch(function(){ box.innerHTML = '<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
 function adminLoadEarnings(){
   var histBox = document.getElementById('earn-history-box');
   var balBox = document.getElementById('earn-balance-box');
   var wdBox = document.getElementById('earn-withdrawn-box');
   if(!window._earningsPw) return;
+  adminLoadEarnFeesBreakdown();
   if(histBox) histBox.innerHTML = '<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=earnings-summary','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw},'').then(function(res){
     if(res&&res.success&&res.data){

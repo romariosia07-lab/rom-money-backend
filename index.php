@@ -3803,6 +3803,7 @@ function route_admin($action) {
         'earnings-summary'         => admin_earnings_summary(),
         'earnings-withdraw'        => admin_earnings_withdraw(),
         'earnings-cancel-withdrawal' => admin_earnings_cancel_withdrawal(),
+        'earnings-fees-stats' => admin_earnings_fees_stats(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -3890,6 +3891,43 @@ function admin_earnings_cancel_withdrawal() {
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$tx['wid']])->fetchColumn();
         ok(['new_balance'=>$bal],'Retrait annule, solde recredite');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500); }
+}
+
+// Meme resolution de periode que admin_dashboard_get_data() (dupliquee ici
+// plutot que partagee, pour ne pas toucher a une fonction du dashboard
+// deja en production) mais separe explicitement les frais personnels
+// (sender_wallet_id) des frais marchands (sender_merchant_wallet_id) - le
+// dashboard commun ne fait actuellement que les additionner.
+function admin_earnings_fees_breakdown($period, $dateFrom, $dateTo) {
+    $where = "status='completed' AND type='fee'";
+    $params = [];
+    if ($period==='7d') {
+        $where .= " AND created_at >= NOW() - INTERVAL '7 days'";
+    } elseif ($period==='month') {
+        $where .= " AND created_at >= date_trunc('month', CURRENT_DATE)";
+    } elseif ($period==='custom' && $dateFrom!=='' && $dateTo!=='') {
+        $where .= " AND created_at >= ? AND created_at <= ?";
+        $params[] = $dateFrom.' 00:00:00';
+        $params[] = $dateTo.' 23:59:59';
+    } elseif ($period==='all') {
+        // pas de condition supplementaire
+    } else {
+        $period = 'today';
+        $where .= " AND created_at >= CURRENT_DATE";
+    }
+    $personalFees = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND sender_wallet_id IS NOT NULL", $params)->fetchColumn();
+    $merchantFees = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+    return ['period'=>$period,'personal_fees'=>$personalFees,'merchant_fees'=>$merchantFees,'total_fees'=>$personalFees+$merchantFees];
+}
+
+function admin_earnings_fees_stats() {
+    $b = body();
+    check_admin_password($b);
+    check_earnings_password($b);
+    $period = trim($b['period'] ?? 'today');
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    ok(admin_earnings_fees_breakdown($period, $dateFrom, $dateTo));
 }
 
 // Capture automatiquement l'IP et l'appareil/navigateur (user-agent) sur
