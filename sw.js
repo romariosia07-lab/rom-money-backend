@@ -10,7 +10,7 @@
 // reussi, donc pas de version figee : toujours la derniere connue.
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rommoney-shell-v12';
+var CACHE_NAME = 'rommoney-shell-v13';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './header-bg.jpg',
   './icon-envoyer.png', './icon-payer.png', './icon-encaisser.png',
@@ -87,16 +87,34 @@ self.addEventListener('fetch', function(event){
   // cache:'reload' force une revalidation reseau complete, sans jamais
   // accepter la copie HTTP locale du navigateur - necessaire pour le CODE de
   // l'app (index.html/manifest), qui doit toujours refleter le dernier
-  // deploiement. Applique uniquement a ces deux-la : le forcer aussi sur les
-  // images (favicon, icones, logo, header) ne fait que ralentir chaque
-  // ouverture de l'app pour un gain nul (ces images changent rarement, et le
-  // numero de cache ci-dessus - CACHE_NAME - suffit deja a les rafraichir
-  // quand elles changent vraiment).
+  // deploiement.
   var isCodeShell = req.mode === 'navigate' || url.pathname.endsWith('index.html') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('/');
-  var fetchOpts = isCodeShell ? {cache:'reload'} : {};
+
+  if(!isCodeShell){
+    // Images/bibliotheques CDN : cache-first (avec revalidation en arriere
+    // plan), contrairement au code ci-dessous qui reste reseau-prioritaire.
+    // Attendre systematiquement un aller-retour reseau avant d'afficher une
+    // icone deja en cache donnait l'impression qu'elle "chargeait
+    // progressivement" a chaque ouverture au lieu d'apparaitre instantanement
+    // - ces images changent rarement, et CACHE_NAME suffit deja a les
+    // rafraichir quand elles changent vraiment.
+    event.respondWith(
+      caches.match(req).then(function(cached){
+        var network = fetch(req).then(function(res){
+          if(res && (res.type==='opaque' || (res.ok && res.status===200))){
+            var resClone = res.clone();
+            caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+          }
+          return res;
+        }).catch(function(){ return cached; });
+        return cached || network;
+      })
+    );
+    return;
+  }
 
   event.respondWith(
-    fetch(req, fetchOpts).then(function(res){
+    fetch(req, {cache:'reload'}).then(function(res){
       // Ne met en cache que les reponses completes et valides (200 OK pour
       // le meme-origine, ou opaque pour les CDN cross-origine sans header
       // CORS explicite). Une coupure reseau en plein telechargement peut

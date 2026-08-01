@@ -493,6 +493,7 @@ var I18N = {
   paylink_share_btn:{fr:'Partager le lien',en:'Share link'},
   paylink_share_text:{fr:'Voici le lien pour votre paiement',en:'Here is the link for your payment'},
   paylink_copied:{fr:'Lien copié !',en:'Link copied!'},
+  paylink_shared_toast:{fr:'Lien partagé !',en:'Link shared!'},
   scan_point_qr:{fr:'Visez le QR personnel du client',en:"Aim at the customer's personal QR"},
   enc_err_amount:{fr:'Entrez un montant',en:'Enter an amount'},
   camera_denied:{fr:'Accès caméra refusé',en:'Camera access denied'},
@@ -1737,9 +1738,28 @@ function showPaymentLinkResult(id, amt, motif){
     +'<button onclick="document.getElementById(\'enc-result\').style.display=\'none\';document.getElementById(\'enc-result\').innerHTML=\'\'" style="width:100%;padding:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('close')+'</button>'
     +'</div>';
 }
+// Garde-fou contre les appuis multiples : appeler navigator.share() une
+// deuxieme fois pendant qu'un premier partage est encore en cours declenche
+// une InvalidStateError silencieuse (le .catch() vide l'avalait sans aucun
+// retour visuel), donnant l'impression que le bouton ne reagit pas et
+// poussant a re-appuyer plusieurs fois. On bloque les appels concurrents et
+// on affiche toujours un retour (succes, copie, ou erreur reelle).
+var _sharingPaymentLink = false;
 function sharePaymentLink(url){
+  if(_sharingPaymentLink) return;
   if(navigator.share){
-    navigator.share({title:'ROM_MONEY', text:t('paylink_share_text'), url:url}).catch(function(){});
+    _sharingPaymentLink = true;
+    navigator.share({title:'ROM_MONEY', text:t('paylink_share_text'), url:url})
+      .then(function(){ toast(t('paylink_shared_toast')); })
+      .catch(function(e){
+        if(e && e.name==='AbortError') return; // l'utilisateur a ferme le tiroir de partage, rien a signaler
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(url).then(function(){ toast(t('paylink_copied')); }).catch(function(){ toast(url); });
+        } else {
+          toast(url);
+        }
+      })
+      .then(function(){ _sharingPaymentLink = false; });
   } else if(navigator.clipboard){
     navigator.clipboard.writeText(url).then(function(){ toast(t('paylink_copied')); }).catch(function(){ toast(url); });
   } else {

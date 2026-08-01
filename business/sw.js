@@ -8,7 +8,7 @@
 // rapides (les forcer aussi ralentirait l'app pour rien).
 // ═══════════════════════════════════════════
 
-var CACHE_NAME = 'rombiz-shell-v8';
+var CACHE_NAME = 'rombiz-shell-v9';
 var SHELL_FILES = ['./', './index.html', './manifest.json',
   './favicon.png', './apple-touch-icon.png', './logo.jpg',
   './icon-encaisser.png', './icon-envoyer.png', './wallet-icon.jpg',
@@ -66,10 +66,30 @@ self.addEventListener('fetch', function(event){
   if(!isShellRequest) return;
 
   var isCodeShell = req.mode === 'navigate' || url.pathname.endsWith('index.html') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('/');
-  var fetchOpts = isCodeShell ? {cache:'reload'} : {};
+
+  if(!isCodeShell){
+    // Images/bibliotheques CDN : cache-first (avec revalidation en arriere
+    // plan). Le reseau-prioritaire utilise pour le code ci-dessous les ferait
+    // toujours attendre un aller-retour reseau avant de s'afficher meme quand
+    // la version est deja en cache - d'ou l'impression d'icones qui "chargent
+    // progressivement" a chaque ouverture au lieu d'apparaitre instantanement.
+    event.respondWith(
+      caches.match(req).then(function(cached){
+        var network = fetch(req).then(function(res){
+          if(res && (res.type==='opaque' || (res.ok && res.status===200))){
+            var resClone = res.clone();
+            caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+          }
+          return res;
+        }).catch(function(){ return cached; });
+        return cached || network;
+      })
+    );
+    return;
+  }
 
   event.respondWith(
-    fetch(req, fetchOpts).then(function(res){
+    fetch(req, {cache:'reload'}).then(function(res){
       if(res && (res.type==='opaque' || (res.ok && res.status===200))){
         var resClone = res.clone();
         caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
