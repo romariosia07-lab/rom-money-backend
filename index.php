@@ -10,6 +10,12 @@ define('DB_PASS',    getenv('DB_PASS')    ?: '');
 define('DB_PORT',    getenv('DB_PORT')    ?: '5432');
 define('JWT_SECRET', getenv('JWT_SECRET') ?: null);
 define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
+// Code distinct de ADMIN_PASSWORD, connu uniquement du proprietaire : plusieurs
+// personnes peuvent se connecter avec le mot de passe admin partage sans pour
+// autant devoir voir les gains/retraits personnels du proprietaire. Optionnel
+// (contrairement a JWT_SECRET/ADMIN_PASSWORD) - si non configuree, l'onglet
+// Gains ROM refuse simplement l'acces plutot que d'etre ouvert a tous.
+define('EARNINGS_PASSWORD', getenv('EARNINGS_PASSWORD') ?: null);
 // Aucune valeur de repli codee en dur pour ces deux secrets : un secret
 // visible dans le code source (donc dans l'historique Git, ici public)
 // n'est plus un secret. Si l'une de ces deux variables d'environnement
@@ -2923,6 +2929,36 @@ function check_admin_password_str($pw) {
     }
 }
 
+// Meme logique anti-devinette que admin_bruteforce_check(), mais comptee
+// separement (action='earnings_login') pour ne pas partager son compteur
+// avec le mot de passe admin partage.
+function earnings_bruteforce_check() {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $maxAttempts = (int)get_setting('admin_bf_max_attempts', 3);
+    $blockMinutes = (int)get_setting('admin_bf_block_minutes', 60);
+    $row = q("SELECT COUNT(*) c FROM audit_logs
+              WHERE action='earnings_login' AND result='failed' AND ip_address=?
+              AND created_at > NOW() - (?::text || ' minutes')::interval",
+              [$ip, $blockMinutes])->fetch();
+    if($row && (int)$row['c'] >= $maxAttempts) {
+        fail('Trop de tentatives echouees depuis cette adresse. Reessayez dans '.$blockMinutes.' minutes.', 429);
+    }
+}
+// Second verrou, INDEPENDANT du mot de passe admin partage : un admin qui
+// connait ADMIN_PASSWORD peut gerer le reste de l'app mais reste bloque ici
+// tant qu'il ne connait pas aussi EARNINGS_PASSWORD (connu du seul
+// proprietaire). Echoue explicitement si la variable n'est pas configuree,
+// plutot que de laisser passer par defaut.
+function check_earnings_password($b) {
+    earnings_bruteforce_check();
+    if(!EARNINGS_PASSWORD) fail('EARNINGS_PASSWORD non configuree sur Render.',500);
+    $pw = (string)($b['earnings_password'] ?? '');
+    if(!hash_equals(EARNINGS_PASSWORD, $pw)) {
+        admin_log('earnings_login','failed',null,dk('d_wrong_password'));
+        fail('Code Gains ROM incorrect',401);
+    }
+}
+
 // ============================================================
 // 2FA ADMIN (TOTP, RFC 6238) — meme principe que Google Authenticator /
 // Authy. Implemente ici a la main (pas de librairie externe / Composer,
@@ -3785,6 +3821,7 @@ function route_admin($action) {
 function admin_earnings_summary() {
     $b = body();
     check_admin_password($b);
+    check_earnings_password($b);
     $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
     if(!$w) fail('Compte systeme introuvable (0160629502)',404);
     $totalWithdrawn = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE sender_wallet_id=? AND type='manual_withdrawal' AND status='completed'",[$w['id']])->fetchColumn();
@@ -3795,6 +3832,7 @@ function admin_earnings_summary() {
 function admin_earnings_withdraw() {
     $b = body();
     check_admin_password($b);
+    check_earnings_password($b);
     $amount = (float)($b['amount']??0);
     $recipientType = trim($b['recipient_type']??'');
     $recipient = trim($b['recipient']??'');
@@ -3835,6 +3873,7 @@ function admin_earnings_withdraw() {
 function admin_earnings_cancel_withdrawal() {
     $b = body();
     check_admin_password($b);
+    check_earnings_password($b);
     $txid = trim($b['transaction_id']??'');
     $reason = trim($b['reason']??'');
     if(!$txid) fail('ID requis');
