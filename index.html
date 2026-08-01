@@ -939,6 +939,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="earn-withdrawn-box"></div>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_amount_label">Montant retiré</label><div class="amt-row"><input class="finput" id="earn-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_earnings_recipient_label">Destinataire (obligatoire)</label><input class="finput" id="earn-recipient" placeholder="Ex: Mon Orange Money 07 00 00 00 00" data-i18n-admin-ph="admin_earnings_recipient_ph"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>
         <select class="finput" id="earn-reason-sel" onchange="toggleReasonCustom('earn')">
           <option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>
@@ -1382,6 +1383,9 @@ var I18N = {
   admin_earnings_balance_label: {fr:'Solde actuel', en:'Current balance'},
   admin_earnings_withdrawn_label: {fr:'Total retiré', en:'Total withdrawn'},
   admin_earnings_amount_label: {fr:'Montant retiré', en:'Amount withdrawn'},
+  admin_earnings_recipient_label: {fr:'Destinataire (obligatoire)', en:'Recipient (required)'},
+  admin_earnings_recipient_ph: {fr:'Ex: Mon Orange Money 07 00 00 00 00', en:'E.g: My Orange Money 07 00 00 00 00'},
+  admin_earnings_recipient_required: {fr:'Le destinataire est obligatoire', en:'Recipient is required'},
   admin_earnings_reason_momo: {fr:'Retrait vers mon compte Mobile Money personnel', en:'Withdrawal to my personal Mobile Money account'},
   admin_earnings_reason_reinvest: {fr:"Réinvestissement dans l'entreprise", en:'Reinvestment into the business'},
   admin_earnings_btn: {fr:'Enregistrer un retrait', en:'Record a withdrawal'},
@@ -4991,25 +4995,32 @@ function adminLoadEarnings(){
   }).catch(function(){ if(histBox) histBox.innerHTML = '<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 
+var _earningsWithdrawInFlight = false;
 function adminEarningsWithdraw(){
+  if(_earningsWithdrawInFlight) return;
   var amt = parseFloat(document.getElementById('earn-amt').value)||0;
+  var recipient = document.getElementById('earn-recipient').value.trim();
   var reason = getReasonValue('earn');
   if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!recipient){ toast(at('admin_earnings_recipient_required'), true); return; }
   if(!reason){ toast(at('admin_earnings_reason_required'), true); return; }
   adminOpenConfirmModal({
     icon:'💰', title:at('admin_earnings_confirm_title'), message:at('admin_earnings_confirm_msg').replace('{amt}',fmt(amt)),
     needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
     onConfirm:function(){
-      apiCall('/admin?action=earnings-withdraw','POST',{admin_password:window._adminPw,amount:amt,reason:reason},'').then(function(res){
+      _earningsWithdrawInFlight = true;
+      apiCall('/admin?action=earnings-withdraw','POST',{admin_password:window._adminPw,amount:amt,recipient:recipient,reason:reason},'').then(function(res){
+        _earningsWithdrawInFlight = false;
         if(res&&res.success){
           toast(at('admin_earnings_success_toast'));
           document.getElementById('earn-amt').value='';
+          document.getElementById('earn-recipient').value='';
           resetReasonField('earn');
           adminLoadEarnings();
         } else {
           toast((res&&res.message)||at('admin_error_generic'), true);
         }
-      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+      }).catch(function(){ _earningsWithdrawInFlight = false; toast(at('admin_dash_error_network'), true); });
     }
   });
 }

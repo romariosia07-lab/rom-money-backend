@@ -3795,21 +3795,27 @@ function admin_earnings_withdraw() {
     $b = body();
     check_admin_password($b);
     $amount = (float)($b['amount']??0);
+    $recipient = trim($b['recipient']??'');
     $reason = trim($b['reason']??'');
     if($amount<=0) fail('Montant invalide');
+    if(!$recipient) fail('Le destinataire est obligatoire (journalise)');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
     if(!$w) fail('Compte systeme introuvable (0160629502)',404);
     if((float)$w['balance'] < $amount) fail('Solde insuffisant sur le compte systeme');
+    // Destinataire et raison stockes ensemble dans description (seul champ
+    // texte libre disponible sur transactions) - affiches tels quels dans
+    // l'historique admin, pas besoin d'une colonne dediee pour ce volume.
+    $description = 'Vers : '.$recipient.' — '.$reason;
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,sender_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'manual_withdrawal','completed',?,?)",
-          [$txid,$w['id'],$amount,$reference,$reason]);
+          [$txid,$w['id'],$amount,$reference,$description]);
         $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$w['id'],$amount])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
         db()->commit();
-        admin_log('earnings_withdraw','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
+        admin_log('earnings_withdraw','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$description]));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'new_balance'=>$bal],'Retrait enregistre');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'enregistrement',500); }
