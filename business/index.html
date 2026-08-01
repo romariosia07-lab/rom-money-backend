@@ -515,8 +515,6 @@ var I18N = {
   vir_label_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
   vir_fee_prompt:{fr:'Entrez un numéro et un montant pour voir les frais.',en:'Enter a phone number and amount to see the fees.'},
   vir_free_own:{fr:'Gratuit — vers votre propre numéro ROM_MONEY.',en:'Free — to your own ROM_MONEY number.'},
-  vir_is_merchant_label:{fr:'compte marchand',en:'business account'},
-  vir_merchant_free:{fr:'Gratuit — paiement vers un autre marchand.',en:'Free — payment to another business.'},
   vir_fee_paid:{fr:'Frais 1% : {fee} F — total débité {total} F.',en:'1% fee: {fee} F — total debited {total} F.'},
   vir_err_phone:{fr:'Numéro requis',en:'Phone number required'},
   err_amount_invalid:{fr:'Montant invalide',en:'Invalid amount'},
@@ -524,6 +522,11 @@ var I18N = {
   vir_success_suffix:{fr:' F envoyé',en:' F sent'},
   vir_fee_suffix:{fr:' (frais: {fee} F)',en:' (fee: {fee} F)'},
   vir_err_generic:{fr:'Échec du virement',en:'Transfer failed'},
+  mqr_tab_myqr:{fr:'Mon QR',en:'My QR'},
+  mqr_tab_pay:{fr:'Payer un marchand',en:'Pay a merchant'},
+  mqr_pay_desc:{fr:'Scannez le QR du marchand à payer',en:'Scan the QR of the merchant to pay'},
+  mqr_pay_confirm_btn:{fr:'Payer',en:'Pay'},
+  merchant_pay_success_suffix:{fr:'payé à',en:'paid to'},
   vir_own_account:{fr:'Mon compte',en:'My account'},
   vir_other_account:{fr:'Autre compte',en:'Other account'},
   vir_contacts_unsupported:{fr:'Sélection de contact non supportée sur cet appareil',en:'Contact picker not supported on this device'},
@@ -1440,7 +1443,14 @@ function buildSheet(type, b, extra){
 function shMonQr(b){
   var b1='flex:1;padding:11px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit';
   var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
-  b.innerHTML='<div class="qr-real-card">'
+  var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
+  var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
+  b.innerHTML='<div style="display:flex;gap:0;background:#f4f4f4;border-radius:12px;padding:3px;margin-bottom:16px">'
+    +'<button id="mqr-tab-qr" onclick="switchMqrTab(\'qr\')" style="'+s1+'">'+t('mqr_tab_myqr')+'</button>'
+    +'<button id="mqr-tab-pay" onclick="switchMqrTab(\'pay\')" style="'+s2+'">'+t('mqr_tab_pay')+'</button>'
+    +'</div>'
+    +'<div id="mqr-qr-view">'
+    +'<div class="qr-real-card">'
     +'<div class="qr-real-card-brand">'
     +'<img src="./icon-96.png" class="qr-real-card-icon" alt="ROM_BUSINESS">'
     +'<div><div class="qr-real-card-tagline">'+t('mqr_pay_with')+'</div><div class="qr-real-card-brandname">ROM_<span>BUSINESS</span></div>'
@@ -1453,8 +1463,124 @@ function shMonQr(b){
     +'<div style="display:flex;gap:10px">'
     +'<button style="'+b1+'" onclick="imprimerMonQR()">'+t('mqr_print')+'</button>'
     +'<button style="'+b2+'" onclick="showQrFullscreen()">'+t('mqr_fullscreen')+'</button>'
-    +'</div>';
+    +'</div>'
+    +'</div>'
+    +'<div id="mqr-pay-view" style="display:none"></div>';
   setTimeout(function(){ drawMerchantQR('mqr-box', 160); }, 50);
+}
+function switchMqrTab(tab){
+  var qrV=document.getElementById('mqr-qr-view'), payV=document.getElementById('mqr-pay-view');
+  var tQ=document.getElementById('mqr-tab-qr'), tP=document.getElementById('mqr-tab-pay');
+  var sOn='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--gdd);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
+  var sOff='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
+  if(!qrV||!payV||!tQ||!tP) return;
+  if(tab==='qr'){
+    qrV.style.display='block'; payV.style.display='none';
+    tQ.style.cssText=sOn; tP.style.cssText=sOff;
+    stopMerchantPayScan();
+  } else {
+    qrV.style.display='none'; payV.style.display='block';
+    tQ.style.cssText=sOff; tP.style.cssText=sOn;
+    renderMqrPayView();
+  }
+}
+// ── PAYER UN MARCHAND (scan de son QR uniquement, jamais par numero - voir
+// resolveVirPhone()/doVirement() : un numero peut porter a la fois un
+// compte personnel et un compte marchand, seul le QR identifie sans
+// ambiguite lequel des deux on vise). Meme frais que n'importe quel
+// encaissement marchand : gratuit pour le payeur, frais eventuel preleve
+// du cote du marchand receveur une fois son cumul du jour depasse.
+var mqrPayStream=null, mqrPayRAF=null;
+function stopMerchantPayScan(){
+  if(mqrPayRAF){ cancelAnimationFrame(mqrPayRAF); mqrPayRAF=null; }
+  if(mqrPayStream){ mqrPayStream.getTracks().forEach(function(t){ t.stop(); }); mqrPayStream=null; }
+}
+function renderMqrPayView(){
+  var payV=document.getElementById('mqr-pay-view');
+  if(!payV) return;
+  payV.innerHTML='<div style="font-size:12px;color:var(--t2);text-align:center;margin-bottom:14px">'+t('mqr_pay_desc')+'</div>'
+    +'<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
+    +'<video id="mqrpay-vid" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
+    +'<canvas id="mqrpay-canvas" style="display:none"></canvas>'
+    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
+    +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
+    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('scan_point_qr')+'</p>'
+    +torchToggleBtnHtml('torch-mqrpay')
+    +'</div>'
+    +'<div id="mqrpay-result" style="margin-top:12px"></div>';
+  startMqrPayScan();
+}
+function startMqrPayScan(){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
+    mqrPayStream=stream;
+    var v=document.getElementById('mqrpay-vid');
+    if(!v) return;
+    v.srcObject=stream;
+    v.play().then(function(){ mqrPayScanLoop(); torchCheckAndShow(stream,'torch-mqrpay'); });
+  }).catch(function(){ toast(t('camera_denied'), true); });
+}
+function mqrPayScanLoop(){
+  if(!mqrPayStream) return;
+  var v=document.getElementById('mqrpay-vid');
+  var c=document.getElementById('mqrpay-canvas');
+  if(!v||!c||v.readyState<2){ mqrPayRAF=requestAnimationFrame(mqrPayScanLoop); return; }
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  var ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(v,0,0);
+  try{
+    var img=ctx.getImageData(0,0,c.width,c.height);
+    var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
+    if(code && code.data){ stopMerchantPayScan(); onMqrPayScanned(code.data); return; }
+  }catch(e){}
+  mqrPayRAF=requestAnimationFrame(mqrPayScanLoop);
+}
+function onMqrPayScanned(text){
+  var result=document.getElementById('mqrpay-result');
+  if(!result) return;
+  result.innerHTML='<div style="text-align:center;padding:16px"><div style="width:28px;height:28px;border:3px solid var(--gl);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 8px"></div><div style="font-size:12px;color:var(--t2)">'+t('identifying')+'</div></div>';
+  apiCall('/merchant?action=resolve-merchant-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      window._mqrPayTarget = res.data;
+      renderMqrPayAmountForm(res.data);
+    } else {
+      result.innerHTML='<div style="text-align:center;padding:16px;background:var(--rl);border-radius:12px">'
+        +'<div style="font-size:28px;margin-bottom:8px">⚠️</div>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--rd)">'+adminEscBiz((res&&res.message)||t('account_not_found'))+'</div></div>'
+        +'<button onclick="renderMqrPayView()" style="width:100%;padding:12px;background:var(--gl);border:.5px solid var(--gm);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gdd);font-family:inherit;margin-top:10px">'+t('scan_again')+'</button>';
+    }
+  }).catch(function(){
+    result.innerHTML='<div style="font-size:12px;color:var(--rd);text-align:center;padding:12px">'+t('network_error')+'</div>';
+  });
+}
+function renderMqrPayAmountForm(m){
+  var result=document.getElementById('mqrpay-result');
+  if(!result) return;
+  result.innerHTML = '<div style="background:var(--gl);border-radius:14px;padding:14px;border:.5px solid var(--gm)">'
+    +'<div style="font-size:14px;font-weight:800;color:var(--t1);margin-bottom:10px">'+adminEscBiz(m.business_name)+(m.verified?' ✓':'')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="mqrpay-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('motif_label')+'</label><input class="finput" id="mqrpay-motif" placeholder="'+t('motif_ph')+'"></div>'
+    +'<button onclick="doMqrPay()" class="btn-g">'+t('mqr_pay_confirm_btn')+'</button>'
+    +'<button onclick="renderMqrPayView()" style="width:100%;padding:10px;margin-top:8px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('scan_again')+'</button>'
+    +'</div>';
+}
+function doMqrPay(){
+  var m = window._mqrPayTarget;
+  if(!m) return;
+  var amt=parseFloat(document.getElementById('mqrpay-amt').value)||0;
+  var motifEl=document.getElementById('mqrpay-motif');
+  var motif=motifEl?motifEl.value.trim():'';
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
+    apiCall('/merchant?action=pay-merchant','POST',{merchant_id:m.id,amount:amt,pin:PIN_MEM,description:motif},getToken()).then(function(res){
+      if(res && res.success){
+        APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
+        closeSheet();
+        toast(fmt(amt)+' '+t('merchant_pay_success_suffix')+' '+(res.data.receiver_name||m.business_name)+' !');
+      } else {
+        toast((res&&res.message)||t('vir_err_generic'), true);
+      }
+    });
+  });
 }
 function imprimerMonQR(){
   var tmpDiv=document.createElement('div');
@@ -1785,41 +1911,33 @@ function virPickContact(){
 // l'auth marchand via l'endpoint merchant_resolve_payer() (deja utilise
 // pour Encaisser). Reste silencieux (pas de toast) si rien n'est trouve :
 // le champ vide suffit, la validation reelle se fait au moment d'Envoyer.
+// "Envoyer" ne vise QUE des comptes personnels (merchant_withdraw) - un
+// paiement vers un AUTRE marchand se fait exclusivement par scan de son QR
+// (voir "Payer un marchand" dans Mon QR), jamais par numero de telephone.
+// Raison : un meme numero peut porter a la fois un compte personnel et un
+// compte marchand, donc deviner l'un ou l'autre a partir du seul numero
+// serait ambigu et risquerait d'envoyer l'argent au mauvais endroit.
 function resolveVirPhone(){
   var input=document.getElementById('vir-phone');
   var rn=document.getElementById('vir-rn');
   if(!input||!rn) return;
   var phone=input.value.trim();
-  window._virIsMerchant=false;
-  if(phone.length<8){ rn.textContent=''; updateVirFee(); return; }
+  if(phone.length<8){ rn.textContent=''; return; }
   rn.textContent=t('send_searching');
-  // resolve-recipient (contrairement a resolve-payer, reserve a Encaisser)
-  // cherche aussi bien un compte personnel qu'un autre marchand : le
-  // destinataire d'un virement peut etre l'un ou l'autre, contrairement a
-  // un encaissement qui ne peut venir que d'un client personnel.
-  apiCall('/merchant?action=resolve-recipient&phone='+encodeURIComponent(phone),'GET',null,getToken())
+  apiCall('/merchant?action=resolve-payer&phone='+encodeURIComponent(phone),'GET',null,getToken())
     .then(function(res){
       if(res && res.success && res.data){
-        window._virIsMerchant=!!res.data.is_merchant;
-        rn.textContent=(res.data.full_name||phone)+(res.data.is_merchant?' ('+t('vir_is_merchant_label')+')':(res.data.is_verified?' ✓':''));
+        rn.textContent=(res.data.full_name||phone)+(res.data.is_verified?' ✓':'');
       } else {
         rn.textContent='';
       }
-      updateVirFee();
-    }).catch(function(){ rn.textContent=''; updateVirFee(); });
+    }).catch(function(){ rn.textContent=''; });
 }
 function updateVirFee(){
   var phone=document.getElementById('vir-phone').value.trim();
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   var el=document.getElementById('vir-fee');
   if(!phone||amt<=0){ el.className='fee-note'; el.textContent=t('vir_fee_prompt'); return; }
-  if(window._virIsMerchant){
-    // Paiement inter-marchand : le payeur ne paie jamais de frais - le frais
-    // eventuel (si le marchand receveur depasse son plafond gratuit du jour)
-    // est preleve de son cote, invisible pour le payeur.
-    el.className='fee-note free'; el.textContent=t('vir_merchant_free');
-    return;
-  }
   var isOwn = phone===APP.phone;
   if(isOwn){ el.className='fee-note free'; el.textContent=t('vir_free_own'); }
   else { el.className='fee-note paid'; el.textContent=t('vir_fee_paid').replace('{fee}',fmt(Math.round(amt*0.01))).replace('{total}',fmt(amt+Math.round(amt*0.01))); }
@@ -1829,14 +1947,12 @@ function doVirement(){
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   if(!phone){ toast(t('vir_err_phone'), true); return; }
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
-  var isMerchant=window._virIsMerchant;
-  var action=isMerchant?'pay-merchant':'withdraw';
   requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
-    apiCall('/merchant?action='+action,'POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+    apiCall('/merchant?action=withdraw','POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
       if(res && res.success){
         APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
         closeSheet();
-        toast(fmt(amt)+t('vir_success_suffix')+(!isMerchant&&res.data.fee>0?t('vir_fee_suffix').replace('{fee}',fmt(res.data.fee)):'')+' !');
+        toast(fmt(amt)+t('vir_success_suffix')+(res.data.fee>0?t('vir_fee_suffix').replace('{fee}',fmt(res.data.fee)):'')+' !');
       } else {
         toast((res&&res.message)||t('vir_err_generic'), true);
       }

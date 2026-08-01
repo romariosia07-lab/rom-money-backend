@@ -1163,7 +1163,7 @@ function route_merchant($action) {
         'collect'            => merchant_collect(),
         'withdraw'           => merchant_withdraw(),
         'pay-merchant'       => merchant_pay_merchant(),
-        'resolve-recipient'  => merchant_resolve_recipient(),
+        'resolve-merchant-qr' => merchant_resolve_merchant_qr(),
         'create-payment-link' => merchant_create_payment_link(),
         'cancel-payment-link' => merchant_cancel_payment_link(),
         'list-payment-links'  => merchant_list_payment_links(),
@@ -1306,28 +1306,6 @@ function merchant_resolve_payer() {
         'is_verified'=>!empty($u['verified_name'])]);
 }
 
-// Resolution du destinataire pour "Envoyer" (virement) : contrairement a
-// merchant_resolve_payer() (reserve a Encaisser, ou seul un compte
-// personnel peut payer le marchand), ici le destinataire peut etre soit un
-// compte personnel (merchant_withdraw), soit un autre marchand
-// (merchant_pay_merchant) - is_merchant indique au frontend quelle action
-// appeler et quel libelle afficher.
-function merchant_resolve_recipient() {
-    merchant_auth();
-    $phone = $_GET['phone']??'';
-    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
-    $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE phone_number=?",[$phone])->fetch();
-    if($u){
-        ok(['full_name'=>$u['verified_name']?:$u['full_name'],'phone_number'=>$u['phone_number'],
-            'is_verified'=>!empty($u['verified_name']),'is_merchant'=>false]);
-    }
-    $m = q("SELECT business_name FROM merchants WHERE phone_number=?",[$phone])->fetch();
-    if($m){
-        ok(['full_name'=>$m['business_name'],'phone_number'=>$phone,'is_verified'=>false,'is_merchant'=>true]);
-    }
-    fail('Aucun compte trouve',404);
-}
-
 function merchant_collect() {
     $pl = merchant_auth(); $b = body();
     $payerPhone = trim($b['payer_phone']??'');
@@ -1436,26 +1414,33 @@ function merchant_withdraw() {
 // client normal (meme cumul quotidien, meme seuil, meme table
 // transactions type='merchant_payment' pour que ca compte bien dans son
 // cumul du jour et s'affiche correctement dans son historique).
+// Paiement d'un marchand vers un autre, uniquement via le scan du QR du
+// marchand receveur (voir merchant_resolve_merchant_qr()) - PAS par numero
+// de telephone. Raison : un meme numero peut porter a la fois un compte
+// personnel et un compte marchand (design assume ailleurs dans l'app), donc
+// resoudre "Envoyer" par numero serait ambigu (impossible de savoir avec
+// certitude si l'expediteur visait la personne ou son commerce). Le QR
+// encode directement l'identifiant du marchand, sans ambiguite possible.
 function merchant_pay_merchant() {
     $pl = merchant_auth(); $b = body();
-    $toPhone = trim($b['phone'] ?? '');
+    $merchantId = trim($b['merchant_id'] ?? '');
     $amount = (float)($b['amount'] ?? 0);
     $pin = trim($b['pin'] ?? '');
     $desc = trim($b['description'] ?? '');
-    if(!preg_match('/^\+?[0-9]{8,15}$/',preg_replace('/[\s\-]/','', $toPhone))) fail('Numero invalide');
+    if(!$merchantId) fail('Marchand requis');
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
 
     $m = q("SELECT * FROM merchants WHERE id=?",[$pl['sub']])->fetch();
     merchant_pin_check($pl['sub'], $pin, $m['pin_hash']);
-    if($toPhone === $m['phone_number']) fail('Impossible de vous payer vous-meme');
+    if($merchantId === $pl['sub']) fail('Impossible de vous payer vous-meme');
 
     $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
     if(!$mw) fail('Portefeuille marchand introuvable',404);
 
-    $recvM = q("SELECT * FROM merchants WHERE phone_number=?",[$toPhone])->fetch();
+    $recvM = q("SELECT * FROM merchants WHERE id=?",[$merchantId])->fetch();
     if(!$recvM) fail('Marchand introuvable',404);
-    $recvMw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$recvM['id']])->fetch();
+    $recvMw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$merchantId])->fetch();
     if(!$recvMw) fail('Marchand introuvable',404);
 
     if((float)$mw['balance'] < $amount) fail('Solde insuffisant');
@@ -1838,6 +1823,24 @@ function wallet_resolve_merchant_qr() {
     if(!$qr) fail('QR requis');
     $parts = explode('|',$qr);
     if(count($parts)<3 || $parts[0]!=='M') fail('QR invalide');
+    $m = q("SELECT m.id,m.business_name,m.location_type,m.verified FROM merchants m JOIN merchant_wallets mw ON mw.merchant_id=m.id WHERE m.id=? AND mw.qr_seed=?",[$parts[1],$parts[2]])->fetch();
+    if(!$m) fail('QR invalide',404);
+    $m['verified'] = (bool)($m['verified']??false);
+    ok($m,'Marchand trouve');
+}
+
+// Equivalent de wallet_resolve_merchant_qr() mais pour un MARCHAND qui
+// scanne le QR d'un AUTRE marchand (paiement inter-marchand, voir
+// merchant_pay_merchant()) - merchant_auth() au lieu de auth(), sinon
+// identique. Empeche aussi un marchand de "se payer" en scannant son
+// propre QR.
+function merchant_resolve_merchant_qr() {
+    $pl = merchant_auth();
+    $qr = $_GET['qr'] ?? '';
+    if(!$qr) fail('QR requis');
+    $parts = explode('|',$qr);
+    if(count($parts)<3 || $parts[0]!=='M') fail('QR invalide');
+    if($parts[1]===$pl['sub']) fail('Vous ne pouvez pas vous payer vous-meme');
     $m = q("SELECT m.id,m.business_name,m.location_type,m.verified FROM merchants m JOIN merchant_wallets mw ON mw.merchant_id=m.id WHERE m.id=? AND mw.qr_seed=?",[$parts[1],$parts[2]])->fetch();
     if(!$m) fail('QR invalide',404);
     $m['verified'] = (bool)($m['verified']??false);
