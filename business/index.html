@@ -522,6 +522,7 @@ var I18N = {
   vir_success_suffix:{fr:' F envoyé',en:' F sent'},
   vir_fee_suffix:{fr:' (frais: {fee} F)',en:' (fee: {fee} F)'},
   vir_err_generic:{fr:'Échec du virement',en:'Transfer failed'},
+  vir_scan_qr_btn:{fr:'Scanner un QR',en:'Scan a QR'},
   mqr_tab_myqr:{fr:'Mon QR',en:'My QR'},
   mqr_tab_pay:{fr:'Payer un marchand',en:'Pay a merchant'},
   mqr_pay_desc:{fr:'Scannez le QR du marchand à payer',en:'Scan the QR of the merchant to pay'},
@@ -1874,19 +1875,84 @@ function doEncaisserWithPin(phone, name, pin){
 
 // ── VIREMENT ──
 function shVirement(b){
-  var chipStyle='flex:1;padding:11px;display:flex;align-items:center;justify-content:center;gap:6px';
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee();resolveVirPhone()"></div>'
+  var chipStyle='flex:1;min-width:88px;padding:10px 6px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px';
+  b.innerHTML='<div id="vir-form-view">'
+    +'<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee();resolveVirPhone()"></div>'
     +'<div id="vir-rn" style="font-size:13px;font-weight:700;color:var(--g);margin:-10px 0 12px;min-height:16px"></div>'
-    +'<div style="display:flex;gap:8px;margin:-8px 0 16px">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:-8px 0 16px">'
     +'<button class="chip" style="'+chipStyle+'" onclick="virFillOwnNumber()">'+t('vir_own_account')+'</button>'
     +'<button class="chip" style="'+chipStyle+'" onclick="virPickContact()">'
     +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
     +t('vir_other_account')
     +'</button>'
+    +'<button class="chip" style="'+chipStyle+'" onclick="startVirScan()">📷 '+t('vir_scan_qr_btn')+'</button>'
     +'</div>'
     +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">F</span></div></div>'
     +'<div id="vir-fee" class="fee-note">'+t('vir_fee_prompt')+'</div>'
-    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">'+t('qa_envoyer')+'</button>';
+    +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">'+t('qa_envoyer')+'</button>'
+    +'</div>'
+    +'<div id="vir-scan-view" style="display:none"></div>';
+}
+// ── Scan du QR personnel du client comme raccourci de saisie pour "Envoyer"
+// (en plus du numero tape a la main ou choisi via les contacts). Remplit
+// simplement le champ #vir-phone puis revient au formulaire habituel - le
+// reste du parcours (frais, PIN) est inchange. Meme format de QR personnel
+// que celui deja lu par onEncaisserScanned() ("P|...|telephone" ou juste
+// le numero brut).
+var virScanStream=null, virScanRAF=null;
+function stopVirScan(){
+  if(virScanRAF){ cancelAnimationFrame(virScanRAF); virScanRAF=null; }
+  if(virScanStream){ virScanStream.getTracks().forEach(function(t){ t.stop(); }); virScanStream=null; }
+}
+function cancelVirScan(){
+  stopVirScan();
+  var formV=document.getElementById('vir-form-view'), scanV=document.getElementById('vir-scan-view');
+  if(formV) formV.style.display='block';
+  if(scanV){ scanV.style.display='none'; scanV.innerHTML=''; }
+}
+function startVirScan(){
+  var formV=document.getElementById('vir-form-view'), scanV=document.getElementById('vir-scan-view');
+  if(!formV||!scanV) return;
+  formV.style.display='none'; scanV.style.display='block';
+  scanV.innerHTML='<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
+    +'<video id="vir-scan-vid" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
+    +'<canvas id="vir-scan-canvas" style="display:none"></canvas>'
+    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
+    +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
+    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('scan_point_qr')+'</p>'
+    +torchToggleBtnHtml('torch-virscan')
+    +'</div>'
+    +'<button onclick="cancelVirScan()" style="width:100%;padding:10px;margin-top:10px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('cancel')+'</button>';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
+    virScanStream=stream;
+    var v=document.getElementById('vir-scan-vid');
+    if(!v){ stream.getTracks().forEach(function(t){t.stop();}); return; }
+    v.srcObject=stream;
+    v.play().then(function(){ virScanLoop(); torchCheckAndShow(stream,'torch-virscan'); });
+  }).catch(function(){ toast(t('camera_denied'), true); cancelVirScan(); });
+}
+function virScanLoop(){
+  if(!virScanStream) return;
+  var v=document.getElementById('vir-scan-vid');
+  var c=document.getElementById('vir-scan-canvas');
+  if(!v||!c||v.readyState<2){ virScanRAF=requestAnimationFrame(virScanLoop); return; }
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  var ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(v,0,0);
+  try{
+    var img=ctx.getImageData(0,0,c.width,c.height);
+    var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
+    if(code && code.data){ stopVirScan(); onVirQrScanned(code.data); return; }
+  }catch(e){}
+  virScanRAF=requestAnimationFrame(virScanLoop);
+}
+function onVirQrScanned(text){
+  var parts=text.split('|');
+  var phone = parts.length===3 ? parts[2] : text.replace(/\s/g,'');
+  if(!phone || phone.length<8){ toast(t('qr_not_recognized'), true); cancelVirScan(); return; }
+  cancelVirScan();
+  var input=document.getElementById('vir-phone');
+  if(input){ input.value=phone; updateVirFee(); resolveVirPhone(); }
 }
 function virFillOwnNumber(){
   var input=document.getElementById('vir-phone');
