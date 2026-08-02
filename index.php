@@ -5791,6 +5791,12 @@ function admin_update_country() {
     }
     $oldCountry = $u['country'];
     q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
+    // La devise du portefeuille est deduite du pays uniquement a l'inscription
+    // (country_to_currency()) - sans cette mise a jour ici, corriger le pays
+    // d'un compte laissait sa devise desynchronisee (ex: pays change vers le
+    // Ghana mais portefeuille reste en XOF), rouvrant exactement le genre de
+    // bug de conversion Transfert Afrique qu'on vient de corriger.
+    q("UPDATE wallets SET currency=? WHERE user_id=?",[country_to_currency($country),$u['id']]);
     admin_log('update_country','success',$phone,dk('d_country_changed', ['old'=>($oldCountry?:'-'), 'new'=>$country, 'reason'=>$reason]));
     ok(null,'Pays mis a jour avec succes');
 }
