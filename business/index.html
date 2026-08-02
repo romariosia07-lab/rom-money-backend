@@ -1350,12 +1350,18 @@ function shareReceiptPdf(tx){
     doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(8,80,65);
     doc.text(t('receipt_pdf_title'),cx,y,{align:'center'});y+=7;
     if(tx.reference){ doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('receipt_ref_prefix')+tx.reference,cx,y,{align:'center'});y+=5; }
+    // Format manuel (point comme separateur de milliers), pas fmt() : la
+    // police de base jsPDF ("helvetica") ne sait pas afficher l'espace fine
+    // insecable qu'utilise Intl.NumberFormat('fr-FR'), ce qui produisait un
+    // "/" errone a la place (ex: "3/000 F" au lieu de "3 000 F").
+    var pdfCurSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
+    function pdfFmt(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
     doc.setFont('helvetica','bold');doc.setFontSize(20);
     doc.setTextColor(isCredit?34:220,isCredit?139:50,isCredit?34:50);
-    doc.text(sign+fmt(displayAmt)+' FCFA',cx,y+5,{align:'center'});y+=13;
+    doc.text(sign+pdfFmt(displayAmt)+' '+pdfCurSuffix,cx,y+5,{align:'center'});y+=13;
     doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
     var rows=[[t('receipt_row_date'),dateStr],[t('receipt_row_shop'),APP.businessName||''],[isCredit?t('label_client'):t('label_recipient'),counterName],[t('receipt_type'),txTypeLabel(tx)]];
-    if(feeAmt>0) rows.push([t('receipt_fee_label'),'-'+fmt(feeAmt)+' F']);
+    if(feeAmt>0) rows.push([t('receipt_fee_label'),'-'+pdfFmt(feeAmt)+' '+pdfCurSuffix]);
     rows.forEach(function(row){
       doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,80);doc.text(row[0],14,y);
       doc.setFont('helvetica','normal');doc.setTextColor(20,20,20);doc.text(String(row[1]),pw-14,y,{align:'right'});
