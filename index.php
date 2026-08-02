@@ -5300,7 +5300,12 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
         $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
         // "Aujourd'hui" - toujours fixe, meme principe que todayVolume/todayFees.
-        $merchantVolumeToday = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
+        // On somme receiver_amount (montant reellement credite au marchand,
+        // toujours en XOF) et non amount (montant brut dans la devise du
+        // CLIENT, potentiellement GHS/MAD/etc.) : sinon un paiement de 100 GHS
+        // et un de 100 XOF comptaient tous deux pour "100" alors qu'ils ne
+        // representent pas la meme valeur.
+        $merchantVolumeToday = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
         $merchantCountToday  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
         // Part recue d'un AUTRE MARCHAND (et non d'un client) - reconnaissable
         // a sender_merchant_wallet_id non nul sur une transaction de type
@@ -5308,30 +5313,30 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         // pour qu'un admin puisse reperer un marchand dont l'essentiel du
         // volume vient d'autres marchands plutot que de vraies ventes clients
         // (signal a surveiller, pas bloque automatiquement).
-        $merchantVolumeTodayFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantVolumeTodayFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         $merchantCountTodayFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
-        $merchantVolumePeriod = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
+        $merchantVolumePeriod = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
         $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
-        $merchantVolumePeriodFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        $merchantVolumePeriodFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         // Cumule (depuis toujours), independant du filtre de periode.
-        $merchantVolume    = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
-        $merchantVolumeFromMerchants = (float)q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL")->fetchColumn();
+        $merchantVolume    = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
+        $merchantVolumeFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL")->fetchColumn();
         // Classement des marchands recevant le plus d'un AUTRE marchand
         // (et non de clients) - meme logique que topMerchants ci-dessous mais
         // filtree sur les paiements inter-marchands uniquement.
         $topMerchantsFromMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
-                COALESCE(SUM(t.amount),0) AS total_volume, COUNT(t.id) AS tx_count
+                COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) AS total_volume, COUNT(t.id) AS tx_count
             FROM merchants m
             JOIN merchant_wallets mw ON mw.merchant_id = m.id
             JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment' AND t.sender_merchant_wallet_id IS NOT NULL
             GROUP BY m.id, m.business_name, m.phone_number, m.verified
-            HAVING COALESCE(SUM(t.amount),0) > 0
+            HAVING COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) > 0
             ORDER BY total_volume DESC
             LIMIT 10")->fetchAll();
         $topMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
-                COALESCE(SUM(t.amount),0) AS total_volume, COUNT(t.id) AS tx_count
+                COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) AS total_volume, COUNT(t.id) AS tx_count
             FROM merchants m
             JOIN merchant_wallets mw ON mw.merchant_id = m.id
             LEFT JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment'
