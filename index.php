@@ -5790,13 +5790,45 @@ function admin_update_country() {
         fail('Ce pays n\'est pas actif sur ROM_MONEY');
     }
     $oldCountry = $u['country'];
-    q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
-    // La devise du portefeuille est deduite du pays uniquement a l'inscription
-    // (country_to_currency()) - sans cette mise a jour ici, corriger le pays
-    // d'un compte laissait sa devise desynchronisee (ex: pays change vers le
-    // Ghana mais portefeuille reste en XOF), rouvrant exactement le genre de
-    // bug de conversion Transfert Afrique qu'on vient de corriger.
-    q("UPDATE wallets SET currency=? WHERE user_id=?",[country_to_currency($country),$u['id']]);
+    $newCurrency = country_to_currency($country);
+    $w = q("SELECT id,currency,balance,vault_balance FROM wallets WHERE user_id=?",[$u['id']])->fetch();
+    $oldCurrency = $w ? strtoupper($w['currency'] ?: 'XOF') : 'XOF';
+    if($oldCurrency==='FCFA') $oldCurrency='XOF'; // voir convert_currency() : ancienne valeur par defaut, pas un vrai code ISO
+
+    db()->beginTransaction();
+    try {
+        q("UPDATE users SET country=? WHERE id=?",[$country,$u['id']]);
+        if($w && $oldCurrency !== $newCurrency){
+            // Convertit solde principal, coffre et sous-coffres au VRAI taux de
+            // change pour preserver la valeur reelle de l'argent - un simple
+            // changement d'etiquette de devise ferait passer par ex. 10000 XOF
+            // (~17 USD) pour 10000 MAD (~1000 USD), un gain fictif enorme.
+            $newBalance = convert_currency((float)$w['balance'], $oldCurrency, $newCurrency);
+            $newVault = convert_currency((float)$w['vault_balance'], $oldCurrency, $newCurrency);
+            if($newBalance===null || $newVault===null) throw new Exception('Conversion de devise momentanement indisponible');
+            q("UPDATE wallets SET currency=?,balance=?,vault_balance=? WHERE id=?",
+              [$newCurrency, round($newBalance,2), round($newVault,2), $w['id']]);
+            $subVaults = q("SELECT id,balance,goal_amount FROM sub_vaults WHERE wallet_id=?",[$w['id']])->fetchAll();
+            foreach($subVaults as $sv){
+                $svBal = convert_currency((float)$sv['balance'], $oldCurrency, $newCurrency);
+                if($svBal===null) throw new Exception('Conversion de devise momentanement indisponible');
+                $svGoal = null;
+                if($sv['goal_amount']!==null){
+                    $svGoal = convert_currency((float)$sv['goal_amount'], $oldCurrency, $newCurrency);
+                    if($svGoal===null) throw new Exception('Conversion de devise momentanement indisponible');
+                }
+                q("UPDATE sub_vaults SET balance=?,goal_amount=? WHERE id=?",
+                  [round($svBal,2), $svGoal!==null?round($svGoal,2):null, $sv['id']]);
+            }
+        } elseif($w) {
+            q("UPDATE wallets SET currency=? WHERE id=?",[$newCurrency,$w['id']]);
+        }
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        admin_log('update_country','failed',$phone,'Echec conversion devise lors du changement de pays vers '.$country.' ('.$reason.')');
+        fail(APP_DEBUG?$e->getMessage():'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.',503);
+    }
     admin_log('update_country','success',$phone,dk('d_country_changed', ['old'=>($oldCountry?:'-'), 'new'=>$country, 'reason'=>$reason]));
     ok(null,'Pays mis a jour avec succes');
 }
