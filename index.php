@@ -732,6 +732,14 @@ function refresh_exchange_rates_if_stale() {
 // de conversion silencieuse a 1:1 qui ferait perdre ou gagner de l'argent
 // a quelqu'un par erreur.
 function convert_currency($amount, $fromCode, $toCode) {
+    // 'FCFA' n'est pas un vrai code ISO (donc jamais present dans
+    // exchange_rates, qui ne contient que les codes renvoyes par l'API) -
+    // mais certains comptes crees avant country_to_currency() l'ont encore
+    // stocke tel quel (ancienne valeur par defaut de wallets.currency).
+    // Normalise ici en plus de la migration de donnees, pour que ça marche
+    // immediatement meme si le /install correctif n'a pas encore tourne.
+    if(strtoupper($fromCode)==='FCFA') $fromCode='XOF';
+    if(strtoupper($toCode)==='FCFA') $toCode='XOF';
     $fromCode = strtoupper($fromCode); $toCode = strtoupper($toCode);
     if ($fromCode === $toCode) return $amount;
     refresh_exchange_rates_if_stale();
@@ -6049,7 +6057,7 @@ function route_install() {
         vault_balance DECIMAL(15,2) DEFAULT 0.00,
         vault_locked SMALLINT DEFAULT 0,
         vault_lock_date DATE,
-        currency VARCHAR(10) DEFAULT 'FCFA',
+        currency VARCHAR(10) DEFAULT 'XOF',
         qr_seed VARCHAR(50) NOT NULL,
         qr_renewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -6166,7 +6174,7 @@ function route_install() {
         amount DECIMAL(15,2) NOT NULL,
         net_amount DECIMAL(15,2),
         fee DECIMAL(15,2) DEFAULT 0,
-        currency VARCHAR(10) DEFAULT 'FCFA',
+        currency VARCHAR(10) DEFAULT 'XOF',
         type VARCHAR(30) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending',
         reference VARCHAR(50) NOT NULL UNIQUE,
@@ -6374,6 +6382,15 @@ function route_install() {
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created ON fraud_alerts(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_fraud_alerts_reviewed ON fraud_alerts(reviewed)",
     "ALTER TABLE fraud_alerts ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'XOF'",
+    // Corrige les comptes crees avant l'ajout de country_to_currency() : la
+    // colonne wallets.currency avait alors 'FCFA' comme valeur par defaut -
+    // pas un vrai code ISO, donc absent de exchange_rates, ce qui faisait
+    // echouer silencieusement toute conversion Transfert Afrique impliquant
+    // un de ces comptes ("Conversion de devise momentanement indisponible").
+    // 'FCFA' designe toujours le franc CFA ouest-africain (XOF) dans cette
+    // app (voir fmt() et les autres endroits qui l'affichent comme tel).
+    "UPDATE wallets SET currency='XOF' WHERE currency='FCFA'",
+    "UPDATE transactions SET currency='XOF' WHERE currency='FCFA'",
     "CREATE TABLE IF NOT EXISTS rate_limit_hits (
         id SERIAL PRIMARY KEY,
         bucket VARCHAR(50) NOT NULL,
