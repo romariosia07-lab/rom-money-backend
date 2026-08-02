@@ -6252,6 +6252,11 @@ function launchApp(){
         APP.vaultBal=res.data.vault_balance!=null?res.data.vault_balance:APP.vaultBal;
         APP.vaultLocked=res.data.vault_locked!=null?res.data.vault_locked:APP.vaultLocked;
         APP.qrSeed=res.data.qr_seed||APP.qrSeed;
+        // Le serveur renvoie toujours la devise a jour du portefeuille -
+        // sans ca, un changement de pays fait par l'admin ne se refletait
+        // jamais cote client (APP.currency reste celle figee a l'inscription
+        // dans le localStorage, jamais rafraichie depuis).
+        APP.currency=res.data.currency||APP.currency;
         updateBalDisplay(); save();
       }
     });
@@ -8934,6 +8939,7 @@ function refreshCurrentPage2(){
         APP.balance=res.data.balance!=null?res.data.balance:APP.balance;
         APP.vaultBal=res.data.vault_balance!=null?res.data.vault_balance:APP.vaultBal;
         APP.vaultLocked=res.data.vault_locked!=null?res.data.vault_locked:APP.vaultLocked;
+        APP.currency=res.data.currency||APP.currency;
         updateBalDisplay();
       }
     }).catch(function(){}) : Promise.resolve();
