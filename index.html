@@ -2487,6 +2487,8 @@ var I18N = {
   stats_cat_payment: {fr:'Achat', en:'Purchase'},
   stats_cat_bank_withdraw: {fr:'Retrait banque', en:'Bank withdrawal'},
   stats_cat_vault_deposit: {fr:'Coffre', en:'Vault'},
+  stats_cat_merchant_payment: {fr:'Paiement marchand', en:'Merchant payment'},
+  stats_cat_fx_margin: {fr:'Frais de change', en:'Exchange fee'},
   stats_tooltip_received_prefix: {fr:'Reçu: ', en:'Received: '},
   stats_tooltip_sent_prefix: {fr:'Envoyé: ', en:'Sent: '},
 
@@ -6800,7 +6802,9 @@ function getStatCatMap(){
     transfer:      {lbl:t('stats_cat_transfer'),     col:'var(--g)'},
     payment:       {lbl:t('stats_cat_payment'),      col:'#D4537E'},
     bank_withdraw: {lbl:t('stats_cat_bank_withdraw'),col:'var(--re)'},
-    vault_deposit: {lbl:t('stats_cat_vault_deposit'),col:'var(--gold)'}
+    vault_deposit: {lbl:t('stats_cat_vault_deposit'),col:'var(--gold)'},
+    merchant_payment: {lbl:t('stats_cat_merchant_payment'),col:'#8A5AC0'},
+    fx_margin:     {lbl:t('stats_cat_fx_margin'),    col:'#F5A623'}
   };
 }
 
