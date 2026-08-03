@@ -5329,15 +5329,44 @@ function admin_audit_export_pdf() {
     exit;
 }
 
+// Construit une requete SOMME(montant converti en XOF) pour les agregats du
+// tableau de bord admin. Sans cette conversion, un virement de 100 GHS et un
+// de 100 XOF comptaient tous deux pour "100" alors qu'ils ne representent pas
+// la meme valeur (100 GHS vaut environ 12x plus) - meme en sommant la bonne
+// colonne (receiver_amount, deja corrige), additionner des devises
+// differentes brutes ne donne jamais un total qui veut dire quelque chose.
+// Convertit via un JOIN direct sur exchange_rates (tenu a jour par
+// refresh_exchange_rates_if_stale(), appele une fois au debut de
+// admin_dashboard_get_data()) plutot qu'un appel PHP par ligne - la somme
+// reste entierement calculee cote base de donnees, meme sur un historique de
+// plusieurs annees. NULLIF(...,0) evite une division par zero si jamais un
+// taux etait enregistre a 0.
+function admin_dash_xof_sum_sql($where){
+    return "SELECT COALESCE(SUM(
+            COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
+            * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+            / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+        ),0)
+        FROM transactions
+        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
+        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
+        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
+        WHERE $where";
+}
+
 function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
+    // Rafraichit les taux si besoin AVANT les JOIN sur exchange_rates
+    // ci-dessous (sinon une base fraichement installee, sans jamais avoir
+    // affiche l'ecran "Taux de change" de Reglages, n'aurait aucun taux et
+    // tous les COALESCE(...,1) ci-dessous traiteraient tout comme du XOF).
+    refresh_exchange_rates_if_stale();
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
     $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE")->fetchColumn();
-    // COALESCE(receiver_amount,net_amount,amount) plutot que amount seul :
-    // amount reste dans la devise de L'EXPEDITEUR, alors que receiver_amount/
-    // net_amount refletent ce qui a reellement ete credite - sans ca, un
-    // envoi de 100 GHS et un de 100 XOF comptaient tous deux pour "100"
-    // (meme bug deja corrige pour le volume marchand).
-    $todayVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE")->fetchColumn();
+    // Converti en XOF (voir admin_dash_xof_sum_sql) : additionner des
+    // montants dans des devises differentes brutes ne donne jamais un total
+    // qui veut dire quelque chose.
+    $todayVolume = q(admin_dash_xof_sum_sql("status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE"))->fetchColumn();
     $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
 
@@ -5359,10 +5388,10 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $where .= " AND created_at >= CURRENT_DATE";
     }
 
-    $periodVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type NOT IN ('fee','manual_withdrawal')", $params)->fetchColumn();
+    $periodVolume = q(admin_dash_xof_sum_sql("$where AND type NOT IN ('fee','manual_withdrawal')"), $params)->fetchColumn();
     $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
 
-    $totalVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal')")->fetchColumn();
+    $totalVolume = q(admin_dash_xof_sum_sql("status='completed' AND type NOT IN ('fee','manual_withdrawal')"))->fetchColumn();
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
     // dashboard partage (mot de passe admin seul), les actions Gains ROM ne
     // doivent y laisser aucune trace, meme juste le nom de l'action.
@@ -5379,10 +5408,19 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Evolution quotidienne (14 derniers jours), independante du filtre de
     // periode ci-dessus : sert a visualiser une tendance recente, pas a
     // cumuler sur une longue duree.
-    $dailyRows = q("SELECT DATE(created_at) AS day, COUNT(*) AS count, COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) AS volume
+    $dailyRows = q("SELECT DATE(transactions.created_at) AS day, COUNT(*) AS count,
+            COALESCE(SUM(
+                COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
+                * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+            ),0) AS volume
         FROM transactions
-        WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= NOW() - INTERVAL '14 days'
-        GROUP BY DATE(created_at) ORDER BY day")->fetchAll();
+        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
+        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
+        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
+        WHERE transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= NOW() - INTERVAL '14 days'
+        GROUP BY DATE(transactions.created_at) ORDER BY day")->fetchAll();
     // Comble les jours sans transaction (absents du GROUP BY) avec des zeros,
     // pour un graphique continu sur 14 jours consecutifs.
     $dailyByDate = [];
@@ -5397,11 +5435,22 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Classement des utilisateurs les plus actifs (somme des montants ou ils
     // sont emetteur OU destinataire, tous statuts de transaction confondus
     // hors frais), pour reperer les comptes les plus utilises.
+    // w represente TOUJOURS le portefeuille de cet utilisateur (qu'il soit
+    // emetteur ou destinataire sur la ligne), donc w.currency est deja la
+    // bonne devise dans les deux cas - un seul JOIN de taux suffit ici,
+    // contrairement aux agregats globaux ci-dessus qui melangent plusieurs
+    // portefeuilles differents.
     $topUsers = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
-            SUM(CASE WHEN t.sender_wallet_id = w.id THEN t.amount ELSE COALESCE(t.receiver_amount,t.net_amount,t.amount) END) AS total_volume, COUNT(*) AS tx_count
+            SUM(
+                (CASE WHEN t.sender_wallet_id = w.id THEN t.amount ELSE COALESCE(t.receiver_amount,t.net_amount,t.amount) END)
+                * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+            ) AS total_volume, COUNT(*) AS tx_count
         FROM users u
         JOIN wallets w ON w.user_id = u.id
         JOIN transactions t ON (t.sender_wallet_id = w.id OR t.receiver_wallet_id = w.id)
+        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(w.currency)
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
         WHERE t.status='completed' AND t.type NOT IN ('fee','manual_withdrawal')
         GROUP BY u.id, name, u.phone_number
         ORDER BY total_volume DESC
@@ -5414,12 +5463,9 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
         $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
         // "Aujourd'hui" - toujours fixe, meme principe que todayVolume/todayFees.
-        // On somme receiver_amount (montant reellement credite au marchand,
-        // toujours en XOF) et non amount (montant brut dans la devise du
-        // CLIENT, potentiellement GHS/MAD/etc.) : sinon un paiement de 100 GHS
-        // et un de 100 XOF comptaient tous deux pour "100" alors qu'ils ne
-        // representent pas la meme valeur.
-        $merchantVolumeToday = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
+        // Converti en XOF (voir admin_dash_xof_sum_sql) : un paiement de
+        // 100 GHS et un de 100 XOF ne representent pas la meme valeur.
+        $merchantVolumeToday = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE"))->fetchColumn();
         $merchantCountToday  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
         // Part recue d'un AUTRE MARCHAND (et non d'un client) - reconnaissable
         // a sender_merchant_wallet_id non nul sur une transaction de type
@@ -5427,33 +5473,51 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         // pour qu'un admin puisse reperer un marchand dont l'essentiel du
         // volume vient d'autres marchands plutot que de vraies ventes clients
         // (signal a surveiller, pas bloque automatiquement).
-        $merchantVolumeTodayFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantVolumeTodayFromMerchants = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE"))->fetchColumn();
         $merchantCountTodayFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
-        $merchantVolumePeriod = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
+        $merchantVolumePeriod = (float)q(admin_dash_xof_sum_sql("$where AND type='merchant_payment'"), $params)->fetchColumn();
         $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
-        $merchantVolumePeriodFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        $merchantVolumePeriodFromMerchants = (float)q(admin_dash_xof_sum_sql("$where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL"), $params)->fetchColumn();
         $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         // Cumule (depuis toujours), independant du filtre de periode.
-        $merchantVolume    = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment'")->fetchColumn();
-        $merchantVolumeFromMerchants = (float)q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL")->fetchColumn();
+        $merchantVolume    = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment'"))->fetchColumn();
+        $merchantVolumeFromMerchants = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL"))->fetchColumn();
         // Classement des marchands recevant le plus d'un AUTRE marchand
         // (et non de clients) - meme logique que topMerchants ci-dessous mais
-        // filtree sur les paiements inter-marchands uniquement.
+        // filtree sur les paiements inter-marchands uniquement. mw.currency
+        // est directement la devise de t.receiver_amount (mw EST le
+        // portefeuille receveur des que la ligne transaction existe).
         $topMerchantsFromMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
-                COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) AS total_volume, COUNT(t.id) AS tx_count
+                COALESCE(SUM(
+                    COALESCE(t.receiver_amount,t.net_amount,t.amount)
+                    * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                    / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+                ),0) AS total_volume, COUNT(t.id) AS tx_count
             FROM merchants m
             JOIN merchant_wallets mw ON mw.merchant_id = m.id
             JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment' AND t.sender_merchant_wallet_id IS NOT NULL
+            LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(mw.currency)
+            LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
             GROUP BY m.id, m.business_name, m.phone_number, m.verified
-            HAVING COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) > 0
+            HAVING COALESCE(SUM(
+                    COALESCE(t.receiver_amount,t.net_amount,t.amount)
+                    * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                    / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+                ),0) > 0
             ORDER BY total_volume DESC
             LIMIT 10")->fetchAll();
         $topMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
-                COALESCE(SUM(COALESCE(t.receiver_amount,t.net_amount,t.amount)),0) AS total_volume, COUNT(t.id) AS tx_count
+                COALESCE(SUM(
+                    COALESCE(t.receiver_amount,t.net_amount,t.amount)
+                    * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                    / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+                ),0) AS total_volume, COUNT(t.id) AS tx_count
             FROM merchants m
             JOIN merchant_wallets mw ON mw.merchant_id = m.id
             LEFT JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment'
+            LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(mw.currency)
+            LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
             GROUP BY m.id, m.business_name, m.phone_number, m.verified
             ORDER BY total_volume DESC
             LIMIT 10")->fetchAll();
