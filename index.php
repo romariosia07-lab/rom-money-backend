@@ -1489,15 +1489,32 @@ function merchant_pay_merchant() {
 
     if((float)$mw['balance'] < $amount) fail('Solde insuffisant');
 
-    $feeCalc = merchant_receive_fee($recvMw['id'], $amount);
+    // Chaque marchand peut avoir sa propre devise depuis l'ajout du champ pays
+    // a l'inscription marchand - il faut convertir AVANT de calculer le seuil
+    // de gratuite/frais (cote receveur) et avant de crediter le marchand
+    // receveur. Sans ca, un paiement entre deux marchands de devises
+    // differentes detruisait ou creait de la valeur (meme bug deja corrige
+    // pour merchant_collect()/execute_merchant_payment()).
+    $payerCurrency = $mw['currency'] ?: 'XOF';
+    $receiverCurrency = $recvMw['currency'] ?: 'XOF';
+    $amountInReceiverCurrency = $amount;
+    $fxRateApplied = null;
+    if($payerCurrency !== $receiverCurrency){
+        $converted = convert_currency($amount, $payerCurrency, $receiverCurrency);
+        if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $amountInReceiverCurrency = round($converted, 2);
+        $fxRateApplied = $amount > 0 ? $amountInReceiverCurrency / $amount : null;
+    }
+
+    $feeCalc = merchant_receive_fee($recvMw['id'], $amountInReceiverCurrency);
     $fee = $feeCalc['fee']; $net = $feeCalc['net'];
 
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
-        q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
-          [$txid,$mw['id'],$recvMw['id'],$amount,$net,$fee,$reference,$desc?:('Paiement vers '.$recvM['business_name']),$deadline]);
+        q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,receiver_amount,fx_rate_applied,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
+          [$txid,$mw['id'],$recvMw['id'],$amount,$net,$fee,$net,$fxRateApplied,$reference,$desc?:('Paiement vers '.$recvM['business_name']),$deadline]);
         $rows = q("UPDATE merchant_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$mw['id'],$amount])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
         q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$net,$recvMw['id']]);
@@ -1509,8 +1526,9 @@ function merchant_pay_merchant() {
         // paiement inter-marchand echappait totalement au controle de
         // velocite/montant inhabituel applique partout ailleurs.
         fraud_check_merchant_transaction($recvMw['id'], $m['phone_number'], $amount, $txid, $reference, $recvM['phone_number']);
+        $recvCurSuffix = ($receiverCurrency==='XOF'||$receiverCurrency==='XAF') ? 'F' : $receiverCurrency;
         web_push_send_to_merchant($recvM['id'], 'ROM_BUSINESS',
-            'Vous avez recu '.number_format($net,0,',',' ').' F de '.$m['business_name'].($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
+            'Vous avez recu '.number_format($net,0,',',' ').' '.$recvCurSuffix.' de '.$m['business_name'].($fee>0?' (apres '.number_format($fee,0,',',' ').' '.$recvCurSuffix.' de frais)':''));
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
             'receiver_name'=>$recvM['business_name'],'cancel_before'=>$deadline,
@@ -1710,6 +1728,8 @@ function merchant_export_xlsx() {
     $from = $_GET['from']??null; $to = $_GET['to']??null;
     $res = merchant_export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
+    $merchantCurrency = q("SELECT currency FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn() ?: 'XOF';
+    $curSuffix = ($merchantCurrency==='XOF'||$merchantCurrency==='XAF') ? 'F' : $merchantCurrency;
 
     $data = [];
     if($res['truncated']){
@@ -1749,6 +1769,8 @@ function merchant_export_pdf() {
     $res = merchant_export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
     $m = q("SELECT business_name,phone_number FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $merchantCurrency = q("SELECT currency FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetchColumn() ?: 'XOF';
+    $curSuffix = ($merchantCurrency==='XOF'||$merchantCurrency==='XAF') ? 'F' : $merchantCurrency;
 
     $periodeLabel = 'Ce mois';
     if($period==='all') $periodeLabel = "Tout l'historique";
@@ -1800,7 +1822,7 @@ function merchant_export_pdf() {
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(merchant_export_type_label($t['type'],$isCredit)),1);
         $pdf->Cell($w[2],7,substr(pdf_str($contact),0,26),1);
-        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
+        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' '.$curSuffix,1,0,'R');
         $pdf->Cell($w[4],7,pdf_str($t['reference']),1);
         $pdf->Cell($w[5],7,pdf_str($t['status']),1);
         $pdf->Ln();
@@ -2347,7 +2369,26 @@ function tx_send() {
         $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
             WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
             AND created_at::date=CURRENT_DATE",[$sw['id']])->fetch()['t']??0);
-        $remainingFree = max(0, $freeThreshold - $sentTodayNational);
+        // Le seuil de gratuite (fee_free_threshold_national) est un reglage
+        // global exprime en XOF - "national" n'exige que le meme pays, pas
+        // XOF (deux comptes au Ghana en GHS par exemple), il faut donc
+        // convertir le cumul du jour en XOF le temps de la comparaison puis
+        // reconvertir le reliquat gratuit dans la devise de l'expediteur -
+        // meme principe que merchant_receive_fee().
+        $senderCurrencyForThreshold = $sw['currency'] ?: 'XOF';
+        if($senderCurrencyForThreshold === 'XOF'){
+            $remainingFree = max(0, $freeThreshold - $sentTodayNational);
+        } else {
+            $sentTodayXof = convert_currency($sentTodayNational, $senderCurrencyForThreshold, 'XOF');
+            if($sentTodayXof === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+            $remainingFreeXof = max(0, $freeThreshold - $sentTodayXof);
+            $remainingFree = $remainingFreeXof;
+            if($remainingFreeXof > 0){
+                $rf = convert_currency($remainingFreeXof, 'XOF', $senderCurrencyForThreshold);
+                if($rf === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+                $remainingFree = $rf;
+            }
+        }
         if($mode==='brut'){
             $brut = $amount;
             $feeable = max(0, $brut - $remainingFree);
@@ -2501,13 +2542,29 @@ function tx_collect() {
 
     $rateNational = (float)get_setting('fee_rate_national', 0.01);
     $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
+    // Seuil global exprime en XOF - convertir le montant du payeur en XOF le
+    // temps de la comparaison si sa devise n'est pas XOF (meme principe que
+    // tx_send()/merchant_receive_fee()).
+    $payerCurrencyForThreshold = $payer['currency'] ?: 'XOF';
     if($mode==='brut'){
         $brut = $amount;
-        $fee  = ($brut >= $freeThreshold) ? round($brut * $rateNational) : 0;
+        $brutXof = $brut;
+        if($payerCurrencyForThreshold !== 'XOF'){
+            $bx = convert_currency($brut, $payerCurrencyForThreshold, 'XOF');
+            if($bx === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+            $brutXof = $bx;
+        }
+        $fee  = ($brutXof >= $freeThreshold) ? round($brut * $rateNational) : 0;
         $net  = $brut - $fee;
     } else {
         $net  = $amount;
-        $fee  = ($net >= $freeThreshold) ? round($net * $rateNational) : 0;
+        $netXof = $net;
+        if($payerCurrencyForThreshold !== 'XOF'){
+            $nx = convert_currency($net, $payerCurrencyForThreshold, 'XOF');
+            if($nx === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+            $netXof = $nx;
+        }
+        $fee  = ($netXof >= $freeThreshold) ? round($net * $rateNational) : 0;
         $brut = $net + $fee;
     }
     if($net<=0) fail('Montant invalide');
@@ -2685,7 +2742,7 @@ function tx_detail() {
 // le client, frais eventuel preleve sur ce que le marchand recoit une fois
 // son cumul du jour depasse (voir merchant_receive_fee()). $source sert
 // juste a personnaliser la notification push envoyee au marchand.
-function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $source='direct'){
+function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $source='direct', $amountCurrency=null){
     if($amount<=0) fail('Montant invalide');
     if(!preg_match('/^\d{4}$/',$pin)) fail('PIN invalide');
 
@@ -2697,21 +2754,34 @@ function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $sourc
     if(!$m) fail('Marchand introuvable',404);
     $mw = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$merchantId])->fetch();
     if(!$mw) fail('Marchand introuvable',404);
-    if((float)$sw['balance'] < $amount) fail('Solde insuffisant');
 
-    // Voir merchant_collect() : le marchand est toujours en XOF, le client
-    // peut etre dans une autre devise - conversion obligatoire avant le
-    // calcul de frais et le credit marchand.
     $payerCurrency = $sw['currency'] ?: 'XOF';
     $merchantCurrency = $mw['currency'] ?: 'XOF';
+    // $amountCurrency precise dans quelle devise $amount est deja exprime :
+    // celle du PAYEUR par defaut (paiement direct via QR, ou le client saisit
+    // lui-meme le montant dans sa propre devise), ou explicitement celle du
+    // MARCHAND pour un lien de paiement a distance (le montant est fixe par
+    // le marchand, dans SA devise, avant meme de savoir dans quel pays sera
+    // le futur payeur - voir payment_link_pay()). Sans cette distinction, un
+    // lien cree pour "500" GHS traite par erreur comme "500" dans la devise
+    // du payeur detruisait ou creait de la valeur au moment du debit.
+    $amountCurrency = $amountCurrency ?: $payerCurrency;
+
+    $debitAmount = $amount;
+    if($amountCurrency !== $payerCurrency){
+        $c = convert_currency($amount, $amountCurrency, $payerCurrency);
+        if($c === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $debitAmount = round($c, 2);
+    }
+    if((float)$sw['balance'] < $debitAmount) fail('Solde insuffisant');
+
     $amountInMerchantCurrency = $amount;
-    $fxRateApplied = null;
-    if($payerCurrency !== $merchantCurrency){
-        $converted = convert_currency($amount, $payerCurrency, $merchantCurrency);
+    if($amountCurrency !== $merchantCurrency){
+        $converted = convert_currency($amount, $amountCurrency, $merchantCurrency);
         if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
         $amountInMerchantCurrency = round($converted, 2);
-        $fxRateApplied = $amount > 0 ? $amountInMerchantCurrency / $amount : null;
     }
+    $fxRateApplied = $debitAmount > 0 ? $amountInMerchantCurrency / $debitAmount : null;
 
     $feeCalc = merchant_receive_fee($mw['id'], $amountInMerchantCurrency);
     $fee = $feeCalc['fee']; $net = $feeCalc['net'];
@@ -2721,19 +2791,20 @@ function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $sourc
     try {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,sender_wallet_id,receiver_merchant_wallet_id,amount,net_amount,fee,receiver_amount,fx_rate_applied,type,status,reference,description,cancel_deadline) VALUES (?,?,?,?,?,?,?,?,'merchant_payment','pending',?,?,?)",
-          [$txid,$sw['id'],$mw['id'],$amount,$net,$fee,$net,$fxRateApplied,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
-        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$sw['id'],$amount])->rowCount();
+          [$txid,$sw['id'],$mw['id'],$debitAmount,$net,$fee,$net,$fxRateApplied,$reference,$desc?:('Paiement '.$m['business_name']),$deadline]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$debitAmount,$sw['id'],$debitAmount])->rowCount();
         if(!$rows) throw new Exception('Solde insuffisant');
         q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$net,$mw['id']]);
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         credit_merchant_fee($mw['id'], $fee, 'Frais ROM_MONEY sur encaissement marchand');
         db()->commit();
-        fraud_check_merchant_transaction($mw['id'], $pl['phone'] ?? '', $amount, $txid, $reference, $m['phone_number']);
+        fraud_check_merchant_transaction($mw['id'], $pl['phone'] ?? '', $debitAmount, $txid, $reference, $m['phone_number']);
         $srcLabel = $source==='link' ? ' via un lien de paiement' : ' via votre QR';
+        $merchCurSuffix = ($merchantCurrency==='XOF'||$merchantCurrency==='XAF') ? 'F' : $merchantCurrency;
         web_push_send_to_merchant($mw['merchant_id'], 'ROM_BUSINESS',
-            'Vous avez recu '.number_format($net,0,',',' ').' F'.$srcLabel.($fee>0?' (apres '.number_format($fee,0,',',' ').' F de frais)':''));
+            'Vous avez recu '.number_format($net,0,',',' ').' '.$merchCurSuffix.$srcLabel.($fee>0?' (apres '.number_format($fee,0,',',' ').' '.$merchCurSuffix.' de frais)':''));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
-        return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
+        return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$debitAmount,'fee'=>$fee,'net_amount'=>$net,
             'business_name'=>$m['business_name'],'cancel_before'=>$deadline,'new_balance'=>$bal];
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
 }
@@ -2792,12 +2863,12 @@ function payment_link_detail() {
     auth();
     $id = trim($_GET['id'] ?? '');
     if(!$id) fail('Lien invalide');
-    $link = q("SELECT l.*, m.business_name, m.verified merchant_verified FROM merchant_payment_links l
-        JOIN merchants m ON l.merchant_id=m.id WHERE l.id=?",[$id])->fetch();
+    $link = q("SELECT l.*, m.business_name, m.verified merchant_verified, mw.currency merchant_currency FROM merchant_payment_links l
+        JOIN merchants m ON l.merchant_id=m.id LEFT JOIN merchant_wallets mw ON mw.merchant_id=l.merchant_id WHERE l.id=?",[$id])->fetch();
     if(!$link) fail('Lien de paiement introuvable',404);
     $expired = $link['expires_at'] && strtotime($link['expires_at']) < time();
     ok(['id'=>$link['id'],'business_name'=>$link['business_name'],'merchant_verified'=>(bool)$link['merchant_verified'],
-        'amount'=>(float)$link['amount'],'description'=>$link['description'],
+        'amount'=>(float)$link['amount'],'currency'=>$link['merchant_currency']?:'XOF','description'=>$link['description'],
         'status'=>$expired && $link['status']==='pending' ? 'expired' : $link['status'],
         'created_at'=>$link['created_at']]);
 }
@@ -2819,7 +2890,13 @@ function payment_link_pay() {
     // UPDATE ... WHERE balance>=? utilises partout ailleurs pour l'argent.
     $claimed = q("UPDATE merchant_payment_links SET status='paid' WHERE id=? AND status='pending'",[$linkId])->rowCount();
     if(!$claimed) fail('Ce lien de paiement a deja ete utilise ou annule');
-    $result = execute_merchant_payment($pl, $link['merchant_id'], (float)$link['amount'], $pin, $link['description'], 'link');
+    // Le montant du lien a ete fixe par le marchand dans SA propre devise
+    // (voir merchant_create_payment_link()), pas dans celle du payeur - il
+    // faut le signaler explicitement, sinon execute_merchant_payment()
+    // suppose par defaut la devise du payeur (cas du paiement direct via QR).
+    $linkMw = q("SELECT currency FROM merchant_wallets WHERE merchant_id=?",[$link['merchant_id']])->fetch();
+    $linkCurrency = $linkMw ? ($linkMw['currency'] ?: 'XOF') : 'XOF';
+    $result = execute_merchant_payment($pl, $link['merchant_id'], (float)$link['amount'], $pin, $link['description'], 'link', $linkCurrency);
     q("UPDATE merchant_payment_links SET transaction_id=?, paid_at=NOW() WHERE id=?",[$result['transaction_id'],$linkId]);
     ok($result, 'Paiement effectue');
 }
@@ -3580,6 +3657,8 @@ function export_xlsx() {
     $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
+    $userCurrency = q("SELECT currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn() ?: 'XOF';
+    $curSuffix = ($userCurrency==='XOF'||$userCurrency==='XAF') ? 'F' : $userCurrency;
 
     // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde
     $data = [];
@@ -3602,8 +3681,8 @@ function export_xlsx() {
             [ date('d/m/Y H:i', strtotime($t['created_at'])), 2, 's' ],
             [ export_type_label($t['type'], $isDebit, $lang), 2, 's' ],
             [ $contact, 2, 's' ],
-            [ number_format($montant,0,',',' ').' F', 2, 's' ],
-            [ number_format($frais,0,',',' ').' F', 2, 's' ],
+            [ number_format($montant,0,',',' ').' '.$curSuffix, 2, 's' ],
+            [ number_format($frais,0,',',' ').' '.$curSuffix, 2, 's' ],
             [ $t['reference'], 2, 's' ],
             [ $t['status'], 2, 's' ]
         ];
@@ -3640,6 +3719,8 @@ function export_pdf() {
     $res = export_get_rows($pl, $period, $from, $to);
     $rows = $res['rows'];
     $u = q("SELECT full_name,phone_number,verified_name FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $userCurrency = q("SELECT currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn() ?: 'XOF';
+    $curSuffix = ($userCurrency==='XOF'||$userCurrency==='XAF') ? 'F' : $userCurrency;
 
     $periodeLabel = export_t('period_month',$lang);
     if($period==='all') $periodeLabel = export_t('period_all',$lang);
@@ -3693,8 +3774,8 @@ function export_pdf() {
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($t['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(export_type_label($t['type'],$isDebit,$lang)),1);
         $pdf->Cell($w[2],7,substr(pdf_str($contact),0,22),1);
-        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' F',1,0,'R');
-        $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' F',1,0,'R');
+        $pdf->Cell($w[3],7,number_format($montant,0,',',' ').' '.$curSuffix,1,0,'R');
+        $pdf->Cell($w[4],7,number_format($frais,0,',',' ').' '.$curSuffix,1,0,'R');
         $pdf->Cell($w[5],7,pdf_str($t['reference']),1);
         $pdf->Cell($w[6],7,pdf_str($t['status']),1);
         $pdf->Ln();
@@ -4298,6 +4379,15 @@ function admin_reset_pin() {
     if(!preg_match('/^\d{4}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 4 chiffres');
     if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
+    // Le compte systeme (gains de la plateforme) ne doit jamais etre
+    // manipulable via les outils generiques (ADMIN_PASSWORD seul) - sinon un
+    // admin pourrait lui fixer un PIN connu puis se connecter dessus comme un
+    // compte normal et vider tout le solde accumule, sans jamais toucher a
+    // l'onglet Gains ROM ni a son mot de passe separe (EARNINGS_PASSWORD).
+    if($phone === '0160629502'){
+        admin_log('pin_reset','failed',$phone,'Tentative de reinitialisation du PIN du compte systeme via l\'outil generique (bloquee)');
+        fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
+    }
     $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('pin_reset','failed',$phone,dk('d_account_not_found_with_reason', ['reason'=>$reason]));
@@ -4324,7 +4414,7 @@ function admin_search_tx() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
-        WHERE t.reference=?",[$ref])->fetch();
+        WHERE t.reference=? AND t.type!='manual_withdrawal'",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     ok(['transaction'=>$tx]);
 }
@@ -4349,7 +4439,7 @@ function admin_search_tx_advanced() {
         fail('Au moins un critère de recherche est requis (montant, date ou statut)');
     }
 
-    $where = "t.type!='fee'"; $params = [];
+    $where = "t.type NOT IN ('fee','manual_withdrawal')"; $params = [];
     if($amountMin!==''){ $where .= " AND t.amount >= ?"; $params[] = (float)$amountMin; }
     if($amountMax!==''){ $where .= " AND t.amount <= ?"; $params[] = (float)$amountMax; }
     if($dateFrom){ $where .= " AND t.created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
@@ -5257,8 +5347,13 @@ function admin_audit_export_pdf() {
 
 function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
-    $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
-    $todayVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
+    $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE")->fetchColumn();
+    // COALESCE(receiver_amount,net_amount,amount) plutot que amount seul :
+    // amount reste dans la devise de L'EXPEDITEUR, alors que receiver_amount/
+    // net_amount refletent ce qui a reellement ete credite - sans ca, un
+    // envoi de 100 GHS et un de 100 XOF comptaient tous deux pour "100"
+    // (meme bug deja corrige pour le volume marchand).
+    $todayVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE")->fetchColumn();
     $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
 
@@ -5280,10 +5375,10 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $where .= " AND created_at >= CURRENT_DATE";
     }
 
-    $periodVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type!='fee'", $params)->fetchColumn();
+    $periodVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE $where AND type NOT IN ('fee','manual_withdrawal')", $params)->fetchColumn();
     $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
 
-    $totalVolume = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type!='fee'")->fetchColumn();
+    $totalVolume = q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal')")->fetchColumn();
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
     // dashboard partage (mot de passe admin seul), les actions Gains ROM ne
     // doivent y laisser aucune trace, meme juste le nom de l'action.
@@ -5300,9 +5395,9 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Evolution quotidienne (14 derniers jours), independante du filtre de
     // periode ci-dessus : sert a visualiser une tendance recente, pas a
     // cumuler sur une longue duree.
-    $dailyRows = q("SELECT DATE(created_at) AS day, COUNT(*) AS count, COALESCE(SUM(amount),0) AS volume
+    $dailyRows = q("SELECT DATE(created_at) AS day, COUNT(*) AS count, COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) AS volume
         FROM transactions
-        WHERE status='completed' AND type!='fee' AND created_at >= NOW() - INTERVAL '14 days'
+        WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= NOW() - INTERVAL '14 days'
         GROUP BY DATE(created_at) ORDER BY day")->fetchAll();
     // Comble les jours sans transaction (absents du GROUP BY) avec des zeros,
     // pour un graphique continu sur 14 jours consecutifs.
@@ -5319,11 +5414,11 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // sont emetteur OU destinataire, tous statuts de transaction confondus
     // hors frais), pour reperer les comptes les plus utilises.
     $topUsers = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
-            SUM(t.amount) AS total_volume, COUNT(*) AS tx_count
+            SUM(CASE WHEN t.sender_wallet_id = w.id THEN t.amount ELSE COALESCE(t.receiver_amount,t.net_amount,t.amount) END) AS total_volume, COUNT(*) AS tx_count
         FROM users u
         JOIN wallets w ON w.user_id = u.id
         JOIN transactions t ON (t.sender_wallet_id = w.id OR t.receiver_wallet_id = w.id)
-        WHERE t.status='completed' AND t.type != 'fee'
+        WHERE t.status='completed' AND t.type NOT IN ('fee','manual_withdrawal')
         GROUP BY u.id, name, u.phone_number
         ORDER BY total_volume DESC
         LIMIT 10")->fetchAll();
@@ -5795,6 +5890,10 @@ function admin_block_account() {
     $phone  = trim($b['phone'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$phone || !$reason) fail('Telephone et raison requis');
+    if($phone === '0160629502'){
+        admin_log('account_block','failed',$phone,'Tentative de blocage du compte systeme via l\'outil generique (bloquee)');
+        fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
+    }
     $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('account_block','failed',$phone,dk('d_account_not_found'));
@@ -5815,6 +5914,10 @@ function admin_unblock_account() {
     $phone  = trim($b['phone'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$phone || !$reason) fail('Telephone et raison requis');
+    if($phone === '0160629502'){
+        admin_log('account_unblock','failed',$phone,'Tentative de deblocage du compte systeme via l\'outil generique (bloquee)');
+        fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
+    }
     $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('account_unblock','failed',$phone,dk('d_account_not_found'));
@@ -5849,6 +5952,10 @@ function admin_delete_account() {
     $reason = trim($b['reason'] ?? '');
     if(!$phone || !$reason) fail('Telephone et raison requis');
     if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
+    if($phone === '0160629502'){
+        admin_log('account_delete','failed',$phone,'Tentative de suppression du compte systeme via l\'outil generique (bloquee)');
+        fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
+    }
 
     $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
@@ -5944,6 +6051,10 @@ function admin_update_country() {
     $country = trim($b['country'] ?? '');
     $reason  = trim($b['reason'] ?? '');
     if(!$phone || !$country || !$reason) fail('Telephone, pays et raison requis');
+    if($phone === '0160629502'){
+        admin_log('update_country','failed',$phone,'Tentative de changement de pays du compte systeme via l\'outil generique (bloquee)');
+        fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
+    }
     $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('update_country','failed',$phone,dk('d_account_not_found'));

@@ -1454,13 +1454,10 @@ var I18N = {
   admin_tab_audit: {fr:'Journal', en:'Log'},
   admin_tab_countries: {fr:'Pays', en:'Countries'},
   // ── ADMIN : connexion ──
-  admin_login_title: {fr:'Admin ROM_MONEY', en:'ROM_MONEY Admin'},
   admin_login_pw_label: {fr:'Mot de passe admin', en:'Admin password'},
   admin_login_pw_ph: {fr:'Mot de passe', en:'Password'},
   admin_login_btn: {fr:'Se connecter', en:'Log in'},
-  admin_2fa_title: {fr:'Vérification en deux étapes', en:'Two-step verification'},
   admin_2fa_code_label: {fr:'Code de vérification', en:'Verification code'},
-  admin_2fa_confirm_btn: {fr:'Confirmer', en:'Confirm'},
   admin_2fa_instructions: {fr:"Ouvrez votre application d'authentification (Google Authenticator, Authy...) et entrez le code à 6 chiffres.", en:'Open your authenticator app (Google Authenticator, Authy...) and enter the 6-digit code.'},
   admin_2fa_validate_btn: {fr:'Valider', en:'Validate'},
   admin_2fa_lost_phone: {fr:"J'ai perdu mon téléphone — utiliser un code de récupération", en:'I lost my phone — use a recovery code'},
@@ -1468,12 +1465,8 @@ var I18N = {
   admin_2fa_recovery_label: {fr:'Code de récupération', en:'Recovery code'},
   // ── ADMIN : tableau de bord ──
   admin_dash_title: {fr:"Vue d'ensemble", en:'Overview'},
-  admin_dash_users: {fr:'Utilisateurs', en:'Users'},
   admin_dash_volume: {fr:'Volume', en:'Volume'},
   admin_dash_pending_kyc: {fr:'KYC en attente', en:'Pending KYC'},
-  admin_dash_top10: {fr:'Top 10 utilisateurs', en:'Top 10 users'},
-  admin_dash_recent: {fr:'Activité récente', en:'Recent activity'},
-  admin_dash_export: {fr:'Exporter', en:'Export'},
   // ── ADMIN : actions communes ──
   admin_btn_approve: {fr:'Approuver', en:'Approve'},
   admin_btn_reject: {fr:'Refuser', en:'Reject'},
@@ -1484,7 +1477,6 @@ var I18N = {
   admin_dash_cumulative: {fr:'Cumulé', en:'Cumulative'},
   admin_dash_cumulative_suffix: {fr:'(cumulé)', en:'(cumulative)'},
   admin_dash_transactions: {fr:'Transactions', en:'Transactions'},
-  admin_dash_gains: {fr:'Gains', en:'Earnings'},
   admin_dash_total_volume_note: {fr:'Volume cumulé depuis le début (test inclus) : {amt}', en:'Cumulative volume since the start (tests included): {amt}'},
   admin_dash_operator_breakdown: {fr:'Répartition par opérateur', en:'Breakdown by operator'},
   admin_dash_no_data: {fr:'Aucune donnée', en:'No data'},
@@ -1540,14 +1532,10 @@ var I18N = {
   admin_alerts_fraud_desc: {fr:"Signalées automatiquement selon 3 critères : trop de transactions en peu de temps, montant très supérieur aux habitudes du compte, ou premier envoi à ce destinataire avec un montant élevé. Aucune transaction n'est bloquée — c'est une alerte à vérifier, pas un blocage. Seuils modifiables dans Réglages.", en:"Automatically flagged by 3 criteria: too many transactions in a short time, an amount far above the account's usual habits, or a first-time high-value transfer to this recipient. No transaction is blocked — it's an alert to review, not a block. Thresholds adjustable in Settings."},
   admin_alerts_devices_title: {fr:'⚠ Nouveaux appareils détectés (30 derniers jours)', en:'⚠ New devices detected (last 30 days)'},
   admin_alerts_devices_desc: {fr:"Ne montre que les connexions depuis un appareil non reconnu sur un compte déjà utilisé ailleurs (le tout premier appareil d'un compte, à l'inscription, n'apparaît jamais ici). La plupart sont légitimes (changement de téléphone) — utile pour investiguer rapidement en cas de doute ou de signalement client.", en:"Only shows logins from an unrecognized device on an account already used elsewhere (an account's very first device, at signup, never appears here). Most are legitimate (phone change) — useful for quick investigation in case of doubt or a customer report."},
-  admin_alerts_none_frozen: {fr:'Aucune transaction gelée actuellement', en:'No transaction currently frozen'},
   admin_alerts_none_fraud: {fr:'Aucune transaction suspecte détectée', en:'No suspicious transaction detected'},
-  admin_alerts_reason_label: {fr:'Raison : {reason}', en:'Reason: {reason}'},
   admin_alerts_ref_label: {fr:'Réf : {ref} — {date}', en:'Ref: {ref} — {date}'},
   admin_alerts_verified_badge: {fr:'Vérifiée', en:'Reviewed'},
   admin_alerts_mark_reviewed: {fr:'Marquer vérifiée', en:'Mark reviewed'},
-  admin_alerts_no_devices: {fr:'Aucune alerte de nouvel appareil récente', en:'No recent new-device alert'},
-  admin_alerts_new_device_label: {fr:'Nouvel appareil', en:'New device'},
   admin_alerts_from_to: {fr:'De {from} vers {to}', en:'From {from} to {to}'},
   admin_alerts_none_30d: {fr:'Aucune alerte sur les 30 derniers jours', en:'No alert in the last 30 days'},
   admin_alerts_new_device_line: {fr:'Nouvel appareil : {device} — {date}', en:'New device: {device} — {date}'},
@@ -1660,7 +1648,6 @@ var I18N = {
   admin_tx_frozen_list_desc: {fr:'Toutes les transactions actuellement gelées, en attente de ta décision finale.', en:'All transactions currently frozen, awaiting your final decision.'},
   admin_tx_refresh_list_btn: {fr:'Actualiser la liste', en:'Refresh list'},
   admin_tx_click_refresh: {fr:'Clique sur "Actualiser la liste" pour charger', en:'Click "Refresh list" to load'},
-  admin_profile_section: {fr:'Profil', en:'Profile'},
   admin_wallet_section: {fr:'Portefeuille', en:'Wallet'},
   admin_balance_label: {fr:'Solde :', en:'Balance:'},
   admin_test_credit_amount_ph: {fr:'Montant à créditer', en:'Amount to credit'},
@@ -2349,6 +2336,8 @@ var I18N = {
   vault_locked_toast: {fr:'Coffre verrouillé', en:'Vault locked'},
   vault_create_desc: {fr:'Créez un sous-coffre pour épargner vers un objectif précis (voyage, urgence, études, mariage...)', en:'Create a sub-vault to save toward a specific goal (travel, emergency, studies, wedding...)'},
   vault_label_name: {fr:'Nom du sous-coffre', en:'Sub-vault name'},
+  sv_btn_deposit: {fr:'Déposer', en:'Deposit'},
+  sv_btn_withdraw: {fr:'Retirer', en:'Withdraw'},
   vault_label_initial_amount: {fr:'Montant initial (optionnel)', en:'Initial amount (optional)'},
   vault_available_main: {fr:'Disponible dans le coffre principal: {amt}', en:'Available in the main vault: {amt}'},
   vault_label_goal: {fr:"Objectif d'épargne (optionnel)", en:'Savings goal (optional)'},
@@ -2470,7 +2459,6 @@ var I18N = {
   wallet_tab_scan: {fr:'📷 Scanner', en:'📷 Scan'},
   wallet_share_qr_desc: {fr:"Partagez votre QR pour recevoir de l'argent", en:'Share your QR to receive money'},
   offline_stale_data: {fr:'Hors ligne — dernières données connues', en:'Offline — last known data'},
-  retry_btn: {fr:'Réessayer', en:'Retry'},
   wallet_btn_print_qr: {fr:'📄 Imprimer QR', en:'📄 Print QR'},
   wallet_btn_fullscreen: {fr:'👁 Plein écran', en:'👁 Full screen'},
   wallet_qr_gen_error: {fr:'Erreur generation QR', en:'QR generation error'},
@@ -2944,24 +2932,6 @@ function adminLoadDashboard(){
       box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
-}
-function adminStatCard(label, value, isAmount){
-  return '<div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px">'
-    +'<div style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:6px">'+label+'</div>'
-    +'<div style="font-size:'+(isAmount?'17px':'22px')+';font-weight:800;color:var(--accent-text)">'+value+'</div>'
-    +'</div>';
-}
-function adminStatCardCompact(label, value){
-  return '<div style="background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:10px 8px;text-align:center">'
-    +'<div style="font-size:9px;color:var(--t3);font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'
-    +'<div style="font-size:13px;font-weight:800;color:var(--accent-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+value+'</div>'
-    +'</div>';
-}
-function adminStatCardGold(label, value){
-  return '<div style="background:var(--gold-l);border:1px solid var(--gold);border-radius:14px;padding:14px">'
-    +'<div style="font-size:11px;color:var(--gold-text);font-weight:700;margin-bottom:6px">'+label+'</div>'
-    +'<div style="font-size:17px;font-weight:800;color:var(--gold-text)">'+value+'</div>'
-    +'</div>';
 }
 // Degrade de couleur du gold clair (jour a faible volume) au gold plein
 // (jour au volume le plus eleve), pour differencier visuellement les
@@ -3913,7 +3883,7 @@ function adminSearchMerchant(){
         +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+adminEsc(m.business_name)+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</div>'
         +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(m.status==='blocked'?'Bloqué':'Actif')+'</span><br>'
         +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
-        +'<b>Type :</b> '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.address?' — '+m.address:'')+'<br>'
+        +'<b>Type :</b> '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.address?' — '+adminEsc(m.address):'')+'<br>'
         +'<b>Pays :</b> '+(m.country||'Non renseigné (compte créé avant cette fonctionnalité — voir "Modifier le pays" ci-dessous)')+' &middot; <b>Devise :</b> '+(m.currency||'XOF')+'<br>'
         +'<b>Solde :</b> '+fmt(m.balance||0)+' &middot; <b>Coffre :</b> '+fmt(m.vault_balance||0)+'<br>'
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
@@ -4588,8 +4558,8 @@ function adminSearchMerchantTxAdvanced(page){
       }
       var html='';
       txs.forEach(function(t){
-        var senderDisp = t.sender_merchant_name || adminNameDisplay(t.sender_name,t.sender_verified_name);
-        var receiverDisp = t.receiver_merchant_name || adminNameDisplay(t.receiver_name,t.receiver_verified_name);
+        var senderDisp = t.sender_merchant_name ? adminEsc(t.sender_merchant_name) : adminNameDisplay(t.sender_name,t.sender_verified_name);
+        var receiverDisp = t.receiver_merchant_name ? adminEsc(t.receiver_merchant_name) : adminNameDisplay(t.receiver_name,t.receiver_verified_name);
         var merchantPhone = t.sender_merchant_phone || t.receiver_merchant_phone || '';
         html+='<div class="admin-tx-card" style="cursor:pointer" onclick="adminOpenMerchantFromList(\''+merchantPhone+'\')">'
           +'<div style="display:flex;justify-content:space-between"><b>'+fmt(parseFloat(t.amount))+'</b>'+statusPill(t.status)+'</div>'
@@ -6363,7 +6333,7 @@ function launchApp(){
       if(res&&res.success&&res.data&&res.data.transactions&&res.data.transactions.length>0){
         txList=res.data.transactions.map(function(t){
           var displayAmt = t.direction==='credit'
-            ? (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount))
+            ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
             : parseFloat(t.amount);
           return {
             id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
@@ -6397,10 +6367,12 @@ function checkPendingPaymentLink(){
     }
   });
 }
+var _paylinkPayInFlight = false;
 function showPaymentLinkConfirm(link){
   if(link.status==='paid'){ toast(t('paylink_already_paid'), true); return; }
   if(link.status==='cancelled'){ toast(t('paylink_cancelled'), true); return; }
   if(link.status==='expired'){ toast(t('paylink_expired'), true); return; }
+  var linkCurSuffix = (link.currency==='XOF'||link.currency==='XAF'||!link.currency) ? 'F' : link.currency;
   var overlay = document.createElement('div');
   overlay.id='paylink-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
@@ -6408,7 +6380,7 @@ function showPaymentLinkConfirm(link){
   box.style.cssText='background:var(--card,#fff);border-radius:20px;padding:24px;width:100%;max-width:340px;text-align:center';
   box.innerHTML = '<div style="font-size:14px;color:var(--t2);margin-bottom:6px">'+t('paylink_pay_to')+'</div>'
     +'<div style="font-size:18px;font-weight:900;color:var(--accent-text);margin-bottom:4px">'+adminEsc(link.business_name)+(link.merchant_verified?' ✓':'')+'</div>'
-    +'<div style="font-size:32px;font-weight:900;margin:14px 0">'+fmt(link.amount)+' F</div>'
+    +'<div style="font-size:32px;font-weight:900;margin:14px 0">'+fmt(link.amount)+' '+linkCurSuffix+'</div>'
     +(link.description?'<div style="font-size:13px;color:var(--t2);margin-bottom:16px">'+adminEsc(link.description)+'</div>':'<div style="margin-bottom:16px"></div>')
     +'<button class="btn-g" id="paylink-pay-btn" style="margin-bottom:8px">'+t('paylink_pay_btn')+'</button>'
     +'<button id="paylink-cancel-btn" style="width:100%;padding:12px;background:none;border:.5px solid var(--bord);border-radius:12px;font-size:13px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('paylink_cancel_btn')+'</button>';
@@ -6416,17 +6388,25 @@ function showPaymentLinkConfirm(link){
   document.body.appendChild(overlay);
   document.getElementById('paylink-cancel-btn').onclick=function(){ overlay.remove(); };
   document.getElementById('paylink-pay-btn').onclick=function(){
+    if(_paylinkPayInFlight) return;
+    _paylinkPayInFlight = true;
     overlay.remove();
-    requirePin(t('merchant_pay_pin_confirm').replace('{amt}',fmt(link.amount)).replace('{name}',link.business_name), function(){
+    requirePin(t('merchant_pay_pin_confirm').replace('{amt}',fmt(link.amount)+' '+linkCurSuffix).replace('{name}',link.business_name), function(){
       var tok=getToken();
       apiCall('/transactions?action=payment-link-pay','POST',{id:link.id,pin:PIN_MEM},tok).then(function(res){
+        _paylinkPayInFlight = false;
         if(res && res.success){
           var d=res.data||{};
+          // d.amount est le montant reellement debite, dans la devise DU PAYEUR
+          // (convertie cote serveur depuis la devise du marchand fixee sur le
+          // lien) - jamais link.amount, qui reste exprime dans la devise du
+          // marchand et peut representer une toute autre valeur.
+          var debitedAmt = d.amount!==undefined ? d.amount : link.amount;
           APP.balance = d.new_balance!==undefined ? d.new_balance : APP.balance;
           txList.unshift({id:d.transaction_id||Date.now(),name:d.business_name||link.business_name,
-            type:'debit',amt:d.amount||link.amount,cat:'Marchand',motif:link.description||'',ref:d.reference||'',ts:Date.now()});
+            type:'debit',amt:debitedAmt,cat:'Marchand',motif:link.description||'',ref:d.reference||'',ts:Date.now()});
           updateBalDisplay(); renderTx('home'); save();
-          toast(fmt(link.amount)+' '+t('merchant_pay_success_suffix')+' '+(d.business_name||link.business_name)+' !');
+          toast(fmt(debitedAmt)+' '+t('merchant_pay_success_suffix')+' '+(d.business_name||link.business_name)+' !');
         } else {
           toast((res&&res.message)||t('scan_err_generic'), true);
         }
@@ -6474,53 +6454,6 @@ function switchWalletTab(tab){
   }
 }
 
-function buildScanView(container){
-  if(container.innerHTML.trim()) return; // already built
-  container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:10px 0">'
-    +'<div style="font-size:12px;color:var(--t2);text-align:center">Scannez le QR d&#39;un autre utilisateur pour payer ou envoyer</div>'
-    +'<div id="cam-zone-wallet"></div>'
-    +'<button onclick="tryCamera2()" style="width:100%;padding:14px;background:var(--bg);border:1.5px dashed var(--gm);border-radius:12px;cursor:pointer;font-size:14px;color:var(--accent-text);font-family:inherit;font-weight:600">&#128247; Activer la camera</button>'
-    +'</div>';
-}
-
-function tryCamera2(){
-  var zone = document.getElementById('cam-zone-wallet');
-  if(!zone) return;
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    zone.innerHTML='<p style="font-size:13px;color:var(--re);text-align:center;padding:12px">Camera non disponible</p>';
-    return;
-  }
-  zone.innerHTML='<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:200px;width:100%;margin-bottom:8px">'
-    +'<video id="svid2" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
-    +'<canvas id="scan-canvas2" style="display:none"></canvas>'
-    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
-    +'<div style="width:140px;height:140px;border:2px solid var(--g);border-radius:10px;position:relative;overflow:hidden">'
-    +'<div style="position:absolute;left:0;right:0;height:2px;background:var(--g);animation:scl 2s ease-in-out infinite;top:10%"></div>'
-    +'</div></div>'
-    +'<p id="cam-msg2" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.75);margin:0">Connexion camera...</p>'
-    +torchToggleBtnHtml('torch-svid2')
-    +'</div>';
-  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}})
-    .then(function(stream){
-      scanStream=stream;
-      var v=document.getElementById('svid2');
-      if(v){ v.srcObject=stream; v.play().then(function(){ var m=document.getElementById('cam-msg2'); if(m) m.textContent='Camera active'; startScan2(); torchCheckAndShow(stream,'torch-svid2'); }); }
-    })
-    .catch(function(){ var m=document.getElementById('cam-msg2'); if(m) m.textContent='Acces camera refuse'; });
-}
-
-function startScan2(){
-  if(!scanStream) return;
-  var v=document.getElementById('svid2'), c=document.getElementById('scan-canvas2');
-  if(!v||!c||v.readyState!==v.HAVE_ENOUGH_DATA){ scanRAF=requestAnimationFrame(startScan2); return; }
-  c.width=v.videoWidth; c.height=v.videoHeight;
-  var ctx=c.getContext('2d'); ctx.drawImage(v,0,0,c.width,c.height);
-  var img; try{ img=ctx.getImageData(0,0,c.width,c.height); }catch(e){ scanRAF=requestAnimationFrame(startScan2); return; }
-  var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
-  if(code&&code.data){ handleScannedQR(code.data); return; }
-  scanRAF=requestAnimationFrame(startScan2);
-}
-
 
 
 
@@ -6549,31 +6482,6 @@ function setFilter(btn, f){
   btn.classList.add('on-filter');
   btn.style.background='var(--gl)'; btn.style.borderColor='var(--gm)'; btn.style.color='var(--gdd)';
   renderTx('hist', f);
-}
-
-function txDetail(id){
-  var tx=null;
-  for(var i=0;i<txList.length;i++) if(txList[i].id===id){ tx=txList[i]; break; }
-  if(!tx) return;
-  var isCr=tx.type==='credit', isAnn=!!tx.ann;
-  var c=avc(tx.name);
-  document.getElementById('sh-title').textContent='Détail transaction';
-  document.getElementById('sh-body').innerHTML=
-    '<div style="text-align:center;padding:8px 0 16px">'
-    +'<div style="width:52px;height:52px;border-radius:50%;background:'+c[0]+';color:'+c[1]+';display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;margin:0 auto 10px">'+ini(tx.name)+'</div>'
-    +'<div style="font-size:24px;font-weight:700;color:'+(isAnn?'var(--t3)':isCr?'var(--g)':'var(--t1)')+'">'+( isAnn?'---':(isCr?'+':'-')+fmt(tx.amt))+'</div>'
-    +'<div style="font-size:14px;color:var(--t2);margin-top:4px">'+tx.name+'</div>'
-    +(isAnn?'<span class="badge-ann" style="display:inline-block;margin-top:6px">Transaction annulée</span>':'')
-    +'</div>'
-    +'<div style="background:var(--bg);border-radius:12px;padding:4px 0">'
-    +'<div class="kv" style="padding:10px 14px"><span>Catégorie</span><span>'+tx.cat+'</span></div>'
-    +'<div class="kv" style="padding:10px 14px"><span>Date</span><span>'+relDate(tx.ts)+'</span></div>'
-    +'<div class="kv" style="padding:10px 14px"><span>Statut</span><span style="color:'+(isAnn?'var(--re)':isCr?'var(--g)':'var(--t1)')+'">'+( isAnn?'Annulée':isCr?'Reçue':'Envoyée')+'</span></div>'
-    +'<div class="kv" style="padding:10px 14px"><span>Référence</span><span style="font-family:monospace;font-size:11px">REF-'+tx.id+'</span></div>'
-    +'</div>'
-    +(canAnn(tx)?'<button class="btn-g" style="background:var(--re);margin-top:14px" onclick="askCancel('+tx.id+')">Annuler cette transaction</button>':'')
-    +'<button class="btn-w" onclick="closeSheet()">Fermer</button>';
-  openSheet(null, true);
 }
 
 function askCancel(id){
@@ -6766,7 +6674,7 @@ function renderStats(){
     } else if(badge){
       badge.style.display='block';
       badge.style.color='var(--re,#E24B4A)'; badge.style.background='none';
-      badge.textContent=(res&&res.message)||t('network_error');
+      badge.textContent=(res&&res.message)||t('limit_err_network');
     }
   });
 }
@@ -8267,17 +8175,6 @@ document.addEventListener('click', function initAudioClick(){
   document.removeEventListener('click', initAudioClick);
 }, {once:true});
 
-function useScanDirect(){
-  if(!scanData) return;
-  var d={id:scanData.id, phone:scanData.phone};
-  stopScan(); closeSheet();
-  openSheet('send');setTimeout(function(){ setTimeout(function(){
-    var sph=document.getElementById('sph'),srn=document.getElementById('srn');
-    if(sph) sph.value=d.phone||d.id;
-    if(srn) srn.textContent= d.phone ? (t('send_recipient_prefix')+d.phone) : (t('send_recipient_id_prefix')+d.id);
-  },200); },350);
-}
-
 function stopScan(){
   if(scanRAF){ cancelAnimationFrame(scanRAF); scanRAF=null; }
   if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream=null; }
@@ -8653,7 +8550,9 @@ function shVCreate(b){
     +'<button class="btn-w" onclick="closeSheet()">'+t('cross_country_btn_cancel')+'</button>';
 }
 
+var _vCreateInFlight = false;
 function doVCreate(){
+  if(_vCreateInFlight) return;
   var nm=document.getElementById('sv-name');
   var am=document.getElementById('sv-amt');
   var gl=document.getElementById('sv-goal');
@@ -8662,8 +8561,10 @@ function doVCreate(){
   var amt=parseFloat(am&&am.value)||0;
   var goal=parseFloat(gl&&gl.value)||0;
   if(amt>APP.vaultBal){ toast(t('vault_main_insufficient'),true); return; }
+  _vCreateInFlight = true;
   var tok=getToken();
   apiCall('/wallet?action=subvault-create','POST',{name:name,amount:amt,goal:goal||''},tok).then(function(res){
+    _vCreateInFlight = false;
     if(res&&res.success){
       var d=res.data||{};
       APP.vaultBal=d.vault_balance;
@@ -8681,7 +8582,7 @@ function shSVDeposit(b, id){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_main_label')+'<strong>'+fmt(APP.vaultBal)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_transfer_to').replace('{name}',sv.name)+'</label>'
     +'<div class="amt-row"><input class="finput" id="sv-dep-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
-    +'<button class="btn-g" onclick="doSVDeposit('+id+')">'+t('bank_btn_deposit')+'</button>';
+    +'<button class="btn-g" onclick="doSVDeposit('+id+')">'+t('sv_btn_deposit')+'</button>';
 }
 
 var _svDepositInFlight = false;
@@ -8721,7 +8622,7 @@ function shSVWithdraw(b, id){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'": <strong>'+fmt(sv.amt)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_withdraw_to_main')+'</label>'
     +'<div class="amt-row"><input class="finput" id="sv-wd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
-    +'<button class="btn-g" onclick="reqSVWithdraw('+id+')">'+t('bank_btn_withdraw')+'</button>';
+    +'<button class="btn-g" onclick="reqSVWithdraw('+id+')">'+t('sv_btn_withdraw')+'</button>';
 }
 
 function reqSVWithdraw(id){
@@ -9030,7 +8931,7 @@ function refreshTxList(){
     if(res&&res.success&&res.data&&res.data.transactions){
       txList=res.data.transactions.map(function(t){
         var displayAmt = t.direction==='credit'
-          ? (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount))
+          ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
           : parseFloat(t.amount);
         return {
           id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
@@ -9343,11 +9244,9 @@ function doEncaisserWithPin(phone, name, pin){
 
 
 
-// BANQUE
-// ── BANQUE (SIMULATION) ──
-// Toutes les fonctions ci-dessous appellent le module backend "bank",
-// qui est un MOCK (aucun vrai partenaire bancaire connecte pour l'instant).
-// Voir commentaire equivalent cote backend (index.php, route_bank).
+// ── BANQUE ──
+// Simple ecran "bientot disponible" (liste d'attente) - la fonctionnalite de
+// depot/retrait bancaire elle-meme (simulee) a ete retiree de l'app.
 function shBanque(b){
   var already = (APP.waitlist||[]).some(function(w){ return w.pays==='Banque'; });
   b.innerHTML = '<div style="text-align:center;padding:50px 20px">'
@@ -9702,8 +9601,6 @@ function refreshUI(){
 
 
 
-function showWTabQR(){ showWTab('qr'); }
-function showWTabScan(){ showWTab('scan'); }
 function showWTab(tab){
   var qrV = document.getElementById('wview-qr');
   var scV = document.getElementById('wview-scan');
@@ -9722,61 +9619,6 @@ function showWTab(tab){
     // Auto-start camera immediately
     startWalletScan();
   }
-}
-
-// Pure canvas QR renderer (no external lib needed)
-function renderQRCanvas(canvasId, text){
-  var canvas = document.getElementById(canvasId);
-  if(!canvas) return;
-  var ctx = canvas.getContext('2d');
-  // Try QRCode lib first
-  if(typeof QRCode !== 'undefined'){
-    var wrap = canvas.parentNode;
-    wrap.innerHTML = '<div id="qr-lib-wrap" style="width:180px;height:180px"></div>';
-    try{
-      new QRCode(document.getElementById('qr-lib-wrap'),{
-        text: text, width:180, height:180,
-        colorDark:'#085041', colorLight:'#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
-      return;
-    }catch(e){}
-  }
-  // Fallback: draw visual QR placeholder with user data
-  var size = 180;
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = '#085041';
-  // Draw corner squares
-  function drawCorner(x, y){
-    ctx.fillRect(x, y, 40, 40);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x+6, y+6, 28, 28);
-    ctx.fillStyle = '#085041';
-    ctx.fillRect(x+12, y+12, 16, 16);
-  }
-  drawCorner(10, 10); drawCorner(130, 10); drawCorner(10, 130);
-  // Draw data pattern from text hash
-  var hash = 0;
-  for(var i=0;i<text.length;i++) hash = ((hash<<5)-hash)+text.charCodeAt(i);
-  var seed = Math.abs(hash);
-  ctx.fillStyle = '#085041';
-  for(var row=0;row<15;row++){
-    for(var col=0;col<15;col++){
-      if(row<4&&col<4) continue;
-      if(row<4&&col>10) continue;
-      if(row>10&&col<4) continue;
-      if((seed >> (row*15+col)) & 1){
-        ctx.fillRect(60+col*8, 60+row*8-(row>6?40:0), 6, 6);
-      }
-    }
-  }
-  // Add text below
-  ctx.fillStyle = '#085041';
-  ctx.font = 'bold 9px monospace';
-  ctx.textAlign = 'center';
-  var parts = text.split('|');
-  ctx.fillText(parts[0]||text, size/2, size-8);
 }
 
 function startWalletScan(){
@@ -9845,21 +9687,6 @@ function scanLoopWallet(){
   }
   scanRAF = requestAnimationFrame(scanLoopWallet);
 }
-
-function useScanManualWallet(){
-  var inp = document.getElementById('scan-manual-input');
-  if(!inp||!inp.value.trim()){ toast('Entrez un numero'); return; }
-  var ph = inp.value.trim();
-  stopScan(); closeSheet();
-  openSheet('send');setTimeout(function(){ setTimeout(function(){
-    var sph = document.getElementById('sph');
-    var srn = document.getElementById('srn');
-    if(sph) sph.value = ph;
-    if(srn) srn.textContent = 'Destinataire: ' + ph;
-  },200); },350);
-}
-
-
 
 function openQRMenu(){
   var titleEl=document.getElementById('sh-title');
@@ -10009,9 +9836,7 @@ function showQRFullscreen(){
 
 function doOpenSend(){ openSheet('send'); }
 function doOpenPay(){ openSheet('pay'); }
-function doOpenReceive(){ openSheet('receive'); }
 function doOpenNotif(){ openSheet('notif'); }
-function doOpenQr(){ openSheet('qr'); }
 
 function renderTx(target, filter){
   filter=filter||'all';
@@ -10333,12 +10158,6 @@ function startInactivityTimer(){
   resetInactivityTimer();
 }
 
-function stopInactivityTimer(){
-  if(_inactivityTimer) clearTimeout(_inactivityTimer);
-  ['touchstart','touchmove','click','keydown','scroll','mousemove'].forEach(function(evt){
-    document.removeEventListener(evt, resetInactivityTimer);
-  });
-}
 
 // ── TRANSACTION SEARCH ──
 // ── NOTIFICATIONS BACKEND POLLING ──
@@ -10447,7 +10266,7 @@ function checkNewTransactions(){
           if(t.direction==='credit' && t.status==='completed' && !APP.seenTxIds[t.id]){
             APP.seenTxIds[t.id] = true;
             if(_lastNotifCheck > 0 && APP.notifTx!==false){
-              var amt = t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount);
+              var amt = t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount));
               var sender = t.sender_name || window.t('notif_someone_fallback');
               var msg = window.t('notif_money_received_msg').replace('{amt}',fmt(amt)).replace('{sender}',sender);
               APP.notifications.push({
@@ -10465,7 +10284,7 @@ function checkNewTransactions(){
         var newTxList = txs.map(function(t){
           var existing = txList.find(function(et){ return String(et.id)===String(t.id); });
           var displayAmt = t.direction==='credit'
-            ? (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount))
+            ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
             : parseFloat(t.amount);
           return {
             id:t.id,

@@ -656,8 +656,6 @@ var I18N = {
   mqr_slogan:{fr:'UNE AFRIQUE, UN PORTEFEUILLE',en:'ONE AFRICA, ONE WALLET'},
   mqr_downloaded:{fr:'QR téléchargé !',en:'QR downloaded!'},
   pdf_load_error:{fr:'Erreur chargement PDF',en:'PDF loading error'},
-  vault_online:{fr:'Commerce en ligne',en:'Online business'},
-  vault_with_location:{fr:'Local commercial',en:'Physical location'},
   hist_no_tx:{fr:'Aucune transaction pour le moment.',en:'No transactions yet.'},
   send_searching:{fr:'Recherche...',en:'Searching...'},
   profil_kyb_docs:{fr:"Documents de l'entreprise",en:'Business documents'},
@@ -1671,14 +1669,17 @@ function renderMqrPayAmountForm(m){
     +'</div>';
 }
 function doMqrPay(){
+  if(_moneyActionInFlight) return;
   var m = window._mqrPayTarget;
   if(!m) return;
   var amt=parseFloat(document.getElementById('mqrpay-amt').value)||0;
   var motifEl=document.getElementById('mqrpay-motif');
   var motif=motifEl?motifEl.value.trim():'';
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=pay-merchant','POST',{merchant_id:m.id,amount:amt,pin:PIN_MEM,description:motif},getToken()).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
         closeSheet();
@@ -1805,7 +1806,7 @@ function createPaymentLink(){
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
   var motifEl=document.getElementById('enc-motif');
   var motif=motifEl?motifEl.value.trim():'';
-  if(amt<=0){ toast(t('enc_enter_amount'), true); return; }
+  if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
   _createPaymentLinkInFlight = true;
   toast(t('paylink_creating'));
   apiCall('/merchant?action=create-payment-link','POST',{amount:amt,description:motif},getToken()).then(function(res){
