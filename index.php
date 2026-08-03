@@ -1213,11 +1213,15 @@ function merchant_register() {
     $locationType = ($b['location_type'] ?? 'online')==='physical' ? 'physical' : 'online';
     $address = trim($b['address'] ?? '');
     $deviceId = trim($b['device_id'] ?? '');
+    $country = trim($b['country'] ?? '');
     if(!$businessName) fail('Nom de la boutique requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if($locationType==='physical' && !$address) fail('Adresse requise pour un commerce avec emplacement');
+    if(!$country) fail('Le pays est requis');
+    $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+    if(!$countryRow || !$countryRow['is_active']) fail('ROM_BUSINESS n\'est pas encore disponible dans ce pays');
     try {
         $exists = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
     } catch(Exception $e) {
@@ -1233,9 +1237,9 @@ function merchant_register() {
         $mid = uid(); $wid = uid();
         $pinh = password_hash($pin, PASSWORD_BCRYPT);
         $qrseed = strtoupper(bin2hex(random_bytes(5)));
-        q("INSERT INTO merchants (id,phone_number,pin_hash,business_name,location_type,address) VALUES (?,?,?,?,?,?)",
-          [$mid,$phone,$pinh,$businessName,$locationType,$address?:null]);
-        q("INSERT INTO merchant_wallets (id,merchant_id,qr_seed) VALUES (?,?,?)",[$wid,$mid,$qrseed]);
+        q("INSERT INTO merchants (id,phone_number,pin_hash,business_name,location_type,address,country) VALUES (?,?,?,?,?,?,?)",
+          [$mid,$phone,$pinh,$businessName,$locationType,$address?:null,$country]);
+        q("INSERT INTO merchant_wallets (id,merchant_id,qr_seed,currency) VALUES (?,?,?,?)",[$wid,$mid,$qrseed,country_to_currency($country)]);
         if($deviceId){
             $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
             q("INSERT INTO merchant_known_devices (merchant_id,device_id,user_agent) VALUES (?,?,?)
@@ -1277,21 +1281,22 @@ function merchant_login() {
     $token = jwt_make(['sub'=>$m['id'],'phone'=>$phone,'typ'=>'merchant','device_id'=>$deviceId]);
     ok(['token'=>$token,'merchant_id'=>$m['id'],'business_name'=>$m['business_name'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],
-        'verified'=>(bool)($m['verified']??false),
+        'verified'=>(bool)($m['verified']??false),'country'=>$m['country']??null,
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
         'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null,
-        'qr_seed'=>$w['qr_seed']??null],'Connexion reussie');
+        'currency'=>$w['currency']??'XOF','qr_seed'=>$w['qr_seed']??null],'Connexion reussie');
 }
 
 function merchant_balance() {
     $pl = merchant_auth();
-    $m = q("SELECT business_name,location_type,address,verified FROM merchants WHERE id=?",[$pl['sub']])->fetch();
+    $m = q("SELECT business_name,location_type,address,verified,country FROM merchants WHERE id=?",[$pl['sub']])->fetch();
     $w = q("SELECT * FROM merchant_wallets WHERE merchant_id=?",[$pl['sub']])->fetch();
     if(!$w) fail('Portefeuille introuvable',404);
     ok(['balance'=>(float)$w['balance'],'vault_balance'=>(float)$w['vault_balance'],
         'vault_locked'=>(bool)$w['vault_locked'],'vault_lock_date'=>$w['vault_lock_date'],
         'qr_seed'=>$w['qr_seed'],'business_name'=>$m['business_name'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],'currency'=>$w['currency'],
+        'country'=>$m['country']??null,
         'verified'=>(bool)($m['verified']??false)]);
 }
 
@@ -2179,13 +2184,37 @@ function fraud_check_transaction($senderWalletId, $receiverPhone, $amount, $txid
 // merchant_pay_merchant().
 function merchant_receive_fee($merchantWalletId, $amount){
     $rate = (float)get_setting('fee_rate_merchant', 0.01);
-    $threshold = (float)get_setting('fee_free_threshold_merchant_daily', 25000);
-    $receivedToday = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+    $threshold = (float)get_setting('fee_free_threshold_merchant_daily', 25000); // toujours exprime en XOF
+    $merchantCurrency = q("SELECT currency FROM merchant_wallets WHERE id=?",[$merchantWalletId])->fetchColumn() ?: 'XOF';
+    // Le cumul du jour doit etre dans la meme devise que $amount (celle du
+    // marchand) : receiver_amount est deja le montant reellement credite au
+    // marchand pour chaque paiement passe, contrairement a amount qui reste
+    // dans la devise de CHAQUE client d'origine et ne peut pas etre additionne
+    // directement d'une ligne a l'autre.
+    $receivedToday = (float)(q("SELECT COALESCE(SUM(COALESCE(receiver_amount,net_amount,amount)),0) t FROM transactions
         WHERE receiver_merchant_wallet_id=? AND type='merchant_payment' AND status='completed'
         AND created_at::date=CURRENT_DATE",[$merchantWalletId])->fetch()['t']??0);
-    $remainingFree = max(0, $threshold - $receivedToday);
-    $feeable = max(0, $amount - $remainingFree);
-    $fee = round($feeable * $rate);
+    // Le seuil de gratuite est un reglage global exprime en XOF - pour un
+    // marchand dans une autre devise, on convertit le cumul du jour et le
+    // montant courant en XOF le temps de la comparaison au seuil, puis on
+    // reconvertit le frais resultant dans la devise du marchand.
+    $receivedTodayXof = $receivedToday; $amountXof = $amount;
+    if($merchantCurrency !== 'XOF'){
+        $r = convert_currency($receivedToday, $merchantCurrency, 'XOF');
+        $a = convert_currency($amount, $merchantCurrency, 'XOF');
+        if($r === null || $a === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $receivedTodayXof = $r; $amountXof = $a;
+    }
+    $remainingFreeXof = max(0, $threshold - $receivedTodayXof);
+    $feeableXof = max(0, $amountXof - $remainingFreeXof);
+    $feeXof = $feeableXof * $rate;
+    $fee = $feeXof;
+    if($merchantCurrency !== 'XOF'){
+        $f = convert_currency($feeXof, 'XOF', $merchantCurrency);
+        if($f === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $fee = $f;
+    }
+    $fee = round($fee);
     return ['fee'=>$fee, 'net'=>$amount-$fee];
 }
 // Credite le compte systeme ROM_MONEY du frais preleve sur un encaissement
@@ -2198,15 +2227,18 @@ function credit_merchant_fee($merchantWalletId, $fee, $label){
     if($fee <= 0) return;
     $fee_recv = q("SELECT u.id,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
     if(!$fee_recv) return;
-    // $fee est calcule en devise du marchand (toujours XOF) - conversion
-    // defensive au cas ou le compte systeme changerait un jour de devise
-    // (aujourd'hui les deux sont XOF, donc pas d'effet reel, mais evite une
-    // mauvaise surprise silencieuse si ca change).
+    // $fee est calcule dans la devise du MARCHAND (merchant_wallets.currency) -
+    // plus forcement XOF depuis que les marchands choisissent leur pays a
+    // l'inscription. Il faut donc convertir vers la devise du compte systeme
+    // si elles different, au lieu de supposer XOF des deux cotes (une
+    // hypothese fausse silencieusement creditait/detruisait de la valeur).
+    $merchantCurrency = q("SELECT currency FROM merchant_wallets WHERE id=?",[$merchantWalletId])->fetchColumn() ?: 'XOF';
     $feeAccountCurrency = $fee_recv['currency'] ?: 'XOF';
     $feeConverted = $fee;
-    if($feeAccountCurrency !== 'XOF'){
-        $c = convert_currency($fee, 'XOF', $feeAccountCurrency);
-        if($c !== null) $feeConverted = round($c, 2);
+    if($feeAccountCurrency !== $merchantCurrency){
+        $c = convert_currency($fee, $merchantCurrency, $feeAccountCurrency);
+        if($c === null) throw new Exception('Conversion de devise momentanement indisponible (frais marchand)');
+        $feeConverted = round($c, 2);
     }
     $fee_txid = uid(); $fee_ref = ref();
     q("INSERT INTO transactions (id,sender_merchant_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
@@ -3863,6 +3895,7 @@ function route_admin($action) {
         'list-fraud-alerts'    => admin_list_fraud_alerts(),
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         'merchant-search'          => admin_merchant_search(),
+        'merchant-update-country'  => admin_merchant_update_country(),
         'merchant-toggle-verified' => admin_merchant_toggle_verified(),
         'merchant-block'           => admin_merchant_block(),
         'merchant-unblock'         => admin_merchant_unblock(),
@@ -4544,7 +4577,7 @@ function admin_merchant_search() {
         fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
     }
     if(!$m) fail('Aucun compte marchand pour ce numero',404);
-    $w = q("SELECT id,balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    $w = q("SELECT id,balance,vault_balance,currency FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
     try {
         $notes = q("SELECT id,note,created_at FROM merchant_notes WHERE merchant_id=? ORDER BY created_at DESC",[$m['id']])->fetchAll();
     } catch(Exception $e) {
@@ -4577,6 +4610,7 @@ function admin_merchant_search() {
     ok(['id'=>$m['id'],'business_name'=>$m['business_name'],'phone_number'=>$m['phone_number'],
         'location_type'=>$m['location_type'],'address'=>$m['address'],'status'=>$m['status'],
         'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
+        'country'=>$m['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
         'notes'=>$notes,'transactions'=>$txs]);
 }
@@ -5927,6 +5961,69 @@ function admin_update_country() {
     ok(null,'Pays mis a jour avec succes');
 }
 
+// Equivalent de admin_update_country() mais pour un compte marchand
+// ROM_BUSINESS (table merchants/merchant_wallets, identifie par telephone
+// marchand plutot que numero personnel). Meme logique de conversion reelle
+// (jamais un simple relabel) sur balance/vault_balance et les sous-coffres
+// du marchand (sub_vaults partage le meme moteur que ROM_MONEY, cle sur
+// merchant_wallets.id).
+function admin_merchant_update_country() {
+    $b = body();
+    check_admin_password($b);
+    $phone   = trim($b['phone'] ?? '');
+    $country = trim($b['country'] ?? '');
+    $reason  = trim($b['reason'] ?? '');
+    if(!$phone || !$country || !$reason) fail('Telephone, pays et raison requis');
+    $m = q("SELECT id,country FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if(!$m){
+        admin_log('merchant_update_country','failed',$phone,'Compte marchand introuvable');
+        fail('Compte marchand introuvable',404);
+    }
+    $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+    if(!$countryRow || !$countryRow['is_active']){
+        admin_log('merchant_update_country','failed',$phone,'Pays non actif : '.$country.' ('.$reason.')');
+        fail('Ce pays n\'est pas actif sur ROM_BUSINESS');
+    }
+    $oldCountry = $m['country'];
+    $newCurrency = country_to_currency($country);
+    $w = q("SELECT id,currency,balance,vault_balance FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    $oldCurrency = $w ? strtoupper($w['currency'] ?: 'XOF') : 'XOF';
+    if($oldCurrency==='FCFA') $oldCurrency='XOF';
+
+    db()->beginTransaction();
+    try {
+        q("UPDATE merchants SET country=? WHERE id=?",[$country,$m['id']]);
+        if($w && $oldCurrency !== $newCurrency){
+            $newBalance = convert_currency((float)$w['balance'], $oldCurrency, $newCurrency);
+            $newVault = convert_currency((float)$w['vault_balance'], $oldCurrency, $newCurrency);
+            if($newBalance===null || $newVault===null) throw new Exception('Conversion de devise momentanement indisponible');
+            q("UPDATE merchant_wallets SET currency=?,balance=?,vault_balance=? WHERE id=?",
+              [$newCurrency, round($newBalance,2), round($newVault,2), $w['id']]);
+            $subVaults = q("SELECT id,balance,goal_amount FROM sub_vaults WHERE wallet_id=?",[$w['id']])->fetchAll();
+            foreach($subVaults as $sv){
+                $svBal = convert_currency((float)$sv['balance'], $oldCurrency, $newCurrency);
+                if($svBal===null) throw new Exception('Conversion de devise momentanement indisponible');
+                $svGoal = null;
+                if($sv['goal_amount']!==null){
+                    $svGoal = convert_currency((float)$sv['goal_amount'], $oldCurrency, $newCurrency);
+                    if($svGoal===null) throw new Exception('Conversion de devise momentanement indisponible');
+                }
+                q("UPDATE sub_vaults SET balance=?,goal_amount=? WHERE id=?",
+                  [round($svBal,2), $svGoal!==null?round($svGoal,2):null, $sv['id']]);
+            }
+        } elseif($w) {
+            q("UPDATE merchant_wallets SET currency=? WHERE id=?",[$newCurrency,$w['id']]);
+        }
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        admin_log('merchant_update_country','failed',$phone,'Echec conversion devise lors du changement de pays vers '.$country.' ('.$reason.')');
+        fail(APP_DEBUG?$e->getMessage():'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.',503);
+    }
+    admin_log('merchant_update_country','success',$phone,'Pays marchand : '.($oldCountry?:'-').' -> '.$country.' ('.$reason.')');
+    ok(null,'Pays mis a jour avec succes');
+}
+
 // Nettoyage manuel d'une demande KYC redondante/obsolete (ex: doublons issus
 // de vieux tests). Reservee au nettoyage de donnees, jamais utilisee pour
 // annuler une verification legitime deja approuvee.
@@ -6227,6 +6324,7 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified SMALLINT DEFAULT 0",
+    "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
     // Notes admin en texte libre sur un compte personnel - contexte humain
     // (appel client, litige en cours...) distinct du journal d'actions
     // automatique (audit_logs), qui ne trace que les actions structurees.

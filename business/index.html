@@ -186,6 +186,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
     </div>
     <div class="frow" id="addr-row" style="display:none"><label class="flabel" data-i18n="reg_label_address">Adresse *</label><input class="finput" id="r-addr" data-i18n-ph="reg_ph_address" placeholder="Quartier, ville..."></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_country">Pays *</label>
+      <select class="finput" id="r-country"><option value="" data-i18n="reg_country_loading">Chargement des pays...</option></select>
+    </div>
     <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="07 00 00 00 00"></div>
     <button class="btn-g" style="background:var(--g);color:#fff" onclick="regStep1()" data-i18n="reg_btn_continue">Continuer</button>
   </div>
@@ -257,7 +260,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
       </svg>
     </div>
-    <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur">FCFA</span></div>
+    <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur" id="hdr-cur">FCFA</span></div>
   </div>
 
   <div class="qa-grid">
@@ -399,6 +402,7 @@ var API_URL = 'https://rom-money-backend.onrender.com';
 var APP = {
   businessName:'', phone:'', locationType:'online', address:'',
   merchantId:'', pinHash:'', token:'',
+  country:'', currency:'XOF',
   balance:0, vaultBal:0, vaultLocked:false, vaultDate:null,
   subVaults:[], qrSeed:'', balHidden:false,
   bioEnabled:false, bioCredId:'', theme:'system', lang:'fr'
@@ -420,6 +424,9 @@ var I18N = {
   reg_loc_physical:{fr:'Avec emplacement',en:'Physical location'},
   reg_label_address:{fr:'Adresse *',en:'Address *'},
   reg_ph_address:{fr:'Quartier, ville...',en:'District, city...'},
+  reg_label_country:{fr:'Pays *',en:'Country *'},
+  reg_country_loading:{fr:'Chargement des pays...',en:'Loading countries...'},
+  reg_err_country:{fr:'Le pays est requis',en:'Country is required'},
   reg_label_phone:{fr:'Numéro de téléphone *',en:'Phone number *'},
   reg_ph_phone_sample:{fr:'07 00 00 00 00',en:'07 00 00 00 00'},
   reg_btn_continue:{fr:'Continuer',en:'Continue'},
@@ -824,6 +831,22 @@ function toast(msg, isErr){
 function showRegA(){
   document.getElementById('reg-a').style.display='block';
   document.getElementById('reg-b').style.display='none';
+  loadRegCountries();
+}
+function loadRegCountries(){
+  var sel=document.getElementById('r-country');
+  if(!sel || sel.getAttribute('data-loaded')==='1') return;
+  apiCall('/auth?action=countries','GET',null,false).then(function(res){
+    if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
+      sel.innerHTML='<option value="">Choisir un pays</option>'
+        + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+      sel.setAttribute('data-loaded','1');
+    } else {
+      sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
+    }
+  }).catch(function(){
+    sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
+  });
 }
 function setLocType(t){
   APP.locationType = t;
@@ -834,11 +857,13 @@ function setLocType(t){
 function regStep1(){
   var name = document.getElementById('r-name').value.trim();
   var addr = document.getElementById('r-addr').value.trim();
+  var country = document.getElementById('r-country').value;
   var phone = document.getElementById('r-phone').value.trim();
   if(!name){ toast(t('reg_err_name'), true); return; }
   if(APP.locationType==='physical' && !addr){ toast(t('reg_err_address'), true); return; }
+  if(!country){ toast(t('reg_err_country'), true); return; }
   if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast(t('reg_err_phone'), true); return; }
-  APP.businessName = name; APP.address = addr; APP.phone = phone;
+  APP.businessName = name; APP.address = addr; APP.country = country; APP.phone = phone;
   document.getElementById('reg-a').style.display='none';
   document.getElementById('reg-b').style.display='flex';
   rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
@@ -877,11 +902,11 @@ function finishRegister(){
   toast(t('reg_creating'));
   apiCall('/merchant?action=register','POST',{
     business_name:APP.businessName, phone:APP.phone, pin:PIN_MEM,
-    location_type:APP.locationType, address:APP.address, device_id:getDeviceId()
+    location_type:APP.locationType, address:APP.address, country:APP.country, device_id:getDeviceId()
   }).then(function(res){
     if(res && res.success && res.data){
       APP.token=res.data.token; APP.merchantId=res.data.merchant_id;
-      APP.qrSeed=res.data.qr_seed; save();
+      APP.qrSeed=res.data.qr_seed; APP.currency=res.data.currency||APP.currency; save();
       launchApp();
     } else {
       toast((res&&res.message)||t('reg_err_create'), true);
@@ -934,6 +959,7 @@ function lgPin(d){
           APP.businessName=res.data.business_name; APP.locationType=res.data.location_type;
           APP.address=res.data.address; APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
           APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date; APP.qrSeed=res.data.qr_seed;
+          APP.country=res.data.country||APP.country; APP.currency=res.data.currency||APP.currency;
           APP.verified=!!res.data.verified;
           _addAccountMode=false; _switchPrefillPhone='';
           setPin(buf).then(function(){ save(); launchApp(); });
@@ -1130,11 +1156,11 @@ function renderDashboardStatsData(d, stale){
       errEl.style.display='none'; errEl.style.background='none'; errEl.style.padding='0';
     }
   }
-  document.getElementById('db-today-total').textContent = fmt(d.today.total)+' F';
+  document.getElementById('db-today-total').textContent = fmt(d.today.total)+' '+curSuffix();
   document.getElementById('db-today-cnt').textContent = d.today.count+' '+(d.today.count>1?t('sale_plural'):t('sale_singular'));
-  document.getElementById('db-week-total').textContent = fmt(d.week.total)+' F';
+  document.getElementById('db-week-total').textContent = fmt(d.week.total)+' '+curSuffix();
   document.getElementById('db-week-cnt').textContent = d.week.count+' '+(d.week.count>1?t('sale_plural'):t('sale_singular'));
-  document.getElementById('db-month-total').textContent = fmt(d.month.total)+' F';
+  document.getElementById('db-month-total').textContent = fmt(d.month.total)+' '+curSuffix();
   document.getElementById('db-month-cnt').textContent = d.month.count+' '+(d.month.count>1?t('sale_plural'):t('sale_singular'));
   renderDashboardChart(d.daily||[]);
 }
@@ -1192,7 +1218,7 @@ function showDbTooltip(ev,value){
   var bar=ev.currentTarget;
   tip.style.left=(bar.offsetLeft+bar.offsetWidth/2)+'px';
   tip.style.top=(bar.offsetTop-6)+'px';
-  tip.textContent=fmt(value)+' F';
+  tip.textContent=fmt(value)+' '+curSuffix();
   tip.style.display='block';
 }
 if(!window._dbTooltipDocListener){
@@ -1204,6 +1230,11 @@ if(!window._dbTooltipDocListener){
 }
 function updateBalDisplay(){
   document.getElementById('hdr-balance').textContent = APP.balHidden ? '••••••' : fmt(APP.balance);
+  var curEl = document.getElementById('hdr-cur');
+  if(curEl) curEl.textContent = (APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency) ? 'FCFA' : APP.currency;
+}
+function curSuffix(){
+  return (APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency) ? 'F' : APP.currency;
 }
 function syncEyeIcon(){
   var icon = document.getElementById('eye-icon');
@@ -1227,7 +1258,8 @@ function refreshBalance(){
     if(res && res.success && res.data){
       APP.balance=res.data.balance; APP.vaultBal=res.data.vault_balance;
       APP.vaultLocked=res.data.vault_locked; APP.vaultDate=res.data.vault_lock_date;
-      APP.qrSeed=res.data.qr_seed; APP.verified=!!res.data.verified; save();
+      APP.qrSeed=res.data.qr_seed; APP.verified=!!res.data.verified;
+      APP.currency=res.data.currency||APP.currency; save();
       updateBalDisplay(); renderVault(); renderVerifiedBadges();
     }
   });
@@ -1281,7 +1313,7 @@ function renderTxRows(rows, containerId, stale){
     // sinon un encaissement de 50000F avec 250F de frais afficherait +50000F
     // alors que seuls 49750F ont vraiment atterri sur le solde.
     var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
-    var amtText = isAnn?'---':(isCredit?'+':'-')+fmt(displayAmt)+' F';
+    var amtText = isAnn?'---':(isCredit?'+':'-')+fmt(displayAmt)+' '+curSuffix();
     h+='<div class="tx-row" style="cursor:pointer;opacity:'+(isAnn?'.55':'1')+'" onclick="openReceiptById(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
       +'<div><div class="tx-name">'+name+badge+'</div><div class="tx-date"><span class="tx-type">'+typeLabel+'</span> · '+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
       +'<div class="tx-amt" style="color:'+amtColor+'">'+amtText+'</div></div>';
@@ -1315,14 +1347,14 @@ function openReceipt(tx){
   var displayAmt = isCredit && tx.net_amount!=null ? parseFloat(tx.net_amount) : parseFloat(tx.amount);
   var feeAmt = isCredit && tx.fee!=null ? parseFloat(tx.fee) : 0;
   var html = '<div style="text-align:center;padding:10px 0 18px">'
-    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(displayAmt)+' F</div>'
+    +'<div style="font-size:28px;font-weight:900;color:'+color+'">'+sign+fmt(displayAmt)+' '+curSuffix()+'</div>'
     +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
     +'</div>'
     +'<div style="background:var(--gl);border-radius:14px;padding:14px;margin-bottom:16px">'
     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(isCredit?t('label_client'):t('label_recipient'))+'</span><span style="font-weight:700;font-size:13px">'+counterName+'</span></div>'
     +(tx.reference?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('receipt_reference')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.reference+'</span></div>':'')
     +'<div style="display:flex;justify-content:space-between;padding:8px 0'+(feeAmt>0?';border-bottom:.5px solid var(--div)':'')+'"><span style="color:var(--t2);font-size:13px">'+t('receipt_type')+'</span><span style="font-weight:600;font-size:13px">'+txTypeLabel(tx)+'</span></div>'
-    +(feeAmt>0?'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('receipt_fee_label')+'</span><span style="font-weight:600;font-size:13px;color:var(--re)">-'+fmt(feeAmt)+' F</span></div>':'')
+    +(feeAmt>0?'<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('receipt_fee_label')+'</span><span style="font-weight:600;font-size:13px;color:var(--re)">-'+fmt(feeAmt)+' '+curSuffix()+'</span></div>':'')
     +'</div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="shareReceiptPdf(window._receiptTx)">'+t('receipt_share_btn')+'</button>';
   document.getElementById('sh-title').textContent = t('receipt_title');
@@ -1378,7 +1410,7 @@ function shareReceiptPdf(tx){
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       navigator.share({title:t('receipt_share_title'),text:t('receipt_share_text'),files:[file]}).catch(function(e){ if(e.name!=='AbortError') doc.save(fn); });
     } else if(navigator.share){
-      navigator.share({title:t('receipt_share_title'),text:sign+fmt(displayAmt)+' FCFA — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
+      navigator.share({title:t('receipt_share_title'),text:sign+fmt(displayAmt)+' '+curSuffix()+' — '+dateStr}).then(function(){ doc.save(fn); }).catch(function(){ doc.save(fn); });
     } else {
       doc.save(fn); toast(t('receipt_downloaded'));
     }
@@ -1581,7 +1613,7 @@ function renderMqrPayAmountForm(m){
   if(!result) return;
   result.innerHTML = '<div style="background:var(--gl);border-radius:14px;padding:14px;border:.5px solid var(--gm)">'
     +'<div style="font-size:14px;font-weight:800;color:var(--t1);margin-bottom:10px">'+adminEscBiz(m.business_name)+(m.verified?' ✓':'')+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="mqrpay-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="mqrpay-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<div class="frow"><label class="flabel">'+t('motif_label')+'</label><input class="finput" id="mqrpay-motif" placeholder="'+t('motif_ph')+'"></div>'
     +'<button onclick="doMqrPay()" class="btn-g">'+t('mqr_pay_confirm_btn')+'</button>'
     +'<button onclick="renderMqrPayView()" style="width:100%;padding:10px;margin-top:8px;background:none;border:.5px solid var(--bord);border-radius:10px;font-size:12px;cursor:pointer;color:var(--t2);font-family:inherit">'+t('scan_again')+'</button>'
@@ -1686,7 +1718,7 @@ function ini(n){
 }
 function shEncaisser(b){
   b.innerHTML = ''
-    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="enc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<div class="chips">'+[1000,2000,5000,10000,25000].map(function(a){ return '<button class="chip" onclick="document.getElementById(\'enc-amt\').value='+a+'">'+fmt(a)+'</button>'; }).join('')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('motif_label')+'</label><input class="finput" id="enc-motif" placeholder="'+t('motif_ph')+'"></div>'
     +'<button onclick="startMerchantScan()" class="btn-g" style="display:flex;align-items:center;justify-content:center;gap:8px">'
@@ -1737,7 +1769,7 @@ function showPaymentLinkResult(id, amt, motif){
   result.style.display='block';
   result.innerHTML = '<div style="text-align:center;padding:16px;background:var(--gl);border-radius:14px;margin-top:8px">'
     +'<div style="font-size:32px;margin-bottom:8px">🔗</div>'
-    +'<div style="font-size:16px;font-weight:900;color:var(--t1);margin-bottom:4px">'+fmt(amt)+' F</div>'
+    +'<div style="font-size:16px;font-weight:900;color:var(--t1);margin-bottom:4px">'+fmt(amt)+' '+curSuffix()+'</div>'
     +(motif?'<div style="font-size:12px;color:var(--t2);margin-bottom:10px">'+adminEscBiz(motif)+'</div>':'<div style="margin-bottom:10px"></div>')
     +'<div style="font-size:11px;color:var(--t2);margin-bottom:12px">'+t('paylink_share_desc')+'</div>'
     +'<button class="btn-g" style="margin-bottom:8px" onclick="sharePaymentLink(\''+url+'\')">'+t('paylink_share_btn')+'</button>'
@@ -1856,7 +1888,7 @@ function onEncaisserScanned(text){
         +'<div><div style="font-size:14px;font-weight:800;color:var(--t1)">'+adminEscBiz(name)+'</div>'
         +'<div style="font-size:12px;color:var(--t2)">'+phone+'</div></div>'
         +'</div>'
-        +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('amount_label')+'</span><span>'+fmt(amt)+' F</span></div>'
+        +'<div style="padding:10px 0;border-bottom:.5px solid var(--div);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('amount_label')+'</span><span>'+fmt(amt)+' '+curSuffix()+'</span></div>'
         +'<div style="padding-top:12px">'
         +'<div style="font-size:12px;color:var(--t2);margin-bottom:8px">'+t('enc_pin_prompt')+'</div>'
         +'<div class="dots" style="margin:0 auto 12px">'
@@ -1930,7 +1962,7 @@ function shVirement(b){
     +'</button>'
     +'<button class="chip" style="'+chipStyle+'" onclick="startVirScan()">📷 '+t('vir_scan_qr_btn')+'</button>'
     +'</div>'
-    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vir-amt" type="number" inputmode="numeric" placeholder="0" oninput="updateVirFee()"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<div id="vir-fee" class="fee-note">'+t('vir_fee_prompt')+'</div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVirement()">'+t('qa_envoyer')+'</button>'
     +'</div>'
@@ -2153,7 +2185,7 @@ function uploadKybDoc(key, photo){
 // ── COFFRE ──
 function renderVault(){
   var lk=APP.vaultLocked;
-  document.getElementById('vault-amt').textContent=fmt(APP.vaultBal)+' F';
+  document.getElementById('vault-amt').textContent=fmt(APP.vaultBal)+' '+curSuffix();
   document.getElementById('vault-status-lbl').textContent = lk ? t('vault_locked_label') : t('vault_savings');
   var wb=document.getElementById('v-wb'); wb.disabled=lk; wb.style.opacity=lk?.4:1;
   var lb=document.getElementById('v-lb'); lb.disabled=lk; lb.style.opacity=lk?.4:1;
@@ -2179,8 +2211,8 @@ function renderSubVaults(){
     var pct=hasGoal?Math.round(Math.min(sv.amt/sv.goal*100,100)):0;
     h+='<div class="card" style="margin-bottom:8px">'
       +'<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-weight:700;font-size:14px">'+sv.name+'</span>'
-      +'<span style="font-weight:800;color:var(--g)">'+(hasGoal?pct+'%':fmt(sv.amt)+' F')+'</span></div>'
-      +(hasGoal?'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+fmt(sv.amt)+' F / '+fmt(sv.goal)+' F</div>':'')
+      +'<span style="font-weight:800;color:var(--g)">'+(hasGoal?pct+'%':fmt(sv.amt)+' '+curSuffix())+'</span></div>'
+      +(hasGoal?'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+fmt(sv.amt)+' '+curSuffix()+' / '+fmt(sv.goal)+' '+curSuffix()+'</div>':'')
       +'<div style="display:flex;gap:6px">'
       +'<button class="chip" style="flex:1" onclick="openSheet(\'svdeposit\',\''+sv.id+'\')">'+t('btn_deposit')+'</button>'
       +'<button class="chip" style="flex:1;background:var(--bg);color:var(--t1)" onclick="openSheet(\'svwithdraw\',\''+sv.id+'\')">'+t('btn_withdraw')+'</button>'
@@ -2192,8 +2224,8 @@ function renderSubVaults(){
 function findSubVault(id){ for(var i=0;i<APP.subVaults.length;i++) if(APP.subVaults[i].id===id) return APP.subVaults[i]; return null; }
 
 function shVDeposit(b){
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_balance_avail')+'<strong>'+fmt(APP.balance)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_balance_avail')+'<strong>'+fmt(APP.balance)+' '+curSuffix()+'</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVDeposit()">'+t('btn_deposit')+'</button>';
 }
 function doVDeposit(){
@@ -2208,8 +2240,8 @@ function doVDeposit(){
   });
 }
 function shVWithdraw(b){
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_label_short')+'<strong>'+fmt(APP.vaultBal)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_label_short')+'<strong>'+fmt(APP.vaultBal)+' '+curSuffix()+'</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqVWithdraw()">'+t('btn_withdraw')+'</button>';
 }
 function reqVWithdraw(){
@@ -2242,9 +2274,9 @@ function doVLock(){
 }
 function shVCreate(b){
   b.innerHTML='<div class="frow"><label class="flabel">'+t('sv_name_label')+'</label><input class="finput" id="svc-name" placeholder="'+t('sv_name_ph')+'"></div>'
-    +'<div class="frow"><label class="flabel">'+t('sv_initial_amount')+'</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div>'
-    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('sv_available_vault')+fmt(APP.vaultBal)+' F</div></div>'
-    +'<div class="frow"><label class="flabel">'+t('sv_goal_label')+'</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_initial_amount')+'</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('sv_available_vault')+fmt(APP.vaultBal)+' '+curSuffix()+'</div></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_goal_label')+'</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVCreate()">'+t('btn_create')+'</button>';
 }
 function doVCreate(){
@@ -2263,8 +2295,8 @@ function doVCreate(){
 }
 function shSVDeposit(b, id){
   var sv=findSubVault(id); if(!sv) return;
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('sv_main_vault')+'<strong>'+fmt(APP.vaultBal)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',sv.name)+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('sv_main_vault')+'<strong>'+fmt(APP.vaultBal)+' '+curSuffix()+'</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',sv.name)+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">'+t('btn_deposit')+'</button>';
 }
 function doSVDeposit(id){
@@ -2281,8 +2313,8 @@ function doSVDeposit(id){
 }
 function shSVWithdraw(b, id){
   var sv=findSubVault(id); if(!sv) return;
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'" : <strong>'+fmt(sv.amt)+' F</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('sv_back_to_main')+'</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">F</span></div></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'" : <strong>'+fmt(sv.amt)+' '+curSuffix()+'</strong></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_back_to_main')+'</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">'+t('btn_withdraw')+'</button>';
 }
 function reqSVWithdraw(id){

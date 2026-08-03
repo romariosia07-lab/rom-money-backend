@@ -3897,6 +3897,7 @@ function adminSearchMerchant(){
         +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(m.status==='blocked'?'Bloqué':'Actif')+'</span><br>'
         +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
         +'<b>Type :</b> '+(m.location_type==='physical'?'Avec emplacement':'En ligne')+(m.address?' — '+m.address:'')+'<br>'
+        +'<b>Pays :</b> '+(m.country||'-')+' &middot; <b>Devise :</b> '+(m.currency||'XOF')+'<br>'
         +'<b>Solde :</b> '+fmt(m.balance||0)+' &middot; <b>Coffre :</b> '+fmt(m.vault_balance||0)+'<br>'
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
         +'<b>Badge vérifié :</b> '+(m.verified?'<span style="color:var(--g);font-weight:700">Actif</span>':'<span style="color:var(--t3)">Inactif</span>')
@@ -3914,6 +3915,19 @@ function adminSearchMerchant(){
         +'<input class="finput" id="mrc-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
         +'<button style="width:100%;padding:13px;margin-top:10px;background:'+(m.status==='blocked'?'var(--gl)':'var(--rl)')+';color:'+(m.status==='blocked'?'var(--g)':'var(--re)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantBlock(\''+m.id+'\',\''+(m.status==='blocked'?'unblock':'block')+'\')">'+(m.status==='blocked'?'Débloquer ce marchand':'Bloquer ce marchand')+'</button>'
+        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Modifier le pays</div>'
+        +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Convertit reellement le solde et le coffre au nouveau taux de change (jamais un simple changement d\'etiquette). Chaque modification est journalisee.</div>'
+        +'<div class="frow"><label class="flabel">Nouveau pays</label><select class="finput" id="mrc-cty-country"><option value="">Chargement des pays...</option></select></div>'
+        +'<div class="frow" style="margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
+        +'<select class="finput" id="mrc-cty-reason-sel" onchange="toggleReasonCustom(\'mrc-cty\')">'
+        +'<option value="">— Choisir une raison —</option>'
+        +'<option value="Déménagement confirmé">Déménagement confirmé</option>'
+        +'<option value="Erreur de saisie à l\'inscription">Erreur de saisie à l\'inscription</option>'
+        +'<option value="__other__">Autre raison (préciser)</option>'
+        +'</select>'
+        +'<input class="finput" id="mrc-cty-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
+        +'</div>'
+        +'<button class="btn-g" style="margin-top:10px" onclick="adminUpdateMerchantCountry(\''+m.phone_number+'\')">Mettre à jour le pays</button>'
         +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Documents de l\'entreprise</div>'
         +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pieces justificatives envoyees par le marchand (identite, RCCM, DFE...), a consulter avant d\'accorder le badge verifie.</div>'
         +'<button class="btn-w" onclick="adminLoadMerchantDocuments(\''+m.id+'\')">Voir les documents</button>'
@@ -3970,9 +3984,44 @@ function adminSearchMerchant(){
       box.innerHTML=html;
       resetReasonField('mrc');
       resetReasonField('mrcpin');
+      resetReasonField('mrc-cty');
+      adminLoadMerchantCountryOptions();
       renderAdminMerchantTxList();
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
+    }
+  });
+}
+function adminLoadMerchantCountryOptions(){
+  var sel=document.getElementById('mrc-cty-country');
+  if(!sel) return;
+  apiCall('/auth?action=countries','GET',null,'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
+      sel.innerHTML='<option value="">'+at('admin_country_choose')+'</option>'
+        + res.data.countries.map(function(c){ return '<option value="'+c+'">'+adminCountryName(c)+'</option>'; }).join('');
+    } else {
+      sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
+    }
+  }).catch(function(){
+    sel.innerHTML='<option value="">'+at('admin_dash_error_loading')+'</option>';
+  });
+}
+function adminUpdateMerchantCountry(phone){
+  var country=document.getElementById('mrc-cty-country').value;
+  var reason=getReasonValue('mrc-cty');
+  if(!phone||!country||!reason){ toast(at('admin_phone_country_reason_required'), true); return; }
+  adminOpenConfirmModal({
+    icon:'🌍', title:at('admin_change_country_title'), message:'Marchand '+phone+' → "'+country+'"',
+    needsReason:false, confirmLabel:at('admin_btn_confirm'), confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=merchant-update-country','POST',{admin_password:window._adminPw,phone:phone,country:country,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(at('admin_country_updated'));
+          adminSearchMerchant();
+        } else {
+          toast((res&&res.message)||at('admin_error_generic'), true);
+        }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
