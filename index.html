@@ -2489,6 +2489,14 @@ var I18N = {
   stats_cat_vault_deposit: {fr:'Coffre', en:'Vault'},
   stats_cat_merchant_payment: {fr:'Paiement marchand', en:'Merchant payment'},
   stats_cat_fx_margin: {fr:'Frais de change', en:'Exchange fee'},
+  tx_cat_marchand: {fr:'Marchand', en:'Merchant'},
+  tx_cat_merchant_transfer: {fr:'Virement marchand', en:'Merchant transfer'},
+  tx_cat_bank_deposit: {fr:'Depot banque', en:'Bank deposit'},
+  tx_cat_referral_bonus: {fr:'Bonus parrainage', en:'Referral bonus'},
+  tx_cat_deposit: {fr:'Depot', en:'Deposit'},
+  tx_cat_qr: {fr:'QR', en:'QR'},
+  tx_cat_collect: {fr:'Encaissement', en:'Collection'},
+  tx_type_national_transfer: {fr:'Transfert National', en:'National Transfer'},
   stats_tooltip_received_prefix: {fr:'Reçu: ', en:'Received: '},
   stats_tooltip_sent_prefix: {fr:'Envoyé: ', en:'Sent: '},
 
@@ -3101,6 +3109,23 @@ function relDate(ts){
   if(m<1440) return t('reldate_hours_ago').replace('{n}',Math.round(m/60));
   if(m<2880) return t('reldate_yesterday');
   return t('reldate_days_ago').replace('{n}',Math.round(m/1440));
+}
+
+function txCatLabel(cat, isCr){
+  if(cat==='Transfert') return t('stats_cat_transfer')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
+  if(cat==='Transfert Afrique') return t('sheet_title_transfert')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
+  var map={
+    'Achat': t('stats_cat_payment'),
+    'Marchand': t('tx_cat_marchand'),
+    'Virement marchand': t('tx_cat_merchant_transfer'),
+    'Retrait banque': t('stats_cat_bank_withdraw'),
+    'Depot banque': t('tx_cat_bank_deposit'),
+    'Bonus parrainage': t('tx_cat_referral_bonus'),
+    'QR': t('tx_cat_qr'),
+    'Encaissement': t('tx_cat_collect'),
+    'Depot': t('tx_cat_deposit')
+  };
+  return map.hasOwnProperty(cat) ? map[cat] : cat;
 }
 
 function ini(n){
@@ -9978,7 +10003,7 @@ function renderTx(target, filter){
     var amtText=isAnn?'---':(isCr?'+':'-')+fmt(tx.amt);
     var annBadge=isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':(isFrozen?'<span class="badge-frozen">❄ En vérification</span>':'');
     var cancelBtn=canAnn(tx)?'<button class="tx-cancel-btn" onclick="event.stopPropagation();askCancel(window._renderTxList['+i+'].id)">'+t('tx_btn_cancel')+'</button>':'';
-    var catLabel = (tx.cat==='Transfert') ? ('Transfert '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'))) : tx.cat;
+    var catLabel = txCatLabel(tx.cat, isCr);
     h+='<div class="tx-row" onclick="openTxDetail(window._renderTxList['+i+'].id)" style="opacity:'+(isAnn?'.5':'1')+'">'
       +'<div class="av" style="background:'+c[0]+';color:'+c[1]+'">'+adminEsc(ini(tx.name))+'</div>'
       +'<div class="tx-info"><div class="tx-nm">'+adminEsc(tx.name)+annBadge+'</div>'
@@ -10028,7 +10053,7 @@ function openTxDetail(id){
   // Ligne "Type" : distingue National/Afrique pour un transfert, plutot que
   // le seul libellé generique "Transfert" - independant du motif, qui lui
   // doit rester purement optionnel et libre.
-  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?'Transfert Afrique':'Transfert National') : (tx.cat||'Transfert');
+  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (tx.cat==='Transfert Afrique' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx.cat):t('stats_cat_transfer')));
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
   var bg=document.getElementById('sh-bg');
@@ -10084,7 +10109,7 @@ function genererFacture(id){
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
   var dir=tx.type==='debit'?'debit':'credit';
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
-  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?'Transfert Afrique':'Transfert National') : (tx.cat||'Transfert');
+  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (tx.cat==='Transfert Afrique' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx.cat):t('stats_cat_transfer')));
   var sign=dir==='debit'?'-':'+';
   var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
   function buildF(ld){
