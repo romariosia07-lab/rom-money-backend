@@ -3882,6 +3882,27 @@ function adminDeleteAccount(){
     }
   });
 }
+function adminDeleteMerchantAccount(phone){
+  var confirmPhone=document.getElementById('mrc-del-phone-confirm').value.trim();
+  var reason=getReasonValue('mrc-del');
+  if(!phone||!confirmPhone||!reason){ toast(at('admin_phone_x2_reason_required'), true); return; }
+  if(phone!==confirmPhone){ toast(at('admin_phones_mismatch'), true); return; }
+  adminOpenConfirmModal({
+    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_delete_confirm_msg').replace('{phone}',phone),
+    needsReason:false, confirmLabel:at('admin_delete_definitively_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=merchant-delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(at('admin_account_deleted'));
+          document.getElementById('mrc-result').innerHTML='';
+          document.getElementById('mrc-phone').value='';
+        } else {
+          toast((res&&res.message)||at('admin_error_generic'), true);
+        }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
 
 function adminSearchMerchant(){
   var phone=document.getElementById('mrc-phone').value.trim();
@@ -3981,10 +4002,26 @@ function adminSearchMerchant(){
         +'</div>'
         +'<div id="admin-merchant-tx-list-box"></div>';
 
+      html += '<div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px;color:var(--re)">⚠ Supprimer définitivement ce compte marchand</div>'
+        +'<div style="font-size:11px;color:var(--t3);margin-bottom:14px">Action <b>irréversible</b>. Supprime le compte, le portefeuille, les notes et documents envoyés — le numéro redevient totalement disponible pour une nouvelle inscription, comme s\'il n\'avait jamais existé. Réservé aux comptes de test ou erreurs d\'inscription. Les transactions déjà effectuées restent visibles côté client (jamais supprimées, pour ne pas fausser son historique).</div>'
+        +'<div class="frow"><label class="flabel">Retape le numéro pour confirmer</label><input class="finput" id="mrc-del-phone-confirm" placeholder="'+adminEsc(m.phone_number||'')+'"></div>'
+        +'<div class="frow" style="margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
+        +'<select class="finput" id="mrc-del-reason-sel" onchange="toggleReasonCustom(\'mrc-del\')">'
+        +'<option value="">— Choisir une raison —</option>'
+        +'<option value="Compte de test">Compte de test</option>'
+        +'<option value="Erreur de saisie à l\'inscription">Erreur de saisie à l\'inscription</option>'
+        +'<option value="Demande du marchand">Demande du marchand</option>'
+        +'<option value="__other__">Autre raison (préciser)</option>'
+        +'</select>'
+        +'<input class="finput" id="mrc-del-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
+        +'</div>'
+        +'<button style="width:100%;padding:14px;margin-top:10px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminDeleteMerchantAccount(\''+m.phone_number+'\')">Supprimer définitivement ce marchand</button>';
+
       box.innerHTML=html;
       resetReasonField('mrc');
       resetReasonField('mrcpin');
       resetReasonField('mrc-cty');
+      resetReasonField('mrc-del');
       adminLoadMerchantCountryOptions();
       renderAdminMerchantTxList();
     } else {

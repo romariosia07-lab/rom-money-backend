@@ -3896,6 +3896,7 @@ function route_admin($action) {
         'mark-fraud-reviewed'  => admin_mark_fraud_reviewed(),
         'merchant-search'          => admin_merchant_search(),
         'merchant-update-country'  => admin_merchant_update_country(),
+        'merchant-delete-account'  => admin_merchant_delete_account(),
         'merchant-toggle-verified' => admin_merchant_toggle_verified(),
         'merchant-block'           => admin_merchant_block(),
         'merchant-unblock'         => admin_merchant_unblock(),
@@ -5870,6 +5871,42 @@ function admin_delete_account() {
 
     admin_log('account_delete','success',$phone,dk('d_account_deleted', ['name'=>($u['full_name']?:'?'), 'reason'=>$reason]));
     ok(null,'Compte supprime definitivement');
+}
+
+// Equivalent de admin_delete_account() mais pour un compte marchand
+// ROM_BUSINESS. Supprime aussi sub_vaults (sous-coffres) rattaches au
+// portefeuille marchand - sans FK CASCADE sur cette table, un oubli laisserait
+// des lignes orphelines invisibles apres suppression du portefeuille.
+function admin_merchant_delete_account() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone'] ?? '');
+    $confirmPhone = trim($b['confirm_phone'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$phone || !$reason) fail('Telephone et raison requis');
+    if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
+
+    $m = q("SELECT id,business_name FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if(!$m){
+        admin_log('merchant_delete','failed',$phone,'Compte marchand introuvable');
+        fail('Compte marchand introuvable',404);
+    }
+    $mid = $m['id'];
+    $mw = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$mid])->fetch();
+
+    q("DELETE FROM merchant_documents WHERE merchant_id=?",[$mid]);
+    q("DELETE FROM merchant_notes WHERE merchant_id=?",[$mid]);
+    q("DELETE FROM merchant_known_devices WHERE merchant_id=?",[$mid]);
+    q("DELETE FROM merchant_push_subscriptions WHERE merchant_id=?",[$mid]);
+    q("DELETE FROM merchant_payment_links WHERE merchant_id=?",[$mid]);
+    if($mw){
+        q("DELETE FROM sub_vaults WHERE wallet_id=?",[$mw['id']]);
+    }
+    q("DELETE FROM merchant_wallets WHERE merchant_id=?",[$mid]);
+    q("DELETE FROM merchants WHERE id=?",[$mid]);
+
+    admin_log('merchant_delete','success',$phone,'Compte marchand "'.($m['business_name']?:'?').'" supprime definitivement ('.$reason.')');
+    ok(null,'Compte marchand supprime definitivement');
 }
 
 // Consultation des taux actuellement en cache - permet de verifier que la
