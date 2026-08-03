@@ -189,7 +189,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div class="frow"><label class="flabel" data-i18n="reg_label_country">Pays *</label>
       <select class="finput" id="r-country"><option value="" data-i18n="reg_country_loading">Chargement des pays...</option></select>
     </div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="07 00 00 00 00"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="00 00 00 00 00"></div>
     <button class="btn-g" style="background:var(--g);color:#fff" onclick="regStep1()" data-i18n="reg_btn_continue">Continuer</button>
   </div>
   <div class="reg-body" id="reg-b" style="display:none;flex-direction:column;align-items:center;text-align:center">
@@ -368,6 +368,19 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   </div>
 </div>
 
+<!-- MODALE DE CONFIRMATION (remplace confirm() natif du navigateur) -->
+<div id="user-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--bord);border-radius:18px;padding:24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div id="user-confirm-icon" style="font-size:32px;margin-bottom:10px;text-align:center"></div>
+    <div id="user-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;text-align:center"></div>
+    <div id="user-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;text-align:center;white-space:pre-line"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button id="user-confirm-btn" onclick="userConfirmModalSubmit()" style="padding:13px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
+    </div>
+  </div>
+</div>
+
 <!-- SHEET -->
 <div id="sh-bg" onclick="closeSheet()"></div>
 <div id="sh">
@@ -427,7 +440,7 @@ var I18N = {
   reg_country_loading:{fr:'Chargement des pays...',en:'Loading countries...'},
   reg_err_country:{fr:'Le pays est requis',en:'Country is required'},
   reg_label_phone:{fr:'Numéro de téléphone *',en:'Phone number *'},
-  reg_ph_phone_sample:{fr:'07 00 00 00 00',en:'07 00 00 00 00'},
+  reg_ph_phone_sample:{fr:'00 00 00 00 00',en:'00 00 00 00 00'},
   reg_btn_continue:{fr:'Continuer',en:'Continue'},
   reg_pin_choose:{fr:'Choisissez votre PIN',en:'Choose your PIN'},
   reg_pin_confirm_title:{fr:'Confirmez votre PIN',en:'Confirm your PIN'},
@@ -567,6 +580,8 @@ var I18N = {
   sv_err_balance:{fr:'Solde du sous-compte insuffisant',en:'Insufficient sub-account balance'},
   sv_withdraw_pin:{fr:'Retrait "{name}" {amt} F',en:'Withdrawal "{name}" {amt} F'},
   sv_withdraw_done:{fr:'Retrait effectué',en:'Withdrawal completed'},
+  sv_delete_confirm_title:{fr:'Supprimer ce coffre ?',en:'Delete this vault?'},
+  sv_delete_confirm_btn:{fr:'Supprimer',en:'Delete'},
   sv_delete_confirm:{fr:'Supprimer "{name}" ? Le solde ({amt} F) revient au coffre principal.',en:'Delete "{name}"? The balance ({amt} F) returns to the main vault.'},
   sv_deleted:{fr:'Sous-compte supprimé',en:'Sub-account deleted'},
   cp_current:{fr:'PIN actuel',en:'Current PIN'},
@@ -598,11 +613,15 @@ var I18N = {
   dev_revoked:{fr:'Déconnecté',en:'Disconnected'},
   dev_disconnect_btn:{fr:'Déconnecter',en:'Disconnect'},
   dev_seen_on:{fr:'Vu le ',en:'Last seen on '},
+  dev_revoke_confirm_title:{fr:'Déconnecter cet appareil ?',en:'Disconnect this device?'},
+  dev_revoke_confirm_btn:{fr:'Déconnecter',en:'Disconnect'},
   dev_revoke_confirm:{fr:'Déconnecter cet appareil ? Il devra se reconnecter avec le PIN pour continuer.',en:'Disconnect this device? It will need to log in again with the PIN to continue.'},
   dev_revoked_toast:{fr:'Appareil déconnecté',en:'Device disconnected'},
   acc_none:{fr:'Aucun compte enregistré pour le moment.',en:'No account registered yet.'},
   acc_default_name:{fr:'Boutique',en:'Shop'},
   acc_default_this:{fr:'ce compte',en:'this account'},
+  acc_remove_confirm_title:{fr:'Retirer ce compte ?',en:'Remove this account?'},
+  acc_remove_confirm_btn:{fr:'Retirer',en:'Remove'},
   acc_remove_confirm:{fr:'Retirer {name} de cet appareil ?',en:'Remove {name} from this device?'},
   notif_sale_label:{fr:'Notifications de vente',en:'Sale notifications'},
   notif_sale_desc:{fr:'Recevez une alerte à chaque vente, même app fermée',en:'Get alerted on every sale, even with the app closed'},
@@ -819,6 +838,28 @@ function goto(id){
   }
 }
 function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
+// ── MODALE DE CONFIRMATION (remplace confirm() natif du navigateur, moche et
+// non personnalisable) - meme mecanique que cote ROM_MONEY. ──
+var _userConfirmCallback = null;
+function userOpenConfirmModal(config){
+  document.getElementById('user-confirm-icon').textContent = config.icon || '⚠️';
+  document.getElementById('user-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('user-confirm-message').textContent = config.message || '';
+  var btn = document.getElementById('user-confirm-btn');
+  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.style.background = config.confirmColor || 'var(--re)';
+  _userConfirmCallback = config.onConfirm;
+  document.getElementById('user-confirm-overlay').style.display='flex';
+}
+function userCloseConfirmModal(){
+  document.getElementById('user-confirm-overlay').style.display='none';
+  _userConfirmCallback = null;
+}
+function userConfirmModalSubmit(){
+  var cb = _userConfirmCallback;
+  userCloseConfirmModal();
+  if(cb) cb();
+}
 function toast(msg, isErr){
   var el=document.getElementById('toast');
   if(!el) return;
@@ -1264,9 +1305,14 @@ function refreshBalance(){
   });
 }
 function doLogout(){
-  if(!confirm(t('logout_confirm'))) return;
-  APP.token=''; save();
-  goto('s-welcome');
+  userOpenConfirmModal({
+    icon:'🚪', title:t('profil_logout'), message:t('logout_confirm'),
+    confirmLabel:t('profil_logout'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      APP.token=''; save();
+      goto('s-welcome');
+    }
+  });
 }
 
 // ── NAVIGATION ──
@@ -1951,7 +1997,7 @@ function doEncaisserWithPin(phone, name, pin){
 function shVirement(b){
   var chipStyle='flex:1;min-width:88px;padding:10px 6px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px';
   b.innerHTML='<div id="vir-form-view">'
-    +'<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="07 00 00 00 00" oninput="updateVirFee();resolveVirPhone()"></div>'
+    +'<div class="frow"><label class="flabel">'+t('vir_label_recipient_phone')+'</label><input class="finput" id="vir-phone" type="tel" placeholder="00 00 00 00 00" oninput="updateVirFee();resolveVirPhone()"></div>'
     +'<div id="vir-rn" style="font-size:13px;font-weight:700;color:var(--g);margin:-10px 0 12px;min-height:16px"></div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:-8px 0 16px">'
     +'<button class="chip" style="'+chipStyle+'" onclick="virFillOwnNumber()">'+t('vir_own_account')+'</button>'
@@ -2332,13 +2378,18 @@ function reqSVWithdraw(id){
 }
 function doDeleteSubVault(id){
   var sv=findSubVault(id); if(!sv) return;
-  if(!confirm(t('sv_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)))) return;
-  apiCall('/merchant?action=subvault-delete','POST',{id:id},getToken()).then(function(res){
-    if(res && res.success){
-      APP.vaultBal=res.data.vault_balance;
-      APP.subVaults=APP.subVaults.filter(function(s){ return s.id!==id; });
-      renderVault(); toast(t('sv_deleted'));
-    } else { toast((res&&res.message)||t('err_generic'), true); }
+  userOpenConfirmModal({
+    icon:'🔓', title:t('sv_delete_confirm_title'), message:t('sv_delete_confirm').replace('{name}',sv.name).replace('{amt}',fmt(sv.amt)),
+    confirmLabel:t('sv_delete_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/merchant?action=subvault-delete','POST',{id:id},getToken()).then(function(res){
+        if(res && res.success){
+          APP.vaultBal=res.data.vault_balance;
+          APP.subVaults=APP.subVaults.filter(function(s){ return s.id!==id; });
+          renderVault(); toast(t('sv_deleted'));
+        } else { toast((res&&res.message)||t('err_generic'), true); }
+      });
+    }
   });
 }
 
@@ -2492,16 +2543,21 @@ function loadDevicesList(b){
   });
 }
 function doRevokeDevice(deviceId){
-  if(!confirm(t('dev_revoke_confirm'))) return;
-  apiCall('/merchant?action=revoke-device','POST',{device_id:deviceId},getToken()).then(function(res){
-    if(res && res.success){
-      toast(t('dev_revoked_toast'));
-      var b = document.getElementById('sh-body');
-      if(b) loadDevicesList(b);
-    } else {
-      toast((res&&res.message)||t('err_generic'), true);
+  userOpenConfirmModal({
+    icon:'📴', title:t('dev_revoke_confirm_title'), message:t('dev_revoke_confirm'),
+    confirmLabel:t('dev_revoke_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/merchant?action=revoke-device','POST',{device_id:deviceId},getToken()).then(function(res){
+        if(res && res.success){
+          toast(t('dev_revoked_toast'));
+          var b = document.getElementById('sh-body');
+          if(b) loadDevicesList(b);
+        } else {
+          toast((res&&res.message)||t('err_generic'), true);
+        }
+      }).catch(function(){ toast(t('err_generic'), true); });
     }
-  }).catch(function(){ toast(t('err_generic'), true); });
+  });
 }
 
 // ── MES COMPTES ("Ajouter un compte") ──
@@ -2557,8 +2613,11 @@ function confirmRemoveAccount(ev, key){
   var accounts = getAccountsStore();
   var acc = accounts[key];
   var n = (acc && acc.businessName) || t('acc_default_this');
-  if(!confirm(t('acc_remove_confirm').replace('{name}',n))) return;
-  removeAccountAndHandleUI(key);
+  userOpenConfirmModal({
+    icon:'👤', title:t('acc_remove_confirm_title'), message:t('acc_remove_confirm').replace('{name}',n),
+    confirmLabel:t('acc_remove_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){ removeAccountAndHandleUI(key); }
+  });
 }
 function removeAccountAndHandleUI(key){
   var wasActive = (key===getActivePhoneKey());
