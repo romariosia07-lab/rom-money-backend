@@ -3159,21 +3159,33 @@ function relDate(ts){
   return t('reldate_days_ago').replace('{n}',Math.round(m/1440));
 }
 
-function txCatLabel(cat, isCr){
-  if(cat==='Transfert') return t('stats_cat_transfer')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
-  if(cat==='Transfert Afrique') return t('sheet_title_transfert')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
+// Cle interne stable (independante de la langue) identifiant la categorie
+// d'une transaction. Utilisee par canAnn()/txCatLabel() a la place du champ
+// cat (libelle affichable, historiquement en francais brut) pour ne jamais
+// dependre d'une comparaison de chaine traduisible dans la logique metier.
+// Repli sur cat pour les transactions deja en cache localStorage avant
+// l'introduction de catKey (pas de migration necessaire).
+var TX_CAT_LEGACY_MAP = {'Transfert':'transfer','Transfert Afrique':'transfer_africa','Achat':'payment','Marchand':'merchant_payment','Virement marchand':'merchant_withdraw','Retrait banque':'bank_withdraw','Depot banque':'bank_deposit','Bonus parrainage':'referral_bonus','QR':'qr','Encaissement':'collect','Depot':'deposit'};
+function txCatKey(tx){
+  if(tx.catKey) return tx.catKey;
+  return TX_CAT_LEGACY_MAP.hasOwnProperty(tx.cat) ? TX_CAT_LEGACY_MAP[tx.cat] : 'other';
+}
+function txCatLabel(tx, isCr){
+  var k = txCatKey(tx);
+  if(k==='transfer') return t('stats_cat_transfer')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
+  if(k==='transfer_africa') return t('sheet_title_transfert')+' '+(isCr?t('tx_received_suffix'):t('tx_sent_suffix'));
   var map={
-    'Achat': t('stats_cat_payment'),
-    'Marchand': t('tx_cat_marchand'),
-    'Virement marchand': t('tx_cat_merchant_transfer'),
-    'Retrait banque': t('stats_cat_bank_withdraw'),
-    'Depot banque': t('tx_cat_bank_deposit'),
-    'Bonus parrainage': t('tx_cat_referral_bonus'),
-    'QR': t('tx_cat_qr'),
-    'Encaissement': t('tx_cat_collect'),
-    'Depot': t('tx_cat_deposit')
+    payment: t('stats_cat_payment'),
+    merchant_payment: t('tx_cat_marchand'),
+    merchant_withdraw: t('tx_cat_merchant_transfer'),
+    bank_withdraw: t('stats_cat_bank_withdraw'),
+    bank_deposit: t('tx_cat_bank_deposit'),
+    referral_bonus: t('tx_cat_referral_bonus'),
+    qr: t('tx_cat_qr'),
+    collect: t('tx_cat_collect'),
+    deposit: t('tx_cat_deposit')
   };
-  return map.hasOwnProperty(cat) ? map[cat] : cat;
+  return map.hasOwnProperty(k) ? map[k] : (tx.cat || k);
 }
 
 function ini(n){
@@ -3185,7 +3197,7 @@ function ini(n){
 var AVC=[['#E1F5EE','#085041'],['#E6F1FB','#0C447C'],['#FBEAF0','#72243E'],['#FAEEDA','#633806'],['#EAF3DE','#27500A']];
 function avc(n){ return AVC[n.charCodeAt(0)%AVC.length]; }
 
-function canAnn(tx){ return !tx.ann && !tx.frozen && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && tx.cat!=='QR' && tx.cat!=='Encaissement' && tx.cat!=='Marchand'; }
+function canAnn(tx){ var k=txCatKey(tx); return !tx.ann && !tx.frozen && tx.type==='debit' && (Date.now()-tx.ts)/60000<=APP.cancelMins && k!=='qr' && k!=='collect' && k!=='merchant_payment'; }
 
 function toast(msg, err){
   var el=document.getElementById('toast');
@@ -6506,6 +6518,7 @@ function launchApp(){
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
+            catKey:t.type==='transfer'?'transfer':t.type==='payment'?'payment':t.type==='merchant_payment'?'merchant_payment':t.type==='merchant_withdraw'?'merchant_withdraw':t.type==='bank_withdraw'?'bank_withdraw':t.type==='bank_deposit'?'bank_deposit':t.type==='referral_bonus'?'referral_bonus':'deposit',
             ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
           };
         });
@@ -6570,7 +6583,7 @@ function showPaymentLinkConfirm(link){
           var debitedAmt = d.amount!==undefined ? d.amount : link.amount;
           APP.balance = d.new_balance!==undefined ? d.new_balance : APP.balance;
           txList.unshift({id:d.transaction_id||Date.now(),name:d.business_name||link.business_name,
-            type:'debit',amt:debitedAmt,cat:'Marchand',motif:link.description||'',ref:d.reference||'',ts:Date.now()});
+            type:'debit',amt:debitedAmt,cat:'Marchand',catKey:'merchant_payment',motif:link.description||'',ref:d.reference||'',ts:Date.now()});
           updateBalDisplay(); renderTx('home'); save();
           toast(fmt(debitedAmt)+' '+t('merchant_pay_success_suffix')+' '+(d.business_name||link.business_name)+' !');
         } else {
@@ -7887,7 +7900,7 @@ function doSend(){
           APP.feeConfig.remaining_free_today = Math.max(0, APP.feeConfig.remaining_free_today - actualBrut);
         }
         txList.unshift({id:d.transaction_id||Date.now(),name:d.receiver_name||receiverName,
-          type:'debit',amt:actualBrut,cat:'Transfert',motif:motif,ref:d.reference||'',ts:Date.now()});
+          type:'debit',amt:actualBrut,cat:'Transfert',catKey:'transfer',motif:motif,ref:d.reference||'',ts:Date.now()});
         updateBalDisplay(); renderTx('home'); save();
         closeSheet();
         toast(t('send_success_toast').replace('{amt}',fmt(net)).replace('{name}',d.receiver_name||receiverName)+(frais>0?t('send_pin_confirm_fee').replace('{fee}',fmt(frais)):'')+' !');
@@ -8202,7 +8215,7 @@ function doSendFromScan(phone, name){
         txList.unshift({
           id: d.transaction_id || Date.now(),
           name: d.receiver_name || name || phone,
-          type: 'debit', amt: actualBrut, cat: 'QR',
+          type: 'debit', amt: actualBrut, cat: 'QR', catKey: 'qr',
           motif: motif, ref: d.reference || '', ts: Date.now()
         });
         updateBalDisplay(); renderTx('home'); save();
@@ -8283,7 +8296,7 @@ function doPayMerchantScan(){
         APP.balance = d.new_balance !== undefined ? d.new_balance : (APP.balance - amt);
         txList.unshift({
           id: d.transaction_id || Date.now(), name: d.business_name || businessName,
-          type: 'debit', amt: amt, cat: 'Marchand', motif: motif, ref: d.reference || '', ts: Date.now()
+          type: 'debit', amt: amt, cat: 'Marchand', catKey: 'merchant_payment', motif: motif, ref: d.reference || '', ts: Date.now()
         });
         updateBalDisplay(); renderTx('home'); save();
         closeSheet();
@@ -9384,7 +9397,7 @@ function doEncaisserWithPin(phone, name, pin){
       var net=amt-frais;
       APP.balance=(APP.balance||0)+net;
       txList.unshift({id:d.transaction_id||Date.now(),name:name,
-        type:'credit',amt:net,cat:'Encaissement',motif:motif,ref:d.reference||'',ts:Date.now()});
+        type:'credit',amt:net,cat:'Encaissement',catKey:'collect',motif:motif,ref:d.reference||'',ts:Date.now()});
       updateBalDisplay(); renderTx('home'); save();
       closeSheet();
       toast(t('enc_success_toast').replace('{amt}',fmt(net)).replace('{name}',name));
@@ -9590,7 +9603,7 @@ function doTransfertCFA(pays){
         var d=res.data||{};
         APP.balance=d.new_balance!==undefined?d.new_balance:(APP.balance-intent.brut);
         txList.unshift({id:d.transaction_id||Date.now(),name:d.receiver_name||receiverName,
-          type:'debit',amt:intent.brut,cat:'Transfert Afrique',motif:motif,ref:d.reference||'',ts:Date.now()});
+          type:'debit',amt:intent.brut,cat:'Transfert Afrique',catKey:'transfer_africa',motif:motif,ref:d.reference||'',ts:Date.now()});
         updateBalDisplay(); renderTx('home'); save();
         closeSheet();
         if(d.receiver_currency && d.sender_currency && d.receiver_currency!==d.sender_currency){
@@ -10053,7 +10066,7 @@ function renderTx(target, filter){
     var amtText=isAnn?'---':(isCr?'+':'-')+fmt(tx.amt);
     var annBadge=isAnn?'<span class="badge-ann">'+t('tx_badge_cancelled')+'</span>':(isFrozen?'<span class="badge-frozen">❄ En vérification</span>':'');
     var cancelBtn=canAnn(tx)?'<button class="tx-cancel-btn" onclick="event.stopPropagation();askCancel(window._renderTxList['+i+'].id)">'+t('tx_btn_cancel')+'</button>':'';
-    var catLabel = txCatLabel(tx.cat, isCr);
+    var catLabel = txCatLabel(tx, isCr);
     h+='<div class="tx-row" onclick="openTxDetail(window._renderTxList['+i+'].id)" style="opacity:'+(isAnn?'.5':'1')+'">'
       +'<div class="av" style="background:'+c[0]+';color:'+c[1]+'">'+adminEsc(ini(tx.name))+'</div>'
       +'<div class="tx-info"><div class="tx-nm">'+adminEsc(tx.name)+annBadge+'</div>'
@@ -10103,7 +10116,8 @@ function openTxDetail(id){
   // Ligne "Type" : distingue National/Afrique pour un transfert, plutot que
   // le seul libellé generique "Transfert" - independant du motif, qui lui
   // doit rester purement optionnel et libre.
-  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (tx.cat==='Transfert Afrique' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx.cat):t('stats_cat_transfer')));
+  var _txCk = txCatKey(tx);
+  var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
   var bg=document.getElementById('sh-bg');
@@ -10159,7 +10173,8 @@ function genererFacture(id){
   var dateStr=tx.ts?new Date(tx.ts).toLocaleString(APP.lang==='en'?'en-US':'fr-FR'):'N/A';
   var dir=tx.type==='debit'?'debit':'credit';
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
-  var typeLabel = (tx.cat==='Transfert') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (tx.cat==='Transfert Afrique' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx.cat):t('stats_cat_transfer')));
+  var _txCk = txCatKey(tx);
+  var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
   var sign=dir==='debit'?'-':'+';
   var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
   function buildF(ld){
@@ -10462,6 +10477,7 @@ function checkNewTransactions(){
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
+            catKey:t.type==='transfer'?'transfer':t.type==='payment'?'payment':t.type==='merchant_payment'?'merchant_payment':t.type==='merchant_withdraw'?'merchant_withdraw':t.type==='bank_withdraw'?'bank_withdraw':t.type==='bank_deposit'?'bank_deposit':t.type==='referral_bonus'?'referral_bonus':'deposit',
             ts:new Date(t.created_at).getTime(),
             ann:t.status==='cancelled',
             ref:t.reference, motif:(existing&&existing.motif)?existing.motif:(t.description||'')
