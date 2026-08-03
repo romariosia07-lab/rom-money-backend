@@ -788,6 +788,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
       <button class="admin-tab-btn" onclick="adminTab('countries')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_countries">Pays</span></button>
+      <button onclick="adminManualLogout()" style="padding:8px 14px;border:1px solid var(--re);border-radius:20px;background:none;color:var(--re);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⏻ Déconnexion</button>
     </div>
 
     <div id="admin-panel-dashboard" class="admin-panel">
@@ -2702,14 +2703,12 @@ function adminResetInactivityTimer(){
   var box=document.getElementById('admin-main-box');
   if(box && box.style.display==='block') adminStartInactivityTimer();
 }
-function adminForceLogout(){
+// Logique de fin de session partagee par l'expiration automatique et le
+// bouton "Deconnexion" manuel ci-dessous - efface aussi bien le mot de passe
+// admin partage que window._earningsPw (Gains ROM), pour ne jamais laisser
+// ce dernier deverrouille au-dela de la session de celui qui l'a saisi.
+function adminEndSession(){
   window._adminPw='';
-  // window._earningsPw (deverrouillage Gains ROM) doit imperativement etre
-  // efface ici aussi : sur un navigateur partage entre plusieurs admins,
-  // sans cette ligne, l'onglet Gains ROM ET le formulaire "Crediter" test
-  // restaient deverrouilles pour quiconque se reconnectait ensuite avec
-  // seulement le mot de passe admin partage (le sien, pas celui de l'admin
-  // principal qui avait ouvert Gains ROM plus tot dans cet onglet navigateur).
   window._earningsPw=null;
   var mainBox=document.getElementById('admin-main-box');
   var loginBox=document.getElementById('admin-login-box');
@@ -2719,7 +2718,18 @@ function adminForceLogout(){
   if(pwField) pwField.value='';
   adminClearInactivityTimer();
   adminStopKycPolling();
+}
+function adminForceLogout(){
+  adminEndSession();
   toast('Session admin expirée par inactivité — reconnecte-toi', true);
+}
+// Bouton "Deconnexion" explicite : permet de fermer la session (et donc
+// reverrouiller Gains ROM) d'un clic avant de laisser l'appareil a
+// quelqu'un d'autre, plutot que de compter uniquement sur les 5 minutes
+// d'inactivite - utile sur un poste partage entre plusieurs admins.
+function adminManualLogout(){
+  adminEndSession();
+  toast('Déconnecté');
 }
 ['mousemove','keydown','click','touchstart','scroll'].forEach(function(ev){
   document.addEventListener(ev, adminResetInactivityTimer, {passive:true});
