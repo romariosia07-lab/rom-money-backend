@@ -1742,6 +1742,19 @@ var I18N = {
   admin_no_tx_found: {fr:'Aucune transaction trouvée', en:'No transaction found'},
   admin_no_frozen_merchant_payment: {fr:'Aucun paiement marchand gelé', en:'No frozen merchant payment'},
   admin_no_merchant_found: {fr:'Aucun marchand trouvé', en:'No merchant found'},
+  admin_session_expired_inactivity: {fr:'Session admin expirée par inactivité — reconnecte-toi', en:'Admin session expired due to inactivity — please log in again'},
+  admin_disconnected: {fr:'Déconnecté', en:'Logged out'},
+  admin_2fa_code_required: {fr:'Entrez le code de verification', en:'Enter the verification code'},
+  admin_password_required: {fr:'Mot de passe requis', en:'Password required'},
+  admin_login_recovery_used: {fr:'Connecté avec un code de récupération — pensez à en regénérer de nouveaux dans Réglages', en:'Logged in with a recovery code — remember to generate new ones in Settings'},
+  admin_ad_sent: {fr:'Annonce envoyee', en:'Announcement sent'},
+  admin_merchant_not_found: {fr:'Marchand introuvable', en:'Merchant not found'},
+  admin_note_empty: {fr:'Note vide', en:'Note is empty'},
+  admin_note_added: {fr:'Note ajoutée', en:'Note added'},
+  admin_cancel_confirmed_success: {fr:'Annulation confirmée', en:'Cancellation confirmed'},
+  admin_rates_show_detail: {fr:'Afficher le détail des taux ▾', en:'Show rate details ▾'},
+  admin_rates_hide_detail: {fr:'Masquer le détail des taux ▴', en:'Hide rate details ▴'},
+  admin_no_merchant_account_for_number: {fr:'Aucun compte marchand pour ce numéro', en:'No merchant account for this number'},
   admin_freeze_confirm_title: {fr:'Geler cette transaction ?', en:'Freeze this transaction?'},
   admin_freeze_confirm_msg: {fr:'Transaction {ref}\nL\'argent revient temporairement à l\'expéditeur, le temps de ta vérification. Réversible depuis la liste des transactions gelées.', en:"Transaction {ref}\nThe money temporarily returns to the sender while you verify. Reversible from the frozen transactions list."},
   admin_yes_freeze: {fr:'Oui, geler', en:'Yes, freeze'},
@@ -2766,7 +2779,7 @@ function adminEndSession(){
 }
 function adminForceLogout(){
   adminEndSession();
-  toast('Session admin expirée par inactivité — reconnecte-toi', true);
+  toast(at('admin_session_expired_inactivity'), true);
 }
 // Bouton "Deconnexion" explicite : permet de fermer la session (et donc
 // reverrouiller Gains ROM) d'un clic avant de laisser l'appareil a
@@ -2774,7 +2787,7 @@ function adminForceLogout(){
 // d'inactivite - utile sur un poste partage entre plusieurs admins.
 function adminManualLogout(){
   adminEndSession();
-  toast('Déconnecté');
+  toast(at('admin_disconnected'));
 }
 ['mousemove','keydown','click','touchstart','scroll'].forEach(function(ev){
   document.addEventListener(ev, adminResetInactivityTimer, {passive:true});
@@ -3583,11 +3596,11 @@ function adminLogin(){
   if(window._admin2faPending){
     var totpCode=document.getElementById('admin-2fa-code').value.trim();
     var recoveryCode=document.getElementById('admin-recovery-code').value.trim();
-    if(!totpCode && !recoveryCode){ toast('Entrez le code de verification', true); return; }
+    if(!totpCode && !recoveryCode){ toast(at('admin_2fa_code_required'), true); return; }
     payload={admin_password:window._adminPw, totp_code:totpCode, recovery_code:recoveryCode};
   } else {
     var pw=document.getElementById('admin-pw').value.trim();
-    if(!pw){ toast('Mot de passe requis', true); return; }
+    if(!pw){ toast(at('admin_password_required'), true); return; }
     window._adminPw=pw;
     payload={admin_password:pw};
   }
@@ -3596,7 +3609,7 @@ function adminLogin(){
       window._admin2faPending=false;
       document.getElementById('admin-2fa-box').style.display='none';
       if(res.data&&res.data.recovery_used){
-        toast('Connecté avec un code de récupération — pensez à en regénérer de nouveaux dans Réglages');
+        toast(at('admin_login_recovery_used'));
       }
       adminLoadRequests();
     } else if(res&&res.need_2fa){
@@ -3711,7 +3724,7 @@ function adminSendAnnouncement(){
     onConfirm:function(){
       apiCall('/announce?action=admin-create','POST',{admin_password:window._adminPw,title:title,message:msg,title_en:titleEn,message_en:msgEn,type:type},'').then(function(res){
         if(res&&res.success){
-          toast('Annonce envoyee');
+          toast(at('admin_ad_sent'));
           document.getElementById('ann-title').value='';
           document.getElementById('ann-msg').value='';
           document.getElementById('ann-title-en').value='';
@@ -4100,7 +4113,7 @@ function adminSearchMerchant(){
       adminLoadMerchantCountryOptions();
       renderAdminMerchantTxList();
     } else {
-      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Aucun compte marchand pour ce numéro')+'</div>';
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_no_merchant_account_for_number'))+'</div>';
     }
   });
 }
@@ -4171,7 +4184,7 @@ function adminToggleMerchantBlock(merchantId, action){
 function adminResetMerchantPin(merchantId){
   var newPin=document.getElementById('mrcpin-newpin').value.trim();
   var reason=getReasonValue('mrcpin');
-  if(!/^\d{4}$/.test(newPin)){ toast('Le PIN doit contenir 4 chiffres', true); return; }
+  if(!/^\d{4}$/.test(newPin)){ toast(at('admin_pin_6_digits'), true); return; }
   if(!reason){ toast(at('admin_reason_required'), true); return; }
   adminOpenConfirmModal({
     icon:'🔑', title:'Réinitialiser le PIN de ce marchand ?', message:'Le marchand devra utiliser ce nouveau PIN pour se connecter.',
@@ -4193,11 +4206,11 @@ function adminAddMerchantNote(){
   var merchantId = window._adminMerchantNoteId;
   var input = document.getElementById('admin-merchant-note-input');
   var note = input ? input.value.trim() : '';
-  if(!merchantId){ toast('Marchand introuvable', true); return; }
-  if(!note){ toast('Note vide', true); return; }
+  if(!merchantId){ toast(at('admin_merchant_not_found'), true); return; }
+  if(!note){ toast(at('admin_note_empty'), true); return; }
   apiCall('/admin?action=merchant-add-note','POST',{admin_password:window._adminPw,merchant_id:merchantId,note:note},'').then(function(res){
     if(res&&res.success){
-      toast('Note ajoutée');
+      toast(at('admin_note_added'));
       adminSearchMerchant();
     } else {
       toast((res&&res.message)||'Échec', true);
@@ -4438,11 +4451,11 @@ function adminAddNote(){
   var phone = window._adminNotePhone;
   var input = document.getElementById('admin-note-input');
   var note = input ? input.value.trim() : '';
-  if(!phone){ toast('Compte introuvable', true); return; }
-  if(!note){ toast('Note vide', true); return; }
+  if(!phone){ toast(at('admin_account_not_found'), true); return; }
+  if(!note){ toast(at('admin_note_empty'), true); return; }
   apiCall('/admin?action=add-note','POST',{admin_password:window._adminPw,phone:phone,note:note},'').then(function(res){
     if(res&&res.success){
-      toast('Note ajoutée');
+      toast(at('admin_note_added'));
       document.getElementById('srch-phone').value = phone;
       adminSearchByPhone();
     } else {
@@ -4816,7 +4829,7 @@ function adminLoadMerchantFrozenTx(){
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminMerchantUnfreezeTx(ref){
@@ -4826,7 +4839,7 @@ function adminMerchantUnfreezeTx(ref){
     needsReason:false, confirmLabel:'Oui, débloquer', confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
-        if(res&&res.success){ toast('Transaction débloquée'); adminLoadMerchantFrozenTx(); }
+        if(res&&res.success){ toast(at('admin_tx_unfrozen_success')); adminLoadMerchantFrozenTx(); }
         else toast((res&&res.message)||'Erreur', true);
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
@@ -4842,7 +4855,7 @@ function adminMerchantConfirmCancelFrozen(ref){
     confirmLabel:'Confirmer l\'annulation', confirmColor:'var(--re)',
     onConfirm:function(reason){
       apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
-        if(res&&res.success){ toast('Annulation confirmée'); adminLoadMerchantFrozenTx(); }
+        if(res&&res.success){ toast(at('admin_cancel_confirmed_success')); adminLoadMerchantFrozenTx(); }
         else toast((res&&res.message)||'Erreur', true);
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
@@ -5092,7 +5105,7 @@ function adminLoadMerchants(page){
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty">Erreur réseau</div>'; });
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 // Depuis la liste globale, ouvre directement la fiche complete du compte
@@ -5414,7 +5427,7 @@ function adminToggleFxRatesList(){
   if(!box || !btn) return;
   var showing = box.style.display !== 'none';
   box.style.display = showing ? 'none' : 'block';
-  btn.textContent = showing ? 'Afficher le détail des taux ▾' : 'Masquer le détail des taux ▴';
+  btn.textContent = showing ? at('admin_rates_show_detail') : at('admin_rates_hide_detail');
 }
 function adminLoadExchangeRates(){
   var box = document.getElementById('admin-fx-rates-box');
