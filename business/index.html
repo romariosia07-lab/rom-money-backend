@@ -1039,7 +1039,14 @@ function requirePin(subtitle, cb){
 }
 function updatePcDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('pc'+i); if(el) el.classList.toggle('on', i<pcBuf.length); } }
 function pcDel(){ if(pcBuf.length>0){ pcBuf=pcBuf.slice(0,-1); updatePcDots(); } }
-function pinCancel(){ pcCallback=null; goto('s-app'); }
+// Verrou partage par toutes les actions financieres passant par requirePin()
+// (virement, encaissement...) - meme mecanique que cote ROM_MONEY : empeche
+// un double-appui sur "Envoyer" (ou equivalent) de declencher deux operations
+// reelles concurrentes, y compris pendant la fenetre entre la saisie du PIN
+// et la reponse reseau. Remis a false ici (annulation) et dans chaque
+// fonction appelante une fois sa reponse API recue.
+var _moneyActionInFlight = false;
+function pinCancel(){ pcCallback=null; _moneyActionInFlight=false; goto('s-app'); }
 function pcPin(d){
   if(pcBuf.length>=4) return;
   pcBuf+=d; updatePcDots();
@@ -1793,13 +1800,17 @@ function shEncaisser(b){
 // telephone. Le client l'ouvre dans ROM_MONEY, voit le montant/motif,
 // confirme avec son PIN comme un paiement normal.
 var ROM_MONEY_URL = 'https://romariosia07-lab.github.io/rom-money-backend/';
+var _createPaymentLinkInFlight = false;
 function createPaymentLink(){
+  if(_createPaymentLinkInFlight) return;
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
   var motifEl=document.getElementById('enc-motif');
   var motif=motifEl?motifEl.value.trim():'';
   if(amt<=0){ toast(t('enc_enter_amount'), true); return; }
+  _createPaymentLinkInFlight = true;
   toast(t('paylink_creating'));
   apiCall('/merchant?action=create-payment-link','POST',{amount:amt,description:motif},getToken()).then(function(res){
+    _createPaymentLinkInFlight = false;
     if(res && res.success && res.data){
       showPaymentLinkResult(res.data.id, amt, motif);
     } else {
@@ -1974,11 +1985,15 @@ function encPin(v){
     if(d) d.classList.toggle('on', j<window._encPinBuf.length);
   }
 }
+var _encCollectInFlight = false;
 function doEncaisserWithPin(phone, name, pin){
+  if(_encCollectInFlight) return;
+  _encCollectInFlight = true;
   var amt=parseFloat(document.getElementById('enc-amt').value)||0;
   var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
   toast(t('processing'));
   apiCall('/merchant?action=collect','POST',{payer_phone:phone,amount:amt,pin:pin,description:motif},getToken()).then(function(res){
+    _encCollectInFlight = false;
     if(res && res.success){
       APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory(); loadDashboardStats();
       var creditedAmt = res.data.net_amount!=null ? res.data.net_amount : amt;
@@ -2129,12 +2144,15 @@ function updateVirFee(){
   else { el.className='fee-note paid'; el.textContent=t('vir_fee_paid').replace('{fee}',fmt(Math.round(amt*0.01))).replace('{total}',fmt(amt+Math.round(amt*0.01))); }
 }
 function doVirement(){
+  if(_moneyActionInFlight) return;
   var phone=document.getElementById('vir-phone').value.trim();
   var amt=parseFloat(document.getElementById('vir-amt').value)||0;
   if(!phone){ toast(t('vir_err_phone'), true); return; }
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('vir_pin_confirm').replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=withdraw','POST',{phone:phone,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         APP.balance=res.data.new_balance; save(); updateBalDisplay(); refreshHistory();
         closeSheet();
@@ -2273,11 +2291,15 @@ function shVDeposit(b){
     +'<div class="frow"><label class="flabel">'+t('amount_label')+'</label><div class="amt-row"><input class="finput" id="vd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVDeposit()">'+t('btn_deposit')+'</button>';
 }
+var _vDepositInFlight = false;
 function doVDeposit(){
+  if(_vDepositInFlight) return;
   var amt=parseFloat(document.getElementById('vd-amt').value)||0;
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
   if(amt>APP.balance){ toast(t('err_balance'), true); return; }
+  _vDepositInFlight = true;
   apiCall('/merchant?action=vault-deposit','POST',{amount:amt},getToken()).then(function(res){
+    _vDepositInFlight = false;
     if(res && res.success){
       APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
       updateBalDisplay(); renderVault(); closeSheet(); toast(fmt(amt)+t('vault_deposited'));
@@ -2290,11 +2312,14 @@ function shVWithdraw(b){
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqVWithdraw()">'+t('btn_withdraw')+'</button>';
 }
 function reqVWithdraw(){
+  if(_moneyActionInFlight) return;
   var amt=parseFloat(document.getElementById('vw-amt').value)||0;
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_err_balance'), true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('vault_withdraw_pin').replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=vault-withdraw','POST',{amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance; save();
         updateBalDisplay(); renderVault(); toast(fmt(amt)+t('vault_withdrawn'));
@@ -2324,13 +2349,17 @@ function shVCreate(b){
     +'<div class="frow"><label class="flabel">'+t('sv_goal_label')+'</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doVCreate()">'+t('btn_create')+'</button>';
 }
+var _vCreateInFlight = false;
 function doVCreate(){
+  if(_vCreateInFlight) return;
   var name=document.getElementById('svc-name').value.trim();
   var amt=parseFloat(document.getElementById('svc-amt').value)||0;
   var goal=parseFloat(document.getElementById('svc-goal').value)||0;
   if(!name){ toast(t('err_name_required'), true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_err_main_balance'), true); return; }
+  _vCreateInFlight = true;
   apiCall('/merchant?action=subvault-create','POST',{name:name,amount:amt,goal:goal||''},getToken()).then(function(res){
+    _vCreateInFlight = false;
     if(res && res.success){
       APP.vaultBal=res.data.vault_balance;
       APP.subVaults.push({id:res.data.id,name:res.data.name,amt:parseFloat(res.data.balance)||0,goal:res.data.goal_amount?parseFloat(res.data.goal_amount):0});
@@ -2344,12 +2373,16 @@ function shSVDeposit(b, id){
     +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',sv.name)+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">'+t('btn_deposit')+'</button>';
 }
+var _svDepositInFlight = false;
 function doSVDeposit(id){
+  if(_svDepositInFlight) return;
   var sv=findSubVault(id); if(!sv) return;
   var amt=parseFloat(document.getElementById('svd-amt').value)||0;
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_err_main_balance'), true); return; }
+  _svDepositInFlight = true;
   apiCall('/merchant?action=subvault-deposit','POST',{id:id,amount:amt},getToken()).then(function(res){
+    _svDepositInFlight = false;
     if(res && res.success){
       APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
       renderVault(); closeSheet(); toast(t('sv_deposit_done'));
@@ -2363,12 +2396,15 @@ function shSVWithdraw(b, id){
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">'+t('btn_withdraw')+'</button>';
 }
 function reqSVWithdraw(id){
+  if(_moneyActionInFlight) return;
   var sv=findSubVault(id); if(!sv) return;
   var amt=parseFloat(document.getElementById('svw-amt').value)||0;
   if(amt<=0){ toast(t('err_amount_invalid'), true); return; }
   if(amt>sv.amt){ toast(t('sv_err_balance'), true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('sv_withdraw_pin').replace('{name}',sv.name).replace('{amt}',fmt(amt)), function(){
     apiCall('/merchant?action=subvault-withdraw','POST',{id:id,amount:amt,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
         renderVault(); toast(t('sv_withdraw_done'));

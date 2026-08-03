@@ -7502,7 +7502,16 @@ function pcPin(d){
 }
 
 function pcDel(){ if(pcBuf.length>0){ pcBuf=pcBuf.slice(0,-1); updatePcDots(); } }
-function pinCancel(){ pcCallback=null; goto('s-app'); }
+// Verrou partage par TOUTES les actions financieres passant par requirePin()
+// (envoi, paiement marchand, retrait de coffre...) : un seul flux peut etre
+// en cours a la fois (coherent avec pcCallback, deja unique) - empeche un
+// double-appui sur "Envoyer" (ou equivalent) de declencher deux envois reels
+// concurrents, y compris pendant la fenetre entre la saisie du PIN et la
+// reponse reseau (ou pcCallback est deja remis a null mais l'appel API tourne
+// encore). Remis a false ici (annulation) et dans chaque fonction appelante
+// une fois sa reponse API recue (succes ou echec).
+var _moneyActionInFlight = false;
+function pinCancel(){ pcCallback=null; _moneyActionInFlight=false; goto('s-app'); }
 
 // ═══════════════════════════════════════════
 // SHEET
@@ -7753,6 +7762,7 @@ function resolvePhone(){
 }
 
 function doSend(){
+  if(_moneyActionInFlight) return;
   var sph=document.getElementById('sph');
   var sms=document.getElementById('sms');
   var srn=document.getElementById('srn');
@@ -7771,6 +7781,7 @@ function doSend(){
   if(receiverName==='Numéro non trouvé sur ROM_MONEY'||!receiverName){
     toast(t('send_err_account_not_found'), true); return;
   }
+  _moneyActionInFlight = true;
 
   var confirmMsg = t('send_pin_confirm').replace('{amt}',fmt(net)).replace('{name}',receiverName)+(frais>0?t('send_pin_confirm_fee').replace('{fee}',fmt(frais)):'');
   var tok0 = getToken();
@@ -7791,6 +7802,7 @@ function doSend(){
       pin: PIN_MEM,
       description: motif||''
     },tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res&&res.success){
         var d=res.data||{};
         APP.balance=d.new_balance!==undefined?d.new_balance:(APP.balance-brut);
@@ -8089,6 +8101,7 @@ function doSendFromScanStored(){
 }
 
 function doSendFromScan(phone, name){
+  if(_moneyActionInFlight) return;
   var amtEl = document.getElementById('scan-amount');
   var intent = getAmountIntent('scan-amount','scan-amount-net');
   var brut = intent.brut, frais = intent.frais, net = intent.net;
@@ -8096,6 +8109,7 @@ function doSendFromScan(phone, name){
   if(brut > APP.balance){ toast(t('send_err_insufficient_balance'), true); return; }
   var motifEl = document.getElementById('scan-motif');
   var motif = motifEl ? motifEl.value.trim() : '';
+  _moneyActionInFlight = true;
 
   requirePin(t('scan_pin_confirm').replace('{amt}',fmt(net)).replace('{name}',name||phone)+(frais>0?t('send_pin_confirm_fee').replace('{fee}',fmt(frais)):''), function(){
     var tok = getToken();
@@ -8107,6 +8121,7 @@ function doSendFromScan(phone, name){
       pin: PIN_MEM,
       description: motif || 'Paiement via QR'
     }, tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         var d = res.data || {};
         APP.balance = d.new_balance !== undefined ? d.new_balance : (APP.balance - brut);
@@ -8174,6 +8189,7 @@ function showMerchantPayForm(merchantId, businessName, verified){
 }
 
 function doPayMerchantScan(){
+  if(_moneyActionInFlight) return;
   var merchantId = window._payMerchantId;
   var businessName = window._payMerchantName || '';
   var amt = parseFloat(document.getElementById('mp-amount').value)||0;
@@ -8181,12 +8197,14 @@ function doPayMerchantScan(){
   if(amt>APP.balance){ toast(t('send_err_insufficient_balance'), true); return; }
   var motifEl = document.getElementById('mp-motif');
   var motif = motifEl ? motifEl.value.trim() : '';
+  _moneyActionInFlight = true;
 
   requirePin(t('merchant_pay_pin_confirm').replace('{amt}',fmt(amt)).replace('{name}',businessName), function(){
     var tok = getToken();
     apiCall('/transactions?action=pay-merchant','POST',{
       merchant_id: merchantId, amount: amt, pin: PIN_MEM, description: motif||''
     }, tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res && res.success){
         var d = res.data || {};
         APP.balance = d.new_balance !== undefined ? d.new_balance : (APP.balance - amt);
@@ -8556,13 +8574,17 @@ function shVD(b){
     +'<button class="btn-g" onclick="doVD()">'+t('vault_btn_deposit_to_vault')+'</button>';
 }
 
+var _vdInFlight = false;
 function doVD(){
+  if(_vdInFlight) return;
   var am=document.getElementById('vd-am');
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.balance){ toast(t('send_err_insufficient_balance'),true); return; }
+  _vdInFlight = true;
   var tok=getToken();
   apiCall('/wallet?action=vault-deposit','POST',{amount:amt},tok).then(function(res){
+    _vdInFlight = false;
     if(res&&res.success){
       APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance;
       save(); updateBalDisplay(); renderVault(); closeSheet();
@@ -8580,13 +8602,16 @@ function shVW(b){
 }
 
 function reqVW(){
+  if(_moneyActionInFlight) return;
   var am=document.getElementById('vw-am');
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_insufficient_balance'),true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('vault_withdraw_pin_confirm').replace('{amt}',fmt(amt)), function(){
     var tok=getToken();
     apiCall('/wallet?action=vault-withdraw','POST',{amount:amt,pin:PIN_MEM},tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res&&res.success){
         APP.balance=res.data.new_balance; APP.vaultBal=res.data.vault_balance;
         save(); updateBalDisplay(); renderVault();
@@ -8662,15 +8687,19 @@ function shSVDeposit(b, id){
     +'<button class="btn-g" onclick="doSVDeposit('+id+')">'+t('bank_btn_deposit')+'</button>';
 }
 
+var _svDepositInFlight = false;
 function doSVDeposit(id){
+  if(_svDepositInFlight) return;
   var sv=findSubVault(id);
   if(!sv) return;
   var am=document.getElementById('sv-dep-am');
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>APP.vaultBal){ toast(t('vault_main_insufficient'),true); return; }
+  _svDepositInFlight = true;
   var tok=getToken();
   apiCall('/wallet?action=subvault-deposit','POST',{id:id,amount:amt},tok).then(function(res){
+    _svDepositInFlight = false;
     if(res&&res.success){
       APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
       save(); renderVault(); updateBalDisplay(); closeSheet();
@@ -8699,15 +8728,18 @@ function shSVWithdraw(b, id){
 }
 
 function reqSVWithdraw(id){
+  if(_moneyActionInFlight) return;
   var sv=findSubVault(id);
   if(!sv) return;
   var am=document.getElementById('sv-wd-am');
   var amt=parseFloat(am&&am.value)||0;
   if(amt<=0){ toast(t('send_err_invalid_amount'),true); return; }
   if(amt>sv.amt){ toast(t('vault_sv_insufficient'),true); return; }
+  _moneyActionInFlight = true;
   requirePin(t('vault_sv_withdraw_pin_confirm').replace('{amt}',fmt(amt)).replace('{name}',sv.name), function(){
     var tok=getToken();
     apiCall('/wallet?action=subvault-withdraw','POST',{id:id,amount:amt,pin:PIN_MEM},tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res&&res.success){
         APP.vaultBal=res.data.vault_balance; sv.amt=res.data.sub_balance;
         save(); renderVault(); updateBalDisplay(); toast(t('vault_sv_withdraw_success').replace('{amt}',fmt(amt)));
@@ -9260,7 +9292,10 @@ function encPin(v){
   }
 }
 
+var _encCollectInFlight = false;
 function doEncaisserWithPin(phone, name, pin){
+  if(_encCollectInFlight) return;
+  _encCollectInFlight = true;
   var intent=getAmountIntent('enc-amt','enc-amt-net');
   var amt=intent.brut, frais=intent.frais;
   var motif=document.getElementById('enc-motif')?document.getElementById('enc-motif').value.trim():'';
@@ -9276,6 +9311,7 @@ function doEncaisserWithPin(phone, name, pin){
     pin: pin,
     description: motif||'Encaissement ROM_MONEY'
   }, tok).then(function(res){
+    _encCollectInFlight = false;
     if(res&&res.success){
       var d=res.data||{};
       var net=amt-frais;
@@ -9452,6 +9488,7 @@ function resolveTransfertPhone(){
 }
 
 function doTransfertCFA(pays){
+  if(_moneyActionInFlight) return;
   var ph = document.getElementById('transfert-to');
   var mo = document.getElementById('transfert-motif');
   var nm = document.getElementById('transfert-name');
@@ -9466,6 +9503,7 @@ function doTransfertCFA(pays){
   if(receiverName===t('transfert_number_not_found')||!receiverName){
     toast(t('transfert_number_not_on_app'),true); return;
   }
+  _moneyActionInFlight = true;
   var confirmMsgAfrica = t('transfert_pin_confirm').replace('{amt}',fmt(intent.brut)).replace('{name}',receiverName).replace('{country}',pays).replace('{net}',fmt(intent.net));
   var tokChk = getToken();
   apiCall('/transactions?action=check-new-recipient','POST',{receiver_phone:phone,amount:intent.amount},tokChk)
@@ -9482,6 +9520,7 @@ function doTransfertCFA(pays){
       receiver_phone:phone, amount:intent.amount, mode:intent.mode, channel:'africa', pin:PIN_MEM,
       description:motif||''
     },tok).then(function(res){
+      _moneyActionInFlight = false;
       if(res&&res.success){
         var d=res.data||{};
         APP.balance=d.new_balance!==undefined?d.new_balance:(APP.balance-intent.brut);
