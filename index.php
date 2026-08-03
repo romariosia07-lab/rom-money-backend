@@ -3925,6 +3925,7 @@ function route_admin($action) {
         'search-tx'         => admin_search_tx(),
         'search-phone'      => admin_search_by_phone(),
         'test-credit-wallet' => admin_test_credit_wallet(),
+        'merchant-test-credit-wallet' => admin_merchant_test_credit_wallet(),
         'late-cancel'       => admin_late_cancel(),
         'audit-list'        => admin_audit_list(),
         'dashboard-stats'   => admin_dashboard_stats(),
@@ -4588,6 +4589,12 @@ function admin_search_by_phone() {
 function admin_test_credit_wallet() {
     $b = body();
     check_admin_password($b);
+    // Creer de l'argent a partir de rien (meme plafonne, meme journalise) est
+    // un pouvoir trop sensible pour rester accessible a n'importe quel admin
+    // ne connaissant que le mot de passe partage - un admin malveillant
+    // pourrait se crediter lui-meme ou crediter un compte complice. Reserve
+    // donc a l'Admin Principal, comme Gains ROM.
+    check_earnings_password($b);
     $phone = trim($b['phone']??'');
     $amount = (float)($b['amount']??0);
     $reason = trim($b['reason']??'');
@@ -4614,6 +4621,37 @@ function admin_test_credit_wallet() {
         db()->commit();
         admin_log('test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Credit de test effectue');
+    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec du credit',500); }
+}
+
+// Equivalent de admin_test_credit_wallet() mais pour un portefeuille marchand
+// - meme restriction a l'Admin Principal (check_earnings_password), meme
+// plafond de test, meme journalisation.
+function admin_merchant_test_credit_wallet() {
+    $b = body();
+    check_admin_password($b);
+    check_earnings_password($b);
+    $phone = trim($b['phone']??'');
+    $amount = (float)($b['amount']??0);
+    $reason = trim($b['reason']??'');
+    if(!$phone) fail('Numero requis');
+    if($amount<=0) fail('Montant invalide');
+    if($amount>1000000) fail('Montant trop eleve pour un credit de test (max 1 000 000)');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $m = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    if(!$m) fail('Compte marchand introuvable',404);
+    $mw = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
+    if(!$mw) fail('Portefeuille marchand introuvable',404);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,receiver_merchant_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'admin_test_credit','completed',?,?)",
+          [$txid,$mw['id'],$amount,$reference,'ROM '.$reason]);
+        q("UPDATE merchant_wallets SET balance=balance+? WHERE id=?",[$amount,$mw['id']]);
+        db()->commit();
+        admin_log('merchant_test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
+        $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
         ok(['new_balance'=>$bal],'Credit de test effectue');
     } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec du credit',500); }
 }
@@ -4659,6 +4697,14 @@ function admin_merchant_search() {
     } catch(Exception $e) {
         $notes = [];
     }
+    // Historique des appareils connectes - equivalent marchand de
+    // known_devices deja affiche cote personnel (admin_search_by_phone()),
+    // manquait ici jusqu'a present.
+    try {
+        $devices = q("SELECT device_id,user_agent,first_seen,last_seen FROM merchant_known_devices WHERE merchant_id=? ORDER BY last_seen DESC",[$m['id']])->fetchAll();
+    } catch(Exception $e) {
+        $devices = [];
+    }
     // Transactions recentes de ce marchand (encaissements et virements) :
     // direction calculee par rapport au merchant_wallet de ce marchand.
     // Joint aussi merchant_wallets/merchants des deux cotes (en plus des
@@ -4688,7 +4734,7 @@ function admin_merchant_search() {
         'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
         'country'=>$m['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
-        'notes'=>$notes,'transactions'=>$txs]);
+        'notes'=>$notes,'transactions'=>$txs,'known_devices'=>$devices]);
 }
 
 // Ajoute une note admin en texte libre sur un compte marchand - equivalent

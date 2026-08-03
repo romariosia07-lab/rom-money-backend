@@ -1652,6 +1652,7 @@ var I18N = {
   admin_balance_label: {fr:'Solde :', en:'Balance:'},
   admin_test_credit_amount_ph: {fr:'Montant à créditer', en:'Amount to credit'},
   admin_test_credit_btn: {fr:'Créditer', en:'Credit'},
+  admin_test_credit_locked: {fr:'Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.', en:'Reserved to the Principal Admin — unlock the Gains ROM tab first.'},
   admin_test_credit_reason_feature: {fr:'Test de fonctionnalité', en:'Feature test'},
   admin_test_credit_reason_debug: {fr:'Débogage', en:'Debugging'},
   admin_test_credit_reason_demo: {fr:'Démonstration', en:'Demo'},
@@ -3931,7 +3932,33 @@ function adminSearchMerchant(){
         +'</select>'
         +'<input class="finput" id="mrcpin-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
-        +'<button class="btn-g" style="margin-top:10px" onclick="adminResetMerchantPin(\''+m.id+'\')">Réinitialiser le PIN</button>';
+        +'<button class="btn-g" style="margin-top:10px" onclick="adminResetMerchantPin(\''+m.id+'\')">Réinitialiser le PIN</button>'
+        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Créditer (test)</div>'
+        +(window._earningsPw ? (
+          '<input class="finput" id="mrctestcredit-amt" type="number" inputmode="numeric" placeholder="Montant" style="margin-bottom:6px">'
+          +'<select class="finput" id="mrctestcredit-reason-sel" onchange="toggleReasonCustom(\'mrctestcredit\')" style="margin-bottom:6px">'
+          +'<option value="">— Choisir une raison —</option>'
+          +'<option value="Test de fonctionnalité">Test de fonctionnalité</option>'
+          +'<option value="Débogage">Débogage</option>'
+          +'<option value="Démonstration">Démonstration</option>'
+          +'<option value="__other__">Autre raison (préciser)</option>'
+          +'</select>'
+          +'<input class="finput" id="mrctestcredit-reason-custom" placeholder="Précisez la raison" style="display:none;margin-bottom:6px">'
+          +'<button class="btn-w" style="margin-top:0" onclick="adminMerchantTestCreditWallet(\''+m.phone_number+'\')">Créditer</button>'
+          +'<div id="mrctestcredit-status" style="margin-top:6px"></div>'
+        ) : (
+          '<div style="font-size:11px;color:var(--t3)">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>'
+        ))
+        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Appareils connectés ('+((m.known_devices||[]).length)+')</div>'
+        +((m.known_devices||[]).length===0
+          ? '<div class="admin-empty">Aucun appareil connu</div>'
+          : (m.known_devices||[]).map(function(dv){
+              return '<div style="padding:6px 0;border-top:1px solid var(--bord);line-height:1.7;font-size:12px">'
+                +'<div style="font-weight:700" title="'+(dv.user_agent||'').replace(/"/g,'&quot;')+'">'+parseUserAgent(dv.user_agent)+'</div>'
+                +'<div>Premiere connexion : '+new Date(dv.first_seen).toLocaleString()+'</div>'
+                +'<div>Derniere connexion : '+new Date(dv.last_seen).toLocaleString()+'</div>'
+                +'</div>';
+            }).join(''));
 
       // ── Notes admin (contexte libre) ──
       var mNotes = m.notes||[];
@@ -4166,17 +4193,21 @@ function adminSearchByPhone(){
         +'<b>'+at('admin_balance_label')+'</b> '+fmtCur(w.balance||0, wCur)+'<br>'
         +'<b>'+at('admin_vault_label')+'</b> '+fmtCur(w.vault_balance||0, wCur)+(w.vault_locked?' <span style="color:var(--am)">'+(w.vault_lock_date?at('admin_vault_locked_until').replace('{date}',w.vault_lock_date):at('admin_vault_locked'))+'</span>':'')
         +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bord)">'
-        +'<input class="finput" id="testcredit-amt" type="number" inputmode="numeric" placeholder="'+at('admin_test_credit_amount_ph')+'" style="margin-bottom:6px">'
-        +'<select class="finput" id="testcredit-reason-sel" onchange="toggleReasonCustom(\'testcredit\')" style="margin-bottom:6px">'
-        +'<option value="" data-i18n-admin="admin_reason_choose">'+at('admin_reason_choose')+'</option>'
-        +'<option value="'+at('admin_test_credit_reason_feature')+'">'+at('admin_test_credit_reason_feature')+'</option>'
-        +'<option value="'+at('admin_test_credit_reason_debug')+'">'+at('admin_test_credit_reason_debug')+'</option>'
-        +'<option value="'+at('admin_test_credit_reason_demo')+'">'+at('admin_test_credit_reason_demo')+'</option>'
-        +'<option value="__other__">'+at('admin_reason_other')+'</option>'
-        +'</select>'
-        +'<input class="finput" id="testcredit-reason-custom" placeholder="'+at('admin_reason_specify')+'" style="display:none;margin-bottom:6px">'
-        +'<button class="btn-w" style="margin-top:0" onclick="adminTestCreditWallet(\''+phone.replace(/'/g,"\\'")+'\')">'+at('admin_test_credit_btn')+'</button>'
-        +'<div id="testcredit-status" style="margin-top:6px"></div>'
+        +(window._earningsPw ? (
+          '<input class="finput" id="testcredit-amt" type="number" inputmode="numeric" placeholder="'+at('admin_test_credit_amount_ph')+'" style="margin-bottom:6px">'
+          +'<select class="finput" id="testcredit-reason-sel" onchange="toggleReasonCustom(\'testcredit\')" style="margin-bottom:6px">'
+          +'<option value="" data-i18n-admin="admin_reason_choose">'+at('admin_reason_choose')+'</option>'
+          +'<option value="'+at('admin_test_credit_reason_feature')+'">'+at('admin_test_credit_reason_feature')+'</option>'
+          +'<option value="'+at('admin_test_credit_reason_debug')+'">'+at('admin_test_credit_reason_debug')+'</option>'
+          +'<option value="'+at('admin_test_credit_reason_demo')+'">'+at('admin_test_credit_reason_demo')+'</option>'
+          +'<option value="__other__">'+at('admin_reason_other')+'</option>'
+          +'</select>'
+          +'<input class="finput" id="testcredit-reason-custom" placeholder="'+at('admin_reason_specify')+'" style="display:none;margin-bottom:6px">'
+          +'<button class="btn-w" style="margin-top:0" onclick="adminTestCreditWallet(\''+phone.replace(/'/g,"\\'")+'\')">'+at('admin_test_credit_btn')+'</button>'
+          +'<div id="testcredit-status" style="margin-top:6px"></div>'
+        ) : (
+          '<div style="font-size:11px;color:var(--t3)">'+at('admin_test_credit_locked')+'</div>'
+        ))
         +'</div>'
         +'</div>';
 
@@ -4287,7 +4318,7 @@ function adminTestCreditWallet(phone){
   if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
   if(!reason){ toast(at('admin_test_credit_reason_required'), true); return; }
   _testCreditInFlight = true;
-  apiCall('/admin?action=test-credit-wallet','POST',{admin_password:window._adminPw,phone:phone,amount:amt,reason:reason},'').then(function(res){
+  apiCall('/admin?action=test-credit-wallet','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,phone:phone,amount:amt,reason:reason},'').then(function(res){
     _testCreditInFlight = false;
     if(res&&res.success){
       toast(at('admin_test_credit_success_toast'));
@@ -4296,6 +4327,25 @@ function adminTestCreditWallet(phone){
       if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
     }
   }).catch(function(){ _testCreditInFlight = false; if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+at('admin_dash_error_network')+'</div>'; });
+}
+var _merchantTestCreditInFlight = false;
+function adminMerchantTestCreditWallet(phone){
+  if(_merchantTestCreditInFlight) return;
+  var amt = parseFloat(document.getElementById('mrctestcredit-amt').value)||0;
+  var reason = getReasonValue('mrctestcredit');
+  var statusEl = document.getElementById('mrctestcredit-status');
+  if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!reason){ toast(at('admin_test_credit_reason_required'), true); return; }
+  _merchantTestCreditInFlight = true;
+  apiCall('/admin?action=merchant-test-credit-wallet','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,phone:phone,amount:amt,reason:reason},'').then(function(res){
+    _merchantTestCreditInFlight = false;
+    if(res&&res.success){
+      toast(at('admin_test_credit_success_toast'));
+      adminSearchMerchant();
+    } else {
+      if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
+    }
+  }).catch(function(){ _merchantTestCreditInFlight = false; if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+at('admin_dash_error_network')+'</div>'; });
 }
 function adminEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
