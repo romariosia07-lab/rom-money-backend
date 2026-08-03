@@ -3885,7 +3885,7 @@ function adminSearchMerchant(){
         +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
         +'<b>Type :</b> '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.address?' — '+adminEsc(m.address):'')+'<br>'
         +'<b>Pays :</b> '+(m.country||'Non renseigné (compte créé avant cette fonctionnalité — voir "Modifier le pays" ci-dessous)')+' &middot; <b>Devise :</b> '+(m.currency||'XOF')+'<br>'
-        +'<b>Solde :</b> '+fmt(m.balance||0)+' '+((m.currency==='XOF'||m.currency==='XAF'||!m.currency)?'F':m.currency)+' &middot; <b>Coffre :</b> '+fmt(m.vault_balance||0)+' '+((m.currency==='XOF'||m.currency==='XAF'||!m.currency)?'F':m.currency)+'<br>'
+        +'<b>Solde :</b> '+fmtCur(m.balance||0, m.currency)+' &middot; <b>Coffre :</b> '+fmtCur(m.vault_balance||0, m.currency)+'<br>'
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
         +'<b>Badge vérifié :</b> '+(m.verified?'<span style="color:var(--g);font-weight:700">Actif</span>':'<span style="color:var(--t3)">Inactif</span>')
         +'</div>'
@@ -3954,7 +3954,7 @@ function adminSearchMerchant(){
       // référence que côté personnel, voir renderAdminTxList()) ──
       var mtxs = m.transactions||[];
       window._adminMerchantTxCache = mtxs;
-      window._adminMerchantSearchCurrencySuffix = (m.currency==='XOF'||m.currency==='XAF'||!m.currency) ? 'F' : m.currency;
+      window._adminMerchantSearchCurrency = m.currency || 'XOF';
       html += '<div style="font-size:13px;font-weight:800;color:var(--accent-text);margin-top:20px;margin-bottom:10px;border-top:1px solid var(--bord);padding-top:16px">Transactions récentes ('+mtxs.length+')</div>';
       html += '<div style="display:flex;gap:8px;margin-bottom:8px">'
         +'<input id="mtx-contact" type="text" placeholder="'+at('admin_filter_number_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
@@ -4160,12 +4160,11 @@ function adminSearchByPhone(){
 
       // ── Portefeuille ──
       var wCur = w.currency||'XOF';
-      var wCurSuffix = (wCur==='XOF'||wCur==='XAF') ? 'F' : wCur;
-      window._adminSearchCurrencySuffix = wCurSuffix;
+      window._adminSearchCurrency = wCur;
       html+='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12px;line-height:1.9">'
         +'<div style="font-weight:800;color:var(--accent-text);margin-bottom:6px">'+at('admin_wallet_section')+'</div>'
-        +'<b>'+at('admin_balance_label')+'</b> '+fmt(w.balance||0)+' '+wCurSuffix+'<br>'
-        +'<b>'+at('admin_vault_label')+'</b> '+fmt(w.vault_balance||0)+' '+wCurSuffix+(w.vault_locked?' <span style="color:var(--am)">'+(w.vault_lock_date?at('admin_vault_locked_until').replace('{date}',w.vault_lock_date):at('admin_vault_locked'))+'</span>':'')
+        +'<b>'+at('admin_balance_label')+'</b> '+fmtCur(w.balance||0, wCur)+'<br>'
+        +'<b>'+at('admin_vault_label')+'</b> '+fmtCur(w.vault_balance||0, wCur)+(w.vault_locked?' <span style="color:var(--am)">'+(w.vault_lock_date?at('admin_vault_locked_until').replace('{date}',w.vault_lock_date):at('admin_vault_locked'))+'</span>':'')
         +'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bord)">'
         +'<input class="finput" id="testcredit-amt" type="number" inputmode="numeric" placeholder="'+at('admin_test_credit_amount_ph')+'" style="margin-bottom:6px">'
         +'<select class="finput" id="testcredit-reason-sel" onchange="toggleReasonCustom(\'testcredit\')" style="margin-bottom:6px">'
@@ -4384,14 +4383,14 @@ function renderAdminTxList(){
     return;
   }
   var html='';
-  var txCurSuffix = window._adminSearchCurrencySuffix || 'F';
+  var txCur = window._adminSearchCurrency || 'XOF';
   txs.forEach(function(t){
     var isDebit=t.direction==='debit';
     var contactName=isDebit?adminNameDisplay(t.receiver_name||t.receiver_merchant_name,t.receiver_verified_name):adminNameDisplay(t.sender_name||t.sender_merchant_name,t.sender_verified_name);
     var contactPhone=isDebit?(t.receiver_phone||t.receiver_merchant_phone||'-'):(t.sender_phone||t.sender_merchant_phone||'-');
     var dispAmt = txFilterAmt(t);
     html+='<div class="admin-tx-card" onclick="document.getElementById(\'srch-ref\').value=\''+t.reference+'\';document.getElementById(\'cncl-ref\').value=\''+t.reference+'\';toast(\''+at('admin_ref_copied_toast')+'\')">'
-      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmt(dispAmt)+' '+txCurSuffix+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmtCur(dispAmt, txCur)+'</span></div>'
       +'<div style="color:var(--t3);margin-top:2px">'+at('admin_contact_number_label').replace('{phone}',contactPhone)+'</div>'
       +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">'+at('admin_alerts_ref_label').replace('{ref}',t.reference).replace('{date}',new Date(t.created_at).toLocaleString())+' '+statusPill(t.status)+'</div>'
       +'</div>';
@@ -4442,14 +4441,14 @@ function renderAdminMerchantTxList(){
     return;
   }
   var html='';
-  var mtxCurSuffix = window._adminMerchantSearchCurrencySuffix || 'F';
+  var mtxCur = window._adminMerchantSearchCurrency || 'XOF';
   txs.forEach(function(t){
     var isDebit=t.direction==='debit';
     var contactName=isDebit?adminNameDisplay(t.receiver_name||t.receiver_merchant_name,t.receiver_verified_name):adminNameDisplay(t.sender_name||t.sender_merchant_name,t.sender_verified_name);
     var contactPhone=isDebit?(t.receiver_phone||t.receiver_merchant_phone||'-'):(t.sender_phone||t.sender_merchant_phone||'-');
     var dispAmt = mtxFilterAmt(t);
     html+='<div class="admin-tx-card" onclick="document.getElementById(\'mrccncl-ref\').value=\''+t.reference+'\';toast(\''+at('admin_ref_copied_toast')+'\')">'
-      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmt(dispAmt)+' '+mtxCurSuffix+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between"><b>'+(isDebit?at('admin_sent_to'):at('admin_received_from'))+' : '+contactName+'</b><span>'+fmtCur(dispAmt, mtxCur)+'</span></div>'
       +'<div style="color:var(--t3);margin-top:2px">'+at('admin_contact_number_label').replace('{phone}',contactPhone)+'</div>'
       +'<div style="color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:6px">'+at('admin_alerts_ref_label').replace('{ref}',t.reference).replace('{date}',new Date(t.created_at).toLocaleString())+' '+statusPill(t.status)+'</div>'
       +'</div>';
