@@ -1044,32 +1044,32 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-merchants" class="admin-panel" style="display:none">
-      <div class="admin-stitle">Marchands ROM_BUSINESS</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Recherche un compte marchand par numéro de téléphone (indépendant d'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".</div>
-      <div class="frow"><label class="flabel">Numéro du marchand</label><input class="finput" id="mrc-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('mrc-result').innerHTML=''"></div>
-      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchant()">Rechercher</button>
+      <div class="admin-stitle" data-i18n-admin="admin_merchants_title">Marchands ROM_BUSINESS</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_merchants_desc">Recherche un compte marchand par numéro de téléphone (indépendant d'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_merchant_phone_label">Numéro du marchand</label><input class="finput" id="mrc-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('mrc-result').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchant()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="mrc-result"></div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px">Recherche avancée (montant / date / statut)</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Retrouver une transaction marchande (encaissement ou virement) sans connaître le numéro du marchand.</div>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_advsearch_title">Recherche avancée (montant / date / statut)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_merchants_advsearch_desc">Retrouver une transaction marchande (encaissement ou virement) sans connaître le numéro du marchand.</div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="finput" id="mrctx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" style="margin-bottom:0">
-        <input class="finput" id="mrctx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" style="margin-bottom:0">
+        <input class="finput" id="mrctx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" data-i18n-admin-ph="admin_advsearch_amt_min_ph" style="margin-bottom:0">
+        <input class="finput" id="mrctx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" data-i18n-admin-ph="admin_advsearch_amt_max_ph" style="margin-bottom:0">
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">Du</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_du_label">Du</label>
         <input class="finput" id="mrctx-date-from" type="date" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">au</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_au_label">au</label>
         <input class="finput" id="mrctx-date-to" type="date" style="margin-bottom:0">
       </div>
       <select class="finput" id="mrctx-status">
-        <option value="">Statut : Tous</option>
-        <option value="completed">Complétée</option>
-        <option value="pending">En attente</option>
-        <option value="cancelled">Annulée</option>
-        <option value="frozen">Gelée</option>
+        <option value="" data-i18n-admin="admin_advsearch_status_all">Statut : Tous</option>
+        <option value="completed" data-i18n-admin="admin_advsearch_status_completed">Complétée</option>
+        <option value="pending" data-i18n-admin="admin_advsearch_status_pending">En attente</option>
+        <option value="cancelled" data-i18n-admin="admin_advsearch_status_cancelled">Annulée</option>
+        <option value="frozen" data-i18n-admin="admin_advsearch_status_frozen">Gelée</option>
       </select>
-      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchantTxAdvanced(1)">Rechercher</button>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchMerchantTxAdvanced(1)" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="mrctx-box"></div>
       <div id="mrctx-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
 
@@ -1118,7 +1118,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('xlsx')">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('pdf')">⬇ Exporter PDF</button>
       </div>
-      <div id="mrclist-box"><div class="admin-empty">Chargement...</div></div>
+      <div id="mrclist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="mrclist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
 
@@ -1202,26 +1202,26 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTx()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="admin-tx-result"></div>
 
-      <div class="admin-stitle" style="border-top:1px solid var(--bord);padding-top:20px">Recherche avancée (montant / date / statut)</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Retrouver une transaction sans connaître ni la référence ni le numéro du compte.</div>
+      <div class="admin-stitle" style="border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_advsearch_title">Recherche avancée (montant / date / statut)</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_tx_advsearch_desc">Retrouver une transaction sans connaître ni la référence ni le numéro du compte.</div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="finput" id="advtx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" style="margin-bottom:0">
-        <input class="finput" id="advtx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" style="margin-bottom:0">
+        <input class="finput" id="advtx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" data-i18n-admin-ph="admin_advsearch_amt_min_ph" style="margin-bottom:0">
+        <input class="finput" id="advtx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" data-i18n-admin-ph="admin_advsearch_amt_max_ph" style="margin-bottom:0">
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">Du</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_du_label">Du</label>
         <input class="finput" id="advtx-date-from" type="date" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0">au</label>
+        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_au_label">au</label>
         <input class="finput" id="advtx-date-to" type="date" style="margin-bottom:0">
       </div>
       <select class="finput" id="advtx-status">
-        <option value="">Statut : Tous</option>
-        <option value="completed">Complétée</option>
-        <option value="pending">En attente</option>
-        <option value="cancelled">Annulée</option>
-        <option value="frozen">Gelée</option>
+        <option value="" data-i18n-admin="admin_advsearch_status_all">Statut : Tous</option>
+        <option value="completed" data-i18n-admin="admin_advsearch_status_completed">Complétée</option>
+        <option value="pending" data-i18n-admin="admin_advsearch_status_pending">En attente</option>
+        <option value="cancelled" data-i18n-admin="admin_advsearch_status_cancelled">Annulée</option>
+        <option value="frozen" data-i18n-admin="admin_advsearch_status_frozen">Gelée</option>
       </select>
-      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTxAdvanced(1)">Rechercher</button>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchTxAdvanced(1)" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="advtx-box"></div>
       <div id="advtx-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
 
@@ -1328,7 +1328,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div id="user-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;text-align:center"></div>
     <div id="user-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;text-align:center;white-space:pre-line"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit" data-i18n="tx_btn_cancel">Annuler</button>
       <button id="user-confirm-btn" onclick="userConfirmModalSubmit()" style="padding:13px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
     </div>
   </div>
@@ -1635,6 +1635,21 @@ var I18N = {
   admin_tx_search_by_ref_title: {fr:'Rechercher par référence', en:'Search by reference'},
   admin_tx_ref_label: {fr:'Référence', en:'Reference'},
   admin_tx_search_btn: {fr:'Rechercher', en:'Search'},
+  admin_merchants_title: {fr:'Marchands ROM_BUSINESS', en:'ROM_BUSINESS Merchants'},
+  admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
+  admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
+  admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
+  admin_merchants_advsearch_desc: {fr:'Retrouver une transaction marchande (encaissement ou virement) sans connaître le numéro du marchand.', en:'Find a merchant transaction (collection or transfer) without knowing the merchant\'s phone number.'},
+  admin_tx_advsearch_desc: {fr:'Retrouver une transaction sans connaître ni la référence ni le numéro du compte.', en:'Find a transaction without knowing the reference or the account number.'},
+  admin_advsearch_amt_min_ph: {fr:'Montant min', en:'Min amount'},
+  admin_advsearch_amt_max_ph: {fr:'Montant max', en:'Max amount'},
+  admin_advsearch_du_label: {fr:'Du', en:'From'},
+  admin_advsearch_au_label: {fr:'au', en:'to'},
+  admin_advsearch_status_all: {fr:'Statut : Tous', en:'Status: All'},
+  admin_advsearch_status_completed: {fr:'Complétée', en:'Completed'},
+  admin_advsearch_status_pending: {fr:'En attente', en:'Pending'},
+  admin_advsearch_status_cancelled: {fr:'Annulée', en:'Cancelled'},
+  admin_advsearch_status_frozen: {fr:'Gelée', en:'Frozen'},
   admin_tx_freeze_title: {fr:'Annulation tardive / Gel', en:'Late cancellation / Freeze'},
   admin_tx_freeze_desc: {fr:'Réservé admin uniquement. "Annuler" est définitif et immédiat (limite 2 jours). "Geler" est réversible : l\'argent revient temporairement à l\'expéditeur le temps de vérifier, puis tu débloques ou confirmes l\'annulation depuis la liste ci-dessous. Les deux vérifient automatiquement que le destinataire a toujours le solde nécessaire.', en:'Admin only. "Cancel" is final and immediate (2-day limit). "Freeze" is reversible: the money temporarily returns to the sender while you verify, then you unfreeze or confirm the cancellation from the list below. Both automatically check that the recipient still has the required balance.'},
   admin_tx_reason_wrong_recipient: {fr:'Erreur de destinataire confirmée', en:'Confirmed wrong recipient'},
@@ -1720,6 +1735,13 @@ var I18N = {
   admin_cancel_definitively_msg: {fr:'Transaction {ref}\nCette action déplace réellement de l\'argent et ne peut pas être annulée après coup.', en:'Transaction {ref}\nThis action moves real money and cannot be undone afterwards.'},
   admin_yes_cancel: {fr:'Oui, annuler', en:'Yes, cancel'},
   admin_tx_cancelled_success: {fr:'Transaction annulée avec succès', en:'Transaction cancelled successfully'},
+  admin_reason_required: {fr:'Raison requise', en:'Reason required'},
+  admin_title_msg_required: {fr:'Titre et message requis', en:'Title and message required'},
+  admin_no_account_above_threshold: {fr:'Aucun compte au-dessus de ce seuil', en:'No account above this threshold'},
+  admin_no_document_sent: {fr:'Aucun document envoyé par ce marchand', en:'No document sent by this merchant'},
+  admin_no_tx_found: {fr:'Aucune transaction trouvée', en:'No transaction found'},
+  admin_no_frozen_merchant_payment: {fr:'Aucun paiement marchand gelé', en:'No frozen merchant payment'},
+  admin_no_merchant_found: {fr:'Aucun marchand trouvé', en:'No merchant found'},
   admin_freeze_confirm_title: {fr:'Geler cette transaction ?', en:'Freeze this transaction?'},
   admin_freeze_confirm_msg: {fr:'Transaction {ref}\nL\'argent revient temporairement à l\'expéditeur, le temps de ta vérification. Réversible depuis la liste des transactions gelées.', en:"Transaction {ref}\nThe money temporarily returns to the sender while you verify. Reversible from the frozen transactions list."},
   admin_yes_freeze: {fr:'Oui, geler', en:'Yes, freeze'},
@@ -2024,6 +2046,19 @@ var I18N = {
   home_tx_loading: {fr:'Chargement...', en:'Loading...'},
   tx_badge_cancelled: {fr:'Annulée', en:'Cancelled'},
   tx_btn_cancel: {fr:'Annuler', en:'Cancel'},
+  confirm_default_title: {fr:'Confirmation', en:'Confirmation'},
+  confirm_btn_default: {fr:'Confirmer', en:'Confirm'},
+  toast_biometric_checking: {fr:'Verification biometrique...', en:'Checking biometrics...'},
+  toast_biometric_unavailable: {fr:'Biometrie indisponible sur cet appareil, PIN uniquement', en:'Biometrics unavailable on this device, PIN only'},
+  toast_account_creating: {fr:'Création du compte...', en:'Creating account...'},
+  toast_fingerprint_not_recognized: {fr:'Empreinte non reconnue, utilisez votre PIN', en:'Fingerprint not recognized, use your PIN'},
+  toast_qr_renewed: {fr:'QR code renouvelé', en:'QR code renewed'},
+  toast_session_expired: {fr:'Session expirée - reconnectez-vous', en:'Session expired - please log in again'},
+  reg_choose_country: {fr:'Choisir un pays', en:'Choose a country'},
+  fx_preview_unavailable: {fr:'Conversion momentanément indisponible, réessaie dans un instant.', en:'Conversion temporarily unavailable, try again in a moment.'},
+  fx_preview_receiver_gets: {fr:'💱 Le destinataire recevra environ ', en:'💱 The recipient will receive approximately '},
+  tx_unknown_sender: {fr:'Inconnu', en:'Unknown'},
+  tx_generic_payment: {fr:'Paiement', en:'Payment'},
   tx_received_suffix: {fr:'reçu', en:'received'},
   tx_sent_suffix: {fr:'envoyé', en:'sent'},
   tx_empty_list: {fr:'Aucune transaction', en:'No transactions'},
@@ -2666,7 +2701,7 @@ function adminConfirmModalSubmit(){
   var reason = '';
   if(reasonBox.style.display!=='none'){
     reason = getReasonValue('admin-confirm');
-    if(!reason){ toast('Raison requise', true); return; }
+    if(!reason){ toast(at('admin_reason_required'), true); return; }
   }
   var cb = _adminConfirmCallback;
   adminCloseConfirmModal();
@@ -2679,10 +2714,10 @@ function adminConfirmModalSubmit(){
 var _userConfirmCallback = null;
 function userOpenConfirmModal(config){
   document.getElementById('user-confirm-icon').textContent = config.icon || '⚠️';
-  document.getElementById('user-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('user-confirm-title').textContent = config.title || t('confirm_default_title');
   document.getElementById('user-confirm-message').textContent = config.message || '';
   var btn = document.getElementById('user-confirm-btn');
-  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.textContent = config.confirmLabel || t('confirm_btn_default');
   btn.style.background = config.confirmColor || 'var(--re)';
   _userConfirmCallback = config.onConfirm;
   document.getElementById('user-confirm-overlay').style.display='flex';
@@ -3043,7 +3078,7 @@ function adminLoadNearLimit(){
     if(res&&res.success&&res.data){
       var accounts=res.data.accounts||[];
       if(accounts.length===0){
-        box.innerHTML='<div class="admin-empty">Aucun compte au-dessus de ce seuil</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_account_above_threshold')+'</div>';
         return;
       }
       var html='';
@@ -3577,7 +3612,7 @@ function adminLogin(){
       document.getElementById('admin-login-box').style.display='block';
       toast((res&&res.message)||'Mot de passe admin incorrect', true);
     }
-  }).catch(function(){ toast('Erreur réseau', true); });
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 
 function adminLoadRequests(){
@@ -3669,7 +3704,7 @@ function adminSendAnnouncement(){
   var titleEn=document.getElementById('ann-title-en').value.trim();
   var msgEn=document.getElementById('ann-msg-en').value.trim();
   var type=document.getElementById('ann-type').value;
-  if(!title||!msg){ toast('Titre et message requis', true); return; }
+  if(!title||!msg){ toast(at('admin_title_msg_required'), true); return; }
   adminOpenConfirmModal({
     icon:'📢', title:'Envoyer cette annonce ?', message:'Elle sera visible par tous les utilisateurs concernés.',
     needsReason:false, confirmLabel:'Envoyer', confirmColor:'var(--g)',
@@ -3684,7 +3719,7 @@ function adminSendAnnouncement(){
         } else {
           toast((res&&res.message)||'Erreur', true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -4114,7 +4149,7 @@ function adminToggleMerchantVerified(merchantId){
 }
 function adminToggleMerchantBlock(merchantId, action){
   var reason = getReasonValue('mrc');
-  if(!reason){ toast('Raison requise', true); return; }
+  if(!reason){ toast(at('admin_reason_required'), true); return; }
   var isUnblock = action==='unblock';
   adminOpenConfirmModal({
     icon: isUnblock?'🔓':'🔒',
@@ -4137,7 +4172,7 @@ function adminResetMerchantPin(merchantId){
   var newPin=document.getElementById('mrcpin-newpin').value.trim();
   var reason=getReasonValue('mrcpin');
   if(!/^\d{4}$/.test(newPin)){ toast('Le PIN doit contenir 4 chiffres', true); return; }
-  if(!reason){ toast('Raison requise', true); return; }
+  if(!reason){ toast(at('admin_reason_required'), true); return; }
   adminOpenConfirmModal({
     icon:'🔑', title:'Réinitialiser le PIN de ce marchand ?', message:'Le marchand devra utiliser ce nouveau PIN pour se connecter.',
     needsReason:false, confirmLabel:'Réinitialiser', confirmColor:'var(--re)',
@@ -4186,7 +4221,7 @@ function adminLoadMerchantDocuments(merchantId){
     if(res&&res.success&&res.data){
       var docs=res.data.documents||[];
       if(docs.length===0){
-        box.innerHTML='<div class="admin-empty">Aucun document envoyé par ce marchand</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_document_sent')+'</div>';
         return;
       }
       var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
@@ -4621,7 +4656,7 @@ function adminSearchTxAdvanced(page){
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
       if(txs.length===0){
-        box.innerHTML='<div class="admin-empty">Aucune transaction trouvée</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_tx_found')+'</div>';
         return;
       }
       var html='';
@@ -4670,7 +4705,7 @@ function adminSearchMerchantTxAdvanced(page){
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
       if(txs.length===0){
-        box.innerHTML='<div class="admin-empty">Aucune transaction trouvée</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_tx_found')+'</div>';
         return;
       }
       var html='';
@@ -4709,7 +4744,7 @@ function adminSearchMerchantTxAdvanced(page){
 function adminMerchantLateCancel(){
   var ref=document.getElementById('mrccncl-ref').value.trim();
   var reason=getReasonValue('mrccncl');
-  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  if(!ref||!reason){ toast(at('admin_ref_reason_required'), true); return; }
   adminOpenConfirmModal({
     icon:'🚫', title:'Annuler définitivement ?',
     message:'Le paiement '+ref+' sera annulé et remboursé immédiatement.',
@@ -4717,13 +4752,13 @@ function adminMerchantLateCancel(){
     onConfirm:function(){
       apiCall('/admin?action=late-cancel','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Transaction annulée');
+          toast(at('admin_tx_cancelled_success'));
           document.getElementById('mrccncl-ref').value='';
           resetReasonField('mrccncl');
         } else {
           toast((res&&res.message)||'Erreur', true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -4731,7 +4766,7 @@ function adminMerchantLateCancel(){
 function adminMerchantFreezeTx(){
   var ref=document.getElementById('mrccncl-ref').value.trim();
   var reason=getReasonValue('mrccncl');
-  if(!ref||!reason){ toast('Référence et raison requises', true); return; }
+  if(!ref||!reason){ toast(at('admin_ref_reason_required'), true); return; }
   adminOpenConfirmModal({
     icon:'❄', title:'Geler cette transaction ?',
     message:'Le paiement '+ref+' sera temporairement gelé (fonds provisoirement rendus).',
@@ -4739,14 +4774,14 @@ function adminMerchantFreezeTx(){
     onConfirm:function(){
       apiCall('/admin?action=freeze-tx','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
         if(res&&res.success){
-          toast('Transaction gelée');
+          toast(at('admin_tx_frozen_success'));
           document.getElementById('mrccncl-ref').value='';
           resetReasonField('mrccncl');
           adminLoadMerchantFrozenTx();
         } else {
           toast((res&&res.message)||'Erreur', true);
         }
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -4754,12 +4789,12 @@ function adminMerchantFreezeTx(){
 function adminLoadMerchantFrozenTx(){
   var box=document.getElementById('mrc-frozen-box');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=list-frozen','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data){
       var rows=(res.data.frozen||[]).filter(function(r){ return r.sender_merchant_wallet_id || r.receiver_merchant_wallet_id; });
       if(rows.length===0){
-        box.innerHTML='<div class="admin-empty">Aucun paiement marchand gelé</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_frozen_merchant_payment')+'</div>';
         return;
       }
       var html='';
@@ -4793,7 +4828,7 @@ function adminMerchantUnfreezeTx(ref){
       apiCall('/admin?action=unfreeze-tx','POST',{admin_password:window._adminPw,reference:ref},'').then(function(res){
         if(res&&res.success){ toast('Transaction débloquée'); adminLoadMerchantFrozenTx(); }
         else toast((res&&res.message)||'Erreur', true);
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -4809,7 +4844,7 @@ function adminMerchantConfirmCancelFrozen(ref){
       apiCall('/admin?action=confirm-cancel-frozen','POST',{admin_password:window._adminPw,reference:ref,reason:reason},'').then(function(res){
         if(res&&res.success){ toast('Annulation confirmée'); adminLoadMerchantFrozenTx(); }
         else toast((res&&res.message)||'Erreur', true);
-      }).catch(function(){ toast('Erreur réseau', true); });
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
 }
@@ -5019,7 +5054,7 @@ function adminLoadMerchants(page){
   var box = document.getElementById('mrclist-box');
   var pag = document.getElementById('mrclist-pagination');
   if(!box) return;
-  box.innerHTML='<div class="admin-empty">Chargement...</div>';
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
   apiCall('/admin?action=merchant-list','POST',{
     admin_password: window._adminPw,
@@ -5033,7 +5068,7 @@ function adminLoadMerchants(page){
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
       if(merchants.length===0){
-        box.innerHTML='<div class="admin-empty">Aucun marchand trouvé</div>';
+        box.innerHTML='<div class="admin-empty">'+at('admin_no_merchant_found')+'</div>';
         return;
       }
       var html='';
@@ -5775,7 +5810,7 @@ function loadRegCountries(){
   if(!sel || sel.getAttribute('data-loaded')==='1') return;
   apiCall('/auth?action=countries','GET',null,false).then(function(res){
     if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
-      sel.innerHTML='<option value="">Choisir un pays</option>'
+      sel.innerHTML='<option value="">'+t('reg_choose_country')+'</option>'
         + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
       sel.setAttribute('data-loaded','1');
     } else {
@@ -5946,12 +5981,12 @@ function verifyBioCredential(){
 }
 
 function enableBio(){
-  toast('Verification biometrique...');
+  toast(t('toast_biometric_checking'));
   registerBioCredential().then(function(){
     APP.bioEnabled=true;
     finishRegister();
   }).catch(function(){
-    toast('Biometrie indisponible sur cet appareil, PIN uniquement', true);
+    toast(t('toast_biometric_unavailable'), true);
     APP.bioEnabled=false;
     finishRegister();
   });
@@ -5960,7 +5995,7 @@ function skipBio(){ APP.bioEnabled=false; finishRegister(); }
 
 function finishRegister(){
   save();
-  toast('Création du compte...');
+  toast(t('toast_account_creating'));
   apiCall('/auth?action=register','POST',{full_name:APP.name,phone:APP.phone,email:APP.email,operator:APP.op,pin:PIN_MEM,country:APP.country||'',referral_code:APP.referralCode||''})
     .then(function(res){
       if(res&&res.success&&res.data){
@@ -6299,7 +6334,7 @@ function lgBio(){
     launchApp();
   }).catch(function(){
     if(btn) btn.innerHTML=original;
-    toast('Empreinte non reconnue, utilisez votre PIN', true);
+    toast(t('toast_fingerprint_not_recognized'), true);
   });
 }
 
@@ -6448,12 +6483,13 @@ function launchApp(){
     });
     apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data&&res.data.transactions&&res.data.transactions.length>0){
+        var _unkName = t('tx_unknown_sender'), _genPay = t('tx_generic_payment');
         txList=res.data.transactions.map(function(t){
           var displayAmt = t.direction==='credit'
             ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
             : parseFloat(t.amount);
           return {
-            id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
+            id:t.id, name:t.direction==='credit'?(t.sender_name||_unkName):(t.receiver_name||t.description||_genPay),
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
@@ -7893,7 +7929,7 @@ function shQr(b){
   setTimeout(function(){ drawQR('main-qr', APP.userID+'|'+APP.qrSeed+'|'+APP.phone); }, 100);
 }
 
-function renewQR(){ APP.qrSeed=Math.random().toString(36).substr(2,8).toUpperCase(); save(); closeSheet(); toast('QR code renouvelé'); }
+function renewQR(){ APP.qrSeed=Math.random().toString(36).substr(2,8).toUpperCase(); save(); closeSheet(); toast(t('toast_qr_renewed')); }
 
 // ── SCANNER ──
 function shScanner(b){
@@ -9048,12 +9084,13 @@ function refreshTxList(){
   if(!tok) return Promise.resolve();
   return apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
     if(res&&res.success&&res.data&&res.data.transactions){
+      var _unkName = t('tx_unknown_sender'), _genPay = t('tx_generic_payment');
       txList=res.data.transactions.map(function(t){
         var displayAmt = t.direction==='credit'
           ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
           : parseFloat(t.amount);
         return {
-          id:t.id, name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
+          id:t.id, name:t.direction==='credit'?(t.sender_name||_unkName):(t.receiver_name||t.description||_genPay),
           legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
           type:t.direction, amt:displayAmt,
           cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
@@ -9745,7 +9782,7 @@ function startWalletScan(){
   var btn = document.getElementById('btn-cam');
   if(!wrap) return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    wrap.innerHTML = '<p style="color:var(--re);font-size:13px;text-align:center;padding:20px">Camera non disponible sur cet appareil</p>';
+    wrap.innerHTML = '<p style="color:var(--re);font-size:13px;text-align:center;padding:20px">'+t('scan_camera_unavailable')+'</p>';
     return;
   }
   // auto-started
@@ -10264,7 +10301,7 @@ function resetInactivityTimer(){
       // Go back to PIN screen
       goto('s-login');
       setupLoginScreen();
-      toast('Session expirée - reconnectez-vous');
+      toast(t('toast_session_expired'));
     }
   }, _INACTIVITY_MS);
 }
@@ -10400,6 +10437,7 @@ function checkNewTransactions(){
         });
 
         // Always update txList with latest from backend
+        var _unkName = t('tx_unknown_sender'), _genPay = t('tx_generic_payment');
         var newTxList = txs.map(function(t){
           var existing = txList.find(function(et){ return String(et.id)===String(t.id); });
           var displayAmt = t.direction==='credit'
@@ -10407,7 +10445,7 @@ function checkNewTransactions(){
             : parseFloat(t.amount);
           return {
             id:t.id,
-            name:t.direction==='credit'?(t.sender_name||'Inconnu'):(t.receiver_name||t.description||'Paiement'),
+            name:t.direction==='credit'?(t.sender_name||_unkName):(t.receiver_name||t.description||_genPay),
             legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
             type:t.direction, amt:displayAmt,
             cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
@@ -10723,10 +10761,10 @@ function updateFxPreview(brutAmount){
     apiCall('/transactions?action=fx-preview','POST',{receiver_phone:phone, amount:brutAmount},tok).then(function(res){
       if(res && res.success && res.data && res.data.same_currency===false){
         if(res.data.unavailable){
-          box.innerHTML = '<div style="font-size:11px;color:var(--t3);margin-top:6px">Conversion momentanément indisponible, réessaie dans un instant.</div>';
+          box.innerHTML = '<div style="font-size:11px;color:var(--t3);margin-top:6px">'+t('fx_preview_unavailable')+'</div>';
         } else {
           var cur = (res.data.receiver_currency==='XOF'||res.data.receiver_currency==='XAF') ? 'F' : res.data.receiver_currency;
-          box.innerHTML = '<div style="background:var(--gl);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;color:var(--accent-text)">💱 Le destinataire recevra environ <b>'+Number(res.data.receiver_amount_estimate).toLocaleString('fr-FR')+' '+cur+'</b></div>';
+          box.innerHTML = '<div style="background:var(--gl);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;color:var(--accent-text)">'+t('fx_preview_receiver_gets')+'<b>'+Number(res.data.receiver_amount_estimate).toLocaleString(APP.lang==='en'?'en-US':'fr-FR')+' '+cur+'</b></div>';
         }
       } else {
         box.innerHTML='';

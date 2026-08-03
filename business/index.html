@@ -375,7 +375,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     <div id="user-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;text-align:center"></div>
     <div id="user-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;text-align:center;white-space:pre-line"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit">Annuler</button>
+      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit" data-i18n="cancel">Annuler</button>
       <button id="user-confirm-btn" onclick="userConfirmModalSubmit()" style="padding:13px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
     </div>
   </div>
@@ -461,6 +461,9 @@ var I18N = {
   pinconfirm_sub:{fr:'Confirmez votre action',en:'Confirm your action'},
   pinconfirm_wrong:{fr:'PIN incorrect',en:'Wrong PIN'},
   cancel:{fr:'Annuler',en:'Cancel'},
+  confirm_default_title:{fr:'Confirmation',en:'Confirmation'},
+  confirm_btn_default:{fr:'Confirmer',en:'Confirm'},
+  reg_choose_country:{fr:'Choisir un pays',en:'Choose a country'},
   bal_label:{fr:'Solde disponible',en:'Available balance'},
   qa_encaisser:{fr:'Encaisser',en:'Collect'},
   qa_monqr:{fr:'Mon QR',en:'My QR'},
@@ -840,10 +843,10 @@ function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
 var _userConfirmCallback = null;
 function userOpenConfirmModal(config){
   document.getElementById('user-confirm-icon').textContent = config.icon || '⚠️';
-  document.getElementById('user-confirm-title').textContent = config.title || 'Confirmation';
+  document.getElementById('user-confirm-title').textContent = config.title || t('confirm_default_title');
   document.getElementById('user-confirm-message').textContent = config.message || '';
   var btn = document.getElementById('user-confirm-btn');
-  btn.textContent = config.confirmLabel || 'Confirmer';
+  btn.textContent = config.confirmLabel || t('confirm_btn_default');
   btn.style.background = config.confirmColor || 'var(--re)';
   _userConfirmCallback = config.onConfirm;
   document.getElementById('user-confirm-overlay').style.display='flex';
@@ -875,7 +878,7 @@ function loadRegCountries(){
   if(!sel || sel.getAttribute('data-loaded')==='1') return;
   apiCall('/auth?action=countries','GET',null,false).then(function(res){
     if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
-      sel.innerHTML='<option value="">Choisir un pays</option>'
+      sel.innerHTML='<option value="">'+t('reg_choose_country')+'</option>'
         + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
       sel.setAttribute('data-loaded','1');
     } else {
