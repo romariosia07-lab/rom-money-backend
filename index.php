@@ -1344,27 +1344,22 @@ function merchant_collect() {
     if(!$mw) fail('Portefeuille marchand introuvable',404);
     if((float)$payer['balance'] < $amount) fail('Solde du payeur insuffisant');
 
-    // Le marchand est toujours en XOF (merchant_wallets.currency, jamais
-    // modifie ailleurs dans l'app) mais le client peut etre dans une autre
-    // devise - il faut convertir AVANT de calculer le seuil de gratuite/frais
-    // (exprime en XOF) et avant de crediter le marchand. Sans ca, un client
-    // GHS qui paie "100" (100 GHS =/= 100 XOF) detruisait ou creait de la
-    // valeur au moment du credit marchand.
+    // Un encaissement marchand reste STRICTEMENT local : un client dans une
+    // devise differente de celle du marchand ne peut pas etre encaisse
+    // directement. Toute transaction internationale doit obligatoirement
+    // passer par Transfert Afrique (virement personnel, channel=africa), qui
+    // applique son propre tarif international sans exception.
     $payerCurrency = $payer['currency'] ?: 'XOF';
     $merchantCurrency = $mw['currency'] ?: 'XOF';
-    $amountInMerchantCurrency = $amount;
-    $fxRateApplied = null;
     if($payerCurrency !== $merchantCurrency){
-        $converted = convert_currency($amount, $payerCurrency, $merchantCurrency);
-        if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-        $amountInMerchantCurrency = round($converted, 2);
-        $fxRateApplied = $amount > 0 ? $amountInMerchantCurrency / $amount : null;
+        fail('Encaissement impossible : ce client est dans un autre pays/devise que votre compte marchand. Les encaissements marchand sont reserves aux transactions locales.', 422);
     }
+    $fxRateApplied = null;
 
     // Le client paie toujours le montant plein (aucun frais de son cote) :
     // le frais eventuel est preleve sur ce que le MARCHAND recoit, une fois
     // son cumul du jour au-dela du seuil gratuit (voir merchant_receive_fee()).
-    $feeCalc = merchant_receive_fee($mw['id'], $amountInMerchantCurrency);
+    $feeCalc = merchant_receive_fee($mw['id'], $amount);
     $fee = $feeCalc['fee']; $net = $feeCalc['net'];
 
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
@@ -1414,19 +1409,17 @@ function merchant_withdraw() {
     $totalDebit = $amount + $fee;
     if((float)$mw['balance'] < $totalDebit) fail('Solde insuffisant');
 
-    // Le marchand est toujours en XOF ; le destinataire peut etre dans une
-    // autre devise - le montant credite doit etre converti (le montant
-    // debite du marchand et les frais, eux, restent en XOF cote marchand).
+    // Un virement marchand vers un compte personnel reste STRICTEMENT local :
+    // pas de conversion vers un destinataire dans une autre devise. Pour
+    // envoyer vers un autre pays, le marchand doit d'abord se virer vers son
+    // propre compte personnel local puis utiliser Transfert Afrique.
     $merchantCurrency = $mw['currency'] ?: 'XOF';
     $recvCurrency = $recv['currency'] ?: 'XOF';
+    if($merchantCurrency !== $recvCurrency){
+        fail('Virement impossible : ce destinataire est dans un autre pays/devise que votre compte marchand. Virez d\'abord vers votre compte personnel local, puis utilisez Transfert Afrique.', 422);
+    }
     $creditedAmount = $amount;
     $fxRateApplied = null;
-    if($merchantCurrency !== $recvCurrency){
-        $converted = convert_currency($amount, $merchantCurrency, $recvCurrency);
-        if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-        $creditedAmount = round($converted, 2);
-        $fxRateApplied = $amount > 0 ? $creditedAmount / $amount : null;
-    }
 
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
     db()->beginTransaction();
@@ -1440,9 +1433,8 @@ function merchant_withdraw() {
         q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
         credit_merchant_fee($mw['id'], $fee, 'Frais ROM_BUSINESS 1%');
         db()->commit();
-        // $creditedAmount (pas $amount) : c'est bien ce que le destinataire a
-        // reellement recu dans SA devise, apres conversion eventuelle.
-        web_push_send_to_user($recv['id'], 'ROM_MONEY', 'Vous avez recu '.number_format($creditedAmount,0,',',' ').' F de '.$m['business_name'], [], 'credit');
+        $recvCurSuffix = ($recvCurrency==='XOF'||$recvCurrency==='XAF') ? 'F' : $recvCurrency;
+        web_push_send_to_user($recv['id'], 'ROM_MONEY', 'Vous avez recu '.number_format($creditedAmount,0,',',' ').' '.$recvCurSuffix.' de '.$m['business_name'], [], 'credit');
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,
             'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
@@ -1489,24 +1481,20 @@ function merchant_pay_merchant() {
 
     if((float)$mw['balance'] < $amount) fail('Solde insuffisant');
 
-    // Chaque marchand peut avoir sa propre devise depuis l'ajout du champ pays
-    // a l'inscription marchand - il faut convertir AVANT de calculer le seuil
-    // de gratuite/frais (cote receveur) et avant de crediter le marchand
-    // receveur. Sans ca, un paiement entre deux marchands de devises
-    // differentes detruisait ou creait de la valeur (meme bug deja corrige
-    // pour merchant_collect()/execute_merchant_payment()).
+    // Un paiement marchand-a-marchand reste STRICTEMENT local : deux
+    // marchands dans des devises differentes ne peuvent pas se payer
+    // directement. Toute transaction internationale doit obligatoirement
+    // passer par Transfert Afrique (virement personnel, channel=africa),
+    // qui applique son propre tarif international sans exception - jamais
+    // en contournement via un paiement marchand.
     $payerCurrency = $mw['currency'] ?: 'XOF';
     $receiverCurrency = $recvMw['currency'] ?: 'XOF';
-    $amountInReceiverCurrency = $amount;
-    $fxRateApplied = null;
     if($payerCurrency !== $receiverCurrency){
-        $converted = convert_currency($amount, $payerCurrency, $receiverCurrency);
-        if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-        $amountInReceiverCurrency = round($converted, 2);
-        $fxRateApplied = $amount > 0 ? $amountInReceiverCurrency / $amount : null;
+        fail('Paiement impossible : les paiements marchand a marchand sont reserves aux transactions locales (meme devise). Pour un paiement international, utilisez Transfert Afrique depuis un compte personnel.', 422);
     }
+    $fxRateApplied = null;
 
-    $feeCalc = merchant_receive_fee($recvMw['id'], $amountInReceiverCurrency);
+    $feeCalc = merchant_receive_fee($recvMw['id'], $amount);
     $fee = $feeCalc['fee']; $net = $feeCalc['net'];
 
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
@@ -2757,33 +2745,23 @@ function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $sourc
 
     $payerCurrency = $sw['currency'] ?: 'XOF';
     $merchantCurrency = $mw['currency'] ?: 'XOF';
-    // $amountCurrency precise dans quelle devise $amount est deja exprime :
-    // celle du PAYEUR par defaut (paiement direct via QR, ou le client saisit
-    // lui-meme le montant dans sa propre devise), ou explicitement celle du
-    // MARCHAND pour un lien de paiement a distance (le montant est fixe par
-    // le marchand, dans SA devise, avant meme de savoir dans quel pays sera
-    // le futur payeur - voir payment_link_pay()). Sans cette distinction, un
-    // lien cree pour "500" GHS traite par erreur comme "500" dans la devise
-    // du payeur detruisait ou creait de la valeur au moment du debit.
+    // Un paiement marchand (direct via QR ou via un lien de paiement) reste
+    // STRICTEMENT local : le client et le marchand doivent etre dans la meme
+    // devise, sans conversion. $amountCurrency (devise dans laquelle $amount
+    // est deja exprime - celle du marchand pour un lien de paiement, voir
+    // payment_link_pay()) doit donc correspondre aux deux a la fois. Toute
+    // transaction internationale doit obligatoirement passer par Transfert
+    // Afrique (virement personnel, channel=africa).
     $amountCurrency = $amountCurrency ?: $payerCurrency;
+    if($payerCurrency !== $merchantCurrency || $amountCurrency !== $payerCurrency){
+        fail('Paiement impossible : ce marchand est dans un autre pays/devise que votre compte. Les paiements marchand sont reserves aux transactions locales. Pour un paiement international, utilisez Transfert Afrique depuis un compte personnel.', 422);
+    }
 
     $debitAmount = $amount;
-    if($amountCurrency !== $payerCurrency){
-        $c = convert_currency($amount, $amountCurrency, $payerCurrency);
-        if($c === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-        $debitAmount = round($c, 2);
-    }
     if((float)$sw['balance'] < $debitAmount) fail('Solde insuffisant');
 
-    $amountInMerchantCurrency = $amount;
-    if($amountCurrency !== $merchantCurrency){
-        $converted = convert_currency($amount, $amountCurrency, $merchantCurrency);
-        if($converted === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-        $amountInMerchantCurrency = round($converted, 2);
-    }
-    $fxRateApplied = $debitAmount > 0 ? $amountInMerchantCurrency / $debitAmount : null;
-
-    $feeCalc = merchant_receive_fee($mw['id'], $amountInMerchantCurrency);
+    $fxRateApplied = null;
+    $feeCalc = merchant_receive_fee($mw['id'], $amount);
     $fee = $feeCalc['fee']; $net = $feeCalc['net'];
 
     $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
@@ -2882,6 +2860,18 @@ function payment_link_pay() {
     if(!$link) fail('Lien de paiement introuvable',404);
     if($link['status']!=='pending') fail('Ce lien de paiement a deja ete utilise ou annule');
     if($link['expires_at'] && strtotime($link['expires_at']) < time()) fail('Ce lien de paiement a expire');
+    // Un paiement marchand reste STRICTEMENT local (voir
+    // execute_merchant_payment()) - on verifie la devise du payeur AVANT de
+    // reclamer le lien : sinon une tentative internationale, de toute facon
+    // rejetee plus loin, aurait quand meme consomme le lien (marque "paye")
+    // sans qu'aucun argent n'ait reellement bouge.
+    $sw = q("SELECT currency FROM wallets WHERE user_id=?",[$pl['sub']])->fetch();
+    $payerCurrency = $sw ? ($sw['currency'] ?: 'XOF') : 'XOF';
+    $linkMw = q("SELECT currency FROM merchant_wallets WHERE merchant_id=?",[$link['merchant_id']])->fetch();
+    $linkCurrency = $linkMw ? ($linkMw['currency'] ?: 'XOF') : 'XOF';
+    if($payerCurrency !== $linkCurrency){
+        fail('Paiement impossible : ce marchand est dans un autre pays/devise que votre compte. Les paiements marchand sont reserves aux transactions locales. Pour un paiement international, utilisez Transfert Afrique depuis un compte personnel.', 422);
+    }
     // Reclame le lien de facon atomique (statut pending->paid conditionne sur
     // le statut ACTUEL en base) avant de deplacer l'argent : sans ce garde-fou,
     // deux requetes concurrentes (double-tap, retry reseau) passeraient toutes
@@ -2890,12 +2880,6 @@ function payment_link_pay() {
     // UPDATE ... WHERE balance>=? utilises partout ailleurs pour l'argent.
     $claimed = q("UPDATE merchant_payment_links SET status='paid' WHERE id=? AND status='pending'",[$linkId])->rowCount();
     if(!$claimed) fail('Ce lien de paiement a deja ete utilise ou annule');
-    // Le montant du lien a ete fixe par le marchand dans SA propre devise
-    // (voir merchant_create_payment_link()), pas dans celle du payeur - il
-    // faut le signaler explicitement, sinon execute_merchant_payment()
-    // suppose par defaut la devise du payeur (cas du paiement direct via QR).
-    $linkMw = q("SELECT currency FROM merchant_wallets WHERE merchant_id=?",[$link['merchant_id']])->fetch();
-    $linkCurrency = $linkMw ? ($linkMw['currency'] ?: 'XOF') : 'XOF';
     $result = execute_merchant_payment($pl, $link['merchant_id'], (float)$link['amount'], $pin, $link['description'], 'link', $linkCurrency);
     q("UPDATE merchant_payment_links SET transaction_id=?, paid_at=NOW() WHERE id=?",[$result['transaction_id'],$linkId]);
     ok($result, 'Paiement effectue');
