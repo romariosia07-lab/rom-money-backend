@@ -178,11 +178,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   <div class="reg-body" id="reg-a" style="display:none">
     <div class="reg-title" data-i18n="reg_title_shop">Votre boutique</div>
     <div class="reg-sub" data-i18n="reg_sub_shop">Ces informations seront visibles par vos clients.</div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_shop_name">Nom de la boutique *</label><input class="finput" id="r-name" data-i18n-ph="reg_ph_shop_name" placeholder="Ex: Boutique Aïcha"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_shop_name">Nom de la boutique *</label><input class="finput" id="r-name" data-i18n-ph="reg_ph_shop_name" placeholder="Nom de votre boutique"></div>
     <div class="frow"><label class="flabel" data-i18n="reg_label_shop_type">Type de commerce *</label>
       <div class="loc-toggle">
         <button class="loc-btn on" id="loc-online" onclick="setLocType('online')" data-i18n="reg_loc_online">En ligne</button>
-        <button class="loc-btn" id="loc-physical" onclick="setLocType('physical')" data-i18n="reg_loc_physical">Avec emplacement</button>
+        <button class="loc-btn" id="loc-physical" onclick="setLocType('physical')" data-i18n="reg_loc_physical">Local commercial</button>
       </div>
     </div>
     <div class="frow" id="addr-row" style="display:none"><label class="flabel" data-i18n="reg_label_address">Adresse *</label><input class="finput" id="r-addr" data-i18n-ph="reg_ph_address" placeholder="Quartier, ville..."></div>
@@ -418,10 +418,10 @@ var I18N = {
   reg_title_shop:{fr:'Votre boutique',en:'Your shop'},
   reg_sub_shop:{fr:'Ces informations seront visibles par vos clients.',en:'This information will be visible to your customers.'},
   reg_label_shop_name:{fr:'Nom de la boutique *',en:'Shop name *'},
-  reg_ph_shop_name:{fr:'Ex: Boutique Aïcha',en:'E.g. Aïcha Shop'},
+  reg_ph_shop_name:{fr:'Nom de votre boutique',en:'Your shop name'},
   reg_label_shop_type:{fr:'Type de commerce *',en:'Business type *'},
   reg_loc_online:{fr:'En ligne',en:'Online'},
-  reg_loc_physical:{fr:'Avec emplacement',en:'Physical location'},
+  reg_loc_physical:{fr:'Local commercial',en:'Physical location'},
   reg_label_address:{fr:'Adresse *',en:'Address *'},
   reg_ph_address:{fr:'Quartier, ville...',en:'District, city...'},
   reg_label_country:{fr:'Pays *',en:'Country *'},
@@ -640,7 +640,7 @@ var I18N = {
   mqr_downloaded:{fr:'QR téléchargé !',en:'QR downloaded!'},
   pdf_load_error:{fr:'Erreur chargement PDF',en:'PDF loading error'},
   vault_online:{fr:'Commerce en ligne',en:'Online business'},
-  vault_with_location:{fr:'Avec emplacement',en:'Physical location'},
+  vault_with_location:{fr:'Local commercial',en:'Physical location'},
   hist_no_tx:{fr:'Aucune transaction pour le moment.',en:'No transactions yet.'},
   send_searching:{fr:'Recherche...',en:'Searching...'},
   profil_kyb_docs:{fr:"Documents de l'entreprise",en:'Business documents'},

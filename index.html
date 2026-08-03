@@ -3896,7 +3896,7 @@ function adminSearchMerchant(){
         +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+adminEsc(m.business_name)+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</div>'
         +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(m.status==='blocked'?'Bloqué':'Actif')+'</span><br>'
         +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
-        +'<b>Type :</b> '+(m.location_type==='physical'?'Avec emplacement':'En ligne')+(m.address?' — '+m.address:'')+'<br>'
+        +'<b>Type :</b> '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.address?' — '+m.address:'')+'<br>'
         +'<b>Pays :</b> '+(m.country||'-')+' &middot; <b>Devise :</b> '+(m.currency||'XOF')+'<br>'
         +'<b>Solde :</b> '+fmt(m.balance||0)+' &middot; <b>Coffre :</b> '+fmt(m.vault_balance||0)+'<br>'
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
@@ -4922,7 +4922,7 @@ function adminLoadMerchants(page){
         var statusLabel = m.status==='blocked' ? 'Bloqué' : 'Actif';
         html+='<div class="admin-tx-card" onclick="adminOpenMerchantFromList(\''+m.phone_number+'\')">'
           +'<div style="display:flex;justify-content:space-between"><b>'+adminEsc(m.business_name)+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
-          +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+(m.location_type==='physical'?'Avec emplacement':'En ligne')+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+(m.location_type==='physical'?'Local commercial':'En ligne')+'</div>'
           +'<div style="color:var(--t3);margin-top:4px">Inscrit le '+new Date(m.created_at).toLocaleDateString()+'</div>'
           +'</div>';
       });

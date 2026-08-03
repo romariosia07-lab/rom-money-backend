@@ -1218,7 +1218,7 @@ function merchant_register() {
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
-    if($locationType==='physical' && !$address) fail('Adresse requise pour un commerce avec emplacement');
+    if($locationType==='physical' && !$address) fail('Adresse requise pour un local commercial');
     if(!$country) fail('Le pays est requis');
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']) fail('ROM_BUSINESS n\'est pas encore disponible dans ce pays');
@@ -4789,7 +4789,7 @@ function admin_merchants_export_xlsx() {
         $sheetRows[] = [
             [ $m['business_name'], 2, 's' ],
             [ $m['phone_number'], 2, 's' ],
-            [ $m['location_type']==='physical'?'Avec emplacement':'En ligne', 2, 's' ],
+            [ $m['location_type']==='physical'?'Local commercial':'En ligne', 2, 's' ],
             [ $m['address']?:'-', 2, 's' ],
             [ $m['status']==='blocked'?'Bloque':'Actif', 2, 's' ],
             [ $m['verified']?'Oui':'Non', 2, 's' ],
@@ -4836,7 +4836,7 @@ function admin_merchants_export_pdf() {
     foreach($rows as $m){
         $pdf->Cell($w[0],7,pdf_str(substr($m['business_name'],0,28)),1);
         $pdf->Cell($w[1],7,$m['phone_number'],1);
-        $pdf->Cell($w[2],7,$m['location_type']==='physical'?'Emplacement':'En ligne',1);
+        $pdf->Cell($w[2],7,$m['location_type']==='physical'?'Local commercial':'En ligne',1);
         $pdf->Cell($w[3],7,$m['status']==='blocked'?'Bloque':'Actif',1);
         $pdf->Cell($w[4],7,$m['verified']?'Oui':'Non',1);
         $pdf->Cell($w[5],7,date('d/m/y',strtotime($m['created_at'])),1);
