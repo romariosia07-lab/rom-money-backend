@@ -5413,32 +5413,39 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Converti en XOF (voir admin_dash_xof_sum_sql) : additionner des
     // montants dans des devises differentes brutes ne donne jamais un total
     // qui veut dire quelque chose.
-    $todayVolume = q(admin_dash_xof_sum_sql("status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE"))->fetchColumn();
+    $todayVolume = q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
     $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
     $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
 
     // Bloc "Periode selectionnee"
-    $where = "status='completed'";
+    // Prefixe avec "transactions." (valide meme sans alias explicite dans le
+    // FROM, puisque c'est le nom de la table elle-meme) : reutilise aussi
+    // bien dans des requetes simples (FROM transactions seul) que dans
+    // admin_dash_xof_sum_sql() (qui joint wallets/merchant_wallets, toutes
+    // deux avec leur PROPRE colonne created_at - une reference non prefixee
+    // y est ambigue pour PostgreSQL, provoquant une erreur SQL silencieuse
+    // remontee comme "Erreur de chargement").
+    $where = "transactions.status='completed'";
     $params = [];
     if ($period==='7d') {
-        $where .= " AND created_at >= NOW() - INTERVAL '7 days'";
+        $where .= " AND transactions.created_at >= NOW() - INTERVAL '7 days'";
     } elseif ($period==='month') {
-        $where .= " AND created_at >= date_trunc('month', CURRENT_DATE)";
+        $where .= " AND transactions.created_at >= date_trunc('month', CURRENT_DATE)";
     } elseif ($period==='custom' && $dateFrom!=='' && $dateTo!=='') {
-        $where .= " AND created_at >= ? AND created_at <= ?";
+        $where .= " AND transactions.created_at >= ? AND transactions.created_at <= ?";
         $params[] = $dateFrom.' 00:00:00';
         $params[] = $dateTo.' 23:59:59';
     } elseif ($period==='all') {
         // pas de condition supplementaire
     } else {
         $period = 'today';
-        $where .= " AND created_at >= CURRENT_DATE";
+        $where .= " AND transactions.created_at >= CURRENT_DATE";
     }
 
-    $periodVolume = q(admin_dash_xof_sum_sql("$where AND type NOT IN ('fee','manual_withdrawal')"), $params)->fetchColumn();
+    $periodVolume = q(admin_dash_xof_sum_sql("$where AND transactions.type NOT IN ('fee','manual_withdrawal')"), $params)->fetchColumn();
     $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
 
-    $totalVolume = q(admin_dash_xof_sum_sql("status='completed' AND type NOT IN ('fee','manual_withdrawal')"))->fetchColumn();
+    $totalVolume = q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')"))->fetchColumn();
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
     // dashboard partage (mot de passe admin seul), les actions Gains ROM ne
     // doivent y laisser aucune trace, meme juste le nom de l'action.
@@ -5512,7 +5519,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         // "Aujourd'hui" - toujours fixe, meme principe que todayVolume/todayFees.
         // Converti en XOF (voir admin_dash_xof_sum_sql) : un paiement de
         // 100 GHS et un de 100 XOF ne representent pas la meme valeur.
-        $merchantVolumeToday = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE"))->fetchColumn();
+        $merchantVolumeToday = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
         $merchantCountToday  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
         // Part recue d'un AUTRE MARCHAND (et non d'un client) - reconnaissable
         // a sender_merchant_wallet_id non nul sur une transaction de type
@@ -5520,16 +5527,16 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         // pour qu'un admin puisse reperer un marchand dont l'essentiel du
         // volume vient d'autres marchands plutot que de vraies ventes clients
         // (signal a surveiller, pas bloque automatiquement).
-        $merchantVolumeTodayFromMerchants = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE"))->fetchColumn();
+        $merchantVolumeTodayFromMerchants = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
         $merchantCountTodayFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
         // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
-        $merchantVolumePeriod = (float)q(admin_dash_xof_sum_sql("$where AND type='merchant_payment'"), $params)->fetchColumn();
-        $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment'", $params)->fetchColumn();
-        $merchantVolumePeriodFromMerchants = (float)q(admin_dash_xof_sum_sql("$where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL"), $params)->fetchColumn();
-        $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        $merchantVolumePeriod = (float)q(admin_dash_xof_sum_sql("$where AND transactions.type='merchant_payment'"), $params)->fetchColumn();
+        $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND transactions.type='merchant_payment'", $params)->fetchColumn();
+        $merchantVolumePeriodFromMerchants = (float)q(admin_dash_xof_sum_sql("$where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL"), $params)->fetchColumn();
+        $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
         // Cumule (depuis toujours), independant du filtre de periode.
-        $merchantVolume    = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment'"))->fetchColumn();
-        $merchantVolumeFromMerchants = (float)q(admin_dash_xof_sum_sql("status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL"))->fetchColumn();
+        $merchantVolume    = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment'"))->fetchColumn();
+        $merchantVolumeFromMerchants = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL"))->fetchColumn();
         // Classement des marchands recevant le plus d'un AUTRE marchand
         // (et non de clients) - meme logique que topMerchants ci-dessous mais
         // filtree sur les paiements inter-marchands uniquement. mw.currency
