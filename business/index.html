@@ -2273,7 +2273,7 @@ function renderSubVaults(){
     var hasGoal=sv.goal>0;
     var pct=hasGoal?Math.round(Math.min(sv.amt/sv.goal*100,100)):0;
     h+='<div class="card" style="margin-bottom:8px">'
-      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-weight:700;font-size:14px">'+sv.name+'</span>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-weight:700;font-size:14px">'+adminEscBiz(sv.name)+'</span>'
       +'<span style="font-weight:800;color:var(--g)">'+(hasGoal?pct+'%':fmt(sv.amt)+' '+curSuffix())+'</span></div>'
       +(hasGoal?'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">'+fmt(sv.amt)+' '+curSuffix()+' / '+fmt(sv.goal)+' '+curSuffix()+'</div>':'')
       +'<div style="display:flex;gap:6px">'
@@ -2370,7 +2370,7 @@ function doVCreate(){
 function shSVDeposit(b, id){
   var sv=findSubVault(id); if(!sv) return;
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('sv_main_vault')+'<strong>'+fmt(APP.vaultBal)+' '+curSuffix()+'</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',sv.name)+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
+    +'<div class="frow"><label class="flabel">'+t('sv_towards').replace('{name}',adminEscBiz(sv.name))+'</label><div class="amt-row"><input class="finput" id="svd-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="doSVDeposit(\''+id+'\')">'+t('btn_deposit')+'</button>';
 }
 var _svDepositInFlight = false;
@@ -2391,7 +2391,7 @@ function doSVDeposit(id){
 }
 function shSVWithdraw(b, id){
   var sv=findSubVault(id); if(!sv) return;
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'" : <strong>'+fmt(sv.amt)+' '+curSuffix()+'</strong></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+adminEscBiz(sv.name)+'" : <strong>'+fmt(sv.amt)+' '+curSuffix()+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('sv_back_to_main')+'</label><div class="amt-row"><input class="finput" id="svw-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
     +'<button class="btn-g" style="background:var(--g);color:#fff" onclick="reqSVWithdraw(\''+id+'\')">'+t('btn_withdraw')+'</button>';
 }

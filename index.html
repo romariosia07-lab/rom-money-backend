@@ -6607,7 +6607,7 @@ function renderSubVaults(){
     h+='<div style="background:'+lockBg+';border-radius:14px;padding:16px;border:.5px solid '+lockColor+';margin-bottom:10px">';
     // Header row
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
-    h+='<span style="font-size:14px;font-weight:700;color:var(--t1)">'+sv.name+'</span>';
+    h+='<span style="font-size:14px;font-weight:700;color:var(--t1)">'+adminEsc(sv.name)+'</span>';
     if(isLocked){
       var d=new Date(sv.lockDate);
       var days=Math.max(0,Math.ceil((d-Date.now())/86400000));
@@ -8601,7 +8601,7 @@ function shSVDeposit(b, id){
   var sv=findSubVault(id);
   if(!sv){ closeSheet(); return; }
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">'+t('vault_main_label')+'<strong>'+fmt(APP.vaultBal)+'</strong></div>'
-    +'<div class="frow"><label class="flabel">'+t('vault_transfer_to').replace('{name}',sv.name)+'</label>'
+    +'<div class="frow"><label class="flabel">'+t('vault_transfer_to').replace('{name}',adminEsc(sv.name))+'</label>'
     +'<div class="amt-row"><input class="finput" id="sv-dep-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="doSVDeposit('+id+')">'+t('sv_btn_deposit')+'</button>';
 }
@@ -8640,7 +8640,7 @@ function shSVWithdraw(b, id){
   }
   var sv=findSubVault(id);
   if(!sv){ closeSheet(); return; }
-  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+sv.name+'": <strong>'+fmt(sv.amt)+'</strong></div>'
+  b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:12px">"'+adminEsc(sv.name)+'": <strong>'+fmt(sv.amt)+'</strong></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_withdraw_to_main')+'</label>'
     +'<div class="amt-row"><input class="finput" id="sv-wd-am" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div></div>'
     +'<button class="btn-g" onclick="reqSVWithdraw('+id+')">'+t('sv_btn_withdraw')+'</button>';
