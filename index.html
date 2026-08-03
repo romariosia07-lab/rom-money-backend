@@ -2704,6 +2704,13 @@ function adminResetInactivityTimer(){
 }
 function adminForceLogout(){
   window._adminPw='';
+  // window._earningsPw (deverrouillage Gains ROM) doit imperativement etre
+  // efface ici aussi : sur un navigateur partage entre plusieurs admins,
+  // sans cette ligne, l'onglet Gains ROM ET le formulaire "Crediter" test
+  // restaient deverrouilles pour quiconque se reconnectait ensuite avec
+  // seulement le mot de passe admin partage (le sien, pas celui de l'admin
+  // principal qui avait ouvert Gains ROM plus tot dans cet onglet navigateur).
+  window._earningsPw=null;
   var mainBox=document.getElementById('admin-main-box');
   var loginBox=document.getElementById('admin-login-box');
   if(mainBox) mainBox.style.display='none';
@@ -3491,6 +3498,7 @@ function adminToggleRecoveryMode(){
 }
 function adminCancel2fa(){
   window._adminPw='';
+  window._earningsPw=null;
   window._admin2faPending=false;
   document.getElementById('admin-2fa-box').style.display='none';
   document.getElementById('admin-login-box').style.display='block';
@@ -3526,6 +3534,7 @@ function adminLogin(){
       document.getElementById('admin-2fa-code').focus();
     } else {
       window._adminPw='';
+      window._earningsPw=null;
       window._admin2faPending=false;
       document.getElementById('admin-2fa-box').style.display='none';
       document.getElementById('admin-login-box').style.display='block';
