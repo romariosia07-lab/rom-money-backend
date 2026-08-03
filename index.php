@@ -101,6 +101,16 @@ function fail($msg, $code = 400) {
     echo json_encode(['success'=>false,'message'=>$msg], JSON_UNESCAPED_UNICODE);
     exit;
 }
+// Comme fail(), mais pour les blocs catch(Exception $e) : le message reel de
+// l'exception part dans le journal d'erreurs PHP (visible cote Render meme
+// quand APP_DEBUG est false et que l'utilisateur ne voit qu'un message
+// generique) au lieu d'etre purement et simplement perdu comme c'etait le cas
+// avant. $userMsg reste ce qui est montre a l'utilisateur (en clair si
+// APP_DEBUG, sinon le message generique fourni par l'appelant).
+function log_and_fail($e, $userMsg, $code = 500) {
+    error_log('[ROM_MONEY] '.$userMsg.' :: '.$e->getMessage());
+    fail(APP_DEBUG ? $e->getMessage() : $userMsg, $code);
+}
 function body() {
     $d = json_decode(file_get_contents('php://input'), true);
     return is_array($d) ? $d : [];
@@ -500,6 +510,7 @@ function db(): PDO {
                 [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>true]
             );
         } catch(PDOException $e) {
+            error_log('[ROM_MONEY] Erreur serveur :: BDD: '.$e->getMessage());
             fail(APP_DEBUG ? 'BDD: '.$e->getMessage() : 'Erreur serveur', 500);
         }
     }
@@ -808,7 +819,7 @@ function auth_register() {
         ok(['token'=>$token,'user_id'=>$uid,'name'=>$name,'phone'=>$phone,'qr_seed'=>$qrseed,'referral_code'=>$myReferralCode],'Compte cree', 201);
     } catch(Exception $e) {
         db()->rollBack();
-        fail(APP_DEBUG ? $e->getMessage() : 'Erreur creation compte', 500);
+        log_and_fail($e, 'Erreur creation compte', 500);
     }
 }
 
@@ -920,7 +931,7 @@ function merchant_document_upload() {
            ON CONFLICT (merchant_id,doc_type) DO UPDATE SET photo=EXCLUDED.photo, uploaded_at=NOW()",
           [$pl['sub'],$docType,$encrypted]);
     } catch(Exception $e) {
-        fail(APP_DEBUG?$e->getMessage():'Service indisponible (base non initialisee).', 503);
+        log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
     }
     ok(['uploaded_at'=>date('c')], 'Document enregistre');
 }
@@ -1228,7 +1239,7 @@ function merchant_register() {
         // Table 'merchants' pas encore creee sur cette base (migration SQL pas
         // encore executee) : message clair au lieu de laisser fuiter une page
         // d'erreur PHP brute (non-JSON) qui casse le parsing cote app.
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
     }
     if($exists) fail('Ce numero est deja enregistre comme marchand');
 
@@ -1252,7 +1263,7 @@ function merchant_register() {
             'location_type'=>$locationType,'qr_seed'=>$qrseed],'Compte marchand cree',201);
     } catch(Exception $e) {
         db()->rollBack();
-        fail(APP_DEBUG ? $e->getMessage() : 'Erreur creation compte',500);
+        log_and_fail($e, 'Erreur creation compte', 500);
     }
 }
 
@@ -1266,7 +1277,7 @@ function merchant_login() {
     try {
         $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible pour le moment (base de donnees non initialisee).', 503);
     }
     if(!$m) fail('Numero ou PIN incorrect', 401);
     merchant_pin_check($m['id'], $pin, $m['pin_hash']);
@@ -1379,7 +1390,7 @@ function merchant_collect() {
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,'net_amount'=>$net,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Encaissement effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec encaissement', 500); }
 }
 
 // Virement sortant du marchand vers un numero ROM_MONEY personnel.
@@ -1439,7 +1450,7 @@ function merchant_withdraw() {
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'fee'=>$fee,
             'receiver_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Virement effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec virement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec virement', 500); }
 }
 
 // Un marchand paie un autre marchand a distance (numero choisi dans ses
@@ -1521,7 +1532,7 @@ function merchant_pay_merchant() {
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,
             'receiver_name'=>$recvM['business_name'],'cancel_before'=>$deadline,
             'new_balance'=>$bal],'Paiement effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec paiement', 500); }
 }
 
 function merchant_vault_deposit() {
@@ -2502,7 +2513,7 @@ function tx_send() {
             'new_balance'=>(float)$sw['balance']-$brut,
             'receiver_amount'=>$receiverAmount,'receiver_currency'=>$receiverCurrency,
             'sender_currency'=>$senderCurrency,'fx_rate_applied'=>$fxRateApplied],'Transfert effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec transfert',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec transfert', 500); }
 }
 
 // Used by "Encaisser": the merchant (authenticated via token) scans a payer's QR
@@ -2624,7 +2635,7 @@ function tx_collect() {
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
             'receiver_amount'=>$netInCollectorCurrency,'receiver_currency'=>$collectorCurrency,
             'payer_name'=>$payer['verified_name']?:$payer['full_name'],'cancel_before'=>$deadline],'Encaissement effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec encaissement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec encaissement', 500); }
 }
 
 function tx_cancel() {
@@ -2784,7 +2795,7 @@ function execute_merchant_payment($pl, $merchantId, $amount, $pin, $desc, $sourc
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$sw['id']])->fetchColumn();
         return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$debitAmount,'fee'=>$fee,'net_amount'=>$net,
             'business_name'=>$m['business_name'],'cancel_before'=>$deadline,'new_balance'=>$bal];
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec paiement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec paiement', 500); }
 }
 
 function tx_pay_merchant() {
@@ -3003,7 +3014,7 @@ function profile_update() {
     try {
         q("UPDATE users SET ".implode(',',$sets)." WHERE id=?",$vals);
     } catch(Exception $e) {
-        fail(APP_DEBUG?$e->getMessage():'Echec de la sauvegarde du profil',500);
+        log_and_fail($e, 'Echec de la sauvegarde du profil', 500);
     }
     ok(null,'Profil mis a jour');
 }
@@ -4042,7 +4053,7 @@ function admin_earnings_withdraw() {
         admin_log('earnings_withdraw','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$description]));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
         ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'new_balance'=>$bal],'Retrait enregistre');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'enregistrement',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de l\'enregistrement', 500); }
 }
 
 // Corrige une entree de retrait saisie par erreur (mauvais montant, faux
@@ -4068,7 +4079,7 @@ function admin_earnings_cancel_withdrawal() {
         admin_log('earnings_withdraw_cancel','success',null,dk('d_ref_with_reason', ['ref'=>$tx['reference'], 'reason'=>$reason]));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$tx['wid']])->fetchColumn();
         ok(['new_balance'=>$bal],'Retrait annule, solde recredite');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de l\'annulation', 500); }
 }
 
 // Meme resolution de periode que admin_dashboard_get_data() (dupliquee ici
@@ -4622,7 +4633,7 @@ function admin_test_credit_wallet() {
         admin_log('test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
         $bal = (float)q("SELECT balance FROM wallets WHERE id=?",[$w['id']])->fetchColumn();
         ok(['new_balance'=>$bal],'Credit de test effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec du credit',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec du credit', 500); }
 }
 
 // Equivalent de admin_test_credit_wallet() mais pour un portefeuille marchand
@@ -4653,7 +4664,7 @@ function admin_merchant_test_credit_wallet() {
         admin_log('merchant_test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
         $bal = (float)q("SELECT balance FROM merchant_wallets WHERE id=?",[$mw['id']])->fetchColumn();
         ok(['new_balance'=>$bal],'Credit de test effectue');
-    } catch(Exception $e) { db()->rollBack(); fail(APP_DEBUG?$e->getMessage():'Echec du credit',500); }
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec du credit', 500); }
 }
 
 // Ajoute une note admin en texte libre sur un compte (contexte humain, pas
@@ -4671,7 +4682,7 @@ function admin_add_note() {
     try {
         q("INSERT INTO admin_notes (user_id,note) VALUES (?,?)",[$u['id'],$note]);
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Table des notes non initialisee (migration a executer).', 503);
+        log_and_fail($e, 'Table des notes non initialisee (migration a executer).', 503);
     }
     admin_log('account_note_added','success',$phone,mb_substr($note,0,120));
     ok(null,'Note ajoutee');
@@ -4688,7 +4699,7 @@ function admin_merchant_search() {
     try {
         $m = q("SELECT * FROM merchants WHERE phone_number=?",[$phone])->fetch();
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
     if(!$m) fail('Aucun compte marchand pour ce numero',404);
     $w = q("SELECT id,balance,vault_balance,currency FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
@@ -4751,7 +4762,7 @@ function admin_merchant_add_note() {
     try {
         q("INSERT INTO merchant_notes (merchant_id,note) VALUES (?,?)",[$m['id'],$note]);
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Table des notes non initialisee (migration a executer).', 503);
+        log_and_fail($e, 'Table des notes non initialisee (migration a executer).', 503);
     }
     admin_log('merchant_note_added','success',$m['phone_number'],mb_substr($note,0,120));
     ok(null,'Note ajoutee');
@@ -4882,7 +4893,7 @@ function admin_merchant_list() {
         $rows = q("SELECT id,business_name,phone_number,location_type,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
     ok(['merchants'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
@@ -4899,7 +4910,7 @@ function admin_merchants_export_xlsx() {
         $rows = q("SELECT business_name,phone_number,location_type,address,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
 
     $sheetRows = [];
@@ -4936,7 +4947,7 @@ function admin_merchants_export_pdf() {
         $rows = q("SELECT business_name,phone_number,location_type,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
     } catch(Exception $e) {
-        fail(APP_DEBUG ? $e->getMessage() : 'Service marchand indisponible (base non initialisee).', 503);
+        log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
 
     require_once __DIR__.'/fpdf.php';
@@ -5051,7 +5062,7 @@ function admin_late_cancel() {
         ok(null,'Transaction annulee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
-        fail(APP_DEBUG?$e->getMessage():'Echec de l\'annulation',500);
+        log_and_fail($e, 'Echec de l\'annulation', 500);
     }
 }
 
@@ -5130,7 +5141,7 @@ function admin_freeze_transaction() {
         ok(null,'Transaction gelee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
-        fail(APP_DEBUG?$e->getMessage():'Echec du gel',500);
+        log_and_fail($e, 'Echec du gel', 500);
     }
 }
 
@@ -5187,7 +5198,7 @@ function admin_unfreeze_transaction() {
         ok(null,'Transaction debloquee avec succes');
     } catch(Exception $e) {
         db()->rollBack();
-        fail(APP_DEBUG?$e->getMessage():'Echec du deblocage',500);
+        log_and_fail($e, 'Echec du deblocage', 500);
     }
 }
 
@@ -6205,7 +6216,7 @@ function admin_update_country() {
     } catch(Exception $e) {
         db()->rollBack();
         admin_log('update_country','failed',$phone,'Echec conversion devise lors du changement de pays vers '.$country.' ('.$reason.')');
-        fail(APP_DEBUG?$e->getMessage():'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.',503);
+        log_and_fail($e, 'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
     }
     admin_log('update_country','success',$phone,dk('d_country_changed', ['old'=>($oldCountry?:'-'), 'new'=>$country, 'reason'=>$reason]));
     ok(null,'Pays mis a jour avec succes');
@@ -6268,7 +6279,7 @@ function admin_merchant_update_country() {
     } catch(Exception $e) {
         db()->rollBack();
         admin_log('merchant_update_country','failed',$phone,'Echec conversion devise lors du changement de pays vers '.$country.' ('.$reason.')');
-        fail(APP_DEBUG?$e->getMessage():'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.',503);
+        log_and_fail($e, 'Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
     }
     admin_log('merchant_update_country','success',$phone,'Pays marchand : '.($oldCountry?:'-').' -> '.$country.' ('.$reason.')');
     ok(null,'Pays mis a jour avec succes');
