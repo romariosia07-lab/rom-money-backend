@@ -2155,9 +2155,7 @@ var I18N = {
   kyc_verso_label: {fr:'Verso', en:'Back'},
   kyc_ocr_running: {fr:'Analyse automatique de la pièce en cours...', en:'Automatic document analysis in progress...'},
   kyc_label_firstname: {fr:"Prénom(s) exact(s) (tel qu'il figure sur votre pièce d'identité)", en:'Exact first name(s) (as shown on your ID)'},
-  kyc_ph_firstname: {fr:'Ex: Jean Baptiste', en:'E.g: Jean Baptiste'},
   kyc_label_lastname: {fr:"Nom exact (tel qu'il figure sur votre pièce d'identité)", en:'Exact last name (as shown on your ID)'},
-  kyc_ph_lastname: {fr:'Ex: KOUAME', en:'E.g: KOUAME'},
   kyc_label_birthdate: {fr:"Date de naissance (tel qu'elle figure sur votre pièce d'identité)", en:'Date of birth (as shown on your ID)'},
   kyc_legal_notice: {fr:"Ces informations seront vérifiées par nos équipes et utilisées en cas de litige. Elles doivent correspondre exactement à votre pièce d'identité.", en:'This information will be verified by our teams and used in case of dispute. It must match your ID exactly.'},
   kyc_btn_back: {fr:'Retour', en:'Back'},
@@ -2351,7 +2349,6 @@ var I18N = {
   vault_locked_toast: {fr:'Coffre verrouillé', en:'Vault locked'},
   vault_create_desc: {fr:'Créez un sous-coffre pour épargner vers un objectif précis (voyage, urgence, études, mariage...)', en:'Create a sub-vault to save toward a specific goal (travel, emergency, studies, wedding...)'},
   vault_label_name: {fr:'Nom du sous-coffre', en:'Sub-vault name'},
-  vault_ph_name: {fr:'Ex: Urgence médicale', en:'E.g: Medical emergency'},
   vault_label_initial_amount: {fr:'Montant initial (optionnel)', en:'Initial amount (optional)'},
   vault_available_main: {fr:'Disponible dans le coffre principal: {amt}', en:'Available in the main vault: {amt}'},
   vault_label_goal: {fr:"Objectif d'épargne (optionnel)", en:'Savings goal (optional)'},
@@ -7165,9 +7162,9 @@ function renderKycStep(b, step){
       +'</div>'
       +'<div id="kyc-ocr-status" style="font-size:11px;margin-bottom:14px">'+(window._kycOcrRunning?'<span style="color:var(--t3)">'+t('kyc_ocr_running')+'</span>':'')+'</div>'
       +'<div class="frow"><label class="flabel">'+t('kyc_label_firstname')+'</label>'
-      +'<input class="finput" id="kyc-legal-prenom" value="'+((window._kycOcrPrenom||'')).replace(/"/g,'&quot;')+'" placeholder="'+t('kyc_ph_firstname')+'"></div>'
+      +'<input class="finput" id="kyc-legal-prenom" value="'+((window._kycOcrPrenom||'')).replace(/"/g,'&quot;')+'" placeholder=""></div>'
       +'<div class="frow"><label class="flabel">'+t('kyc_label_lastname')+'</label>'
-      +'<input class="finput" id="kyc-legal-nom" value="'+((window._kycOcrNom||'')).replace(/"/g,'&quot;')+'" placeholder="'+t('kyc_ph_lastname')+'"></div>'
+      +'<input class="finput" id="kyc-legal-nom" value="'+((window._kycOcrNom||'')).replace(/"/g,'&quot;')+'" placeholder=""></div>'
       +'<div class="frow"><label class="flabel">'+t('kyc_label_birthdate')+'</label>'
       +'<input class="finput" id="kyc-legal-birthdate" value="'+(window._kycOcrBirthdate||'')+'" placeholder="JJ/MM/AAAA"></div>'
       +'<div style="font-size:11px;color:var(--t3);margin-bottom:16px">'+t('kyc_legal_notice')+'</div>'
@@ -8646,7 +8643,7 @@ function doLock(){
 // ── CREATE SUB-VAULT ──
 function shVCreate(b){
   b.innerHTML='<div style="font-size:13px;color:var(--t2);margin-bottom:14px">'+t('vault_create_desc')+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('vault_label_name')+'</label><input class="finput" id="sv-name" placeholder="'+t('vault_ph_name')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('vault_label_name')+'</label><input class="finput" id="sv-name" placeholder=""></div>'
     +'<div class="frow"><label class="flabel">'+t('vault_label_initial_amount')+'</label>'
     +'<div class="amt-row"><input class="finput" id="sv-amt" placeholder="0" type="number" inputmode="numeric"><span class="amt-f">'+((APP.currency==='XOF'||APP.currency==='XAF'||!APP.currency)?'F':APP.currency)+'</span></div>'
     +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('vault_available_main').replace('{amt}',fmt(APP.vaultBal))+'</div></div>'

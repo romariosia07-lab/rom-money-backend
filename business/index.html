@@ -564,7 +564,6 @@ var I18N = {
   vault_choose_date:{fr:'Choisissez une date',en:'Choose a date'},
   vault_locked_toast:{fr:'Coffre verrouillé',en:'Vault locked'},
   sv_name_label:{fr:'Nom du sous-compte',en:'Sub-account name'},
-  sv_name_ph:{fr:'Ex: Fournisseurs',en:'E.g. Suppliers'},
   sv_initial_amount:{fr:'Montant initial (optionnel)',en:'Initial amount (optional)'},
   sv_available_vault:{fr:'Disponible au coffre : ',en:'Available in vault: '},
   sv_goal_label:{fr:'Objectif (optionnel)',en:'Goal (optional)'},
@@ -2343,7 +2342,7 @@ function doVLock(){
   });
 }
 function shVCreate(b){
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('sv_name_label')+'</label><input class="finput" id="svc-name" placeholder="'+t('sv_name_ph')+'"></div>'
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('sv_name_label')+'</label><input class="finput" id="svc-name" placeholder=""></div>'
     +'<div class="frow"><label class="flabel">'+t('sv_initial_amount')+'</label><div class="amt-row"><input class="finput" id="svc-amt" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div>'
     +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+t('sv_available_vault')+fmt(APP.vaultBal)+' '+curSuffix()+'</div></div>'
     +'<div class="frow"><label class="flabel">'+t('sv_goal_label')+'</label><div class="amt-row"><input class="finput" id="svc-goal" type="number" inputmode="numeric" placeholder="0"><span class="amt-f">'+curSuffix()+'</span></div></div>'
