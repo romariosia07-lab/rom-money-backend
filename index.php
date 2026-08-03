@@ -4512,7 +4512,7 @@ function admin_search_by_phone() {
             FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
 
-    $w = q("SELECT id,balance,vault_balance,vault_locked,vault_lock_date FROM wallets WHERE user_id=?",[$u['id']])->fetch();
+    $w = q("SELECT id,balance,vault_balance,vault_locked,vault_lock_date,currency FROM wallets WHERE user_id=?",[$u['id']])->fetch();
     $wid = $w['id'] ?? null;
 
     // Joint aussi merchant_wallets/merchants des deux cotes - un utilisateur
@@ -4568,7 +4568,8 @@ function admin_search_by_phone() {
         ],
         'wallet'=>[
             'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
-            'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null
+            'vault_locked'=>(bool)($w['vault_locked']??false),'vault_lock_date'=>$w['vault_lock_date']??null,
+            'currency'=>$w['currency']??'XOF'
         ],
         'kyc_history'=>$kycHistory,
         'known_devices'=>$devices,
