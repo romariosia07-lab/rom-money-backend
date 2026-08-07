@@ -2194,6 +2194,9 @@ function route_agent($action) {
         'history'           => agent_tx_history(),
         'request-recharge'  => agent_request_recharge(),
         'recharge-history'  => agent_recharge_history(),
+        'list-incoming-recharges' => agent_list_incoming_recharge_requests(),
+        'approve-recharge-request' => agent_approve_recharge_request(),
+        'reject-recharge-request'  => agent_reject_recharge_request(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2474,15 +2477,77 @@ function agent_request_recharge() {
     $pl = agent_auth(); $b = body();
     $amount = (float)($b['amount'] ?? 0);
     $note = trim($b['note'] ?? '');
+    $distributorPhone = trim($b['distributor_phone'] ?? '');
     if($amount<=0) fail('Montant invalide');
+    // Si un distributeur est cible, la demande lui est adressee directement
+    // (il approuve depuis son propre float, sans mot de passe admin) plutot
+    // que d'aller a la file d'attente Admin Principal.
+    $distributorId = null;
+    if($distributorPhone){
+        $dist = q("SELECT id,is_distributor FROM agents WHERE phone_number=?",[$distributorPhone])->fetch();
+        if(!$dist) fail('Distributeur introuvable',404);
+        if(!$dist['is_distributor']) fail("Ce numero n'est pas enregistre comme distributeur");
+        $distributorId = $dist['id'];
+    }
     $id = uid();
-    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note) VALUES (?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null]);
+    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,distributor_id) VALUES (?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$distributorId]);
     ok(['id'=>$id],'Demande de recharge envoyee');
 }
 function agent_recharge_history() {
     $pl = agent_auth();
     $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
     ok(['requests'=>$rows]);
+}
+
+// ── Hierarchie distributeurs ──
+// Un distributeur voit et traite lui-meme les demandes de recharge qui le
+// ciblent, sans mot de passe admin : il ne fait que rediriger du float deja
+// approuve depuis SON PROPRE compte, ce n'est jamais une creation d'argent
+// (contrairement a admin_agent_approve_recharge()).
+function agent_list_incoming_recharge_requests() {
+    $pl = agent_auth();
+    $rows = q("SELECT r.id,r.amount,r.note,r.created_at,a.full_name,a.phone_number
+        FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
+        WHERE r.distributor_id=? AND r.status='pending' ORDER BY r.created_at ASC",[$pl['sub']])->fetchAll();
+    ok(['requests'=>$rows]);
+}
+
+function agent_approve_recharge_request() {
+    $pl = agent_auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    if(!$id) fail('Demande requise');
+    $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
+    $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
+    if(!$r || $r['distributor_id'] !== $pl['sub']) fail('Demande introuvable',404);
+    if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
+    $distWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    $reqWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
+    if(!$distWallet || !$reqWallet) fail('Portefeuille introuvable',404);
+    if((float)q("SELECT balance FROM agent_wallets WHERE id=?",[$distWallet['id']])->fetchColumn() < (float)$r['amount']) fail('Solde du distributeur insuffisant');
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'agent_recharge','completed',?,?)",
+          [$txid,$distWallet['id'],$reqWallet['id'],$r['amount'],$reference,'Recharge via distributeur']);
+        $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$r['amount'],$distWallet['id'],$r['amount']])->rowCount();
+        if(!$rows) throw new Exception('Solde du distributeur insuffisant');
+        q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$reqWallet['id']]);
+        q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
+        db()->commit();
+        $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$distWallet['id']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
+}
+
+function agent_reject_recharge_request() {
+    $pl = agent_auth(); $b = body();
+    $id = trim($b['id'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$id) fail('Demande requise');
+    $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND distributor_id=? AND status='pending'",[$reason?:null,$id,$pl['sub']])->rowCount();
+    if(!$n) fail('Demande introuvable ou deja traitee',404);
+    ok(null,'Demande rejetee');
 }
 
 // ============================================================
@@ -4349,6 +4414,7 @@ function route_admin($action) {
         'agent-recharge-reject'    => admin_agent_reject_recharge(),
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
+        'agent-toggle-distributor' => admin_agent_toggle_distributor(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
@@ -6535,6 +6601,7 @@ function admin_agent_search() {
     }
     ok(['id'=>$a['id'],'full_name'=>$a['full_name'],'phone_number'=>$a['phone_number'],
         'address'=>$a['address'],'status'=>$a['status'],'verified'=>(bool)($a['verified']??false),
+        'is_distributor'=>(bool)($a['is_distributor']??false),
         'created_at'=>$a['created_at'],'country'=>$a['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'transactions'=>$txs,'known_devices'=>$devices,
         'recharge_requests'=>$recharges]);
@@ -6615,12 +6682,17 @@ function admin_agent_list_recharge_requests() {
     $b = body();
     check_admin_password($b);
     $status = trim($b['status'] ?? 'pending');
+    // Visibilite sur les demandes ciblant un distributeur (dist_name/dist_phone
+    // non-null) meme si l'admin n'agit plus dessus - c'est le distributeur
+    // lui-meme qui approuve/rejette (voir agent_approve_recharge_request()).
     if($status !== ''){
-        $rows = q("SELECT r.*, a.full_name, a.phone_number FROM agent_recharge_requests r
-            JOIN agents a ON a.id=r.agent_id WHERE r.status=? ORDER BY r.created_at ASC",[$status])->fetchAll();
+        $rows = q("SELECT r.*, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
+            JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
+            WHERE r.status=? ORDER BY r.created_at ASC",[$status])->fetchAll();
     } else {
-        $rows = q("SELECT r.*, a.full_name, a.phone_number FROM agent_recharge_requests r
-            JOIN agents a ON a.id=r.agent_id ORDER BY r.created_at DESC LIMIT 100")->fetchAll();
+        $rows = q("SELECT r.*, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
+            JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
+            ORDER BY r.created_at DESC LIMIT 100")->fetchAll();
     }
     ok(['requests'=>$rows]);
 }
@@ -6661,6 +6733,23 @@ function admin_agent_reject_recharge() {
     if(!$n) fail('Demande introuvable ou deja traitee',404);
     admin_log('agent_recharge_reject','success',null,$reason);
     ok(null,'Demande rejetee');
+}
+
+// Bascule le statut "distributeur" - mirror exact de
+// admin_merchant_toggle_verified(). Mot de passe admin standard suffit :
+// ca ne cree pas d'argent, ca ne fait que deleguer la capacite de rediriger
+// du float deja approuve vers d'autres agents.
+function admin_agent_toggle_distributor() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['agent_id']??'');
+    if(!$id) fail('Agent requis');
+    $a = q("SELECT id,full_name,is_distributor FROM agents WHERE id=?",[$id])->fetch();
+    if(!$a) fail('Agent introuvable',404);
+    $newVal = $a['is_distributor'] ? 0 : 1;
+    q("UPDATE agents SET is_distributor=? WHERE id=?",[$newVal,$id]);
+    admin_log('agent_toggle_distributor','success',null,'Agent '.$a['full_name'].' -> '.($newVal?'distributeur':'agent standard'));
+    ok(['is_distributor'=>(bool)$newVal],$newVal?'Statut distributeur accorde':'Statut distributeur retire');
 }
 
 // CRUD des 26 paliers de commission - meme pattern que
@@ -7272,6 +7361,12 @@ function route_install() {
         verified SMALLINT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    // Un distributeur est un agent qui peut recharger le float d'autres
+    // agents avec SON PROPRE float deja approuve (hierarchie a la Orange
+    // Money : Admin Principal -> distributeur -> agent -> client). Bascule
+    // par un admin standard (pas earnings - ne cree pas d'argent, ne fait
+    // que deleguer la capacite de rediriger du float deja existant).
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_distributor SMALLINT DEFAULT 0",
     "CREATE TABLE IF NOT EXISTS agent_wallets (
         id VARCHAR(36) PRIMARY KEY,
         agent_id VARCHAR(36) NOT NULL UNIQUE,
@@ -7318,6 +7413,10 @@ function route_install() {
         reject_reason VARCHAR(255)
     )",
     "CREATE INDEX IF NOT EXISTS idx_agent_recharge_agent ON agent_recharge_requests(agent_id)",
+    // NULL = va a la file d'attente Admin Principal (comportement d'origine,
+    // inchange) ; renseigne = va au distributeur cible, qui approuve lui-meme
+    // depuis son propre appareil sans mot de passe admin.
+    "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS distributor_id VARCHAR(36)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
