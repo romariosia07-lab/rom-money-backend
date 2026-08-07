@@ -1722,6 +1722,15 @@ var I18N = {
   admin_view_documents_btn: {fr:'Voir les documents', en:'View documents'},
   admin_agent_registration_approved: {fr:'Agent agréé et activé', en:'Agent approved and activated'},
   admin_agent_registration_rejected: {fr:"Demande d'agrément refusée", en:'Approval request rejected'},
+  admin_agent_reject_reason_docs: {fr:'Documents illisibles ou incomplets', en:'Illegible or incomplete documents'},
+  admin_agent_reject_reason_photo: {fr:'Photo du local non conforme', en:'Premises photo does not comply'},
+  admin_agent_reject_reason_identity: {fr:'Identité non vérifiable', en:'Identity cannot be verified'},
+  admin_agent_reject_reason_letter: {fr:'Lettre de demande manquante ou non signée', en:'Missing or unsigned request letter'},
+  admin_agent_reject_confirm_msg: {fr:"Cette demande d'agrément sera refusée. L'agent restera bloqué tant qu'une nouvelle demande n'est pas soumise.", en:'This approval request will be rejected. The agent will remain blocked until a new request is submitted.'},
+  admin_agent_recharge_reject_reason_unpaid: {fr:'Paiement hors-app non reçu', en:'Off-app payment not received'},
+  admin_agent_recharge_reject_reason_amount: {fr:'Montant incorrect', en:'Incorrect amount'},
+  admin_agent_recharge_reject_reason_duplicate: {fr:'Demande en double', en:'Duplicate request'},
+  admin_agent_recharge_reject_confirm_msg: {fr:'Cette demande de recharge sera refusée.', en:'This recharge request will be rejected.'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4701,6 +4710,7 @@ function adminLoadAgentPending(){
       if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_pending_agent')+'</div>'; return; }
       var html='';
       list.forEach(function(a){
+        var prefix='agtrej-'+a.id;
         html+='<div style="border:1px solid var(--bord);border-radius:12px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
           +'<b>'+adminEsc(a.full_name)+'</b> — '+a.phone_number+'<br>'
           +'<span style="color:var(--t3)">'+(a.country||'-')+' — '+new Date(a.created_at).toLocaleString()+'</span>'
@@ -4708,7 +4718,18 @@ function adminLoadAgentPending(){
           +'<button class="btn-w" style="margin-top:-6px;margin-bottom:8px" onclick="adminViewAgentDocuments(\''+a.id+'\')" data-i18n-admin="admin_view_documents_btn">Voir les documents</button>'
           +'<div id="agt-docs-'+a.id+'"></div>'
           +'<button class="btn-w" style="margin-top:8px;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
-          +'<button class="btn-w" style="margin-top:0;margin-bottom:14px;background:var(--rl);color:var(--re)" onclick="adminRejectAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>';
+          +'<div class="frow" style="margin-top:8px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>'
+          +'<select class="finput" id="'+prefix+'-reason-sel" onchange="toggleReasonCustom(\''+prefix+'\')">'
+          +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
+          +'<option value="Documents illisibles ou incomplets" data-i18n-admin="admin_agent_reject_reason_docs">Documents illisibles ou incomplets</option>'
+          +'<option value="Photo du local non conforme" data-i18n-admin="admin_agent_reject_reason_photo">Photo du local non conforme</option>'
+          +'<option value="Identité non vérifiable" data-i18n-admin="admin_agent_reject_reason_identity">Identité non vérifiable</option>'
+          +'<option value="Lettre de demande manquante ou non signée" data-i18n-admin="admin_agent_reject_reason_letter">Lettre de demande manquante ou non signée</option>'
+          +'<option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>'
+          +'</select>'
+          +'<input class="finput" id="'+prefix+'-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">'
+          +'</div>'
+          +'<button style="width:100%;padding:13px;margin-bottom:14px;background:var(--rl);color:var(--re);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminRejectAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>';
       });
       box.innerHTML=html;
       applyAdminLang();
@@ -4745,12 +4766,19 @@ function adminApproveAgentRegistration(agentId){
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminRejectAgentRegistration(agentId){
-  var reason = prompt(at('admin_reject_reason_prompt')||'Raison du rejet ?');
-  if(!reason) return;
-  apiCall('/admin?action=agent-reject-registration','POST',{admin_password:window._adminPw,agent_id:agentId,reason:reason},'').then(function(res){
-    if(res&&res.success){ toast(at('admin_agent_registration_rejected')); adminLoadAgentPending(); }
-    else { toast((res&&res.message)||at('admin_error_generic'), true); }
-  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+  var prefix='agtrej-'+agentId;
+  var reason = getReasonValue(prefix);
+  if(!reason){ toast(at('admin_reason_required'), true); return; }
+  adminOpenConfirmModal({
+    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_agent_reject_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_reject_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=agent-reject-registration','POST',{admin_password:window._adminPw,agent_id:agentId,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_agent_registration_rejected')); adminLoadAgentPending(); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
 }
 
 function adminLoadAgentRecharges(){
@@ -4772,7 +4800,17 @@ function adminLoadAgentRecharges(){
             ? ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px">'+at('admin_pending_distributor_prefix')+' '+adminEsc(r.dist_name)+' ('+r.dist_phone+')</div>')
             : (window._earningsPw
               ? ('<button class="btn-w" style="margin-top:-6px;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
-                 +'<button class="btn-w" style="margin-top:0;margin-bottom:14px;background:var(--rl);color:var(--re)" onclick="adminRejectAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>')
+                 +'<div class="frow" style="margin-top:8px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>'
+                 +'<select class="finput" id="agtrchrej-'+r.id+'-reason-sel" onchange="toggleReasonCustom(\'agtrchrej-'+r.id+'\')">'
+                 +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
+                 +'<option value="Paiement hors-app non reçu" data-i18n-admin="admin_agent_recharge_reject_reason_unpaid">Paiement hors-app non reçu</option>'
+                 +'<option value="Montant incorrect" data-i18n-admin="admin_agent_recharge_reject_reason_amount">Montant incorrect</option>'
+                 +'<option value="Demande en double" data-i18n-admin="admin_agent_recharge_reject_reason_duplicate">Demande en double</option>'
+                 +'<option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>'
+                 +'</select>'
+                 +'<input class="finput" id="agtrchrej-'+r.id+'-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">'
+                 +'</div>'
+                 +'<button style="width:100%;padding:13px;margin-bottom:14px;background:var(--rl);color:var(--re);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminRejectAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>')
               : ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>')));
       });
       box.innerHTML=html;
@@ -4790,12 +4828,19 @@ function adminApproveAgentRecharge(id){
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminRejectAgentRecharge(id){
-  var reason = prompt(at('admin_reject_reason_prompt')||'Raison du rejet ?');
-  if(!reason) return;
-  apiCall('/admin?action=agent-recharge-reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
-    if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); }
-    else { toast((res&&res.message)||at('admin_error_generic'), true); }
-  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+  var prefix='agtrchrej-'+id;
+  var reason = getReasonValue(prefix);
+  if(!reason){ toast(at('admin_reason_required'), true); return; }
+  adminOpenConfirmModal({
+    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_agent_recharge_reject_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_reject_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=agent-recharge-reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
 }
 
 function adminLoadAgentTiers(){
