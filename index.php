@@ -44,7 +44,7 @@ define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop
 // (agents.status='pending_approval') tant que ces documents n'ont pas ete
 // examines et approuves par un admin - contrairement au marchand, ou
 // l'envoi de documents ne fait que debloquer un badge declaratif.
-define('AGENT_DOC_TYPES', ['id_recto','id_verso','shop_photo']);
+define('AGENT_DOC_TYPES', ['id_recto','id_verso','shop_photo','request_letter']);
 
 // Cles VAPID pour les notifications Web Push (RFC 8292). Generees une seule
 // fois via OpenSSL (courbe prime256v1) - NE JAMAIS LES CHANGER une fois en
