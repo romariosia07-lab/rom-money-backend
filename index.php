@@ -143,10 +143,11 @@ function auth() {
     $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
     if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
     $pl = jwt_check(substr($h,7));
-    // Un jeton ROM_BUSINESS (typ=merchant) ne doit jamais etre accepte ici :
-    // ce sont deux identites distinctes (voir merchant_auth()), meme si les
-    // deux systemes partagent le meme moteur de transactions.
-    if(!$pl || ($pl['typ']??'')==='merchant') fail('Token invalide ou expire',401);
+    // Un jeton ROM_BUSINESS (typ=merchant) ou ROM_GUICHET (typ=agent) ne doit
+    // jamais etre accepte ici : ce sont des identites distinctes (voir
+    // merchant_auth()/agent_auth()), meme si tous partagent le meme moteur
+    // de transactions.
+    if(!$pl || in_array(($pl['typ']??''), ['merchant','agent'], true)) fail('Token invalide ou expire',401);
     // Verifie le statut du compte a CHAQUE appel authentifie, pas seulement
     // au login, pour qu'un blocage admin coupe l'acces immediatement meme
     // si l'utilisateur a deja un token valide en cours de session.
@@ -177,6 +178,22 @@ function merchant_auth() {
     // l'expiration naturelle du jeton.
     if(!empty($pl['device_id'])){
         $revoked = q("SELECT revoked FROM merchant_known_devices WHERE merchant_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
+        if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
+    }
+    return $pl;
+}
+// Equivalent de auth()/merchant_auth() pour les comptes ROM_GUICHET (table
+// agents, distincte de users et merchants) - troisieme identite mutuellement
+// exclusive avec les deux autres.
+function agent_auth() {
+    $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
+    if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
+    $pl = jwt_check(substr($h,7));
+    if(!$pl || ($pl['typ']??'')!=='agent') fail('Token invalide ou expire',401);
+    $status = q("SELECT status FROM agents WHERE id=?",[$pl['sub']])->fetchColumn();
+    if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
+    if(!empty($pl['device_id'])){
+        $revoked = q("SELECT revoked FROM agent_known_devices WHERE agent_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
         if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
     }
     return $pl;
@@ -499,6 +516,30 @@ function merchant_pin_check($merchantId, $pin, $hash) {
     }
     return true;
 }
+// Equivalent de pin_check() pour un compte agent ROM_GUICHET (table agents).
+function agent_pin_check($agentId, $pin, $hash) {
+    $a = q("SELECT pin_attempts, pin_locked_until FROM agents WHERE id=?",[$agentId])->fetch();
+    $lockedUntil = $a['pin_locked_until'] ?? null;
+    if($lockedUntil && strtotime($lockedUntil) > time()){
+        $mins = (int)ceil((strtotime($lockedUntil) - time())/60);
+        fail("Compte temporairement bloque suite a plusieurs PIN incorrects. Reessayez dans $mins min.", 423);
+    }
+    if(!password_verify($pin, $hash)){
+        $attempts = (int)($a['pin_attempts'] ?? 0) + 1;
+        if($attempts >= PIN_MAX_ATTEMPTS){
+            q("UPDATE agents SET pin_attempts=0, pin_locked_until=? WHERE id=?",
+              [date('Y-m-d H:i:s', time()+PIN_LOCK_MINUTES*60), $agentId]);
+            fail('Trop de tentatives incorrectes. Compte bloque '.PIN_LOCK_MINUTES.' minutes.', 423);
+        }
+        q("UPDATE agents SET pin_attempts=? WHERE id=?",[$attempts, $agentId]);
+        $restantes = PIN_MAX_ATTEMPTS - $attempts;
+        fail('PIN incorrect ('.$restantes.' tentative'.($restantes>1?'s':'').' restante'.($restantes>1?'s':'').')', 401);
+    }
+    if(($a['pin_attempts'] ?? 0) > 0){
+        q("UPDATE agents SET pin_attempts=0, pin_locked_until=NULL WHERE id=?",[$agentId]);
+    }
+    return true;
+}
 
 function db(): PDO {
     static $pdo = null;
@@ -574,6 +615,7 @@ switch($module) {
     case 'auth':        route_auth($action); break;
     case 'wallet':      route_wallet($action); break;
     case 'merchant':    route_merchant($action); break;
+    case 'agent':       route_agent($action); break;
     case 'transactions':route_tx($action); break;
     case 'profile':     route_profile($action); break;
     case 'kyc':         route_kyc($action); break;
@@ -2122,6 +2164,325 @@ function tx_check_new_recipient() {
                 [$sw['id'], $receiverPhone])->fetch();
     $isNew = $prior && (int)$prior['c'] === 0;
     ok(['warn' => $isNew]);
+}
+
+// ============================================================
+// ROM_GUICHET — Agents de depot/retrait (cash-in/cash-out)
+// Meme conception que ROM_BUSINESS (table agents/agent_wallets distincte des
+// comptes personnels et marchands) : un meme numero de telephone peut donc
+// avoir un compte personnel, marchand ET agent independamment.
+//
+// Depot/retrait restent GRATUITS pour le client (comme le transfert
+// national sous le seuil, et comme Wave en pratique - verifie par recherche
+// externe) : l'agent est remunere via un tableau de paliers de commission
+// JOURNALIERE (agent_commission_tiers, toujours en XOF), pas par un frais
+// preleve sur l'operation elle-meme. Voir agent_commission_for() : chaque
+// operation ne credite que la DIFFERENCE entre le palier atteint aujourd'hui
+// et ce qui a deja ete verse aujourd'hui, jamais le plein montant du palier
+// a chaque transaction.
+// ============================================================
+function route_agent($action) {
+    match($action) {
+        'register'         => agent_register(),
+        'login'             => agent_login(),
+        'balance'           => agent_balance(),
+        'devices'           => agent_devices(),
+        'revoke-device'     => agent_revoke_device(),
+        'change-pin'        => agent_change_pin(),
+        'cash-in'           => agent_cash_in(),
+        'cash-out'          => agent_cash_out(),
+        'history'           => agent_tx_history(),
+        'request-recharge'  => agent_request_recharge(),
+        'recharge-history'  => agent_recharge_history(),
+        default             => fail('Action inconnue',404)
+    };
+}
+
+function agent_register() {
+    rate_limit_check('agent_register', 10, 60);
+    $b = body();
+    $fullName = trim($b['full_name'] ?? '');
+    $phone = trim($b['phone'] ?? '');
+    $pin = trim($b['pin'] ?? '');
+    $address = trim($b['address'] ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
+    $country = trim($b['country'] ?? '');
+    if(!$fullName) fail('Nom requis');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
+    if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
+    if(!$country) fail('Le pays est requis');
+    $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+    if(!$countryRow || !$countryRow['is_active']) fail('ROM_GUICHET n\'est pas encore disponible dans ce pays');
+    try {
+        $exists = q("SELECT id FROM agents WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        log_and_fail($e, 'Service agent indisponible pour le moment (base de donnees non initialisee).', 503);
+    }
+    if($exists) fail('Ce numero est deja enregistre comme agent');
+
+    db()->beginTransaction();
+    try {
+        $aid = uid(); $wid = uid();
+        $pinh = password_hash($pin, PASSWORD_BCRYPT);
+        q("INSERT INTO agents (id,phone_number,pin_hash,full_name,address,country) VALUES (?,?,?,?,?,?)",
+          [$aid,$phone,$pinh,$fullName,$address?:null,$country]);
+        q("INSERT INTO agent_wallets (id,agent_id,currency) VALUES (?,?,?)",[$wid,$aid,country_to_currency($country)]);
+        if($deviceId){
+            $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+            q("INSERT INTO agent_known_devices (agent_id,device_id,user_agent) VALUES (?,?,?)
+               ON CONFLICT (agent_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
+              [$aid, $deviceId, $ua]);
+        }
+        $token = jwt_make(['sub'=>$aid,'phone'=>$phone,'typ'=>'agent','device_id'=>$deviceId]);
+        db()->commit();
+        ok(['token'=>$token,'agent_id'=>$aid,'full_name'=>$fullName,'address'=>$address],'Compte agent cree',201);
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, 'Erreur creation compte', 500);
+    }
+}
+
+function agent_login() {
+    rate_limit_check('agent_login', 15, 60);
+    $b = body();
+    $phone = trim($b['phone'] ?? '');
+    $pin = trim($b['pin'] ?? '');
+    $deviceId = trim($b['device_id'] ?? '');
+    if(!$phone || !$pin) fail('Telephone et PIN requis');
+    try {
+        $a = q("SELECT * FROM agents WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        log_and_fail($e, 'Service agent indisponible pour le moment (base de donnees non initialisee).', 503);
+    }
+    if(!$a) fail('Numero ou PIN incorrect', 401);
+    agent_pin_check($a['id'], $pin, $a['pin_hash']);
+    if($a['status'] !== 'active') fail('Compte suspendu', 403);
+    if($deviceId){
+        $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+        q("INSERT INTO agent_known_devices (agent_id,device_id,user_agent) VALUES (?,?,?)
+           ON CONFLICT (agent_id, device_id) DO UPDATE SET last_seen=CURRENT_TIMESTAMP, revoked=0",
+          [$a['id'], $deviceId, $ua]);
+    }
+    $w = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$a['id']])->fetch();
+    $token = jwt_make(['sub'=>$a['id'],'phone'=>$phone,'typ'=>'agent','device_id'=>$deviceId]);
+    ok(['token'=>$token,'agent_id'=>$a['id'],'full_name'=>$a['full_name'],'address'=>$a['address'],
+        'verified'=>(bool)($a['verified']??false),'country'=>$a['country']??null,
+        'balance'=>(float)($w['balance']??0),'currency'=>$w['currency']??'XOF'],'Connexion reussie');
+}
+
+function agent_balance() {
+    $pl = agent_auth();
+    $a = q("SELECT full_name,address,verified,country FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    $w = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if(!$w) fail('Portefeuille introuvable',404);
+    ok(['balance'=>(float)$w['balance'],'currency'=>$w['currency'],'full_name'=>$a['full_name'],
+        'address'=>$a['address'],'country'=>$a['country']??null,'verified'=>(bool)($a['verified']??false)]);
+}
+
+function agent_devices() {
+    $pl = agent_auth();
+    $rows = q("SELECT device_id,user_agent,first_seen,last_seen,revoked FROM agent_known_devices WHERE agent_id=? ORDER BY last_seen DESC",[$pl['sub']])->fetchAll();
+    foreach($rows as &$r){ $r['is_current'] = ($pl['device_id'] ?? '') !== '' && $r['device_id'] === $pl['device_id']; $r['revoked']=(bool)$r['revoked']; }
+    unset($r);
+    ok(['devices'=>$rows]);
+}
+function agent_revoke_device() {
+    $pl = agent_auth(); $b = body();
+    $deviceId = trim($b['device_id'] ?? '');
+    if(!$deviceId) fail('Appareil requis');
+    $n = q("UPDATE agent_known_devices SET revoked=1 WHERE agent_id=? AND device_id=?",[$pl['sub'],$deviceId])->rowCount();
+    if(!$n) fail('Appareil introuvable',404);
+    ok(null,'Appareil deconnecte');
+}
+
+function agent_change_pin() {
+    $pl = agent_auth(); $b = body();
+    $oldPin = trim($b['old_pin'] ?? '');
+    $newPin = trim($b['new_pin'] ?? '');
+    if(!preg_match('/^\d{4}$/', $newPin)) fail('PIN doit avoir 4 chiffres');
+    if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
+    $a = q("SELECT pin_hash FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    agent_pin_check($pl['sub'], $oldPin, $a['pin_hash']);
+    q("UPDATE agents SET pin_hash=? WHERE id=?",[password_hash($newPin, PASSWORD_BCRYPT), $pl['sub']]);
+    ok(null,'PIN modifie');
+}
+
+// Calcule et credite la commission journaliere de l'agent apres un
+// cash-in/cash-out reussi. Volontairement APRES coup (jamais dans la meme
+// transaction DB que l'operation principale) : une erreur ici ne doit
+// jamais faire echouer un cash-in/cash-out qui a deja reussi, meme
+// philosophie que fraud_check_merchant_transaction().
+//
+// "Commission journaliere" = un TOTAL pour toute la journee, pas par
+// transaction : on ne credite que la difference entre le palier atteint
+// AUJOURD'HUI (cumul de tous les cash-in/cash-out du jour, converti en
+// XOF) et ce qui a deja ete verse aujourd'hui. Decision validee
+// explicitement avec l'utilisateur.
+function agent_commission_for($agentId, $agentWalletId) {
+    try {
+        $w = q("SELECT currency FROM agent_wallets WHERE id=?",[$agentWalletId])->fetch();
+        $agentCurrency = $w['currency'] ?: 'XOF';
+
+        $volumeToday = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+            WHERE (sender_agent_wallet_id=? OR receiver_agent_wallet_id=?)
+            AND type IN ('agent_cash_in','agent_cash_out') AND status='completed'
+            AND created_at::date=CURRENT_DATE",[$agentWalletId,$agentWalletId])->fetch()['t'] ?? 0);
+
+        $alreadyPaidToday = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+            WHERE receiver_agent_wallet_id=? AND type='agent_commission' AND status='completed'
+            AND created_at::date=CURRENT_DATE",[$agentWalletId])->fetch()['t'] ?? 0);
+
+        if($agentCurrency !== 'XOF'){
+            refresh_exchange_rates_if_stale();
+            $volumeXof = convert_currency($volumeToday, $agentCurrency, 'XOF');
+            $alreadyPaidXof = convert_currency($alreadyPaidToday, $agentCurrency, 'XOF');
+            if($volumeXof === null || $alreadyPaidXof === null) return; // taux indisponible, on retente a la prochaine operation
+        } else {
+            $volumeXof = $volumeToday;
+            $alreadyPaidXof = $alreadyPaidToday;
+        }
+
+        $tier = q("SELECT commission_xof FROM agent_commission_tiers
+            WHERE band_min_xof<=? AND (band_max_xof IS NULL OR band_max_xof>=?)
+            ORDER BY band_min_xof DESC LIMIT 1",[$volumeXof,$volumeXof])->fetch();
+        if(!$tier) return; // volume sous le premier palier (ex: 0) - rien a verser
+
+        $deltaXof = (float)$tier['commission_xof'] - $alreadyPaidXof;
+        if($deltaXof <= 0) return; // palier du jour deja entierement paye
+
+        $delta = ($agentCurrency !== 'XOF') ? convert_currency($deltaXof, 'XOF', $agentCurrency) : $deltaXof;
+        if($delta === null || $delta <= 0) return;
+        $delta = round($delta);
+        if($delta <= 0) return;
+
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,receiver_agent_wallet_id,amount,type,status,reference,description)
+           VALUES (?,?,?,'agent_commission','completed',?,?)",
+          [$txid,$agentWalletId,$delta,$reference,'Commission journaliere ROM_GUICHET']);
+        q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$delta,$agentWalletId]);
+    } catch(Exception $e) {
+        error_log('[ROM_GUICHET] Echec calcul commission agent :: '.$e->getMessage());
+    }
+}
+
+// Cash-in : le client donne du cash physique a l'agent, qui le credite
+// numeriquement. C'est le float de L'AGENT qui est debite, donc c'est
+// l'agent qui confirme avec SON PROPRE PIN (recevoir de l'argent ne
+// necessite aucune autorisation du client dans la vraie vie).
+function agent_cash_in() {
+    $pl = agent_auth(); $b = body();
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
+
+    $a = q("SELECT pin_hash FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    agent_pin_check($pl['sub'], $pin, $a['pin_hash']);
+
+    $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+    if($customer['currency'] !== $aw['currency']) fail('Le depot doit se faire dans la meme devise que votre guichet.', 422);
+    if((float)$aw['balance'] < $amount) fail('Solde du guichet insuffisant, demandez une recharge');
+
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+        q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline,currency)
+           VALUES (?,?,?,?,'agent_cash_in','pending',?,?,?,?)",
+          [$txid,$aw['id'],$customer['wid'],$amount,$reference,'Depot via agent',$deadline,$aw['currency']]);
+        $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$aw['id'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde du guichet insuffisant');
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$amount,$customer['wid']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, 'Echec du depot', 500);
+    }
+    agent_commission_for($pl['sub'], $aw['id']);
+    web_push_send_to_user($customer['id'], 'ROM_MONEY', 'Vous avez recu un depot de '.$amount.' '.$aw['currency'].' via un agent ROM_GUICHET.');
+    $newBal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+    ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'customer_name'=>$customer['verified_name']?:$customer['full_name'],
+        'cancel_before'=>$deadline,'new_balance'=>$newBal],'Depot effectue');
+}
+
+// Cash-out : le client donne du solde numerique, l'agent lui remet du cash
+// physique. C'est le solde du CLIENT qui est debite, donc c'est lui qui
+// confirme avec SON PROPRE PIN (comme merchant_collect()).
+function agent_cash_out() {
+    $pl = agent_auth(); $b = body();
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+    pin_check($customer['id'], $pin, $customer['pin_hash']);
+    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
+
+    $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if($customer['currency'] !== $aw['currency']) fail('Le retrait doit se faire dans la meme devise que votre guichet.', 422);
+
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_agent_wallet_id,amount,type,status,reference,description,cancel_deadline,currency)
+           VALUES (?,?,?,?,'agent_cash_out','pending',?,?,?,?)",
+          [$txid,$customer['wid'],$aw['id'],$amount,$reference,'Retrait via agent',$deadline,$aw['currency']]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$amount,$customer['wid'],$amount])->rowCount();
+        if(!$rows) throw new Exception('Solde du client insuffisant');
+        q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$amount,$aw['id']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, 'Echec du retrait', 500);
+    }
+    agent_commission_for($pl['sub'], $aw['id']);
+    $newBal = (float)q("SELECT balance FROM wallets WHERE id=?",[$customer['wid']])->fetchColumn();
+    ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'customer_name'=>$customer['verified_name']?:$customer['full_name'],
+        'cancel_before'=>$deadline,'customer_new_balance'=>$newBal],'Retrait effectue');
+}
+
+function agent_tx_history() {
+    $pl = agent_auth();
+    $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if(!$aw) fail('Portefeuille introuvable',404);
+    $rows = q("SELECT t.*,
+        CASE WHEN t.sender_agent_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
+        cu.full_name customer_name, cu.phone_number customer_phone
+        FROM transactions t
+        LEFT JOIN wallets cw ON cw.id = COALESCE(t.sender_wallet_id, t.receiver_wallet_id)
+        LEFT JOIN users cu ON cu.id = cw.user_id
+        WHERE t.sender_agent_wallet_id=? OR t.receiver_agent_wallet_id=?
+        ORDER BY t.created_at DESC LIMIT 50",[$aw['id'],$aw['id'],$aw['id']])->fetchAll();
+    ok(['transactions'=>$rows]);
+}
+
+// Demande de recharge du float, validee par l'admin (pas de credit direct) -
+// meme state machine pending/approved/rejected que kyc_requests.
+function agent_request_recharge() {
+    $pl = agent_auth(); $b = body();
+    $amount = (float)($b['amount'] ?? 0);
+    $note = trim($b['note'] ?? '');
+    if($amount<=0) fail('Montant invalide');
+    $id = uid();
+    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note) VALUES (?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null]);
+    ok(['id'=>$id],'Demande de recharge envoyee');
+}
+function agent_recharge_history() {
+    $pl = agent_auth();
+    $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
+    ok(['requests'=>$rows]);
 }
 
 // ============================================================
@@ -3979,6 +4340,15 @@ function route_admin($action) {
         'merchant-unblock'         => admin_merchant_unblock(),
         'merchant-reset-pin'       => admin_merchant_reset_pin(),
         'merchant-list'            => admin_merchant_list(),
+        'agent-search'             => admin_agent_search(),
+        'agent-list'               => admin_agent_list(),
+        'agent-test-credit-wallet' => admin_agent_test_credit_wallet(),
+        'agent-delete-account'     => admin_agent_delete_account(),
+        'agent-recharge-list'      => admin_agent_list_recharge_requests(),
+        'agent-recharge-approve'   => admin_agent_approve_recharge(),
+        'agent-recharge-reject'    => admin_agent_reject_recharge(),
+        'agent-tiers-list'         => admin_agent_commission_tiers_list(),
+        'agent-tiers-update'       => admin_agent_commission_tiers_update(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
@@ -6129,6 +6499,195 @@ function admin_merchant_delete_account() {
     ok(null,'Compte marchand supprime definitivement');
 }
 
+// ============================================================
+// ROM_GUICHET — Outillage admin pour les agents de depot/retrait.
+// Meme conception que l'outillage marchand ci-dessus.
+// ============================================================
+function admin_agent_search() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    if(!$phone) fail('Numero requis');
+    try {
+        $a = q("SELECT * FROM agents WHERE phone_number=?",[$phone])->fetch();
+    } catch(Exception $e) {
+        log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
+    }
+    if(!$a) fail('Aucun compte agent pour ce numero',404);
+    $w = q("SELECT id,balance,currency FROM agent_wallets WHERE agent_id=?",[$a['id']])->fetch();
+    try {
+        $devices = q("SELECT device_id,user_agent,first_seen,last_seen FROM agent_known_devices WHERE agent_id=? ORDER BY last_seen DESC",[$a['id']])->fetchAll();
+    } catch(Exception $e) {
+        $devices = [];
+    }
+    $recharges = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC LIMIT 20",[$a['id']])->fetchAll();
+    $awid = $w['id'] ?? null;
+    $txs = [];
+    if($awid){
+        $txs = q("SELECT t.*,
+            CASE WHEN t.sender_agent_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
+            cu.full_name customer_name, cu.phone_number customer_phone
+            FROM transactions t
+            LEFT JOIN wallets cw ON cw.id = COALESCE(t.sender_wallet_id, t.receiver_wallet_id)
+            LEFT JOIN users cu ON cu.id = cw.user_id
+            WHERE t.sender_agent_wallet_id=? OR t.receiver_agent_wallet_id=?
+            ORDER BY t.created_at DESC LIMIT 30",[$awid,$awid,$awid])->fetchAll();
+    }
+    ok(['id'=>$a['id'],'full_name'=>$a['full_name'],'phone_number'=>$a['phone_number'],
+        'address'=>$a['address'],'status'=>$a['status'],'verified'=>(bool)($a['verified']??false),
+        'created_at'=>$a['created_at'],'country'=>$a['country']??null,'currency'=>$w['currency']??'XOF',
+        'balance'=>(float)($w['balance']??0),'transactions'=>$txs,'known_devices'=>$devices,
+        'recharge_requests'=>$recharges]);
+}
+
+function admin_agent_list() {
+    $b = body();
+    check_admin_password($b);
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+    try {
+        $total = (int)q("SELECT COUNT(*) FROM agents")->fetchColumn();
+        $rows = q("SELECT id,full_name,phone_number,status,verified,created_at
+                   FROM agents ORDER BY created_at DESC LIMIT $perPage OFFSET $offset")->fetchAll();
+    } catch(Exception $e) {
+        log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
+    }
+    ok(['agents'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+}
+
+function admin_agent_test_credit_wallet() {
+    $b = body();
+    check_admin_password($b);
+    check_earnings_password($b);
+    $phone = trim($b['phone']??'');
+    $amount = (float)($b['amount']??0);
+    $reason = trim($b['reason']??'');
+    if(!$phone) fail('Numero requis');
+    if($amount<=0) fail('Montant invalide');
+    if($amount>1000000) fail('Montant trop eleve pour un credit de test (max 1 000 000)');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $a = q("SELECT id FROM agents WHERE phone_number=?",[$phone])->fetch();
+    if(!$a) fail('Compte agent introuvable',404);
+    $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$a['id']])->fetch();
+    if(!$aw) fail('Portefeuille agent introuvable',404);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'admin_test_credit','completed',?,?)",
+          [$txid,$aw['id'],$amount,$reference,'ROM '.$reason]);
+        q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$amount,$aw['id']]);
+        db()->commit();
+        admin_log('agent_test_credit','success',$phone,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>$reason]));
+        $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Credit de test effectue');
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec du credit', 500); }
+}
+
+function admin_agent_delete_account() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone'] ?? '');
+    $confirmPhone = trim($b['confirm_phone'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$phone || !$reason) fail('Telephone et raison requis');
+    if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
+
+    $a = q("SELECT id,full_name FROM agents WHERE phone_number=?",[$phone])->fetch();
+    if(!$a){
+        admin_log('agent_delete','failed',$phone,'Compte agent introuvable');
+        fail('Compte agent introuvable',404);
+    }
+    $aid = $a['id'];
+
+    q("DELETE FROM agent_known_devices WHERE agent_id=?",[$aid]);
+    q("DELETE FROM agent_recharge_requests WHERE agent_id=?",[$aid]);
+    q("DELETE FROM agent_wallets WHERE agent_id=?",[$aid]);
+    q("DELETE FROM agents WHERE id=?",[$aid]);
+
+    admin_log('agent_delete','success',$phone,'Compte agent "'.($a['full_name']?:'?').'" supprime definitivement ('.$reason.')');
+    ok(null,'Compte agent supprime definitivement');
+}
+
+// Demandes de recharge de float en attente (+ historique complet si
+// status='' est passe) - meme principe que admin_delete_kyc()'s file d'attente.
+function admin_agent_list_recharge_requests() {
+    $b = body();
+    check_admin_password($b);
+    $status = trim($b['status'] ?? 'pending');
+    if($status !== ''){
+        $rows = q("SELECT r.*, a.full_name, a.phone_number FROM agent_recharge_requests r
+            JOIN agents a ON a.id=r.agent_id WHERE r.status=? ORDER BY r.created_at ASC",[$status])->fetchAll();
+    } else {
+        $rows = q("SELECT r.*, a.full_name, a.phone_number FROM agent_recharge_requests r
+            JOIN agents a ON a.id=r.agent_id ORDER BY r.created_at DESC LIMIT 100")->fetchAll();
+    }
+    ok(['requests'=>$rows]);
+}
+
+function admin_agent_approve_recharge() {
+    $b = body();
+    check_admin_password($b);
+    check_earnings_password($b);
+    $id = trim($b['id'] ?? '');
+    if(!$id) fail('Demande requise');
+    $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
+    if(!$r) fail('Demande introuvable',404);
+    if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
+    $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
+    if(!$aw) fail('Portefeuille agent introuvable',404);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'agent_recharge','completed',?,?)",
+          [$txid,$aw['id'],$r['amount'],$reference,'Recharge de float approuvee']);
+        q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$aw['id']]);
+        q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
+        db()->commit();
+        admin_log('agent_recharge_approve','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>'Recharge de '.$r['amount']]));
+        $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+        ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
+    } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
+}
+
+function admin_agent_reject_recharge() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['id'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$id) fail('Demande requise');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$reason,$id])->rowCount();
+    if(!$n) fail('Demande introuvable ou deja traitee',404);
+    admin_log('agent_recharge_reject','success',null,$reason);
+    ok(null,'Demande rejetee');
+}
+
+// CRUD des 26 paliers de commission - meme pattern que
+// admin_countries_list()/admin_country_toggle() (une vraie table, pas un
+// reglage app_settings scalaire : aucun precedent de tableau dans
+// app_settings dans ce projet).
+function admin_agent_commission_tiers_list() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT id,band_min_xof,band_max_xof,commission_xof FROM agent_commission_tiers ORDER BY band_min_xof ASC")->fetchAll();
+    ok(['tiers'=>$rows]);
+}
+
+function admin_agent_commission_tiers_update() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    $commission = (float)($b['commission_xof'] ?? -1);
+    if(!$id) fail('Palier requis');
+    if($commission < 0) fail('Commission invalide');
+    $row = q("SELECT id FROM agent_commission_tiers WHERE id=?",[$id])->fetch();
+    if(!$row) fail('Palier introuvable',404);
+    q("UPDATE agent_commission_tiers SET commission_xof=?, updated_at=NOW() WHERE id=?",[$commission,$id]);
+    admin_log('agent_tier_update','success',null,'Palier #'.$id.' -> '.$commission.' XOF');
+    ok(null,'Palier mis a jour');
+}
+
 // Consultation des taux actuellement en cache - permet de verifier que la
 // recuperation automatique fonctionne, et de voir "l'age" des taux affiches.
 function admin_get_exchange_rates() {
@@ -6689,6 +7248,76 @@ function route_install() {
     // (wallets ou merchant_wallets) interroger pour afficher l'historique.
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_merchant_wallet_id VARCHAR(36)",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_merchant_wallet_id VARCHAR(36)",
+    // Meme principe pour les agents de depot/retrait (ROM_GUICHET) : une
+    // transaction impliquant un agent remplit UNE de ces deux colonnes a la
+    // place de sender_wallet_id/receiver_wallet_id.
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_agent_wallet_id VARCHAR(36)",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS receiver_agent_wallet_id VARCHAR(36)",
+    // ============================================================
+    // ROM_GUICHET — Agents de depot/retrait (cash-in/cash-out)
+    // Meme conception que les marchands (tables separees des comptes
+    // personnels, phone_number unique par table, pas globalement) : un
+    // meme numero peut donc avoir un compte personnel, marchand ET agent.
+    // ============================================================
+    "CREATE TABLE IF NOT EXISTS agents (
+        id VARCHAR(36) PRIMARY KEY,
+        phone_number VARCHAR(20) NOT NULL UNIQUE,
+        pin_hash VARCHAR(255) NOT NULL,
+        full_name VARCHAR(150) NOT NULL,
+        address VARCHAR(255),
+        country VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'active',
+        pin_attempts SMALLINT DEFAULT 0,
+        pin_locked_until TIMESTAMP,
+        verified SMALLINT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE TABLE IF NOT EXISTS agent_wallets (
+        id VARCHAR(36) PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL UNIQUE,
+        balance DECIMAL(15,2) DEFAULT 0.00,
+        currency VARCHAR(10) DEFAULT 'XOF',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_wallets_agent ON agent_wallets(agent_id)",
+    "CREATE TABLE IF NOT EXISTS agent_known_devices (
+        id SERIAL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        device_id VARCHAR(64) NOT NULL,
+        user_agent TEXT,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked SMALLINT DEFAULT 0,
+        UNIQUE(agent_id, device_id)
+    )",
+    // Paliers de commission journaliere, toujours exprimes en XOF (meme
+    // principe que fee_free_threshold_merchant_daily) : le volume reel d'un
+    // agent, peu importe sa devise, est converti en XOF-equivalent avant
+    // d'etre compare a cette table, pour que la meme activite reelle paie
+    // la meme commission reelle partout. band_max_xof NULL = dernier
+    // palier (illimite).
+    "CREATE TABLE IF NOT EXISTS agent_commission_tiers (
+        id SERIAL PRIMARY KEY,
+        band_min_xof DECIMAL(15,2) NOT NULL,
+        band_max_xof DECIMAL(15,2),
+        commission_xof DECIMAL(15,2) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_tiers_band ON agent_commission_tiers(band_min_xof)",
+    // Demande de recharge du float de l'agent, validee par l'admin (pas de
+    // credit direct) : meme mecanique pending/approved/rejected que
+    // kyc_requests.
+    "CREATE TABLE IF NOT EXISTS agent_recharge_requests (
+        id VARCHAR(36) PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        amount DECIMAL(15,2) NOT NULL,
+        note VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP,
+        reject_reason VARCHAR(255)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_recharge_agent ON agent_recharge_requests(agent_id)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
@@ -6938,6 +7567,28 @@ function route_install() {
     q("UPDATE users SET operator='Orange CI' WHERE LOWER(TRIM(operator)) IN ('orange','orange ci')");
     q("UPDATE users SET operator='Moov Africa CI' WHERE LOWER(TRIM(operator)) IN ('moov','moov africa','moov africa ci','moov ci')");
     q("UPDATE users SET operator='Wave' WHERE LOWER(TRIM(operator)) IN ('wave','wave ci')");
+
+    // Seed unique des 26 paliers de commission agent (toujours en XOF) - ne
+    // s'execute que si la table est vide, pour ne jamais ecraser des
+    // ajustements faits depuis le panneau admin lors d'un /install ulterieur.
+    $tierCount = (int)q("SELECT COUNT(*) c FROM agent_commission_tiers")->fetch()['c'];
+    if ($tierCount === 0) {
+        $tiers = [
+            [1, 9999, 50], [10000, 99999, 250], [100000, 174999, 550],
+            [175000, 249999, 850], [250000, 599999, 1300], [600000, 999999, 1925],
+            [1000000, 1499999, 2675], [1500000, 1999999, 3200], [2000000, 2499999, 3725],
+            [2500000, 2999999, 4225], [3000000, 3499999, 4750], [3500000, 3999999, 5350],
+            [4000000, 4499999, 6000], [4500000, 4999999, 6750], [5000000, 5999999, 7500],
+            [6000000, 6999999, 8650], [7000000, 7999999, 9800], [8000000, 8999999, 11050],
+            [9000000, 9999999, 12300], [10000000, 12499999, 16050], [12500000, 14999999, 19800],
+            [15000000, 17499999, 23550], [17500000, 19999999, 27300], [20000000, 24999999, 32300],
+            [25000000, 29999999, 42300], [30000000, null, 52000],
+        ];
+        foreach ($tiers as $t) {
+            q("INSERT INTO agent_commission_tiers (band_min_xof,band_max_xof,commission_xof) VALUES (?,?,?)",
+              [$t[0], $t[1], $t[2]]);
+        }
+    }
 
     ok(['tables_created'=>$created],'Installation terminee ! Toutes les tables ont ete creees.');
 }
