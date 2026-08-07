@@ -1825,6 +1825,7 @@ var I18N = {
   admin_title_msg_required: {fr:'Titre et message requis', en:'Title and message required'},
   admin_no_account_above_threshold: {fr:'Aucun compte au-dessus de ce seuil', en:'No account above this threshold'},
   admin_no_document_sent: {fr:'Aucun document envoyé par ce marchand', en:'No document sent by this merchant'},
+  admin_no_agent_document_sent: {fr:'Aucun document envoyé par cet agent', en:'No document sent by this agent'},
   admin_no_tx_found: {fr:'Aucune transaction trouvée', en:'No transaction found'},
   admin_no_frozen_merchant_payment: {fr:'Aucun paiement marchand gelé', en:'No frozen merchant payment'},
   admin_no_merchant_found: {fr:'Aucun marchand trouvé', en:'No merchant found'},
@@ -4722,7 +4723,7 @@ function adminViewAgentDocuments(agentId){
   apiCall('/admin?action=agent-documents','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
     if(res&&res.success&&res.data){
       var docs=res.data.documents||[];
-      if(docs.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_document_sent')+'</div>'; return; }
+      if(docs.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_agent_document_sent')+'</div>'; return; }
       var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0">';
       docs.forEach(function(d){
         html+='<div>'
