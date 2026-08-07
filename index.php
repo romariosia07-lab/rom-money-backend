@@ -2522,10 +2522,16 @@ function agent_approve_recharge_request() {
     $pl = agent_auth(); $b = body();
     $id = trim($b['id'] ?? '');
     $code = trim($b['code'] ?? '');
+    $pin = trim($b['pin'] ?? '');
     if(!$id) fail('Demande requise');
     if(!$code) fail('Code de confirmation requis');
-    $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
+    $me = q("SELECT is_distributor,pin_hash FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
+    // Le PIN du distributeur est redemande ICI, pas seulement a la connexion
+    // (meme principe que requirePin() cote personnel/marchand) : c'est SON
+    // argent qui sort de son float, une session deja ouverte ne suffit pas.
+    agent_pin_check($pl['sub'], $pin, $me['pin_hash']);
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r || $r['distributor_id'] !== $pl['sub']) fail('Demande introuvable',404);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
