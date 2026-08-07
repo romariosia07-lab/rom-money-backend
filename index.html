@@ -1130,6 +1130,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchAgent()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="agt-result"></div>
 
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_pending_title">Demandes d'agrément en attente</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_pending_desc">Un nouvel agent ne peut pas utiliser l'application tant que son dossier (pièce d'identité + photo du local) n'a pas été examiné et approuvé.</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentPending()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
+      <div id="agt-pending-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
+
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_recharge_title">Demandes de recharge de float en attente</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_recharge_desc">Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...).</div>
       <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentRecharges()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
@@ -1711,6 +1716,12 @@ var I18N = {
   admin_make_distributor_btn: {fr:'Faire de cet agent un distributeur', en:'Make this agent a distributor'},
   admin_pending_distributor_prefix: {fr:'→ En attente du distributeur :', en:'→ Awaiting distributor:'},
   admin_confirmation_code_prompt: {fr:"Code de confirmation à 6 chiffres communiqué par l'agent ?", en:'6-digit confirmation code given by the agent?'},
+  admin_agents_pending_title: {fr:"Demandes d'agrément en attente", en:'Pending approval requests'},
+  admin_agents_pending_desc: {fr:"Un nouvel agent ne peut pas utiliser l'application tant que son dossier (pièce d'identité + photo du local) n'a pas été examiné et approuvé.", en:'A new agent cannot use the app until their file (ID document + premises photo) has been reviewed and approved.'},
+  admin_no_pending_agent: {fr:'Aucune demande en attente', en:'No pending request'},
+  admin_view_documents_btn: {fr:'Voir les documents', en:'View documents'},
+  admin_agent_registration_approved: {fr:'Agent agréé et activé', en:'Agent approved and activated'},
+  admin_agent_registration_rejected: {fr:"Demande d'agrément refusée", en:'Approval request rejected'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4676,6 +4687,68 @@ function adminDeleteAgentAccount(phone){
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
+}
+
+// ── Agrement agent (documents + activation) ──
+function adminLoadAgentPending(){
+  var box=document.getElementById('agt-pending-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=agent-pending-list','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.agents){
+      var list=res.data.agents;
+      if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_pending_agent')+'</div>'; return; }
+      var html='';
+      list.forEach(function(a){
+        html+='<div style="border:1px solid var(--bord);border-radius:12px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
+          +'<b>'+adminEsc(a.full_name)+'</b> — '+a.phone_number+'<br>'
+          +'<span style="color:var(--t3)">'+(a.country||'-')+' — '+new Date(a.created_at).toLocaleString()+'</span>'
+          +'</div>'
+          +'<button class="btn-w" style="margin-top:-6px;margin-bottom:8px" onclick="adminViewAgentDocuments(\''+a.id+'\')" data-i18n-admin="admin_view_documents_btn">Voir les documents</button>'
+          +'<div id="agt-docs-'+a.id+'"></div>'
+          +'<button class="btn-w" style="margin-top:8px;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
+          +'<button class="btn-w" style="margin-top:0;margin-bottom:14px;background:var(--rl);color:var(--re)" onclick="adminRejectAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>';
+      });
+      box.innerHTML=html;
+      applyAdminLang();
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminViewAgentDocuments(agentId){
+  var box=document.getElementById('agt-docs-'+agentId);
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=agent-documents','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var docs=res.data.documents||[];
+      if(docs.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_document_sent')+'</div>'; return; }
+      var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0">';
+      docs.forEach(function(d){
+        html+='<div>'
+          +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(ADMIN_KYB_DOC_LABELS[d.doc_type]||d.doc_type)+'</div>'
+          +'<img src="'+d.photo+'" style="width:100%;border-radius:8px;border:1px solid var(--bord);cursor:pointer" onclick="window.open(this.src)">'
+          +'<div style="font-size:9px;color:var(--t3);margin-top:2px">'+new Date(d.uploaded_at).toLocaleString()+'</div>'
+          +'</div>';
+      });
+      html+='</div>';
+      box.innerHTML=html;
+    } else { box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_error_generic'))+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminApproveAgentRegistration(agentId){
+  apiCall('/admin?action=agent-approve-registration','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_agent_registration_approved')); adminLoadAgentPending(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminRejectAgentRegistration(agentId){
+  var reason = prompt(at('admin_reject_reason_prompt')||'Raison du rejet ?');
+  if(!reason) return;
+  apiCall('/admin?action=agent-reject-registration','POST',{admin_password:window._adminPw,agent_id:agentId,reason:reason},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_agent_registration_rejected')); adminLoadAgentPending(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 
 function adminLoadAgentRecharges(){
