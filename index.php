@@ -4515,6 +4515,7 @@ function route_admin($action) {
         'agent-documents'          => admin_agent_documents(),
         'agent-approve-registration' => admin_agent_approve_registration(),
         'agent-reject-registration'  => admin_agent_reject_registration(),
+        'agent-reopen-registration'  => admin_agent_reopen_registration(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
@@ -6700,7 +6701,8 @@ function admin_agent_search() {
             ORDER BY t.created_at DESC LIMIT 30",[$awid,$awid,$awid])->fetchAll();
     }
     ok(['id'=>$a['id'],'full_name'=>$a['full_name'],'phone_number'=>$a['phone_number'],
-        'address'=>$a['address'],'status'=>$a['status'],'verified'=>(bool)($a['verified']??false),
+        'address'=>$a['address'],'status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']??null,
+        'verified'=>(bool)($a['verified']??false),
         'is_distributor'=>(bool)($a['is_distributor']??false),
         'created_at'=>$a['created_at'],'country'=>$a['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'transactions'=>$txs,'known_devices'=>$devices,
@@ -6912,6 +6914,23 @@ function admin_agent_reject_registration() {
     q("UPDATE agents SET status='rejected', rejection_reason=? WHERE id=?",[$reason,$id]);
     admin_log('agent_reject_registration','success',$a['phone_number'],$reason);
     ok(null,'Demande d\'agrement refusee');
+}
+
+// Rouvre une demande rejetee par erreur (ou apres reconsideration) - remet
+// en file d'attente sans obliger l'agent a renvoyer ses documents ni a
+// recreer un compte (le numero reste bloque pour une nouvelle inscription
+// tant que ce compte existe).
+function admin_agent_reopen_registration() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['agent_id']??'');
+    if(!$id) fail('Agent requis');
+    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    if(!$a) fail('Agent introuvable',404);
+    if($a['status'] !== 'rejected') fail('Seule une demande refusee peut etre rouverte');
+    q("UPDATE agents SET status='pending_approval', rejection_reason=NULL WHERE id=?",[$id]);
+    admin_log('agent_reopen_registration','success',$a['phone_number'],'Demande rouverte pour '.$a['full_name']);
+    ok(null,'Demande rouverte, remise en attente');
 }
 
 // CRUD des 26 paliers de commission - meme pattern que

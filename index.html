@@ -1731,6 +1731,9 @@ var I18N = {
   admin_agent_recharge_reject_reason_amount: {fr:'Montant incorrect', en:'Incorrect amount'},
   admin_agent_recharge_reject_reason_duplicate: {fr:'Demande en double', en:'Duplicate request'},
   admin_agent_recharge_reject_confirm_msg: {fr:'Cette demande de recharge sera refusée.', en:'This recharge request will be rejected.'},
+  admin_status_rejected: {fr:'Refusée', en:'Rejected'},
+  admin_agent_rejection_reason_label: {fr:'Raison du refus :', en:'Rejection reason:'},
+  admin_reopen_registration_btn: {fr:'Reconsidérer cette demande', en:'Reconsider this request'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4568,16 +4571,21 @@ function adminSearchAgent(){
   apiCall('/admin?action=agent-search','POST',{admin_password:window._adminPw,phone:phone},'').then(function(res){
     if(res&&res.success&&res.data){
       var a=res.data;
-      var statusColor = a.status==='blocked' ? 'var(--re)' : 'var(--g)';
+      var statusLabels = {active:at('admin_status_active'), blocked:at('admin_status_blocked'), pending_approval:at('admin_status_pending'), rejected:at('admin_status_rejected')};
+      var statusColors = {active:'var(--g)', blocked:'var(--re)', pending_approval:'var(--gold)', rejected:'var(--re)'};
+      var statusColor = statusColors[a.status] || 'var(--t3)';
+      var statusLabel = statusLabels[a.status] || a.status;
       var html='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;font-size:12px;line-height:1.9">'
         +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+adminEsc(a.full_name)+(a.verified?' <span style="color:var(--g)" title="Agent vérifié">✓</span>':'')+'</div>'
-        +'<b data-i18n-admin="admin_fiche_status">Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(a.status==='blocked'?at('admin_status_blocked'):at('admin_status_active'))+'</span><br>'
+        +'<b data-i18n-admin="admin_fiche_status">Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+statusLabel+'</span><br>'
         +'<b data-i18n-admin="admin_fiche_phone">Téléphone :</b> '+(a.phone_number||'-')+'<br>'
         +'<b data-i18n-admin="admin_fiche_country">Pays :</b> '+(a.country||'-')+' &middot; <b data-i18n-admin="admin_fiche_currency">Devise :</b> '+(a.currency||'XOF')+'<br>'
         +'<b data-i18n-admin="admin_agent_float_label">Float :</b> '+fmtCur(a.balance||0, a.currency)+'<br>'
         +'<b data-i18n-admin="admin_agent_distributor_label">Distributeur :</b> '+(a.is_distributor?'<span style="color:var(--g);font-weight:700" data-i18n-admin="admin_yes_label">Oui</span>':'<span style="color:var(--t3)" data-i18n-admin="admin_no_label">Non</span>')+'<br>'
+        +(a.status==='rejected' && a.rejection_reason ? ('<b data-i18n-admin="admin_agent_rejection_reason_label">Raison du refus :</b> '+adminEsc(a.rejection_reason)+'<br>') : '')
         +'<b data-i18n-admin="admin_fiche_created">Créé le :</b> '+(a.created_at?new Date(a.created_at).toLocaleString():'-')
         +'</div>'
+        +(a.status==='rejected' ? ('<button style="width:100%;padding:13px;margin-top:12px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminReopenAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reopen_registration_btn">Reconsidérer cette demande</button>') : '')
         +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(a.is_distributor?'var(--rl)':'var(--gl)')+';color:'+(a.is_distributor?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleAgentDistributor(\''+a.id+'\')">'+(a.is_distributor?at('admin_remove_distributor_btn'):at('admin_make_distributor_btn'))+'</button>';
 
       html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_test_credit_title">Créditer (test)</div>'
@@ -4653,6 +4661,12 @@ function adminSearchAgent(){
 
 function adminToggleAgentDistributor(agentId){
   apiCall('/admin?action=agent-toggle-distributor','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
+    if(res&&res.success){ toast(res.message||at('admin_error_generic')); adminSearchAgent(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminReopenAgentRegistration(agentId){
+  apiCall('/admin?action=agent-reopen-registration','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
     if(res&&res.success){ toast(res.message||at('admin_error_generic')); adminSearchAgent(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
