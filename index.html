@@ -1665,7 +1665,7 @@ var I18N = {
   admin_agents_desc: {fr:"Recherche un compte agent de dépôt/retrait par numéro de téléphone (indépendant d'un éventuel compte personnel ou marchand sur le même numéro).", en:'Search a deposit/withdrawal agent account by phone number (independent of any personal or merchant account on the same number).'},
   admin_agent_phone_label: {fr:"Numéro de l'agent", en:"Agent's phone number"},
   admin_agents_recharge_title: {fr:'Demandes de recharge de float en attente', en:'Pending float recharge requests'},
-  admin_agents_recharge_desc: {fr:"Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...).", en:'An agent requests to recharge their float from ROM_GUICHET; only approve after actually receiving the off-app payment (transfer, cash...).'},
+  admin_agents_recharge_desc: {fr:"Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...). L'agent doit vous communiquer en personne le code de confirmation à 6 chiffres généré avec sa demande — sans ce code, impossible d'approuver.", en:"An agent requests to recharge their float from ROM_GUICHET; only approve after actually receiving the off-app payment (transfer, cash...). The agent must give you, in person, the 6-digit confirmation code generated with their request — approval is impossible without it."},
   admin_refresh_list_btn: {fr:'Actualiser la liste', en:'Refresh list'},
   admin_click_refresh: {fr:'Clique sur "Actualiser la liste" pour charger', en:'Click "Refresh list" to load'},
   admin_agents_tiers_title: {fr:'Paliers de commission journalière', en:'Daily commission tiers'},
@@ -1710,6 +1710,7 @@ var I18N = {
   admin_remove_distributor_btn: {fr:'Retirer le statut distributeur', en:'Remove distributor status'},
   admin_make_distributor_btn: {fr:'Faire de cet agent un distributeur', en:'Make this agent a distributor'},
   admin_pending_distributor_prefix: {fr:'→ En attente du distributeur :', en:'→ Awaiting distributor:'},
+  admin_confirmation_code_prompt: {fr:"Code de confirmation à 6 chiffres communiqué par l'agent ?", en:'6-digit confirmation code given by the agent?'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4706,7 +4707,9 @@ function adminLoadAgentRecharges(){
 }
 
 function adminApproveAgentRecharge(id){
-  apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id},'').then(function(res){
+  var code = prompt(at('admin_confirmation_code_prompt')||'Code de confirmation ?');
+  if(!code) return;
+  apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id,code:code.trim()},'').then(function(res){
     if(res&&res.success){ toast(at('admin_agent_recharge_approved')); adminLoadAgentRecharges(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });

@@ -2490,12 +2490,18 @@ function agent_request_recharge() {
         $distributorId = $dist['id'];
     }
     $id = uid();
-    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,distributor_id) VALUES (?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$distributorId]);
-    ok(['id'=>$id],'Demande de recharge envoyee');
+    // Code a 6 chiffres que l'agent devra communiquer en personne (verbalement,
+    // par appel...) a celui qui approuve - preuve d'un contact reel entre les
+    // deux parties avant que l'argent ne bouge, jamais expose dans les listes.
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,distributor_id,confirmation_code) VALUES (?,?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$distributorId,$code]);
+    ok(['id'=>$id,'confirmation_code'=>$code],'Demande de recharge envoyee');
 }
 function agent_recharge_history() {
     $pl = agent_auth();
-    $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
+    // confirmation_code inclus ici uniquement : c'est LE demandeur qui doit
+    // pouvoir le retrouver pour le communiquer a celui qui approuve.
+    $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason,confirmation_code FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
     ok(['requests'=>$rows]);
 }
 
@@ -2515,12 +2521,15 @@ function agent_list_incoming_recharge_requests() {
 function agent_approve_recharge_request() {
     $pl = agent_auth(); $b = body();
     $id = trim($b['id'] ?? '');
+    $code = trim($b['code'] ?? '');
     if(!$id) fail('Demande requise');
+    if(!$code) fail('Code de confirmation requis');
     $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r || $r['distributor_id'] !== $pl['sub']) fail('Demande introuvable',404);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
+    if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
     $distWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
     $reqWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
     if(!$distWallet || !$reqWallet) fail('Portefeuille introuvable',404);
@@ -6685,12 +6694,17 @@ function admin_agent_list_recharge_requests() {
     // Visibilite sur les demandes ciblant un distributeur (dist_name/dist_phone
     // non-null) meme si l'admin n'agit plus dessus - c'est le distributeur
     // lui-meme qui approuve/rejette (voir agent_approve_recharge_request()).
+    // Colonnes listees explicitement (jamais r.*) : confirmation_code ne doit
+    // JAMAIS transiter par cette liste, seul le demandeur doit pouvoir le
+    // retrouver (voir agent_recharge_history()), sinon le code ne prouve
+    // plus un contact reel entre les deux parties.
+    $cols = "r.id,r.agent_id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,r.distributor_id";
     if($status !== ''){
-        $rows = q("SELECT r.*, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
+        $rows = q("SELECT $cols, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
             JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
             WHERE r.status=? ORDER BY r.created_at ASC",[$status])->fetchAll();
     } else {
-        $rows = q("SELECT r.*, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
+        $rows = q("SELECT $cols, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
             JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
             ORDER BY r.created_at DESC LIMIT 100")->fetchAll();
     }
@@ -6702,10 +6716,13 @@ function admin_agent_approve_recharge() {
     check_admin_password($b);
     check_earnings_password($b);
     $id = trim($b['id'] ?? '');
+    $code = trim($b['code'] ?? '');
     if(!$id) fail('Demande requise');
+    if(!$code) fail('Code de confirmation requis');
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
+    if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
     $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
     if(!$aw) fail('Portefeuille agent introuvable',404);
     db()->beginTransaction();
@@ -7417,6 +7434,13 @@ function route_install() {
     // inchange) ; renseigne = va au distributeur cible, qui approuve lui-meme
     // depuis son propre appareil sans mot de passe admin.
     "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS distributor_id VARCHAR(36)",
+    // Code de confirmation a 6 chiffres, genere a la demande, partage
+    // verbalement/en personne par l'agent a celui qui approuve (distributeur
+    // ou admin). Jamais renvoye dans les listes (file d'attente distributeur
+    // ou admin) - seul le demandeur le voit, sinon ca ne prouve plus rien.
+    // Impossible a reutiliser : une fois la demande approuvee/rejetee, son
+    // statut n'est plus 'pending' et le code ne peut plus rien valider.
+    "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS confirmation_code VARCHAR(10)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
