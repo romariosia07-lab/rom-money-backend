@@ -783,7 +783,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('earnings')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_earnings">💰 Gains ROM</span></button>
       <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_alerts">⚠ Alertes</span><span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
-      <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span>Marchands</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_merchants">Marchands</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('agents')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_agents">Agents</span></button>
       <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_account">Compte</span></button>
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
@@ -1120,6 +1121,28 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div id="mrclist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="mrclist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+    </div>
+
+    <div id="admin-panel-agents" class="admin-panel" style="display:none">
+      <div class="admin-stitle" data-i18n-admin="admin_agents_title">Agents ROM_GUICHET</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_desc">Recherche un compte agent de dépôt/retrait par numéro de téléphone (indépendant d'un éventuel compte personnel ou marchand sur le même numéro).</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_agent_phone_label">Numéro de l'agent</label><input class="finput" id="agt-phone" placeholder="0000000000" oninput="if(!this.value.trim())document.getElementById('agt-result').innerHTML=''"></div>
+      <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchAgent()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
+      <div id="agt-result"></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_recharge_title">Demandes de recharge de float en attente</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_recharge_desc">Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...).</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentRecharges()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
+      <div id="agt-recharge-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_tiers_title">Paliers de commission journalière</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_tiers_desc">Toujours exprimés en XOF (convertis automatiquement dans la devise réelle de chaque agent). La commission est un total pour la journée entière, pas par opération.</div>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentTiers()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
+      <div id="agt-tiers-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_list_title">Liste des agents</div>
+      <div id="agtlist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
+      <div id="agtlist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
 
     <div id="admin-panel-account" class="admin-panel" style="display:none">
@@ -1636,6 +1659,52 @@ var I18N = {
   admin_tx_ref_label: {fr:'Référence', en:'Reference'},
   admin_tx_search_btn: {fr:'Rechercher', en:'Search'},
   admin_merchants_title: {fr:'Marchands ROM_BUSINESS', en:'ROM_BUSINESS Merchants'},
+  admin_tab_merchants: {fr:'Marchands', en:'Merchants'},
+  admin_tab_agents: {fr:'Agents', en:'Agents'},
+  admin_agents_title: {fr:'Agents ROM_GUICHET', en:'ROM_GUICHET Agents'},
+  admin_agents_desc: {fr:"Recherche un compte agent de dépôt/retrait par numéro de téléphone (indépendant d'un éventuel compte personnel ou marchand sur le même numéro).", en:'Search a deposit/withdrawal agent account by phone number (independent of any personal or merchant account on the same number).'},
+  admin_agent_phone_label: {fr:"Numéro de l'agent", en:"Agent's phone number"},
+  admin_agents_recharge_title: {fr:'Demandes de recharge de float en attente', en:'Pending float recharge requests'},
+  admin_agents_recharge_desc: {fr:"Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...).", en:'An agent requests to recharge their float from ROM_GUICHET; only approve after actually receiving the off-app payment (transfer, cash...).'},
+  admin_refresh_list_btn: {fr:'Actualiser la liste', en:'Refresh list'},
+  admin_click_refresh: {fr:'Clique sur "Actualiser la liste" pour charger', en:'Click "Refresh list" to load'},
+  admin_agents_tiers_title: {fr:'Paliers de commission journalière', en:'Daily commission tiers'},
+  admin_agents_tiers_desc: {fr:'Toujours exprimés en XOF (convertis automatiquement dans la devise réelle de chaque agent). La commission est un total pour la journée entière, pas par opération.', en:"Always expressed in XOF (automatically converted into each agent's real currency). The commission is a total for the whole day, not per operation."},
+  admin_agents_list_title: {fr:'Liste des agents', en:'Agent list'},
+  admin_fiche_status: {fr:'Statut :', en:'Status:'},
+  admin_fiche_phone: {fr:'Téléphone :', en:'Phone:'},
+  admin_fiche_country: {fr:'Pays :', en:'Country:'},
+  admin_fiche_currency: {fr:'Devise :', en:'Currency:'},
+  admin_fiche_created: {fr:'Créé le :', en:'Created on:'},
+  admin_agent_float_label: {fr:'Float :', en:'Float:'},
+  admin_test_credit_title: {fr:'Créditer (test)', en:'Credit (test)'},
+  admin_amount_ph: {fr:'Montant', en:'Amount'},
+  admin_reason_feature_test: {fr:'Test de fonctionnalité', en:'Feature test'},
+  admin_reason_debug: {fr:'Débogage', en:'Debugging'},
+  admin_reason_demo: {fr:'Démonstration', en:'Demo'},
+  admin_credit_btn: {fr:'Créditer', en:'Credit'},
+  admin_agent_devices_title: {fr:'Appareils connectés', en:'Connected devices'},
+  admin_no_known_device: {fr:'Aucun appareil connu', en:'No known device'},
+  admin_first_seen: {fr:'Première connexion :', en:'First seen:'},
+  admin_last_seen: {fr:'Dernière connexion :', en:'Last seen:'},
+  admin_agent_recharge_history_title: {fr:'Historique des demandes de recharge', en:'Recharge request history'},
+  admin_no_recharge_request: {fr:'Aucune demande', en:'No request'},
+  admin_agent_tx_title: {fr:'Transactions récentes', en:'Recent transactions'},
+  admin_delete_account_title: {fr:'Supprimer définitivement ce compte', en:'Permanently delete this account'},
+  admin_confirm_phone_label: {fr:'Retape le même numéro pour confirmer', en:'Retype the same number to confirm'},
+  admin_reason_agent_request: {fr:"Demande de l'agent", en:"Agent's request"},
+  admin_reason_test_account: {fr:'Compte de test', en:'Test account'},
+  admin_no_agent_account_for_number: {fr:'Aucun compte agent pour ce numéro', en:'No agent account for this number'},
+  admin_approve_btn: {fr:'Approuver', en:'Approve'},
+  admin_reject_btn: {fr:'Rejeter', en:'Reject'},
+  admin_agent_recharge_approved: {fr:'Recharge approuvée et créditée', en:'Recharge approved and credited'},
+  admin_agent_recharge_rejected: {fr:'Demande rejetée', en:'Request rejected'},
+  admin_reject_reason_prompt: {fr:'Raison du rejet ?', en:'Reason for rejection?'},
+  admin_tier_unlimited: {fr:'illimité', en:'unlimited'},
+  admin_save_btn: {fr:'Sauver', en:'Save'},
+  admin_invalid_commission: {fr:'Commission invalide', en:'Invalid commission'},
+  admin_tier_updated: {fr:'Palier mis à jour', en:'Tier updated'},
+  admin_no_agent_found: {fr:'Aucun agent trouvé', en:'No agent found'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -3783,7 +3852,7 @@ function adminReject(id){
 }
 
 function adminTab(name){
-  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','alerts','settings','earnings'].forEach(function(t){
+  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','agents','alerts','settings','earnings'].forEach(function(t){
     var panel=document.getElementById('admin-panel-'+t);
     if(panel) panel.style.display=(t===name)?'block':'none';
   });
@@ -3800,6 +3869,7 @@ function adminTab(name){
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
   if(name==='merchants') adminLoadMerchants(1);
+  if(name==='agents') adminLoadAgents(1);
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
   if(name==='earnings') adminShowEarnings();
@@ -4455,6 +4525,241 @@ function adminMerchantTestCreditWallet(phone){
 }
 function adminEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// ROM_GUICHET — Onglet admin "Agents" (Phase 2). Meme structure que
+// l'outillage marchand ci-dessus, perimetre volontairement plus reduit
+// (pas de badge verifie/blocage/changement de pays/notes ici, voir le plan).
+// ============================================================
+function adminSearchAgent(){
+  var phone=document.getElementById('agt-phone').value.trim();
+  var box=document.getElementById('agt-result');
+  if(!phone){ toast(at('admin_phone_required'), true); return; }
+  box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_searching')+'</div>';
+  apiCall('/admin?action=agent-search','POST',{admin_password:window._adminPw,phone:phone},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var a=res.data;
+      var statusColor = a.status==='blocked' ? 'var(--re)' : 'var(--g)';
+      var html='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;font-size:12px;line-height:1.9">'
+        +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+adminEsc(a.full_name)+(a.verified?' <span style="color:var(--g)" title="Agent vérifié">✓</span>':'')+'</div>'
+        +'<b data-i18n-admin="admin_fiche_status">Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(a.status==='blocked'?at('admin_status_blocked'):at('admin_status_active'))+'</span><br>'
+        +'<b data-i18n-admin="admin_fiche_phone">Téléphone :</b> '+(a.phone_number||'-')+'<br>'
+        +'<b data-i18n-admin="admin_fiche_country">Pays :</b> '+(a.country||'-')+' &middot; <b data-i18n-admin="admin_fiche_currency">Devise :</b> '+(a.currency||'XOF')+'<br>'
+        +'<b data-i18n-admin="admin_agent_float_label">Float :</b> '+fmtCur(a.balance||0, a.currency)+'<br>'
+        +'<b data-i18n-admin="admin_fiche_created">Créé le :</b> '+(a.created_at?new Date(a.created_at).toLocaleString():'-')
+        +'</div>';
+
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_test_credit_title">Créditer (test)</div>'
+        +(window._earningsPw ? (
+          '<input class="finput" id="agttestcredit-amt" type="number" inputmode="numeric" placeholder="Montant" data-i18n-admin-ph="admin_amount_ph" style="margin-bottom:6px">'
+          +'<select class="finput" id="agttestcredit-reason-sel" onchange="toggleReasonCustom(\'agttestcredit\')" style="margin-bottom:6px">'
+          +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
+          +'<option value="Test de fonctionnalité" data-i18n-admin="admin_reason_feature_test">Test de fonctionnalité</option>'
+          +'<option value="Débogage" data-i18n-admin="admin_reason_debug">Débogage</option>'
+          +'<option value="Démonstration" data-i18n-admin="admin_reason_demo">Démonstration</option>'
+          +'<option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>'
+          +'</select>'
+          +'<input class="finput" id="agttestcredit-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-bottom:6px">'
+          +'<button class="btn-w" style="margin-top:0" onclick="adminAgentTestCreditWallet(\''+a.phone_number+'\')" data-i18n-admin="admin_credit_btn">Créditer</button>'
+          +'<div id="agttestcredit-status" style="margin-top:6px"></div>'
+        ) : (
+          '<div style="font-size:11px;color:var(--t3)" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>'
+        ));
+
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_agent_devices_title">Appareils connectés ('+((a.known_devices||[]).length)+')</div>'
+        +((a.known_devices||[]).length===0
+          ? '<div class="admin-empty" data-i18n-admin="admin_no_known_device">Aucun appareil connu</div>'
+          : (a.known_devices||[]).map(function(dv){
+              return '<div style="padding:6px 0;border-top:1px solid var(--bord);line-height:1.7;font-size:12px">'
+                +'<div style="font-weight:700" title="'+(dv.user_agent||'').replace(/"/g,'&quot;')+'">'+parseUserAgent(dv.user_agent)+'</div>'
+                +'<div>'+at('admin_first_seen')+' '+new Date(dv.first_seen).toLocaleString()+'</div>'
+                +'<div>'+at('admin_last_seen')+' '+new Date(dv.last_seen).toLocaleString()+'</div>'
+                +'</div>';
+            }).join(''));
+
+      var reqs = a.recharge_requests||[];
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_agent_recharge_history_title">Historique des demandes de recharge ('+reqs.length+')</div>';
+      html += reqs.length===0 ? '<div class="admin-empty" data-i18n-admin="admin_no_recharge_request">Aucune demande</div>' : reqs.map(function(r){
+        var stColor = r.status==='approved' ? 'var(--g)' : (r.status==='rejected' ? 'var(--re)' : 'var(--gold)');
+        return '<div style="padding:6px 0;border-top:1px solid var(--bord);font-size:12px">'
+          +fmtCur(r.amount, a.currency)+' — <span style="color:'+stColor+';font-weight:700">'+r.status+'</span><br>'
+          +'<span style="color:var(--t3);font-size:10px">'+new Date(r.created_at).toLocaleString()+(r.note?' — '+adminEsc(r.note):'')+'</span>'
+          +'</div>';
+      }).join('');
+
+      var atxs = a.transactions||[];
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_agent_tx_title">Transactions récentes ('+atxs.length+')</div>';
+      html += atxs.length===0 ? '<div class="admin-empty" data-i18n-admin="admin_no_tx_found">Aucune transaction trouvée</div>' : atxs.map(function(t){
+        var dirColor = t.direction==='credit' ? 'var(--g)' : 'var(--re)';
+        var counterparty = t.customer_name || '-';
+        return '<div style="padding:6px 0;border-top:1px solid var(--bord);font-size:12px">'
+          +'<span style="color:'+dirColor+';font-weight:700">'+(t.direction==='credit'?'+':'-')+fmtCur(t.amount, a.currency)+'</span>'
+          +' — '+adminEsc(t.type)+' — '+adminEsc(counterparty)+'<br>'
+          +'<span style="color:var(--t3);font-size:10px">'+new Date(t.created_at).toLocaleString()+' — '+adminEsc(t.reference)+'</span>'
+          +'</div>';
+      }).join('');
+
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px;color:var(--re)" data-i18n-admin="admin_delete_account_title">Supprimer définitivement ce compte</div>'
+        +'<div class="frow"><label class="flabel" data-i18n-admin="admin_confirm_phone_label">Retape le même numéro pour confirmer</label><input class="finput" id="agt-del-phone-confirm" placeholder="'+a.phone_number+'"></div>'
+        +'<div class="frow" style="margin-bottom:0"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>'
+        +'<select class="finput" id="agt-del-reason-sel" onchange="toggleReasonCustom(\'agt-del\')">'
+        +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
+        +'<option value="Demande de l\'agent" data-i18n-admin="admin_reason_agent_request">Demande de l\'agent</option>'
+        +'<option value="Compte de test" data-i18n-admin="admin_reason_test_account">Compte de test</option>'
+        +'<option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>'
+        +'</select>'
+        +'<input class="finput" id="agt-del-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">'
+        +'</div>'
+        +'<button style="width:100%;padding:13px;margin-top:10px;background:var(--rl);color:var(--re);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminDeleteAgentAccount(\''+a.phone_number+'\')" data-i18n-admin="admin_delete_definitively_btn">Supprimer définitivement ce compte</button>';
+
+      box.innerHTML=html;
+      applyAdminLang();
+    } else {
+      box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+((res&&res.message)||at('admin_no_agent_account_for_number'))+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+var _agentTestCreditInFlight = false;
+function adminAgentTestCreditWallet(phone){
+  if(_agentTestCreditInFlight) return;
+  var amt = parseFloat(document.getElementById('agttestcredit-amt').value)||0;
+  var reason = getReasonValue('agttestcredit');
+  var statusEl = document.getElementById('agttestcredit-status');
+  if(amt<=0){ toast(at('admin_earnings_amount_invalid'), true); return; }
+  if(!reason){ toast(at('admin_test_credit_reason_required'), true); return; }
+  _agentTestCreditInFlight = true;
+  apiCall('/admin?action=agent-test-credit-wallet','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,phone:phone,amount:amt,reason:reason},'').then(function(res){
+    _agentTestCreditInFlight = false;
+    if(res&&res.success){
+      toast(at('admin_test_credit_success_toast'));
+      adminSearchAgent();
+    } else {
+      if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+((res&&res.message)||at('admin_error_generic'))+'</div>';
+    }
+  }).catch(function(){ _agentTestCreditInFlight = false; if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:11px">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminDeleteAgentAccount(phone){
+  var confirmPhone=document.getElementById('agt-del-phone-confirm').value.trim();
+  var reason=getReasonValue('agt-del');
+  if(!phone||!confirmPhone||!reason){ toast(at('admin_phone_x2_reason_required'), true); return; }
+  if(phone!==confirmPhone){ toast(at('admin_phones_mismatch'), true); return; }
+  adminOpenConfirmModal({
+    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_delete_confirm_msg').replace('{phone}',phone),
+    needsReason:false, confirmLabel:at('admin_delete_definitively_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/admin?action=agent-delete-account','POST',{admin_password:window._adminPw,phone:phone,confirm_phone:confirmPhone,reason:reason},'').then(function(res){
+        if(res&&res.success){
+          toast(at('admin_account_deleted'));
+          document.getElementById('agt-result').innerHTML='';
+          document.getElementById('agt-phone').value='';
+        } else {
+          toast((res&&res.message)||at('admin_error_generic'), true);
+        }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
+
+function adminLoadAgentRecharges(){
+  var box=document.getElementById('agt-recharge-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=agent-recharge-list','POST',{admin_password:window._adminPw,status:'pending'},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.requests){
+      var list=res.data.requests;
+      if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_recharge_request')+'</div>'; return; }
+      var html='';
+      list.forEach(function(r){
+        html+='<div style="border:1px solid var(--bord);border-radius:12px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
+          +'<b>'+adminEsc(r.full_name)+'</b> — '+r.phone_number+'<br>'
+          +'<b data-i18n-admin="admin_amount_ph">Montant :</b> '+fmt(r.amount)+' XOF<br>'
+          +(r.note?('<span style="color:var(--t3)">'+adminEsc(r.note)+'</span><br>'):'')
+          +'<span style="color:var(--t3);font-size:10px">'+new Date(r.created_at).toLocaleString()+'</span>'
+          +'</div>'
+          +(window._earningsPw
+            ? ('<button class="btn-w" style="margin-top:-6px;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
+               +'<button class="btn-w" style="margin-top:0;margin-bottom:14px;background:var(--rl);color:var(--re)" onclick="adminRejectAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>')
+            : ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>'));
+      });
+      box.innerHTML=html;
+      applyAdminLang();
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminApproveAgentRecharge(id){
+  apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_agent_recharge_approved')); adminLoadAgentRecharges(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminRejectAgentRecharge(id){
+  var reason = prompt(at('admin_reject_reason_prompt')||'Raison du rejet ?');
+  if(!reason) return;
+  apiCall('/admin?action=agent-recharge-reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+
+function adminLoadAgentTiers(){
+  var box=document.getElementById('agt-tiers-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=agent-tiers-list','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.tiers){
+      var list=res.data.tiers;
+      var html='<div style="display:flex;flex-direction:column;gap:6px">';
+      list.forEach(function(t){
+        var bandLabel = fmt(t.band_min_xof)+' — '+(t.band_max_xof==null ? at('admin_tier_unlimited') : fmt(t.band_max_xof));
+        html+='<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bord);border-radius:10px;padding:8px 10px">'
+          +'<span style="font-size:11px;color:var(--t2);flex:1">'+bandLabel+' XOF</span>'
+          +'<input class="finput" id="agttier-'+t.id+'" type="number" value="'+t.commission_xof+'" style="margin-bottom:0;width:110px">'
+          +'<button style="padding:8px 12px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:11px" onclick="adminUpdateAgentTier('+t.id+')" data-i18n-admin="admin_save_btn">Sauver</button>'
+          +'</div>';
+      });
+      html+='</div>';
+      box.innerHTML=html;
+      applyAdminLang();
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+function adminUpdateAgentTier(id){
+  var input=document.getElementById('agttier-'+id);
+  var val=parseFloat(input.value);
+  if(isNaN(val)||val<0){ toast(at('admin_invalid_commission'), true); return; }
+  apiCall('/admin?action=agent-tiers-update','POST',{admin_password:window._adminPw,id:id,commission_xof:val},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_tier_updated')); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+
+function adminLoadAgents(page){
+  var box=document.getElementById('agtlist-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=agent-list','POST',{admin_password:window._adminPw,page:page||1},'').then(function(res){
+    if(res&&res.success&&res.data){
+      var list=res.data.agents||[];
+      if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_agent_found')+'</div>'; document.getElementById('agtlist-pagination').innerHTML=''; return; }
+      var html='';
+      list.forEach(function(a){
+        var stColor = a.status==='blocked' ? 'var(--re)' : 'var(--g)';
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--bord);padding:8px 0;font-size:12px;cursor:pointer" onclick="document.getElementById(\'agt-phone\').value=\''+a.phone_number+'\';adminSearchAgent();adminTab(\'agents\')">'
+          +'<span>'+adminEsc(a.full_name)+'<br><span style="color:var(--t3);font-size:10px">'+a.phone_number+'</span></span>'
+          +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+(a.status==='blocked'?at('admin_status_blocked'):at('admin_status_active'))+'</span>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+      var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
+      var totalPages=Math.max(1, Math.ceil(total/perPage));
+      var pagBox=document.getElementById('agtlist-pagination');
+      pagBox.innerHTML='<button class="btn-w" style="margin-bottom:0;padding:8px 14px" '+(curPage<=1?'disabled':'')+' onclick="adminLoadAgents('+(curPage-1)+')">‹</button>'
+        +'<span style="color:var(--t3)">'+curPage+' / '+totalPages+'</span>'
+        +'<button class="btn-w" style="margin-bottom:0;padding:8px 14px" '+(curPage>=totalPages?'disabled':'')+' onclick="adminLoadAgents('+(curPage+1)+')">›</button>';
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 // Ajoute une note admin en texte libre sur le compte actuellement affiche
 // (window._adminNotePhone, defini par adminSearchByPhone()). Append-only,
