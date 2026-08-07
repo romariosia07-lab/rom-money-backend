@@ -38,6 +38,13 @@ define('CANCEL_MINS', 5);
 // ($module/switch plus bas) : un define() est execute dans l'ordre du
 // fichier, contrairement aux fonctions qui sont disponibles partout.
 define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop_photo']);
+// Documents d'agrement agent (ROM_GUICHET) : piece d'identite + photo du
+// local. Meme chiffrement (kyc_encrypt/decrypt), meme table-par-type que
+// MERCHANT_DOC_TYPES ci-dessus, mais ici le compte reste INACTIF
+// (agents.status='pending_approval') tant que ces documents n'ont pas ete
+// examines et approuves par un admin - contrairement au marchand, ou
+// l'envoi de documents ne fait que debloquer un badge declaratif.
+define('AGENT_DOC_TYPES', ['id_recto','id_verso','shop_photo']);
 
 // Cles VAPID pour les notifications Web Push (RFC 8292). Generees une seule
 // fois via OpenSSL (courbe prime256v1) - NE JAMAIS LES CHANGER une fois en
@@ -192,6 +199,22 @@ function agent_auth() {
     if(!$pl || ($pl['typ']??'')!=='agent') fail('Token invalide ou expire',401);
     $status = q("SELECT status FROM agents WHERE id=?",[$pl['sub']])->fetchColumn();
     if($status !== false && $status !== 'active') fail('Compte suspendu ou bloque', 403);
+    if(!empty($pl['device_id'])){
+        $revoked = q("SELECT revoked FROM agent_known_devices WHERE agent_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
+        if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
+    }
+    return $pl;
+}
+// Identique a agent_auth() mais SANS le controle de statut - reservee aux
+// deux seules actions qu'un compte 'pending_approval' (ou 'rejected') doit
+// pouvoir faire malgre tout : envoyer ses documents d'agrement et consulter
+// l'etat de sa demande. Toute action sensible (cash-in, cash-out, recharge)
+// continue d'utiliser agent_auth() sans aucune modification.
+function agent_auth_allow_pending() {
+    $h = $_SERVER["HTTP_AUTHORIZATION"] ?? $_SERVER["REDIRECT_HTTP_AUTHORIZATION"] ?? (function_exists("getallheaders") ? (getallheaders()["Authorization"] ?? "") : "") ?? "";
+    if(!str_starts_with($h,'Bearer ')) fail('Token manquant',401);
+    $pl = jwt_check(substr($h,7));
+    if(!$pl || ($pl['typ']??'')!=='agent') fail('Token invalide ou expire',401);
     if(!empty($pl['device_id'])){
         $revoked = q("SELECT revoked FROM agent_known_devices WHERE agent_id=? AND device_id=?",[$pl['sub'],$pl['device_id']])->fetchColumn();
         if($revoked) fail('Session revoquee depuis un autre appareil. Reconnectez-vous.', 401);
@@ -2197,6 +2220,9 @@ function route_agent($action) {
         'list-incoming-recharges' => agent_list_incoming_recharge_requests(),
         'approve-recharge-request' => agent_approve_recharge_request(),
         'reject-recharge-request'  => agent_reject_recharge_request(),
+        'doc-upload'        => agent_document_upload(),
+        'doc-list'          => agent_document_list(),
+        'application-status' => agent_application_status(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2228,7 +2254,12 @@ function agent_register() {
     try {
         $aid = uid(); $wid = uid();
         $pinh = password_hash($pin, PASSWORD_BCRYPT);
-        q("INSERT INTO agents (id,phone_number,pin_hash,full_name,address,country) VALUES (?,?,?,?,?,?)",
+        // Compte cree INACTIF : agrement obligatoire par un admin (documents
+        // + validation) avant de pouvoir utiliser l'application, contrairement
+        // au statut 'active' par defaut - voir agent_auth() qui bloque deja
+        // tout statut different de 'active', aucune modification necessaire
+        // la-bas.
+        q("INSERT INTO agents (id,phone_number,pin_hash,full_name,address,country,status) VALUES (?,?,?,?,?,?,'pending_approval')",
           [$aid,$phone,$pinh,$fullName,$address?:null,$country]);
         q("INSERT INTO agent_wallets (id,agent_id,currency) VALUES (?,?,?)",[$wid,$aid,country_to_currency($country)]);
         if($deviceId){
@@ -2239,7 +2270,8 @@ function agent_register() {
         }
         $token = jwt_make(['sub'=>$aid,'phone'=>$phone,'typ'=>'agent','device_id'=>$deviceId]);
         db()->commit();
-        ok(['token'=>$token,'agent_id'=>$aid,'full_name'=>$fullName,'address'=>$address],'Compte agent cree',201);
+        ok(['token'=>$token,'agent_id'=>$aid,'full_name'=>$fullName,'address'=>$address,'status'=>'pending_approval'],
+           'Compte agent cree, en attente de validation par un administrateur',201);
     } catch(Exception $e) {
         db()->rollBack();
         log_and_fail($e, 'Erreur creation compte', 500);
@@ -2260,7 +2292,13 @@ function agent_login() {
     }
     if(!$a) fail('Numero ou PIN incorrect', 401);
     agent_pin_check($a['id'], $pin, $a['pin_hash']);
-    if($a['status'] !== 'active') fail('Compte suspendu', 403);
+    // Contrairement a merchant_login()/auth() classique : un compte
+    // 'pending_approval' ou 'rejected' PEUT se connecter (le PIN prouve son
+    // identite) - seul agent_auth() (utilise par cash-in/cash-out/recharge)
+    // reste ferme a tout statut different de 'active'. 'blocked' reste une
+    // vraie fermeture de connexion (compte bloque par un admin, pas juste en
+    // attente d'agrement).
+    if($a['status'] === 'blocked') fail('Compte suspendu', 403);
     if($deviceId){
         $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
         q("INSERT INTO agent_known_devices (agent_id,device_id,user_agent) VALUES (?,?,?)
@@ -2271,7 +2309,8 @@ function agent_login() {
     $token = jwt_make(['sub'=>$a['id'],'phone'=>$phone,'typ'=>'agent','device_id'=>$deviceId]);
     ok(['token'=>$token,'agent_id'=>$a['id'],'full_name'=>$a['full_name'],'address'=>$a['address'],
         'verified'=>(bool)($a['verified']??false),'country'=>$a['country']??null,
-        'balance'=>(float)($w['balance']??0),'currency'=>$w['currency']??'XOF'],'Connexion reussie');
+        'balance'=>(float)($w['balance']??0),'currency'=>$w['currency']??'XOF',
+        'status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']??null],'Connexion reussie');
 }
 
 function agent_balance() {
@@ -2281,6 +2320,48 @@ function agent_balance() {
     if(!$w) fail('Portefeuille introuvable',404);
     ok(['balance'=>(float)$w['balance'],'currency'=>$w['currency'],'full_name'=>$a['full_name'],
         'address'=>$a['address'],'country'=>$a['country']??null,'verified'=>(bool)($a['verified']??false)]);
+}
+
+// ── Agrement agent (documents + statut) ── mirror de merchant_document_upload()/
+// merchant_document_list() (index.php:963-988), avec agent_auth_allow_pending()
+// au lieu de agent_auth() puisque ces deux actions doivent rester accessibles
+// meme avant validation admin.
+function agent_document_upload() {
+    $pl = agent_auth_allow_pending(); $b = body();
+    $docType = trim($b['doc_type'] ?? '');
+    $photo = trim($b['photo'] ?? '');
+    if(!in_array($docType, AGENT_DOC_TYPES, true)) fail('Type de document invalide');
+    if(!$photo) fail('Photo requise');
+    if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
+    $encrypted = kyc_encrypt($photo);
+    try {
+        q("INSERT INTO agent_documents (agent_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())
+           ON CONFLICT (agent_id,doc_type) DO UPDATE SET photo=EXCLUDED.photo, uploaded_at=NOW()",
+          [$pl['sub'],$docType,$encrypted]);
+    } catch(Exception $e) {
+        log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
+    }
+    ok(['uploaded_at'=>date('c')], 'Document enregistre');
+}
+
+function agent_document_list() {
+    $pl = agent_auth_allow_pending();
+    try {
+        $rows = q("SELECT doc_type, uploaded_at FROM agent_documents WHERE agent_id=?",[$pl['sub']])->fetchAll();
+    } catch(Exception $e) {
+        $rows = [];
+    }
+    ok(['documents'=>$rows]);
+}
+
+// Permet a un agent 'pending_approval'/'rejected' de savoir ou en est sa
+// demande, sans avoir besoin de se reconnecter (agent_login() renvoie deja
+// le statut, mais un agent deja connecte doit pouvoir le revoir aussi).
+function agent_application_status() {
+    $pl = agent_auth_allow_pending();
+    $a = q("SELECT status,rejection_reason FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    if(!$a) fail('Compte introuvable',404);
+    ok(['status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']]);
 }
 
 function agent_devices() {
@@ -4430,6 +4511,10 @@ function route_admin($action) {
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
         'agent-toggle-distributor' => admin_agent_toggle_distributor(),
+        'agent-pending-list'       => admin_agent_list_pending(),
+        'agent-documents'          => admin_agent_documents(),
+        'agent-approve-registration' => admin_agent_approve_registration(),
+        'agent-reject-registration'  => admin_agent_reject_registration(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
@@ -6775,6 +6860,60 @@ function admin_agent_toggle_distributor() {
     ok(['is_distributor'=>(bool)$newVal],$newVal?'Statut distributeur accorde':'Statut distributeur retire');
 }
 
+// ── Agrement agent (documents + activation) ──
+// Pas de check_earnings_password() ici : approuver/rejeter une inscription
+// n'autorise ni ne deplace d'argent, seulement l'acces a l'application -
+// meme logique que admin_agent_toggle_distributor() ci-dessus.
+function admin_agent_list_pending() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT id,full_name,phone_number,country,created_at FROM agents WHERE status='pending_approval' ORDER BY created_at ASC")->fetchAll();
+    ok(['agents'=>$rows]);
+}
+
+function admin_agent_documents() {
+    $b = body();
+    check_admin_password($b);
+    $agentId = trim($b['agent_id'] ?? '');
+    if(!$agentId) fail('Agent requis');
+    try {
+        $rows = q("SELECT doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type",[$agentId])->fetchAll();
+    } catch(Exception $e) {
+        $rows = [];
+    }
+    foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
+    unset($r);
+    ok(['documents'=>$rows]);
+}
+
+function admin_agent_approve_registration() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['agent_id']??'');
+    if(!$id) fail('Agent requis');
+    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    if(!$a) fail('Agent introuvable',404);
+    if($a['status'] !== 'pending_approval') fail('Cette demande a deja ete traitee');
+    q("UPDATE agents SET status='active', rejection_reason=NULL WHERE id=?",[$id]);
+    admin_log('agent_approve_registration','success',$a['phone_number'],'Agent '.$a['full_name'].' agree et active');
+    ok(null,'Agent agree et active');
+}
+
+function admin_agent_reject_registration() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['agent_id']??'');
+    $reason = trim($b['reason']??'');
+    if(!$id) fail('Agent requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    if(!$a) fail('Agent introuvable',404);
+    if($a['status'] !== 'pending_approval') fail('Cette demande a deja ete traitee');
+    q("UPDATE agents SET status='rejected', rejection_reason=? WHERE id=?",[$reason,$id]);
+    admin_log('agent_reject_registration','success',$a['phone_number'],$reason);
+    ok(null,'Demande d\'agrement refusee');
+}
+
 // CRUD des 26 paliers de commission - meme pattern que
 // admin_countries_list()/admin_country_toggle() (une vraie table, pas un
 // reglage app_settings scalaire : aucun precedent de tableau dans
@@ -7390,6 +7529,21 @@ function route_install() {
     // par un admin standard (pas earnings - ne cree pas d'argent, ne fait
     // que deleguer la capacite de rediriger du float deja existant).
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_distributor SMALLINT DEFAULT 0",
+    // Raison du refus d'agrement (obligatoire, journalisee) - meme principe
+    // que reject_reason sur agent_recharge_requests.
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(255)",
+    // Documents d'agrement (piece d'identite + photo du local) - mirror exact
+    // de merchant_documents : un seul enregistrement par (agent, type de
+    // document), renvoyer le meme type remplace l'ancien.
+    "CREATE TABLE IF NOT EXISTS agent_documents (
+        id SERIAL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        doc_type VARCHAR(30) NOT NULL,
+        photo TEXT NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(agent_id, doc_type)
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_documents_agent ON agent_documents(agent_id)",
     "CREATE TABLE IF NOT EXISTS agent_wallets (
         id VARCHAR(36) PRIMARY KEY,
         agent_id VARCHAR(36) NOT NULL UNIQUE,
