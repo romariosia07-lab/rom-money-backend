@@ -1715,7 +1715,8 @@ var I18N = {
   admin_remove_distributor_btn: {fr:'Retirer le statut distributeur', en:'Remove distributor status'},
   admin_make_distributor_btn: {fr:'Faire de cet agent un distributeur', en:'Make this agent a distributor'},
   admin_pending_distributor_prefix: {fr:'→ En attente du distributeur :', en:'→ Awaiting distributor:'},
-  admin_confirmation_code_prompt: {fr:"Code de confirmation à 6 chiffres communiqué par l'agent ?", en:'6-digit confirmation code given by the agent?'},
+  admin_confirmation_code_label: {fr:"Code de confirmation (communiqué par l'agent)", en:'Confirmation code (given by the agent)'},
+  admin_confirmation_code_required: {fr:'Code de confirmation requis', en:'Confirmation code required'},
   admin_agents_pending_title: {fr:"Demandes d'agrément en attente", en:'Pending approval requests'},
   admin_agents_pending_desc: {fr:"Un nouvel agent ne peut pas utiliser l'application tant que son dossier (pièce d'identité + photo du local) n'a pas été examiné et approuvé.", en:'A new agent cannot use the app until their file (ID document + premises photo) has been reviewed and approved.'},
   admin_no_pending_agent: {fr:'Aucune demande en attente', en:'No pending request'},
@@ -4834,7 +4835,9 @@ function adminLoadAgentRecharges(){
           +(r.dist_phone
             ? ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px">'+at('admin_pending_distributor_prefix')+' '+adminEsc(r.dist_name)+' ('+r.dist_phone+')</div>')
             : (window._earningsPw
-              ? ('<button class="btn-w" style="margin-top:-6px;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
+              ? ('<div class="frow" style="margin-top:-6px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_confirmation_code_label">Code de confirmation (communiqué par l\'agent)</label>'
+                 +'<input class="finput" id="agtrchcode-'+r.id+'" maxlength="6" inputmode="numeric" placeholder="000000" style="margin-bottom:0"></div>'
+                 +'<button class="btn-w" style="margin-top:0;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
                  +'<div class="frow" style="margin-top:8px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>'
                  +'<select class="finput" id="agtrchrej-'+r.id+'-reason-sel" onchange="toggleReasonCustom(\'agtrchrej-'+r.id+'\')">'
                  +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
@@ -4855,9 +4858,10 @@ function adminLoadAgentRecharges(){
 }
 
 function adminApproveAgentRecharge(id){
-  var code = prompt(at('admin_confirmation_code_prompt')||'Code de confirmation ?');
-  if(!code) return;
-  apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id,code:code.trim()},'').then(function(res){
+  var codeInput = document.getElementById('agtrchcode-'+id);
+  var code = codeInput ? codeInput.value.trim() : '';
+  if(!code){ toast(at('admin_confirmation_code_required'), true); return; }
+  apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id,code:code},'').then(function(res){
     if(res&&res.success){ toast(at('admin_agent_recharge_approved')); adminLoadAgentRecharges(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
