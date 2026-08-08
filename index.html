@@ -1734,6 +1734,11 @@ var I18N = {
   admin_status_rejected: {fr:'Refusée', en:'Rejected'},
   admin_agent_rejection_reason_label: {fr:'Raison du refus :', en:'Rejection reason:'},
   admin_reopen_registration_btn: {fr:'Reconsidérer cette demande', en:'Reconsider this request'},
+  admin_float_cap_title: {fr:'Plafond de float', en:'Float cap'},
+  admin_float_cap_desc: {fr:"Montant maximum que ce distributeur peut détenir. Augmentez-le progressivement au fil de la confiance établie, jamais d'un coup.", en:'Maximum amount this distributor can hold. Raise it gradually as trust is established, never all at once.'},
+  admin_float_cap_current_label: {fr:'Plafond actuel :', en:'Current cap:'},
+  admin_float_cap_unlimited: {fr:'illimité', en:'unlimited'},
+  admin_float_cap_input_ph: {fr:'Nouveau plafond (vide = illimité)', en:'New cap (empty = unlimited)'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4588,6 +4593,14 @@ function adminSearchAgent(){
         +(a.status==='rejected' ? ('<button style="width:100%;padding:13px;margin-top:12px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminReopenAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reopen_registration_btn">Reconsidérer cette demande</button>') : '')
         +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(a.is_distributor?'var(--rl)':'var(--gl)')+';color:'+(a.is_distributor?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleAgentDistributor(\''+a.id+'\')">'+(a.is_distributor?at('admin_remove_distributor_btn'):at('admin_make_distributor_btn'))+'</button>';
 
+      if(a.is_distributor){
+        html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_float_cap_title">Plafond de float</div>'
+          +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px" data-i18n-admin="admin_float_cap_desc">Montant maximum que ce distributeur peut détenir. Augmentez-le progressivement au fil de la confiance établie, jamais d\'un coup.</div>'
+          +'<div style="font-size:12px;margin-bottom:8px">'+at('admin_float_cap_current_label')+' <b>'+(a.max_float_cap!==null?fmtCur(a.max_float_cap, a.currency):at('admin_float_cap_unlimited'))+'</b></div>'
+          +'<input class="finput" id="agtcap-'+a.id+'" type="number" inputmode="numeric" placeholder="'+(a.max_float_cap!==null?a.max_float_cap:'')+'" data-i18n-admin-ph="admin_float_cap_input_ph" style="margin-bottom:8px">'
+          +'<button class="btn-w" style="margin-top:0" onclick="adminSetAgentFloatCap(\''+a.id+'\')" data-i18n-admin="admin_save_btn">Sauver</button>';
+      }
+
       html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_test_credit_title">Créditer (test)</div>'
         +(window._earningsPw ? (
           '<input class="finput" id="agttestcredit-amt" type="number" inputmode="numeric" placeholder="Montant" data-i18n-admin-ph="admin_amount_ph" style="margin-bottom:6px">'
@@ -4667,6 +4680,14 @@ function adminToggleAgentDistributor(agentId){
 }
 function adminReopenAgentRegistration(agentId){
   apiCall('/admin?action=agent-reopen-registration','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
+    if(res&&res.success){ toast(res.message||at('admin_error_generic')); adminSearchAgent(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminSetAgentFloatCap(agentId){
+  var input = document.getElementById('agtcap-'+agentId);
+  var raw = input ? input.value.trim() : '';
+  apiCall('/admin?action=agent-set-float-cap','POST',{admin_password:window._adminPw,agent_id:agentId,max_float_cap:raw===''?null:parseFloat(raw)},'').then(function(res){
     if(res&&res.success){ toast(res.message||at('admin_error_generic')); adminSearchAgent(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
