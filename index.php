@@ -447,6 +447,11 @@ function check_receive_limit($userId, $incomingNet, $selfFacing=true) {
 
 const PIN_MAX_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 60;
+// Plafond de float applique automatiquement a un agent la toute premiere
+// fois qu'il devient distributeur (montee en confiance progressive) - voir
+// admin_agent_toggle_distributor(). Ajustable ensuite au cas par cas par
+// l'admin via admin_agent_set_float_cap().
+const DISTRIBUTOR_DEFAULT_FLOAT_CAP = 500000;
 const REFERRAL_BONUS_PCT = 0.30;
 
 // Verse au parrain 30% des frais generes par la PREMIERE transaction a frais
@@ -4511,6 +4516,7 @@ function route_admin($action) {
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
         'agent-toggle-distributor' => admin_agent_toggle_distributor(),
+        'agent-set-float-cap'      => admin_agent_set_float_cap(),
         'agent-pending-list'       => admin_agent_list_pending(),
         'agent-documents'          => admin_agent_documents(),
         'agent-approve-registration' => admin_agent_approve_registration(),
@@ -6703,7 +6709,7 @@ function admin_agent_search() {
     ok(['id'=>$a['id'],'full_name'=>$a['full_name'],'phone_number'=>$a['phone_number'],
         'address'=>$a['address'],'status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']??null,
         'verified'=>(bool)($a['verified']??false),
-        'is_distributor'=>(bool)($a['is_distributor']??false),
+        'is_distributor'=>(bool)($a['is_distributor']??false),'max_float_cap'=>$a['max_float_cap']!==null?(float)$a['max_float_cap']:null,
         'created_at'=>$a['created_at'],'country'=>$a['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'transactions'=>$txs,'known_devices'=>$devices,
         'recharge_requests'=>$recharges]);
@@ -6816,8 +6822,18 @@ function admin_agent_approve_recharge() {
     if(!$r) fail('Demande introuvable',404);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
-    $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
+    $aw = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
     if(!$aw) fail('Portefeuille agent introuvable',404);
+    // Plafond de float (distributeurs uniquement) : protection contre le
+    // risque qu'une trop grosse somme lui soit confiee d'un coup - voir
+    // DISTRIBUTOR_DEFAULT_FLOAT_CAP / admin_agent_set_float_cap().
+    $targetAgent = q("SELECT is_distributor,max_float_cap FROM agents WHERE id=?",[$r['agent_id']])->fetch();
+    if($targetAgent && $targetAgent['is_distributor'] && $targetAgent['max_float_cap'] !== null){
+        $futureBalance = (float)$aw['balance'] + (float)$r['amount'];
+        if($futureBalance > (float)$targetAgent['max_float_cap']){
+            fail('Ce montant depasserait le plafond de float autorise pour ce distributeur ('.$targetAgent['max_float_cap'].' XOF). Augmentez son plafond avant d\'approuver, si besoin.', 422);
+        }
+    }
     db()->beginTransaction();
     try {
         $txid = uid(); $reference = ref();
@@ -6854,12 +6870,39 @@ function admin_agent_toggle_distributor() {
     check_admin_password($b);
     $id = trim($b['agent_id']??'');
     if(!$id) fail('Agent requis');
-    $a = q("SELECT id,full_name,is_distributor FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,is_distributor,max_float_cap FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
     $newVal = $a['is_distributor'] ? 0 : 1;
-    q("UPDATE agents SET is_distributor=? WHERE id=?",[$newVal,$id]);
+    // A la toute premiere promotion (pas de plafond deja fixe), demarre bas -
+    // montee en confiance progressive, jamais un gros plafond d'entree de jeu.
+    // Le retrait du statut ne touche pas au plafond (garde l'historique si le
+    // statut est redonne plus tard).
+    if($newVal && $a['max_float_cap']===null){
+        q("UPDATE agents SET is_distributor=1, max_float_cap=? WHERE id=?",[DISTRIBUTOR_DEFAULT_FLOAT_CAP,$id]);
+    } else {
+        q("UPDATE agents SET is_distributor=? WHERE id=?",[$newVal,$id]);
+    }
     admin_log('agent_toggle_distributor','success',null,'Agent '.$a['full_name'].' -> '.($newVal?'distributeur':'agent standard'));
     ok(['is_distributor'=>(bool)$newVal],$newVal?'Statut distributeur accorde':'Statut distributeur retire');
+}
+
+// Ajustement manuel du plafond de float d'un distributeur - permet a
+// l'admin de l'augmenter au fil de la confiance etablie (ou de le baisser
+// si besoin). $cap=null retire toute limite (a utiliser avec prudence).
+function admin_agent_set_float_cap() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['agent_id']??'');
+    if(!$id) fail('Agent requis');
+    $capRaw = $b['max_float_cap'] ?? null;
+    $cap = ($capRaw===null || $capRaw==='') ? null : (float)$capRaw;
+    if($cap !== null && $cap < 0) fail('Plafond invalide');
+    $a = q("SELECT id,full_name,is_distributor FROM agents WHERE id=?",[$id])->fetch();
+    if(!$a) fail('Agent introuvable',404);
+    if(!$a['is_distributor']) fail('Ce plafond ne concerne que les distributeurs');
+    q("UPDATE agents SET max_float_cap=? WHERE id=?",[$cap,$id]);
+    admin_log('agent_set_float_cap','success',null,'Plafond de '.$a['full_name'].' -> '.($cap===null?'illimite':$cap));
+    ok(['max_float_cap'=>$cap],'Plafond mis a jour');
 }
 
 // ── Agrement agent (documents + activation) ──
@@ -7551,6 +7594,14 @@ function route_install() {
     // Raison du refus d'agrement (obligatoire, journalisee) - meme principe
     // que reject_reason sur agent_recharge_requests.
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(255)",
+    // Plafond de float qu'un DISTRIBUTEUR peut detenir - protection contre le
+    // risque qu'une trop grosse somme lui soit confiee d'un coup (voir
+    // discussion : un distributeur qui disparait avec son float ne peut
+    // jamais partir avec plus que ce plafond). NULL = pas de plafond (agents
+    // normaux, non concernes). Demarre bas a la premiere promotion
+    // distributeur, augmente manuellement par l'admin au fil de la confiance
+    // etablie (voir admin_agent_toggle_distributor()/admin_agent_set_float_cap()).
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_float_cap DECIMAL(15,2)",
     // Documents d'agrement (piece d'identite + photo du local) - mirror exact
     // de merchant_documents : un seul enregistrement par (agent, type de
     // document), renvoyer le meme type remplace l'ancien.
