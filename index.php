@@ -1002,6 +1002,10 @@ function merchant_document_upload() {
     if(!in_array($docType, MERCHANT_DOC_TYPES, true)) fail('Type de document invalide');
     if(!$photo) fail('Photo requise');
     if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
+    // Creneau deja occupe : un admin doit explicitement supprimer le
+    // document existant (avec raison) pour permettre un nouvel envoi.
+    $existing = q("SELECT id FROM merchant_documents WHERE merchant_id=? AND doc_type=?",[$pl['sub'],$docType])->fetch();
+    if($existing) fail('Ce document est deja envoye - contactez un administrateur pour le remplacer');
     $encrypted = kyc_encrypt($photo);
     // Toujours un INSERT, jamais un remplacement : chaque envoi reste
     // consultable indefiniment (peut servir de preuve des annees plus tard),
@@ -2347,6 +2351,11 @@ function agent_document_upload() {
     if(!in_array($docType, AGENT_DOC_TYPES, true) && !in_array($docType, AGENT_OPTIONAL_DOC_TYPES, true)) fail('Type de document invalide');
     if(!$photo) fail('Photo requise');
     if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
+    // Creneau deja occupe : un admin doit explicitement supprimer le
+    // document existant (avec raison) pour permettre un nouvel envoi -
+    // empeche un remplacement silencieux d'une piece deja fournie.
+    $existing = q("SELECT id FROM agent_documents WHERE agent_id=? AND doc_type=?",[$pl['sub'],$docType])->fetch();
+    if($existing) fail('Ce document est deja envoye - contactez un administrateur pour le remplacer');
     $encrypted = kyc_encrypt($photo);
     // Toujours un INSERT, jamais un remplacement - meme raisonnement que
     // merchant_document_upload() ci-dessus.
@@ -3828,7 +3837,8 @@ function kyc_submit() {
     $existing = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$pl['sub']])->fetch();
     if($existing) fail('Une demande est deja en attente de verification');
 
-    $u = q("SELECT full_name,phone_number FROM users WHERE id=?",[$pl['sub']])->fetch();
+    $u = q("SELECT full_name,phone_number,is_kyc FROM users WHERE id=?",[$pl['sub']])->fetch();
+    if($u && (int)($u['is_kyc']??0) === 1) fail('Une piece d\'identite est deja validee sur ce compte - contactez le support pour la remplacer');
 
     $id = uid();
     q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,ocr_error,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
@@ -4084,7 +4094,9 @@ function kyc_admin_reject() {
     if(!$id) fail('ID requis');
     $r = q("SELECT id FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
-    q("UPDATE kyc_requests SET status='rejected', reviewed_at=NOW() WHERE id=?",[$id]);
+    // Refuse = aucune trace dans le systeme = suppression automatique et
+    // immediate, pas de statut 'rejected' persistant.
+    q("DELETE FROM kyc_requests WHERE id=?",[$id]);
     ok(null,'Demande refusee');
 }
 
@@ -4532,6 +4544,7 @@ function route_admin($action) {
         'agent-approve-registration' => admin_agent_approve_registration(),
         'agent-reject-registration'  => admin_agent_reject_registration(),
         'agent-reopen-registration'  => admin_agent_reopen_registration(),
+        'agent-delete-document'    => admin_agent_delete_document(),
         'add-note'                 => admin_add_note(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
@@ -4542,6 +4555,7 @@ function route_admin($action) {
         'merchants-export-xlsx'    => admin_merchants_export_xlsx(),
         'merchants-export-pdf'     => admin_merchants_export_pdf(),
         'merchant-documents'       => admin_merchant_documents(),
+        'merchant-delete-document' => admin_merchant_delete_document(),
         'earnings-summary'         => admin_earnings_summary(),
         'earnings-withdraw'        => admin_earnings_withdraw(),
         'earnings-cancel-withdrawal' => admin_earnings_cancel_withdrawal(),
@@ -5332,13 +5346,33 @@ function admin_merchant_documents() {
     $merchantId = trim($b['merchant_id'] ?? '');
     if(!$merchantId) fail('Marchand requis');
     try {
-        $rows = q("SELECT doc_type, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type, uploaded_at DESC",[$merchantId])->fetchAll();
+        $rows = q("SELECT id, doc_type, status, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type, uploaded_at DESC",[$merchantId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
     foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
     unset($r);
     ok(['documents'=>$rows]);
+}
+
+// Supprime un document marchand - raison obligatoire et journalisee.
+// Meme mecanique pour les deux usages : refuser une piece de mauvaise
+// qualite (refuse = supprime automatiquement, aucune trace conservee) ou
+// retirer volontairement une piece deja approuvee pour permettre son
+// remplacement. Ne touche jamais merchants.status : un marchand continue
+// d'operer normalement quel que soit l'etat de ses documents.
+function admin_merchant_delete_document() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    $reason = trim($b['reason']??'');
+    if(!$id) fail('Document requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $d = q("SELECT md.doc_type, m.phone_number FROM merchant_documents md JOIN merchants m ON m.id=md.merchant_id WHERE md.id=?",[$id])->fetch();
+    if(!$d) fail('Document introuvable',404);
+    q("DELETE FROM merchant_documents WHERE id=?",[$id]);
+    admin_log('merchant_delete_document','success',$d['phone_number'],$reason.' ('.$d['doc_type'].')');
+    ok(null,'Document supprime');
 }
 
 // Bascule le badge "commerce verifie" - purement declaratif cote admin (pas
@@ -6943,13 +6977,31 @@ function admin_agent_documents() {
     $agentId = trim($b['agent_id'] ?? '');
     if(!$agentId) fail('Agent requis');
     try {
-        $rows = q("SELECT doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type, uploaded_at DESC",[$agentId])->fetchAll();
+        $rows = q("SELECT id, doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type, uploaded_at DESC",[$agentId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
     foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
     unset($r);
     ok(['documents'=>$rows]);
+}
+
+// Libere un creneau (agent+doc_type) occupe par un document deja fourni -
+// raison obligatoire et journalisee. Sert aussi bien a rejeter une piece
+// de mauvaise qualite qu'a retirer volontairement un document deja valide
+// pour permettre son remplacement (meme mecanique SQL dans les deux cas).
+function admin_agent_delete_document() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    $reason = trim($b['reason']??'');
+    if(!$id) fail('Document requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $d = q("SELECT ad.doc_type, a.phone_number FROM agent_documents ad JOIN agents a ON a.id=ad.agent_id WHERE ad.id=?",[$id])->fetch();
+    if(!$d) fail('Document introuvable',404);
+    q("DELETE FROM agent_documents WHERE id=?",[$id]);
+    admin_log('agent_delete_document','success',$d['phone_number'],$reason.' ('.$d['doc_type'].')');
+    ok(null,'Document supprime');
 }
 
 function admin_agent_approve_registration() {
@@ -6976,6 +7028,9 @@ function admin_agent_reject_registration() {
     if(!$a) fail('Agent introuvable',404);
     if($a['status'] !== 'pending_approval') fail('Cette demande a deja ete traitee');
     q("UPDATE agents SET status='rejected', rejection_reason=? WHERE id=?",[$reason,$id]);
+    // Refuse = aucune trace dans le systeme = suppression automatique et
+    // immediate des documents fournis, sans etape manuelle separee.
+    q("DELETE FROM agent_documents WHERE agent_id=?",[$id]);
     admin_log('agent_reject_registration','success',$a['phone_number'],$reason);
     ok(null,'Demande d\'agrement refusee');
 }
@@ -7195,12 +7250,18 @@ function admin_delete_kyc() {
     if(!$id) fail('Identifiant de la demande requis');
     $where = "id=?"; $params = [$id];
     if($createdAt){ $where .= " AND created_at=?"; $params[] = $createdAt; }
-    $k = q("SELECT ctid, phone_number FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
+    $k = q("SELECT ctid, phone_number, user_id, status FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
     if(!$k){
         admin_log('delete_kyc','failed',null,dk('d_request_not_found', ['id'=>$id]));
         fail('Demande introuvable',404);
     }
     q("DELETE FROM kyc_requests WHERE ctid = ?::tid", [$k['ctid']]);
+    // Si la demande supprimee etait approuvee, le compte doit redevenir
+    // non-verifie pour liberer reellement le creneau (sinon users.is_kyc
+    // reste a 1 avec un nom/date verifies dont la preuve n'existe plus).
+    if($k['status'] === 'approved' && $k['user_id']){
+        q("UPDATE users SET is_kyc=0, verified_name=NULL, verified_birthdate=NULL WHERE id=?",[$k['user_id']]);
+    }
     admin_log('delete_kyc','success',$k['phone_number'],dk('d_kyc_deleted', ['id'=>$id]));
     ok(null,'Demande KYC supprimee');
 }
@@ -7515,6 +7576,11 @@ function route_install() {
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "ALTER TABLE merchant_documents DROP CONSTRAINT IF EXISTS merchant_documents_merchant_id_doc_type_key",
+    // Defaut 'approved' (pas 'pending') : le marchand n'a aucun gate
+    // d'inscription, ses documents n'ont jamais besoin d'une revue admin
+    // pour etre utilisables - le statut ne sert qu'a enregistrer une
+    // action explicite de l'admin.
+    "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'approved'",
     "CREATE INDEX IF NOT EXISTS idx_merchant_documents_merchant ON merchant_documents(merchant_id)",
     // Lien de paiement a distance : le marchand indique un montant/motif,
     // partage le lien (id sert de jeton, deja imprevisible via uid()) par

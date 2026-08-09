@@ -1849,6 +1849,14 @@ var I18N = {
   admin_no_account_above_threshold: {fr:'Aucun compte au-dessus de ce seuil', en:'No account above this threshold'},
   admin_no_document_sent: {fr:'Aucun document envoyé par ce marchand', en:'No document sent by this merchant'},
   admin_no_agent_document_sent: {fr:'Aucun document envoyé par cet agent', en:'No document sent by this agent'},
+  admin_delete_document_btn: {fr:'Supprimer ce document', en:'Delete this document'},
+  admin_delete_document_confirm_msg: {fr:"Ce document sera définitivement supprimé. La personne pourra en renvoyer un nouveau du même type ensuite.", en:'This document will be permanently deleted. The person will be able to send a new one of the same type afterward.'},
+  admin_document_deleted: {fr:'Document supprimé', en:'Document deleted'},
+  admin_doc_reason_illegible: {fr:'Document illisible ou de mauvaise qualité', en:'Illegible or poor-quality document'},
+  admin_doc_reason_mismatch: {fr:'Ne correspond pas au type demandé', en:'Does not match the requested type'},
+  admin_doc_reason_replace: {fr:'Remplacement demandé (nouvelle version à fournir)', en:'Replacement requested (new version to be provided)'},
+  admin_doc_status_approved: {fr:'Validé', en:'Approved'},
+  admin_doc_status_pending: {fr:'En attente', en:'Pending'},
   admin_no_tx_found: {fr:'Aucune transaction trouvée', en:'No transaction found'},
   admin_no_frozen_merchant_payment: {fr:'Aucun paiement marchand gelé', en:'No frozen merchant payment'},
   admin_no_merchant_found: {fr:'Aucun marchand trouvé', en:'No merchant found'},
@@ -4363,18 +4371,35 @@ function adminLoadMerchantDocuments(merchantId){
       }
       var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
       docs.forEach(function(d){
+        var statusLabel = d.status==='approved' ? at('admin_doc_status_approved') : at('admin_doc_status_pending');
+        var statusColor = d.status==='approved' ? 'var(--g)' : 'var(--t3)';
         html+='<div>'
-          +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(ADMIN_KYB_DOC_LABELS[d.doc_type]||d.doc_type)+'</div>'
+          +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(ADMIN_KYB_DOC_LABELS[d.doc_type]||d.doc_type)+' — <span style="color:'+statusColor+'">'+statusLabel+'</span></div>'
           +'<img src="'+d.photo+'" style="width:100%;border-radius:8px;border:1px solid var(--bord);cursor:pointer" onclick="window.open(this.src)">'
           +'<div style="font-size:9px;color:var(--t3);margin-top:2px">'+new Date(d.uploaded_at).toLocaleString()+'</div>'
+          +'<button style="width:100%;margin-top:4px;padding:6px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminDeleteMerchantDocument(\''+d.id+'\',\''+merchantId+'\')" data-i18n-admin="admin_delete_document_btn">Supprimer ce document</button>'
           +'</div>';
       });
       html+='</div>';
       box.innerHTML=html;
+      applyAdminLang();
     } else {
       box.innerHTML='<div class="admin-empty">'+((res&&res.message)||'Erreur de chargement')+'</div>';
     }
   }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminDeleteMerchantDocument(docId, merchantId){
+  adminOpenConfirmModal({
+    icon:'🗑', title:at('admin_final_confirmation'), message:at('admin_delete_document_confirm_msg'),
+    needsReason:true, reasonOptions:[at('admin_doc_reason_illegible'),at('admin_doc_reason_mismatch'),at('admin_doc_reason_replace')],
+    confirmLabel:at('admin_delete_document_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=merchant-delete-document','POST',{admin_password:window._adminPw,id:docId,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_document_deleted')); adminLoadMerchantDocuments(merchantId); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
 }
 function adminSearchByPhone(){
   var phone=document.getElementById('srch-phone').value.trim();
@@ -4796,12 +4821,27 @@ function adminViewAgentDocuments(agentId){
           +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(ADMIN_KYB_DOC_LABELS[d.doc_type]||d.doc_type)+'</div>'
           +'<img src="'+d.photo+'" style="width:100%;border-radius:8px;border:1px solid var(--bord);cursor:pointer" onclick="window.open(this.src)">'
           +'<div style="font-size:9px;color:var(--t3);margin-top:2px">'+new Date(d.uploaded_at).toLocaleString()+'</div>'
+          +'<button style="width:100%;margin-top:4px;padding:6px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminDeleteAgentDocument(\''+d.id+'\',\''+agentId+'\')" data-i18n-admin="admin_delete_document_btn">Supprimer ce document</button>'
           +'</div>';
       });
       html+='</div>';
       box.innerHTML=html;
+      applyAdminLang();
     } else { box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_error_generic'))+'</div>'; }
   }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminDeleteAgentDocument(docId, agentId){
+  adminOpenConfirmModal({
+    icon:'🗑', title:at('admin_final_confirmation'), message:at('admin_delete_document_confirm_msg'),
+    needsReason:true, reasonOptions:[at('admin_doc_reason_illegible'),at('admin_doc_reason_mismatch'),at('admin_doc_reason_replace')],
+    confirmLabel:at('admin_delete_document_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=agent-delete-document','POST',{admin_password:window._adminPw,id:docId,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_document_deleted')); adminViewAgentDocuments(agentId); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
 }
 
 function adminApproveAgentRegistration(agentId){
