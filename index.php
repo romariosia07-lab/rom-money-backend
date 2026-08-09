@@ -1003,9 +1003,11 @@ function merchant_document_upload() {
     if(!$photo) fail('Photo requise');
     if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
     $encrypted = kyc_encrypt($photo);
+    // Toujours un INSERT, jamais un remplacement : chaque envoi reste
+    // consultable indefiniment (peut servir de preuve des annees plus tard),
+    // meme si un document plus recent du meme type est envoye ensuite.
     try {
-        q("INSERT INTO merchant_documents (merchant_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())
-           ON CONFLICT (merchant_id,doc_type) DO UPDATE SET photo=EXCLUDED.photo, uploaded_at=NOW()",
+        q("INSERT INTO merchant_documents (merchant_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())",
           [$pl['sub'],$docType,$encrypted]);
     } catch(Exception $e) {
         log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
@@ -1016,7 +1018,7 @@ function merchant_document_upload() {
 function merchant_document_list() {
     $pl = merchant_auth();
     try {
-        $rows = q("SELECT doc_type, uploaded_at FROM merchant_documents WHERE merchant_id=?",[$pl['sub']])->fetchAll();
+        $rows = q("SELECT doc_type, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type, uploaded_at DESC",[$pl['sub']])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
@@ -2346,9 +2348,10 @@ function agent_document_upload() {
     if(!$photo) fail('Photo requise');
     if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
     $encrypted = kyc_encrypt($photo);
+    // Toujours un INSERT, jamais un remplacement - meme raisonnement que
+    // merchant_document_upload() ci-dessus.
     try {
-        q("INSERT INTO agent_documents (agent_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())
-           ON CONFLICT (agent_id,doc_type) DO UPDATE SET photo=EXCLUDED.photo, uploaded_at=NOW()",
+        q("INSERT INTO agent_documents (agent_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())",
           [$pl['sub'],$docType,$encrypted]);
     } catch(Exception $e) {
         log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
@@ -2359,7 +2362,7 @@ function agent_document_upload() {
 function agent_document_list() {
     $pl = agent_auth_allow_pending();
     try {
-        $rows = q("SELECT doc_type, uploaded_at FROM agent_documents WHERE agent_id=?",[$pl['sub']])->fetchAll();
+        $rows = q("SELECT doc_type, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type, uploaded_at DESC",[$pl['sub']])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
@@ -4469,6 +4472,7 @@ function route_admin($action) {
         'reset-pin'         => admin_reset_pin(),
         'search-tx'         => admin_search_tx(),
         'search-phone'      => admin_search_by_phone(),
+        'kyc-history'       => admin_kyc_history(),
         'test-credit-wallet' => admin_test_credit_wallet(),
         'merchant-test-credit-wallet' => admin_merchant_test_credit_wallet(),
         'late-cancel'       => admin_late_cancel(),
@@ -5142,6 +5146,27 @@ function admin_search_by_phone() {
     ]);
 }
 
+// Historique COMPLET des demandes KYC d'un utilisateur (pas seulement la
+// derniere/en attente comme kyc_status()) - chaque soumission passee reste
+// consultable indefiniment (peut servir de preuve des annees plus tard),
+// jamais remplacee ni supprimee. Chargee a la demande (bouton dedie),
+// jamais incluse dans admin_search_by_phone() pour ne pas alourdir chaque
+// recherche avec des photos potentiellement lourdes - meme principe que
+// admin_merchant_documents()/admin_agent_documents().
+function admin_kyc_history() {
+    $b = body();
+    check_admin_password($b);
+    $phone = trim($b['phone']??'');
+    if(!$phone) fail('Numero requis');
+    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    if(!$u) fail('Compte introuvable',404);
+    $rows = q("SELECT id,status,legal_name,legal_birthdate,photo_recto,photo_verso,created_at,reviewed_at
+        FROM kyc_requests WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
+    foreach($rows as &$r){ $r['photo_recto']=kyc_decrypt($r['photo_recto']); $r['photo_verso']=kyc_decrypt($r['photo_verso']); }
+    unset($r);
+    ok(['requests'=>$rows]);
+}
+
 // Credite un compte personnel a des fins de TEST uniquement (aucun vrai
 // depot bancaire n'existe dans l'app, voir la suppression du module banque
 // simule). Reserve a l'admin - jamais expose aux utilisateurs. Raison
@@ -5329,7 +5354,7 @@ function admin_merchant_documents() {
     $merchantId = trim($b['merchant_id'] ?? '');
     if(!$merchantId) fail('Marchand requis');
     try {
-        $rows = q("SELECT doc_type, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type",[$merchantId])->fetchAll();
+        $rows = q("SELECT doc_type, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type, uploaded_at DESC",[$merchantId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
@@ -6940,7 +6965,7 @@ function admin_agent_documents() {
     $agentId = trim($b['agent_id'] ?? '');
     if(!$agentId) fail('Agent requis');
     try {
-        $rows = q("SELECT doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type",[$agentId])->fetchAll();
+        $rows = q("SELECT doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type, uploaded_at DESC",[$agentId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
@@ -7499,14 +7524,19 @@ function route_install() {
     // Documents "entreprise" (KYB) : piece d'identite, RCCM, DFE, patente,
     // photo du magasin, photo du gerant. Un seul enregistrement par
     // (marchand, type de document) - renvoyer le meme type remplace l'ancien.
+    // Plus de UNIQUE(merchant_id, doc_type) : un nouvel envoi ne doit JAMAIS
+    // ecraser le precedent - chaque version reste consultable indefiniment
+    // (peut servir de preuve des annees plus tard). ALTER ci-dessous retire
+    // la contrainte sur une base deja installee avant ce changement (nom de
+    // contrainte auto-genere par Postgres, sans risque si elle n'existe deja plus).
     "CREATE TABLE IF NOT EXISTS merchant_documents (
         id SERIAL PRIMARY KEY,
         merchant_id VARCHAR(36) NOT NULL,
         doc_type VARCHAR(30) NOT NULL,
         photo TEXT NOT NULL,
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(merchant_id, doc_type)
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE merchant_documents DROP CONSTRAINT IF EXISTS merchant_documents_merchant_id_doc_type_key",
     "CREATE INDEX IF NOT EXISTS idx_merchant_documents_merchant ON merchant_documents(merchant_id)",
     // Lien de paiement a distance : le marchand indique un montant/motif,
     // partage le lien (id sert de jeton, deja imprevisible via uid()) par
@@ -7623,14 +7653,16 @@ function route_install() {
     // Documents d'agrement (piece d'identite + photo du local) - mirror exact
     // de merchant_documents : un seul enregistrement par (agent, type de
     // document), renvoyer le meme type remplace l'ancien.
+    // Meme raisonnement que merchant_documents ci-dessus : plus de UNIQUE,
+    // chaque envoi cree une nouvelle ligne, rien n'est jamais ecrase.
     "CREATE TABLE IF NOT EXISTS agent_documents (
         id SERIAL PRIMARY KEY,
         agent_id VARCHAR(36) NOT NULL,
         doc_type VARCHAR(30) NOT NULL,
         photo TEXT NOT NULL,
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(agent_id, doc_type)
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    "ALTER TABLE agent_documents DROP CONSTRAINT IF EXISTS agent_documents_agent_id_doc_type_key",
     "CREATE INDEX IF NOT EXISTS idx_agent_documents_agent ON agent_documents(agent_id)",
     "CREATE TABLE IF NOT EXISTS agent_wallets (
         id VARCHAR(36) PRIMARY KEY,
