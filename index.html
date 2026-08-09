@@ -1740,6 +1740,10 @@ var I18N = {
   admin_float_cap_current_label: {fr:'Plafond actuel :', en:'Current cap:'},
   admin_float_cap_unlimited: {fr:'illimité', en:'unlimited'},
   admin_float_cap_input_ph: {fr:'Nouveau plafond (vide = illimité)', en:'New cap (empty = unlimited)'},
+  admin_agent_total_commission_label: {fr:'Commission totale :', en:'Total commission:'},
+  admin_agent_total_volume_label: {fr:'Volume total :', en:'Total volume:'},
+  admin_agent_last_activity_label: {fr:'Dernière activité :', en:'Last activity:'},
+  admin_agent_never_label: {fr:'jamais', en:'never'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4921,12 +4925,24 @@ function adminLoadAgents(page){
     if(res&&res.success&&res.data){
       var list=res.data.agents||[];
       if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_agent_found')+'</div>'; document.getElementById('agtlist-pagination').innerHTML=''; return; }
+      var statusLabels = {active:at('admin_status_active'), blocked:at('admin_status_blocked'), pending_approval:at('admin_status_pending'), rejected:at('admin_status_rejected')};
+      var statusColors = {active:'var(--g)', blocked:'var(--re)', pending_approval:'var(--gold)', rejected:'var(--re)'};
       var html='';
       list.forEach(function(a){
-        var stColor = a.status==='blocked' ? 'var(--re)' : 'var(--g)';
-        html+='<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--bord);padding:8px 0;font-size:12px;cursor:pointer" onclick="document.getElementById(\'agt-phone\').value=\''+a.phone_number+'\';adminSearchAgent();adminTab(\'agents\')">'
-          +'<span>'+adminEsc(a.full_name)+'<br><span style="color:var(--t3);font-size:10px">'+a.phone_number+'</span></span>'
-          +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+(a.status==='blocked'?at('admin_status_blocked'):at('admin_status_active'))+'</span>'
+        var stColor = statusColors[a.status] || 'var(--t3)';
+        var stLabel = statusLabels[a.status] || a.status;
+        var cur = a.currency || 'XOF';
+        html+='<div style="border-top:1px solid var(--bord);padding:10px 0;font-size:12px;cursor:pointer" onclick="document.getElementById(\'agt-phone\').value=\''+a.phone_number+'\';adminSearchAgent();adminTab(\'agents\')">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
+          +'<span>'+adminEsc(a.full_name)+(a.is_distributor?' <span style="color:var(--gold)" title="Distributeur">🏢</span>':'')+'<br><span style="color:var(--t3);font-size:10px">'+a.phone_number+'</span></span>'
+          +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+stLabel+'</span>'
+          +'</div>'
+          +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:10px;color:var(--t3)">'
+          +'<span>'+at('admin_agent_float_label')+' '+fmtCur(a.balance||0, cur)+'</span>'
+          +'<span>'+at('admin_agent_total_commission_label')+' '+fmtCur(a.total_commission||0, cur)+'</span>'
+          +'<span>'+at('admin_agent_total_volume_label')+' '+fmtCur(a.total_volume||0, cur)+'</span>'
+          +'<span>'+at('admin_agent_last_activity_label')+' '+(a.last_activity?new Date(a.last_activity).toLocaleDateString():at('admin_agent_never_label'))+'</span>'
+          +'</div>'
           +'</div>';
       });
       box.innerHTML=html;
