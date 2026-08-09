@@ -1543,6 +1543,10 @@ var I18N = {
   admin_kyc_reject_title: {fr:'Refuser cette demande ?', en:'Reject this request?'},
   admin_kyc_reject_msg: {fr:"L'utilisateur devra soumettre une nouvelle demande KYC.", en:'The user will need to submit a new KYC request.'},
   admin_kyc_rejected_toast: {fr:'Demande refusée', en:'Request rejected'},
+  admin_kyc_reason_blur: {fr:'Photo floue ou illisible', en:'Blurry or unreadable photo'},
+  admin_kyc_reason_mismatch: {fr:'Nom ou date de naissance ne correspond pas au document', en:'Name or birthdate does not match the document'},
+  admin_kyc_reason_fake: {fr:'Document suspect ou non authentique', en:'Suspicious or non-authentic document'},
+  admin_kyc_reason_incomplete: {fr:'Recto ou verso manquant', en:'Front or back side missing'},
   admin_kyc_pending_title: {fr:"Vérifications d'identité en attente", en:'Pending identity verifications'},
   admin_kyc_none_pending: {fr:'Aucune demande en attente', en:'No pending request'},
   admin_kyc_no_name: {fr:'Sans nom', en:'No name'},
@@ -3890,9 +3894,10 @@ function adminApprove(id){
 function adminReject(id){
   adminOpenConfirmModal({
     icon:'✗', title:at('admin_kyc_reject_title'), message:at('admin_kyc_reject_msg'),
-    needsReason:false, confirmLabel:at('admin_btn_reject'), confirmColor:'var(--re)',
-    onConfirm:function(){
-      apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id},'').then(function(res){
+    needsReason:true, reasonOptions:[at('admin_kyc_reason_blur'),at('admin_kyc_reason_mismatch'),at('admin_kyc_reason_fake'),at('admin_kyc_reason_incomplete')],
+    confirmLabel:at('admin_btn_reject'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/kyc?action=admin_reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
         if(res&&res.success){ toast(at('admin_kyc_rejected_toast')); adminLoadKycList(); }
         else toast((res&&res.message)||at('admin_error_generic'), true);
       });
@@ -5159,9 +5164,10 @@ function renderAdminMerchantTxList(){
 function adminDeleteKyc(id, createdAt){
   adminOpenConfirmModal({
     icon:'🗑', title:at('admin_kyc_delete_title'), message:at('admin_kyc_delete_msg'),
-    needsReason:false, confirmLabel:at('admin_delete_btn'), confirmColor:'var(--re)',
-    onConfirm:function(){
-      apiCall('/admin?action=delete-kyc','POST',{admin_password:window._adminPw,id:id,created_at:createdAt},'').then(function(res){
+    needsReason:true, reasonOptions:[at('admin_kyc_reason_blur'),at('admin_kyc_reason_mismatch'),at('admin_kyc_reason_fake'),at('admin_doc_reason_replace')],
+    confirmLabel:at('admin_delete_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=delete-kyc','POST',{admin_password:window._adminPw,id:id,created_at:createdAt,reason:reason},'').then(function(res){
         if(res&&res.success){
           toast(at('admin_kyc_deleted_toast'));
           adminSearchByPhone();

@@ -4091,12 +4091,17 @@ function kyc_admin_reject() {
     $b = body();
     check_admin_password($b);
     $id = trim($b['id']??'');
+    $reason = trim($b['reason']??'');
     if(!$id) fail('ID requis');
-    $r = q("SELECT id FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $r = q("SELECT id, phone_number FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
     // Refuse = aucune trace dans le systeme = suppression automatique et
-    // immediate, pas de statut 'rejected' persistant.
+    // immediate, pas de statut 'rejected' persistant. La raison reste
+    // consultable en permanence dans le Journal d'audit (admin_log), pour
+    // pouvoir expliquer plus tard pourquoi cette demande a ete refusee.
     q("DELETE FROM kyc_requests WHERE id=?",[$id]);
+    admin_log('kyc_reject','success',$r['phone_number'],$reason);
     ok(null,'Demande refusee');
 }
 
@@ -7247,7 +7252,9 @@ function admin_delete_kyc() {
     check_admin_password($b);
     $id = trim($b['id'] ?? '');
     $createdAt = trim($b['created_at'] ?? '');
+    $reason = trim($b['reason'] ?? '');
     if(!$id) fail('Identifiant de la demande requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
     $where = "id=?"; $params = [$id];
     if($createdAt){ $where .= " AND created_at=?"; $params[] = $createdAt; }
     $k = q("SELECT ctid, phone_number, user_id, status FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
@@ -7262,7 +7269,9 @@ function admin_delete_kyc() {
     if($k['status'] === 'approved' && $k['user_id']){
         q("UPDATE users SET is_kyc=0, verified_name=NULL, verified_birthdate=NULL WHERE id=?",[$k['user_id']]);
     }
-    admin_log('delete_kyc','success',$k['phone_number'],dk('d_kyc_deleted', ['id'=>$id]));
+    // La raison reste consultable en permanence dans le Journal d'audit,
+    // pour pouvoir expliquer plus tard pourquoi ce document a ete retire.
+    admin_log('delete_kyc','success',$k['phone_number'],$reason);
     ok(null,'Demande KYC supprimee');
 }
 
