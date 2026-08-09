@@ -45,6 +45,13 @@ define('MERCHANT_DOC_TYPES', ['id_recto','id_verso','rccm','dfe','patente','shop
 // examines et approuves par un admin - contrairement au marchand, ou
 // l'envoi de documents ne fait que debloquer un badge declaratif.
 define('AGENT_DOC_TYPES', ['id_recto','id_verso','shop_photo','request_letter']);
+// Documents supplementaires FACULTATIFS (jamais bloquants pour l'agrement) -
+// memes types que les documents "entreprise" deja utilises cote marchand
+// (MERCHANT_DOC_TYPES), pour beneficier des memes libelles admin
+// (ADMIN_KYB_DOC_LABELS cote index.html). Un agent qui les fournit
+// volontairement inspire plus confiance : ça peut justifier d'augmenter son
+// plafond de float (decision manuelle de l'admin, voir DISTRIBUTOR_DEFAULT_FLOAT_CAP).
+define('AGENT_OPTIONAL_DOC_TYPES', ['rccm','dfe','patente']);
 
 // Cles VAPID pour les notifications Web Push (RFC 8292). Generees une seule
 // fois via OpenSSL (courbe prime256v1) - NE JAMAIS LES CHANGER une fois en
@@ -2335,7 +2342,7 @@ function agent_document_upload() {
     $pl = agent_auth_allow_pending(); $b = body();
     $docType = trim($b['doc_type'] ?? '');
     $photo = trim($b['photo'] ?? '');
-    if(!in_array($docType, AGENT_DOC_TYPES, true)) fail('Type de document invalide');
+    if(!in_array($docType, AGENT_DOC_TYPES, true) && !in_array($docType, AGENT_OPTIONAL_DOC_TYPES, true)) fail('Type de document invalide');
     if(!$photo) fail('Photo requise');
     if(strlen($photo) > 8*1024*1024) fail('Image trop volumineuse');
     $encrypted = kyc_encrypt($photo);
@@ -6715,6 +6722,9 @@ function admin_agent_search() {
         'recharge_requests'=>$recharges]);
 }
 
+// Liste des agents avec statistiques agregees (commission totale, volume
+// total, derniere activite) - permet de suivre/comparer les agents et
+// distributeurs d'un coup d'oeil, sans devoir ouvrir chaque fiche un par un.
 function admin_agent_list() {
     $b = body();
     check_admin_password($b);
@@ -6723,8 +6733,16 @@ function admin_agent_list() {
     $offset = ($page - 1) * $perPage;
     try {
         $total = (int)q("SELECT COUNT(*) FROM agents")->fetchColumn();
-        $rows = q("SELECT id,full_name,phone_number,status,verified,created_at
-                   FROM agents ORDER BY created_at DESC LIMIT $perPage OFFSET $offset")->fetchAll();
+        $rows = q("SELECT a.id,a.full_name,a.phone_number,a.status,a.verified,a.is_distributor,a.max_float_cap,a.created_at,
+                MAX(w.balance) AS balance, MAX(w.currency) AS currency,
+                COALESCE(SUM(CASE WHEN t.type='agent_commission' THEN t.amount ELSE 0 END),0) AS total_commission,
+                COALESCE(SUM(CASE WHEN t.type IN ('agent_cash_in','agent_cash_out') THEN t.amount ELSE 0 END),0) AS total_volume,
+                MAX(CASE WHEN t.type IN ('agent_cash_in','agent_cash_out') THEN t.created_at END) AS last_activity
+            FROM agents a
+            LEFT JOIN agent_wallets w ON w.agent_id = a.id
+            LEFT JOIN transactions t ON (t.sender_agent_wallet_id = w.id OR t.receiver_agent_wallet_id = w.id) AND t.status='completed'
+            GROUP BY a.id
+            ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset")->fetchAll();
     } catch(Exception $e) {
         log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
     }
