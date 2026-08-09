@@ -1744,6 +1744,7 @@ var I18N = {
   admin_agent_total_volume_label: {fr:'Volume total :', en:'Total volume:'},
   admin_agent_last_activity_label: {fr:'Dernière activité :', en:'Last activity:'},
   admin_agent_never_label: {fr:'jamais', en:'never'},
+  admin_agent_docs_title: {fr:'Documents', en:'Documents'},
   admin_merchants_desc: {fr:'Recherche un compte marchand par numéro de téléphone (indépendant d\'un éventuel compte ROM_MONEY personnel sur le même numéro), et bascule son badge "commerce vérifié".', en:'Search a merchant account by phone number (independent of any personal ROM_MONEY account on the same number), and toggle its "verified business" badge.'},
   admin_merchant_phone_label: {fr:'Numéro du marchand', en:'Merchant phone number'},
   admin_advsearch_title: {fr:'Recherche avancée (montant / date / statut)', en:'Advanced search (amount / date / status)'},
@@ -4597,6 +4598,10 @@ function adminSearchAgent(){
         +'</div>'
         +(a.status==='rejected' ? ('<button style="width:100%;padding:13px;margin-top:12px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminReopenAgentRegistration(\''+a.id+'\')" data-i18n-admin="admin_reopen_registration_btn">Reconsidérer cette demande</button>') : '')
         +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(a.is_distributor?'var(--rl)':'var(--gl)')+';color:'+(a.is_distributor?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleAgentDistributor(\''+a.id+'\')">'+(a.is_distributor?at('admin_remove_distributor_btn'):at('admin_make_distributor_btn'))+'</button>';
+
+      html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_agent_docs_title">Documents</div>'
+        +'<button class="btn-w" style="margin-top:0" onclick="adminViewAgentDocuments(\''+a.id+'\')" data-i18n-admin="admin_view_documents_btn">Voir les documents</button>'
+        +'<div id="agt-docs-'+a.id+'"></div>';
 
       if(a.is_distributor){
         html += '<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px" data-i18n-admin="admin_float_cap_title">Plafond de float</div>'
