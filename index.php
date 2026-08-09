@@ -4094,7 +4094,7 @@ function kyc_admin_reject() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('ID requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $r = q("SELECT id, phone_number FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    $r = q("SELECT id, user_id, phone_number FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
     // Refuse = aucune trace dans le systeme = suppression automatique et
     // immediate, pas de statut 'rejected' persistant. La raison reste
@@ -4102,6 +4102,10 @@ function kyc_admin_reject() {
     // pouvoir expliquer plus tard pourquoi cette demande a ete refusee.
     q("DELETE FROM kyc_requests WHERE id=?",[$id]);
     admin_log('kyc_reject','success',$r['phone_number'],$reason);
+    // Sans notification, la personne n'a plus aucun moyen de savoir que sa
+    // demande a ete traitee (la ligne est supprimee) - elle risquerait
+    // d'attendre indefiniment en pensant que l'examen est toujours en cours.
+    web_push_send_to_user($r['user_id'], 'ROM_MONEY', 'Votre demande de verification d\'identite a ete refusee : '.$reason.' Vous pouvez soumettre une nouvelle demande.');
     ok(null,'Demande refusee');
 }
 
@@ -5373,10 +5377,11 @@ function admin_merchant_delete_document() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('Document requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $d = q("SELECT md.doc_type, m.phone_number FROM merchant_documents md JOIN merchants m ON m.id=md.merchant_id WHERE md.id=?",[$id])->fetch();
+    $d = q("SELECT md.doc_type, md.merchant_id, m.phone_number FROM merchant_documents md JOIN merchants m ON m.id=md.merchant_id WHERE md.id=?",[$id])->fetch();
     if(!$d) fail('Document introuvable',404);
     q("DELETE FROM merchant_documents WHERE id=?",[$id]);
     admin_log('merchant_delete_document','success',$d['phone_number'],$reason.' ('.$d['doc_type'].')');
+    web_push_send_to_merchant($d['merchant_id'], 'ROM_BUSINESS', 'Votre document ('.$d['doc_type'].') a ete retire : '.$reason.' Cela ne bloque pas votre compte, vous pouvez en renvoyer un nouveau a tout moment.');
     ok(null,'Document supprime');
 }
 
@@ -7272,6 +7277,9 @@ function admin_delete_kyc() {
     // La raison reste consultable en permanence dans le Journal d'audit,
     // pour pouvoir expliquer plus tard pourquoi ce document a ete retire.
     admin_log('delete_kyc','success',$k['phone_number'],$reason);
+    if($k['user_id']){
+        web_push_send_to_user($k['user_id'], 'ROM_MONEY', 'Votre document d\'identite a ete retire : '.$reason.' Vous pouvez en soumettre un nouveau.');
+    }
     ok(null,'Demande KYC supprimee');
 }
 
