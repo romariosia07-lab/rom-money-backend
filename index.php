@@ -4472,7 +4472,6 @@ function route_admin($action) {
         'reset-pin'         => admin_reset_pin(),
         'search-tx'         => admin_search_tx(),
         'search-phone'      => admin_search_by_phone(),
-        'kyc-history'       => admin_kyc_history(),
         'test-credit-wallet' => admin_test_credit_wallet(),
         'merchant-test-credit-wallet' => admin_merchant_test_credit_wallet(),
         'late-cancel'       => admin_late_cancel(),
@@ -5144,27 +5143,6 @@ function admin_search_by_phone() {
         'notes'=>$notes,
         'transactions'=>$rows
     ]);
-}
-
-// Historique COMPLET des demandes KYC d'un utilisateur (pas seulement la
-// derniere/en attente comme kyc_status()) - chaque soumission passee reste
-// consultable indefiniment (peut servir de preuve des annees plus tard),
-// jamais remplacee ni supprimee. Chargee a la demande (bouton dedie),
-// jamais incluse dans admin_search_by_phone() pour ne pas alourdir chaque
-// recherche avec des photos potentiellement lourdes - meme principe que
-// admin_merchant_documents()/admin_agent_documents().
-function admin_kyc_history() {
-    $b = body();
-    check_admin_password($b);
-    $phone = trim($b['phone']??'');
-    if(!$phone) fail('Numero requis');
-    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
-    if(!$u) fail('Compte introuvable',404);
-    $rows = q("SELECT id,status,legal_name,legal_birthdate,photo_recto,photo_verso,created_at,reviewed_at
-        FROM kyc_requests WHERE user_id=? ORDER BY created_at DESC",[$u['id']])->fetchAll();
-    foreach($rows as &$r){ $r['photo_recto']=kyc_decrypt($r['photo_recto']); $r['photo_verso']=kyc_decrypt($r['photo_verso']); }
-    unset($r);
-    ok(['requests'=>$rows]);
 }
 
 // Credite un compte personnel a des fins de TEST uniquement (aucun vrai
