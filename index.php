@@ -2241,6 +2241,8 @@ function route_agent($action) {
         'doc-upload'        => agent_document_upload(),
         'doc-list'          => agent_document_list(),
         'application-status' => agent_application_status(),
+        'set-location'      => agent_set_location(),
+        'find-distributors' => agent_find_distributors(),
         default             => fail('Action inconnue',404)
     };
 }
@@ -2328,16 +2330,18 @@ function agent_login() {
     ok(['token'=>$token,'agent_id'=>$a['id'],'full_name'=>$a['full_name'],'address'=>$a['address'],
         'verified'=>(bool)($a['verified']??false),'country'=>$a['country']??null,
         'balance'=>(float)($w['balance']??0),'currency'=>$w['currency']??'XOF',
-        'status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']??null],'Connexion reussie');
+        'status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']??null,
+        'is_distributor'=>(bool)($a['is_distributor']??false)],'Connexion reussie');
 }
 
 function agent_balance() {
     $pl = agent_auth();
-    $a = q("SELECT full_name,address,verified,country FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    $a = q("SELECT full_name,address,verified,country,is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
     $w = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
     if(!$w) fail('Portefeuille introuvable',404);
     ok(['balance'=>(float)$w['balance'],'currency'=>$w['currency'],'full_name'=>$a['full_name'],
-        'address'=>$a['address'],'country'=>$a['country']??null,'verified'=>(bool)($a['verified']??false)]);
+        'address'=>$a['address'],'country'=>$a['country']??null,'verified'=>(bool)($a['verified']??false),
+        'is_distributor'=>(bool)($a['is_distributor']??false)]);
 }
 
 // ── Agrement agent (documents + statut) ── mirror de merchant_document_upload()/
@@ -2386,6 +2390,64 @@ function agent_application_status() {
     $a = q("SELECT status,rejection_reason FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$a) fail('Compte introuvable',404);
     ok(['status'=>$a['status'],'rejection_reason'=>$a['rejection_reason']]);
+}
+
+// Position fixe (jamais un suivi en direct) pour "Trouver un distributeur" -
+// en pratique utile uniquement pour un distributeur (c'est lui qu'on
+// recherche), mais pas techniquement reserve : n'importe quel agent peut
+// l'appeler sans consequence puisque personne ne le cherche.
+function agent_set_location() {
+    $pl = agent_auth();
+    $b = body();
+    $city = trim($b['city'] ?? '');
+    $lat = isset($b['latitude']) && $b['latitude'] !== '' ? (float)$b['latitude'] : null;
+    $lng = isset($b['longitude']) && $b['longitude'] !== '' ? (float)$b['longitude'] : null;
+    if(!$city && $lat===null && $lng===null) fail('Ville ou coordonnees requises');
+    q("UPDATE agents SET city=?, latitude=?, longitude=? WHERE id=?",[$city?:null,$lat,$lng,$pl['sub']]);
+    ok(null,'Position enregistree');
+}
+
+// Formule de Haversine (calcul pur PHP, pas d'API payante) pour trier les
+// distributeurs par distance quand l'agent partage sa position ; repli sur
+// un filtre ville/pays sinon. Toujours ouvert (aucune restriction
+// geographique forcee) - purement une aide a la decouverte.
+function agent_find_distributors() {
+    $pl = agent_auth();
+    $lat = isset($_GET['lat']) && $_GET['lat'] !== '' ? (float)$_GET['lat'] : null;
+    $lng = isset($_GET['lng']) && $_GET['lng'] !== '' ? (float)$_GET['lng'] : null;
+    $city = trim($_GET['city'] ?? '');
+    $country = trim($_GET['country'] ?? '');
+
+    $where = "is_distributor=1 AND status='active'"; $params = [];
+    if($city){ $where .= " AND city ILIKE ?"; $params[] = '%'.$city.'%'; }
+    if($country){ $where .= " AND country=?"; $params[] = $country; }
+    $rows = q("SELECT id,full_name,phone_number,city,country,latitude,longitude FROM agents WHERE $where",$params)->fetchAll();
+
+    if($lat!==null && $lng!==null){
+        foreach($rows as &$r){
+            if($r['latitude']!==null && $r['longitude']!==null){
+                $r['distance_km'] = haversine_km($lat,$lng,(float)$r['latitude'],(float)$r['longitude']);
+            } else {
+                $r['distance_km'] = null;
+            }
+        }
+        unset($r);
+        usort($rows, function($a,$b){
+            if($a['distance_km']===null) return 1;
+            if($b['distance_km']===null) return -1;
+            return $a['distance_km'] <=> $b['distance_km'];
+        });
+    }
+    ok(['distributors'=>$rows]);
+}
+
+function haversine_km($lat1,$lng1,$lat2,$lng2){
+    $R = 6371;
+    $dLat = deg2rad($lat2-$lat1);
+    $dLng = deg2rad($lng2-$lng1);
+    $a = sin($dLat/2)*sin($dLat/2) + cos(deg2rad($lat1))*cos(deg2rad($lat2))*sin($dLng/2)*sin($dLng/2);
+    $c = 2*atan2(sqrt($a), sqrt(1-$a));
+    return round($R*$c, 1);
 }
 
 function agent_devices() {
@@ -7711,6 +7773,13 @@ function route_install() {
     // distributeur, augmente manuellement par l'admin au fil de la confiance
     // etablie (voir admin_agent_toggle_distributor()/admin_agent_set_float_cap()).
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_float_cap DECIMAL(15,2)",
+    // Position fixe (jamais un suivi en direct) pour la fonctionnalite
+    // "Trouver un distributeur" cote agent : ville/commune/quartier en texte
+    // + coordonnees GPS optionnelles posees une fois. NULL tant que non
+    // renseigne (agent_set_location() cote agent).
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS city VARCHAR(150)",
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)",
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)",
     // Documents d'agrement (piece d'identite + photo du local) - mirror exact
     // de merchant_documents : un seul enregistrement par (agent, type de
     // document), renvoyer le meme type remplace l'ancien.
