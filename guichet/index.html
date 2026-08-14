@@ -417,6 +417,8 @@ var I18N = {
   agr_status_unchanged:{fr:"Toujours en attente — aucun changement pour l'instant",en:'Still pending — no change yet'},
   agr_send_btn:{fr:'Envoyer les documents',en:'Send documents'},
   agr_doc_pending_badge:{fr:'À envoyer',en:'To send'},
+  agr_doc_notice_title:{fr:'Document retiré par un administrateur :',en:'Document removed by an administrator:'},
+  agr_doc_notice_date:{fr:'Le {date} — vous pouvez en renvoyer un nouveau',en:'On {date} — you can send a new one'},
   agr_doc_retake:{fr:'🔄 Reprendre',en:'🔄 Retake'},
   agr_doc_remove:{fr:'Retirer',en:'Remove'},
   agr_doc_uploaded_on:{fr:'Envoyé le {date}',en:'Sent on {date}'},
@@ -881,6 +883,7 @@ function loadAgrementScreen(){
   }).catch(function(){ body.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
 }
 window._agrDocStatus={};
+window._agrDocNotices={};
 // Photos selectionnees (camera/import) mais pas encore envoyees au serveur -
 // permet une derniere verification avant l'envoi reel, au lieu d'un envoi
 // automatique des la selection du fichier.
@@ -889,8 +892,10 @@ function renderAgrementScreen(){
   var body=document.getElementById('agr-body');
   apiCall('/agent?action=doc-list','GET',null,getToken()).then(function(res){
     window._agrDocStatus={};
+    window._agrDocNotices={};
     if(res && res.success && res.data){
       (res.data.documents||[]).forEach(function(d){ window._agrDocStatus[d.doc_type]=d.uploaded_at; });
+      (res.data.notices||[]).forEach(function(n){ window._agrDocNotices[n.doc_type]=n; });
     }
     // Un document desormais confirme envoye n'a plus besoin de rester en
     // attente cote client (evite un doublon visuel apres un envoi reussi).
@@ -945,6 +950,12 @@ function agrDocCard(key){
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--rl);color:var(--rd)" onclick="removePendingAgentDoc(\''+key+'\')">'+t('agr_doc_remove')+'</button>'
       +'</div>';
   } else {
+    var notice=window._agrDocNotices[key];
+    if(notice){
+      var noticeDate=new Date(notice.created_at).toLocaleDateString(loc);
+      h+='<div class="fee-note warn" style="margin-bottom:8px"><b>'+t('agr_doc_notice_title')+'</b> '+notice.reason
+        +'<div style="font-size:10px;margin-top:2px;opacity:.8">'+t('agr_doc_notice_date').replace('{date}',noticeDate)+'</div></div>';
+    }
     h+='<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<div style="display:flex;gap:8px">'
