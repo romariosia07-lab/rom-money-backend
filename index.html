@@ -33,7 +33,11 @@
         }).catch(function(){});
       }
     } catch(e) {}
-    location.replace('./money/' + location.search);
+    // location.hash n'est PAS inclus dans location.search : oublie ici, un
+    // lien vers le panneau admin (.../#admin, lu par money/index.html a la
+    // ligne "if(location.hash==='#admin')") atterrissait sur l'accueil normal
+    // au lieu du panneau admin - d'ou le besoin de le reporter explicitement.
+    location.replace('./money/' + location.search + location.hash);
   </script>
 </body>
 </html>
