@@ -55,7 +55,19 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 .reg-sub{font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:22px}
 .flabel{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block}
 .finput{width:100%;background:var(--bg);border:.5px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:15px;color:var(--t1);outline:none;-webkit-appearance:none}
-.finput:focus{border-color:var(--g);background:#fff}
+.finput:focus{border-color:var(--g)}
+/* Android/Chrome force un fond clair + un texte sombre sur les champs
+   autoremplis (nom, telephone...), invisible sur le fond sombre du theme -
+   on reimpose les couleurs du theme par-dessus, quel que soit l'etat. */
+.finput:-webkit-autofill,
+.finput:-webkit-autofill:hover,
+.finput:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--t1);
+  -webkit-box-shadow:0 0 0px 1000px var(--bg) inset;
+  box-shadow:0 0 0px 1000px var(--bg) inset;
+  caret-color:var(--t1);
+  transition:background-color 9999s ease-in-out 0s;
+}
 .frow{margin-bottom:16px}
 
 #s-pin,#s-pinconfirm,#s-login{background:var(--gdd);align-items:center;justify-content:center;padding:32px 24px}
@@ -157,12 +169,14 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
   <div class="reg-body" id="reg-a" style="display:none">
     <div class="reg-title" data-i18n="reg_title">Votre profil agent</div>
     <div class="reg-sub" data-i18n="reg_sub">Ces informations serviront à examiner votre demande d'agrément.</div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_name">Nom complet *</label><input class="finput" id="r-name" placeholder=""></div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_address">Adresse du point de service (optionnel)</label><input class="finput" id="r-addr" data-i18n-ph="reg_ph_address" placeholder="Quartier, ville..."></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_name">Nom complet *</label><input class="finput" id="r-name" placeholder="" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_ville">Ville (optionnel)</label><input class="finput" id="r-ville" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_commune">Commune (optionnel)</label><input class="finput" id="r-commune" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_quartier">Quartier (optionnel)</label><input class="finput" id="r-quartier" autocomplete="off"></div>
     <div class="frow"><label class="flabel" data-i18n="reg_label_country">Pays *</label>
       <select class="finput" id="r-country"><option value="" data-i18n="reg_country_loading">Chargement des pays...</option></select>
     </div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="00 00 00 00 00"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="00 00 00 00 00" autocomplete="off"></div>
     <button class="btn-g" style="background:var(--gold);color:#fff" onclick="regStep1()" data-i18n="reg_btn_continue">Continuer</button>
   </div>
   <div class="reg-body" id="reg-b" style="display:none;flex-direction:column;align-items:center;text-align:center">
@@ -314,7 +328,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 var API_URL = 'https://rom-money-backend.onrender.com';
 
 var APP = {
-  fullName:'', phone:'', address:'', country:'', currency:'XOF',
+  fullName:'', phone:'', address:'', city:'', country:'', currency:'XOF',
   agentId:'', pinHash:'', token:'',
   balance:0, isDistributor:false, status:'', rejectionReason:'',
   theme:'system', lang:'fr'
@@ -330,8 +344,9 @@ var I18N = {
   reg_title:{fr:'Votre profil agent',en:'Your agent profile'},
   reg_sub:{fr:"Ces informations serviront à examiner votre demande d'agrément.",en:'This information will be used to review your approval request.'},
   reg_label_name:{fr:'Nom complet *',en:'Full name *'},
-  reg_label_address:{fr:'Adresse du point de service (optionnel)',en:'Service point address (optional)'},
-  reg_ph_address:{fr:'Quartier, ville...',en:'District, city...'},
+  reg_label_ville:{fr:'Ville (optionnel)',en:'City (optional)'},
+  reg_label_commune:{fr:'Commune (optionnel)',en:'Municipality (optional)'},
+  reg_label_quartier:{fr:'Quartier (optionnel)',en:'District (optional)'},
   reg_label_country:{fr:'Pays *',en:'Country *'},
   reg_country_loading:{fr:'Chargement des pays...',en:'Loading countries...'},
   reg_err_country:{fr:'Le pays est requis',en:'Country is required'},
@@ -671,13 +686,20 @@ function loadRegCountries(){
 }
 function regStep1(){
   var name = document.getElementById('r-name').value.trim();
-  var addr = document.getElementById('r-addr').value.trim();
+  var ville = document.getElementById('r-ville').value.trim();
+  var commune = document.getElementById('r-commune').value.trim();
+  var quartier = document.getElementById('r-quartier').value.trim();
   var country = document.getElementById('r-country').value;
   var phone = document.getElementById('r-phone').value.trim();
   if(!name){ toast(t('reg_err_name'), true); return; }
   if(!country){ toast(t('reg_err_country'), true); return; }
   if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast(t('reg_err_phone'), true); return; }
+  // L'adresse en base reste un champ texte unique (agents.address) : on
+  // combine ici les 3 champs saisis separement pour une meilleure UX, sans
+  // avoir besoin de changer le backend.
+  var addr = [quartier, commune, ville].filter(function(v){ return !!v; }).join(', ');
   APP.fullName = name; APP.address = addr; APP.country = country; APP.phone = phone;
+  APP.city = ville || commune || quartier || '';
   document.getElementById('reg-a').style.display='none';
   document.getElementById('reg-b').style.display='flex';
   rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
@@ -1235,7 +1257,7 @@ function doFindDistributors(query){
 
 // ── MA POSITION (distributeur uniquement) ──
 function shSetLocation(b){
-  b.innerHTML='<div class="frow"><label class="flabel">Ville / Commune / Quartier</label><input class="finput" id="loc-city"></div>'
+  b.innerHTML='<div class="frow"><label class="flabel">Ville / Commune / Quartier</label><input class="finput" id="loc-city" value="'+(APP.city?APP.city.replace(/"/g,'&quot;'):'')+'"></div>'
     +'<button class="chip" style="width:100%;padding:12px;margin-bottom:14px" onclick="useCurrentLocationForSet()">'+t('find_use_location')+'</button>'
     +'<input type="hidden" id="loc-lat"><input type="hidden" id="loc-lng">'
     +'<button class="btn-g" style="background:var(--g)" onclick="doSetLocation()">'+t('btn_validate')+'</button>';
