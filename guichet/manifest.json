@@ -1,0 +1,22 @@
+{
+  "name": "ROM_GUICHET",
+  "short_name": "ROM_GUICHET",
+  "description": "Depot et retrait avec ROM_MONEY",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#4A2E00",
+  "theme_color": "#4A2E00",
+  "icons": [
+    { "src": "icon-source.jpg", "sizes": "72x72", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "96x96", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "128x128", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "144x144", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "152x152", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
+    { "src": "icon-source.jpg", "sizes": "384x384", "type": "image/jpeg" },
+    { "src": "icon-source.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ]
+}

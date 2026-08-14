@@ -16,6 +16,7 @@ const path = require('path');
 const FILES = [
   path.join(__dirname, '..', 'index.html'),
   path.join(__dirname, '..', 'ROM_BUSINESS', 'index.html'),
+  path.join(__dirname, '..', 'ROM_GUICHET', 'index.html'),
 ];
 
 const ACCENTED = /[àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ]/;

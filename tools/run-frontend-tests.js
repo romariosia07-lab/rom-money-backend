@@ -20,6 +20,7 @@ const vm = require('vm');
 const FILES = [
   { rel: 'index.html', abs: path.join(__dirname, '..', 'index.html') },
   { rel: 'ROM_BUSINESS/index.html', abs: path.join(__dirname, '..', 'ROM_BUSINESS', 'index.html') },
+  { rel: 'ROM_GUICHET/index.html', abs: path.join(__dirname, '..', 'ROM_GUICHET', 'index.html') },
 ];
 
 let totalPass = 0, totalFail = 0;

@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4A2E00">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ROM_GUICHET">
+<title>ROM_GUICHET — Dépôt et retrait ROM_MONEY</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/jpeg" href="./icon-source.jpg">
+<link rel="apple-touch-icon" href="./icon-source.jpg">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:'DM Sans',sans-serif}
+@keyframes spin{to{transform:rotate(360deg)}}
+:root{
+  --g:#E3970F;--gd:#B5730A;--gdd:#4A2E00;--gl:#FFF3DC;--gm:#F0C878;
+  --gold:#1B5E3A;--gold-l:#E4F2EA;
+  --re:#E24B4A;--rl:#FCEBEB;--rd:#A32D2D;
+  --bg:#F7F5F1;--card:#fff;--bord:#E9E4DA;--div:#F3F1EC;
+  --t1:#1A1A1A;--t2:#6B7280;--t3:#9CA3AF;
+  --r:14px;--rs:10px;
+}
+html[data-theme="dark"]{
+  --gl:#2A2110;--rl:#2E1A1A;
+  --bg:#14110A;--card:#1F1B12;--bord:#332B1C;--div:#241F15;
+  --t1:#F0EEE8;--t2:#B0A996;--t3:#786F5C;
+}
+html,body{transition:background-color .25s}
+html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.screen.on{display:flex}
+
+#s-splash{align-items:center;justify-content:center;background:var(--gdd);gap:16px}
+.splash-logo{width:130px;height:130px;border-radius:30px;overflow:hidden;border:3px solid rgba(27,94,58,.4)}
+.splash-logo img{width:100%;height:100%;object-fit:cover}
+.splash-title{font-size:24px;font-weight:900;color:var(--g);letter-spacing:1px}
+.splash-sub{font-size:13px;color:rgba(255,255,255,.65)}
+
+#s-welcome{align-items:center;justify-content:center;background:var(--gdd);padding:32px 28px;gap:14px;text-align:center}
+.welcome-title{font-size:24px;font-weight:900;color:#fff}
+.welcome-sub{font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:18px}
+.btn-g{width:100%;padding:15px;background:var(--g);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn-w{width:100%;padding:14px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px}
+
+#s-register{overflow-y:auto}
+.reg-header{padding:20px 20px 0;display:flex;align-items:center;gap:10px}
+.back-btn{background:none;border:none;cursor:pointer;padding:6px;color:var(--t2);display:flex}
+.back-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.reg-body{padding:20px 20px 40px;flex:1}
+.reg-title{font-size:22px;font-weight:800;color:var(--t1);margin-bottom:6px}
+.reg-sub{font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:22px}
+.flabel{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block}
+.finput{width:100%;background:var(--bg);border:.5px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:15px;color:var(--t1);outline:none;-webkit-appearance:none}
+.finput:focus{border-color:var(--g);background:#fff}
+.frow{margin-bottom:16px}
+
+#s-pin,#s-pinconfirm,#s-login{background:var(--gdd);align-items:center;justify-content:center;padding:32px 24px}
+.pin-av{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;margin-bottom:12px}
+.pin-title{font-size:19px;font-weight:700;color:#fff;text-align:center;margin-bottom:6px}
+.pin-sub{font-size:13px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:28px}
+.dots{display:flex;gap:16px;justify-content:center;margin-bottom:32px}
+.dot{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.45);background:transparent;transition:all .15s}
+.dot.on{background:#fff;border-color:#fff}
+.dot.err{background:var(--re);border-color:var(--re)}
+.kpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:290px}
+.kb{height:62px;font-size:22px;font-weight:500;background:rgba(255,255,255,.12);border:none;border-radius:14px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;-webkit-appearance:none}
+.kb:active{background:rgba(255,255,255,.3)}
+.kb.light{background:var(--gl);color:var(--gd)}
+.kb.ghost{background:transparent;border:.5px solid rgba(255,255,255,.2);font-size:13px;color:rgba(255,255,255,.6)}
+.pin-err{color:var(--re);font-size:13px;text-align:center;margin-top:16px;min-height:20px}
+.pin-link{background:none;border:none;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;margin-top:14px;font-family:inherit}
+
+#s-agrement{overflow-y:auto;padding:28px 20px 40px;align-items:center}
+.agr-icon{font-size:44px;margin-bottom:10px}
+.agr-title{font-size:20px;font-weight:800;color:var(--t1);text-align:center;margin-bottom:6px}
+.agr-sub{font-size:13px;color:var(--t2);text-align:center;line-height:1.5;margin-bottom:20px}
+
+#s-app{flex-direction:column;overflow:hidden}
+#main-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+#main-scroll::-webkit-scrollbar{display:none}
+.app-header{background:#2E1C00;padding:20px 18px 34px;position:relative}
+.bal-label{color:rgba(255,255,255,.65);font-size:12px;margin-bottom:4px}
+.bal-amt{color:#fff;font-size:32px;font-weight:900}
+.bal-amt .cur{font-size:15px;font-weight:600;margin-left:4px;opacity:.8}
+
+.qa-grid{display:flex;justify-content:space-around;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:18px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
+.qa{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
+.qa-ico{width:48px;height:48px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px}
+.qa-lbl{font-size:11px;font-weight:700;color:var(--t1)}
+
+.section{margin:18px 16px}
+.section-title{font-size:14px;font-weight:800;color:var(--t1);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--card);border-radius:14px;border:.5px solid var(--bord);padding:14px}
+.tx-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid var(--div)}
+.set-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.set-ico svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tx-row:last-child{border-bottom:none}
+.tx-ico{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.tx-name{font-size:13px;font-weight:700;color:var(--t1)}
+.tx-date{font-size:11px;color:var(--t3);margin-top:1px}
+.tx-amt{font-size:14px;font-weight:800;margin-left:auto;white-space:nowrap}
+.tx-type{font-size:11px;color:var(--t2)}
+.empty-note{text-align:center;padding:30px 10px;color:var(--t3);font-size:13px}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:.5px solid var(--bord);display:flex;padding:8px 0 calc(env(safe-area-inset-bottom,0px) + 6px);z-index:5}
+.nb{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font-family:inherit;color:var(--t3);padding:4px}
+.nb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2}
+.nb span{font-size:10px;font-weight:700}
+.nb.on{color:var(--g)}
+
+#sh-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:100}
+#sh-bg.on{display:block}
+#sh{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;max-height:88vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:101;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+#sh.on{transform:translateY(0)}
+.sh-handle{width:36px;height:4px;background:var(--bord);border-radius:2px;margin:10px auto}
+.sh-head{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 14px}
+.sh-title{font-size:16px;font-weight:800;color:var(--t1)}
+.sh-close{background:none;border:none;color:var(--t2);font-size:20px;cursor:pointer;padding:4px}
+#sh-body{padding:0 20px 10px}
+.chip{padding:7px 12px;background:var(--gl);border:none;border-radius:8px;font-size:12px;font-weight:700;color:var(--gd);cursor:pointer;font-family:inherit}
+.fee-note{font-size:12px;color:var(--t2);margin:8px 0;padding:10px 12px;background:var(--gl);border-radius:10px}
+.fee-note.free{color:var(--gd)}
+.fee-note.warn{background:#FCEBEB;color:var(--rd)}
+
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#222;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s;max-width:85vw;text-align:center;pointer-events:none}
+.toast.on{opacity:1}
+.toast.err{background:var(--re)}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="screen on" id="s-splash">
+  <div class="splash-logo"><img src="./icon-source.jpg" alt="ROM_GUICHET"></div>
+  <div class="splash-title">ROM_GUICHET</div>
+  <div class="splash-sub" data-i18n="splash_sub">Dépôt et retrait ROM_MONEY</div>
+</div>
+
+<!-- WELCOME -->
+<div class="screen" id="s-welcome">
+  <div class="splash-logo" style="width:90px;height:90px;border-radius:22px;margin-bottom:6px"><img src="./icon-source.jpg" style="width:100%;height:100%;object-fit:cover"></div>
+  <div class="welcome-title" data-i18n="welcome_title">Bienvenue sur ROM_GUICHET</div>
+  <div class="welcome-sub" data-i18n="welcome_sub">L'espace des agents et distributeurs ROM_MONEY : dépôt, retrait et gestion de votre float.</div>
+  <button class="btn-g" onclick="goto('s-register');showRegA()" data-i18n="welcome_btn_create">Devenir agent</button>
+  <button class="btn-w" onclick="goto('s-login');setupLoginScreen()" data-i18n="welcome_btn_login">J'ai déjà un compte</button>
+</div>
+
+<!-- REGISTER -->
+<div class="screen" id="s-register">
+  <div class="reg-header">
+    <button class="back-btn" onclick="goto('s-welcome')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+  </div>
+  <div class="reg-body" id="reg-a" style="display:none">
+    <div class="reg-title" data-i18n="reg_title">Votre profil agent</div>
+    <div class="reg-sub" data-i18n="reg_sub">Ces informations serviront à examiner votre demande d'agrément.</div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_name">Nom complet *</label><input class="finput" id="r-name" placeholder=""></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_address">Adresse du point de service (optionnel)</label><input class="finput" id="r-addr" data-i18n-ph="reg_ph_address" placeholder="Quartier, ville..."></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_country">Pays *</label>
+      <select class="finput" id="r-country"><option value="" data-i18n="reg_country_loading">Chargement des pays...</option></select>
+    </div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_phone">Numéro de téléphone *</label><input class="finput" id="r-phone" type="tel" data-i18n-ph="reg_ph_phone_sample" placeholder="00 00 00 00 00"></div>
+    <button class="btn-g" style="background:var(--gold);color:#fff" onclick="regStep1()" data-i18n="reg_btn_continue">Continuer</button>
+  </div>
+  <div class="reg-body" id="reg-b" style="display:none;flex-direction:column;align-items:center;text-align:center">
+    <div class="pin-av" style="background:var(--gl);color:var(--gd)">🔐</div>
+    <div class="reg-title" id="pin-phase-label" data-i18n="reg_pin_choose">Choisissez votre PIN</div>
+    <div class="reg-sub" data-i18n="reg_pin_sub">Code à 4 chiffres — protège votre compte agent.</div>
+    <div class="dots" id="reg-dots">
+      <div class="dot" style="border-color:var(--bord)" id="rg0"></div><div class="dot" style="border-color:var(--bord)" id="rg1"></div>
+      <div class="dot" style="border-color:var(--bord)" id="rg2"></div><div class="dot" style="border-color:var(--bord)" id="rg3"></div>
+    </div>
+    <div class="kpad">
+      <button class="kb light" onclick="rgPin('1')">1</button><button class="kb light" onclick="rgPin('2')">2</button><button class="kb light" onclick="rgPin('3')">3</button>
+      <button class="kb light" onclick="rgPin('4')">4</button><button class="kb light" onclick="rgPin('5')">5</button><button class="kb light" onclick="rgPin('6')">6</button>
+      <button class="kb light" onclick="rgPin('7')">7</button><button class="kb light" onclick="rgPin('8')">8</button><button class="kb light" onclick="rgPin('9')">9</button>
+      <div></div><button class="kb light" onclick="rgPin('0')">0</button><button class="kb light" style="background:none" onclick="rgDel()">⌫</button>
+    </div>
+    <div class="pin-err" id="reg-pin-msg" style="color:var(--re)"></div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="screen" id="s-login">
+  <div class="pin-av">🧑‍💼</div>
+  <div class="pin-title" id="login-title" data-i18n="login_title_default">Connexion agent</div>
+  <div id="login-phone-wrap" style="width:100%;max-width:280px;margin-bottom:16px">
+    <input id="login-phone-input" type="tel" data-i18n-ph="login_ph_phone" placeholder="Numéro de téléphone"
+      style="width:100%;padding:12px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:15px;color:#fff;outline:none;text-align:center;font-family:inherit">
+  </div>
+  <div class="dots">
+    <div class="dot" id="ld0"></div><div class="dot" id="ld1"></div>
+    <div class="dot" id="ld2"></div><div class="dot" id="ld3"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="lgPin('1')">1</button><button class="kb" onclick="lgPin('2')">2</button><button class="kb" onclick="lgPin('3')">3</button>
+    <button class="kb" onclick="lgPin('4')">4</button><button class="kb" onclick="lgPin('5')">5</button><button class="kb" onclick="lgPin('6')">6</button>
+    <button class="kb" onclick="lgPin('7')">7</button><button class="kb" onclick="lgPin('8')">8</button><button class="kb" onclick="lgPin('9')">9</button>
+    <div></div><button class="kb" onclick="lgPin('0')">0</button><button class="kb ghost" onclick="lgDel()">⌫</button>
+  </div>
+  <div class="pin-err" id="login-err"></div>
+  <button class="pin-link" onclick="_addAccountMode ? cancelAddAccount() : goto('s-welcome')" data-i18n="login_back">← Retour</button>
+</div>
+
+<!-- PIN CONFIRM (actions sensibles) -->
+<div class="screen" id="s-pinconfirm">
+  <div class="pin-av" id="pc-av">🔐</div>
+  <div class="pin-title" data-i18n="pinconfirm_title">Confirmation PIN</div>
+  <div class="pin-sub" id="pc-sub" data-i18n="pinconfirm_sub">Confirmez votre action</div>
+  <div class="dots">
+    <div class="dot" id="pc0"></div><div class="dot" id="pc1"></div>
+    <div class="dot" id="pc2"></div><div class="dot" id="pc3"></div>
+  </div>
+  <div class="kpad">
+    <button class="kb" onclick="pcPin('1')">1</button><button class="kb" onclick="pcPin('2')">2</button><button class="kb" onclick="pcPin('3')">3</button>
+    <button class="kb" onclick="pcPin('4')">4</button><button class="kb" onclick="pcPin('5')">5</button><button class="kb" onclick="pcPin('6')">6</button>
+    <button class="kb" onclick="pcPin('7')">7</button><button class="kb" onclick="pcPin('8')">8</button><button class="kb" onclick="pcPin('9')">9</button>
+    <div></div><button class="kb" onclick="pcPin('0')">0</button><button class="kb ghost" onclick="pcDel()">⌫</button>
+  </div>
+  <div class="pin-err" id="pc-err"></div>
+  <button class="pin-link" onclick="pinCancel()" data-i18n="cancel">Annuler</button>
+</div>
+
+<!-- AGREMENT (en attente / rejete) -->
+<div class="screen" id="s-agrement">
+  <div id="agr-body" style="width:100%;max-width:420px;margin:0 auto"></div>
+  <button class="pin-link" style="color:var(--t3)" onclick="doLogout()" data-i18n="profil_logout">Déconnexion</button>
+</div>
+
+<!-- APP -->
+<div class="screen" id="s-app">
+  <div class="app-header">
+    <div class="bal-label" style="padding-top:4px"><span data-i18n="bal_label">Float disponible</span></div>
+    <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur" id="hdr-cur">FCFA</span></div>
+  </div>
+
+  <div class="qa-grid">
+    <button class="qa" onclick="openSheet('depot')"><div class="qa-ico">⬇️</div><span class="qa-lbl" data-i18n="qa_depot">Dépôt</span></button>
+    <button class="qa" onclick="openSheet('retrait')"><div class="qa-ico">⬆️</div><span class="qa-lbl" data-i18n="qa_retrait">Retrait</span></button>
+    <button class="qa" onclick="openSheet('recharge')"><div class="qa-ico">🔄</div><span class="qa-lbl" data-i18n="qa_recharge">Recharger</span></button>
+    <button class="qa" onclick="openSheet('find-distributors')"><div class="qa-ico">📍</div><span class="qa-lbl" data-i18n="qa_distributeurs">Distributeurs</span></button>
+  </div>
+
+  <div id="main-scroll">
+    <div class="page" id="pg-home">
+      <div class="section">
+        <div class="section-title"><span data-i18n="home_recent">Opérations récentes</span> <a onclick="navGo('historique')" style="font-size:12px;color:var(--g);cursor:pointer;font-weight:700" data-i18n="see_all">Tout voir</a></div>
+        <div class="card" id="home-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-historique" style="display:none">
+      <div class="section">
+        <div class="section-title" data-i18n="history_title">Historique</div>
+        <div class="card" id="hist-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-profil" style="display:none">
+      <div class="section">
+        <div class="card" style="display:flex;align-items:center;gap:12px">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px">🧑‍💼</div>
+          <div><div style="font-weight:800;font-size:15px" id="prof-name">—</div><div style="font-size:12px;color:var(--t2)" id="prof-phone">—</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="card" style="padding:0;overflow:hidden" id="profil-menu">
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('recharge')"><div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_recharge_history">Historique de mes recharges</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_change_pin">Changer le PIN</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('appearance')"><div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_appearance">Apparence</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_devices">Mes appareils</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('account-switch')"><div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_add_account">Ajouter un compte</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('language')"><div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_language">Langue</span></div>
+          <div class="tx-row" style="padding:14px 16px;cursor:pointer;color:var(--re)" onclick="doLogout()"><div class="set-ico" style="background:var(--rl);color:var(--re)"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_logout">Déconnexion</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nb on" id="nb-home" onclick="navGo('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span data-i18n="nav_home">Accueil</span></button>
+    <button class="nb" id="nb-historique" onclick="navGo('historique')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span data-i18n="nav_history">Historique</span></button>
+    <button class="nb" id="nb-profil" onclick="navGo('profil')"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="nav_profile">Profil</span></button>
+  </div>
+</div>
+
+<!-- MODALE DE CONFIRMATION -->
+<div id="user-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--bord);border-radius:18px;padding:24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div id="user-confirm-icon" style="font-size:32px;margin-bottom:10px;text-align:center"></div>
+    <div id="user-confirm-title" style="font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;text-align:center"></div>
+    <div id="user-confirm-message" style="font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;text-align:center;white-space:pre-line"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="userCloseConfirmModal()" style="padding:13px;background:var(--div);border:none;border-radius:12px;color:var(--t1);font-weight:700;cursor:pointer;font-family:inherit" data-i18n="cancel">Annuler</button>
+      <button id="user-confirm-btn" onclick="userConfirmModalSubmit()" style="padding:13px;background:var(--re);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET -->
+<div id="sh-bg" onclick="closeSheet()"></div>
+<div id="sh">
+  <div class="sh-handle"></div>
+  <div class="sh-head"><div class="sh-title" id="sh-title">—</div><button class="sh-close" onclick="closeSheet()">✕</button></div>
+  <div id="sh-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var API_URL = 'https://rom-money-backend.onrender.com';
+
+var APP = {
+  fullName:'', phone:'', address:'', country:'', currency:'XOF',
+  agentId:'', pinHash:'', token:'',
+  balance:0, isDistributor:false, status:'', rejectionReason:'',
+  theme:'system', lang:'fr'
+};
+
+// ── I18N (FR/EN) ──
+var I18N = {
+  splash_sub:{fr:'Dépôt et retrait ROM_MONEY',en:'ROM_MONEY cash-in / cash-out'},
+  welcome_title:{fr:'Bienvenue sur ROM_GUICHET',en:'Welcome to ROM_GUICHET'},
+  welcome_sub:{fr:"L'espace des agents et distributeurs ROM_MONEY : dépôt, retrait et gestion de votre float.",en:'The space for ROM_MONEY agents and distributors: cash-in, cash-out and float management.'},
+  welcome_btn_create:{fr:'Devenir agent',en:'Become an agent'},
+  welcome_btn_login:{fr:"J'ai déjà un compte",en:'I already have an account'},
+  reg_title:{fr:'Votre profil agent',en:'Your agent profile'},
+  reg_sub:{fr:"Ces informations serviront à examiner votre demande d'agrément.",en:'This information will be used to review your approval request.'},
+  reg_label_name:{fr:'Nom complet *',en:'Full name *'},
+  reg_label_address:{fr:'Adresse du point de service (optionnel)',en:'Service point address (optional)'},
+  reg_ph_address:{fr:'Quartier, ville...',en:'District, city...'},
+  reg_label_country:{fr:'Pays *',en:'Country *'},
+  reg_country_loading:{fr:'Chargement des pays...',en:'Loading countries...'},
+  reg_err_country:{fr:'Le pays est requis',en:'Country is required'},
+  reg_label_phone:{fr:'Numéro de téléphone *',en:'Phone number *'},
+  reg_ph_phone_sample:{fr:'00 00 00 00 00',en:'00 00 00 00 00'},
+  reg_btn_continue:{fr:'Continuer',en:'Continue'},
+  reg_pin_choose:{fr:'Choisissez votre PIN',en:'Choose your PIN'},
+  reg_pin_confirm_title:{fr:'Confirmez votre PIN',en:'Confirm your PIN'},
+  reg_pin_sub:{fr:'Code à 4 chiffres — protège votre compte agent.',en:'4-digit code — protects your agent account.'},
+  reg_pin_mismatch:{fr:'Les codes ne correspondent pas',en:'Codes do not match'},
+  reg_err_name:{fr:'Le nom complet est requis',en:'Full name is required'},
+  reg_err_phone:{fr:'Numéro de téléphone invalide',en:'Invalid phone number'},
+  reg_creating:{fr:'Création du compte...',en:'Creating account...'},
+  reg_err_create:{fr:'Erreur lors de la création',en:'Error while creating account'},
+  reg_choose_country:{fr:'Choisir un pays',en:'Choose a country'},
+  login_title_default:{fr:'Connexion agent',en:'Agent login'},
+  login_title_add:{fr:'Connexion',en:'Login'},
+  login_ph_phone:{fr:'Numéro de téléphone',en:'Phone number'},
+  login_back:{fr:'← Retour',en:'← Back'},
+  login_err_phone_required:{fr:'Entrez votre numéro',en:'Enter your phone number'},
+  login_err_wrong:{fr:'Numéro ou PIN incorrect',en:'Wrong phone number or PIN'},
+  pinconfirm_title:{fr:'Confirmation PIN',en:'PIN confirmation'},
+  pinconfirm_sub:{fr:'Confirmez votre action',en:'Confirm your action'},
+  pinconfirm_wrong:{fr:'PIN incorrect',en:'Wrong PIN'},
+  cancel:{fr:'Annuler',en:'Cancel'},
+  confirm_default_title:{fr:'Confirmation',en:'Confirmation'},
+  confirm_btn_default:{fr:'Confirmer',en:'Confirm'},
+  loading:{fr:'Chargement...',en:'Loading...'},
+  see_all:{fr:'Tout voir',en:'See all'},
+  network_error:{fr:'Erreur réseau',en:'Network error'},
+  err_generic:{fr:'Erreur',en:'Error'},
+  session_expired_toast:{fr:'Session expirée, reconnectez-vous',en:'Session expired, please log in again'},
+  app_locked_toast:{fr:'Application verrouillée par sécurité',en:'App locked for security'},
+  bal_label:{fr:'Float disponible',en:'Available float'},
+  qa_depot:{fr:'Dépôt',en:'Cash-in'},
+  qa_retrait:{fr:'Retrait',en:'Cash-out'},
+  qa_recharge:{fr:'Recharger',en:'Recharge'},
+  qa_distributeurs:{fr:'Distributeurs',en:'Distributors'},
+  home_recent:{fr:'Opérations récentes',en:'Recent operations'},
+  history_title:{fr:'Historique',en:'History'},
+  hist_no_tx:{fr:'Aucune opération pour le moment.',en:'No operations yet.'},
+  nav_home:{fr:'Accueil',en:'Home'},
+  nav_history:{fr:'Historique',en:'History'},
+  nav_profile:{fr:'Profil',en:'Profile'},
+  profil_recharge_history:{fr:'Historique de mes recharges',en:'My recharge history'},
+  profil_change_pin:{fr:'Changer le PIN',en:'Change PIN'},
+  profil_appearance:{fr:'Apparence',en:'Appearance'},
+  profil_devices:{fr:'Mes appareils',en:'My devices'},
+  profil_add_account:{fr:'Ajouter un compte',en:'Add an account'},
+  profil_language:{fr:'Langue',en:'Language'},
+  profil_logout:{fr:'Déconnexion',en:'Log out'},
+  logout_confirm:{fr:'Se déconnecter de ROM_GUICHET ?',en:'Log out of ROM_GUICHET?'},
+  amount_label:{fr:'Montant',en:'Amount'},
+  btn_validate:{fr:'Valider',en:'Confirm'},
+  err_amount_invalid:{fr:'Montant invalide',en:'Invalid amount'},
+  processing:{fr:'Traitement en cours...',en:'Processing...'},
+  // agrement
+  agr_pending_title:{fr:"Demande d'agrément en attente",en:'Approval request pending'},
+  agr_pending_sub:{fr:"Un administrateur doit valider votre dossier avant que vous puissiez utiliser l'application. Envoyez les documents requis ci-dessous.",en:'An administrator must approve your file before you can use the app. Send the required documents below.'},
+  agr_complete_title:{fr:'Dossier complet',en:'File complete'},
+  agr_complete_sub:{fr:"Votre dossier est en cours d'examen par un administrateur. Vous serez actif dès son approbation.",en:'Your file is under review by an administrator. You will be active as soon as it is approved.'},
+  agr_rejected_title:{fr:"Demande refusée",en:'Request rejected'},
+  agr_rejected_sub:{fr:'Raison :',en:'Reason:'},
+  agr_rejected_note:{fr:'Vous pouvez renvoyer vos documents ci-dessous pour une nouvelle demande.',en:'You can resend your documents below for a new request.'},
+  agr_refresh_btn:{fr:'Actualiser mon statut',en:'Refresh my status'},
+  agr_doc_uploaded_on:{fr:'Envoyé le {date}',en:'Sent on {date}'},
+  agr_doc_photo:{fr:'📷 Photo',en:'📷 Photo'},
+  agr_doc_import:{fr:'Importer',en:'Import'},
+  agr_doc_uploading:{fr:'Envoi en cours...',en:'Uploading...'},
+  agr_doc_upload_success:{fr:'Document enregistré',en:'Document saved'},
+  agr_doc_upload_error:{fr:"Échec de l'enregistrement",en:'Failed to save'},
+  agr_doc_required:{fr:'Documents requis',en:'Required documents'},
+  agr_doc_optional:{fr:'Documents optionnels (facultatif, renforce la confiance)',en:'Optional documents (helps build trust)'},
+  doc_id_recto:{fr:"Pièce d'identité (recto)",en:'ID document (front)'},
+  doc_id_verso:{fr:"Pièce d'identité (verso)",en:'ID document (back)'},
+  doc_shop_photo:{fr:'Photo de votre point de service',en:'Photo of your service point'},
+  doc_request_letter:{fr:'Lettre de demande signée',en:'Signed request letter'},
+  doc_rccm:{fr:'RCCM (Registre du Commerce)',en:'RCCM (Trade Register)'},
+  doc_dfe:{fr:"DFE (Déclaration Fiscale d'Existence)",en:'Tax registration (DFE)'},
+  doc_patente:{fr:'Patente / registre fiscal',en:'Business license'},
+  // depot/retrait
+  sheet_title_depot:{fr:'Dépôt client',en:'Customer cash-in'},
+  sheet_title_retrait:{fr:'Retrait client',en:'Customer cash-out'},
+  sheet_title_recharge:{fr:'Recharger mon float',en:'Recharge my float'},
+  sheet_title_find_distributors:{fr:'Trouver un distributeur',en:'Find a distributor'},
+  sheet_title_incoming_recharges:{fr:'Demandes de recharge entrantes',en:'Incoming recharge requests'},
+  sheet_title_change_pin:{fr:'Changer le PIN',en:'Change PIN'},
+  sheet_title_devices:{fr:'Mes appareils',en:'My devices'},
+  sheet_title_account_switch:{fr:'Mes comptes',en:'My accounts'},
+  sheet_title_set_location:{fr:'Ma position',en:'My location'},
+  sheet_title_appearance:{fr:'Apparence',en:'Appearance'},
+  sheet_title_language:{fr:'Langue',en:'Language'},
+  dep_customer_phone:{fr:'Numéro du client',en:"Customer's phone number"},
+  dep_amount:{fr:'Montant à déposer',en:'Amount to deposit'},
+  dep_note:{fr:'Le client vous remet cet argent en espèces. Confirmez avec VOTRE PIN.',en:'The customer hands you this cash. Confirm with YOUR PIN.'},
+  dep_btn:{fr:'Confirmer le dépôt',en:'Confirm cash-in'},
+  dep_err_phone:{fr:'Numéro client requis',en:"Customer's phone number required"},
+  dep_success:{fr:'Dépôt effectué',en:'Cash-in completed'},
+  dep_err_generic:{fr:'Échec du dépôt',en:'Cash-in failed'},
+  ret_customer_phone:{fr:'Numéro du client',en:"Customer's phone number"},
+  ret_amount:{fr:'Montant à retirer',en:'Amount to withdraw'},
+  ret_pin_label:{fr:'PIN du CLIENT (pas le vôtre)',en:"CUSTOMER's PIN (not yours)"},
+  ret_note:{fr:"Vous remettez ce montant en espèces au client. C'est SON solde qui est débité — il doit entrer lui-même son PIN.",en:"You hand this amount in cash to the customer. THEIR balance is debited — they must enter their own PIN."},
+  ret_btn:{fr:'Confirmer le retrait',en:'Confirm cash-out'},
+  ret_err_phone:{fr:'Numéro client requis',en:"Customer's phone number required"},
+  ret_err_pin:{fr:'PIN du client requis (4 chiffres)',en:"Customer's PIN required (4 digits)"},
+  ret_success:{fr:'Retrait effectué',en:'Cash-out completed'},
+  ret_err_generic:{fr:'Échec du retrait',en:'Cash-out failed'},
+  rec_amount:{fr:'Montant à recharger',en:'Amount to recharge'},
+  rec_note:{fr:'Note (optionnel)',en:'Note (optional)'},
+  rec_distributor_phone:{fr:'Numéro du distributeur (optionnel)',en:"Distributor's phone number (optional)"},
+  rec_distributor_hint:{fr:"Laissez vide pour envoyer la demande à l'Admin Principal.",en:'Leave empty to send the request to the Main Admin.'},
+  rec_btn:{fr:'Envoyer la demande',en:'Send request'},
+  rec_sending:{fr:'Envoi...',en:'Sending...'},
+  rec_success:{fr:'Demande envoyée',en:'Request sent'},
+  rec_err_generic:{fr:'Échec de la demande',en:'Request failed'},
+  rec_code_label:{fr:'Code de confirmation (communiquez-le au distributeur) :',en:'Confirmation code (share it with the distributor):'},
+  rec_history_title:{fr:'Historique de mes demandes',en:'My request history'},
+  rec_history_empty:{fr:'Aucune demande de recharge.',en:'No recharge requests.'},
+  rec_status_pending:{fr:'En attente',en:'Pending'},
+  rec_status_approved:{fr:'Approuvée',en:'Approved'},
+  rec_status_rejected:{fr:'Rejetée',en:'Rejected'},
+  find_use_location:{fr:'📍 Utiliser ma position',en:'📍 Use my location'},
+  find_city_ph:{fr:'Ou entrez une ville',en:'Or enter a city'},
+  find_search_btn:{fr:'Rechercher',en:'Search'},
+  find_empty:{fr:'Aucun distributeur trouvé.',en:'No distributor found.'},
+  find_call_btn:{fr:'📞 Appeler',en:'📞 Call'},
+  find_distance:{fr:'{km} km',en:'{km} km'},
+  find_geoloc_denied:{fr:'Géolocalisation refusée ou indisponible',en:'Geolocation denied or unavailable'},
+  loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
+  inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
+  inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
+  inc_approve_btn:{fr:'Approuver',en:'Approve'},
+  inc_reject_btn:{fr:'Rejeter',en:'Reject'},
+  inc_err_code:{fr:'Code à 6 chiffres requis',en:'6-digit code required'},
+  inc_approved:{fr:'Recharge approuvée',en:'Recharge approved'},
+  inc_rejected:{fr:'Demande rejetée',en:'Request rejected'},
+  inc_reject_confirm_title:{fr:'Rejeter cette demande ?',en:'Reject this request?'},
+  inc_reject_confirm_msg:{fr:'Cette demande de recharge sera rejetée.',en:'This recharge request will be rejected.'},
+  cp_current:{fr:'PIN actuel',en:'Current PIN'},
+  cp_new:{fr:'Nouveau PIN',en:'New PIN'},
+  cp_confirm_new:{fr:'Confirmer le nouveau PIN',en:'Confirm new PIN'},
+  cp_err_invalid:{fr:'PIN invalide (4 chiffres)',en:'Invalid PIN (4 digits)'},
+  cp_err_mismatch:{fr:'Les nouveaux PIN ne correspondent pas',en:'New PINs do not match'},
+  cp_updated:{fr:'PIN mis à jour',en:'PIN updated'},
+  dev_load_error:{fr:'Erreur de chargement',en:'Loading error'},
+  dev_none:{fr:'Aucun appareil enregistré pour le moment.',en:'No device registered yet.'},
+  dev_this_one:{fr:'Cet appareil',en:'This device'},
+  dev_revoked:{fr:'Déconnecté',en:'Disconnected'},
+  dev_disconnect_btn:{fr:'Déconnecter',en:'Disconnect'},
+  dev_seen_on:{fr:'Vu le ',en:'Last seen on '},
+  dev_revoke_confirm_title:{fr:'Déconnecter cet appareil ?',en:'Disconnect this device?'},
+  dev_revoke_confirm_btn:{fr:'Déconnecter',en:'Disconnect'},
+  dev_revoke_confirm:{fr:'Déconnecter cet appareil ? Il devra se reconnecter avec le PIN pour continuer.',en:'Disconnect this device? It will need to log in again with the PIN to continue.'},
+  dev_revoked_toast:{fr:'Appareil déconnecté',en:'Device disconnected'},
+  acc_none:{fr:'Aucun compte enregistré pour le moment.',en:'No account registered yet.'},
+  acc_default_name:{fr:'Agent',en:'Agent'},
+  acc_default_this:{fr:'ce compte',en:'this account'},
+  acc_remove_confirm_title:{fr:'Retirer ce compte ?',en:'Remove this account?'},
+  acc_remove_confirm_btn:{fr:'Retirer',en:'Remove'},
+  acc_remove_confirm:{fr:'Retirer {name} de cet appareil ?',en:'Remove {name} from this device?'},
+  theme_light:{fr:'Clair',en:'Light'},
+  theme_dark:{fr:'Sombre',en:'Dark'},
+  theme_system:{fr:'Système',en:'System'},
+  lang_fr:{fr:'Français',en:'French'},
+  lang_en:{fr:'Anglais',en:'English'},
+  tx_type_agent_cash_in:{fr:'Dépôt',en:'Cash-in'},
+  tx_type_agent_cash_out:{fr:'Retrait',en:'Cash-out'},
+  tx_type_agent_commission:{fr:'Commission',en:'Commission'},
+  tx_type_agent_recharge:{fr:'Recharge float',en:'Float recharge'},
+  tx_type_generic:{fr:'Opération',en:'Operation'},
+  label_client:{fr:'Client',en:'Customer'}
+};
+function t(key){ return (I18N[key] && I18N[key][APP.lang||'fr']) || key; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = t(el.getAttribute('data-i18n-ph')); });
+}
+var PIN_MEM = '';
+var txList = [];
+var AGENT_DOC_REQUIRED = ['id_recto','id_verso','shop_photo','request_letter'];
+var AGENT_DOC_OPTIONAL = ['rccm','dfe','patente'];
+
+function sha256Hex(str){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function(buf){
+    return Array.prototype.map.call(new Uint8Array(buf), function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+function setPin(plain){ PIN_MEM = plain; return sha256Hex(plain).then(function(h){ APP.pinHash = h; }); }
+function checkPinLocal(buf){
+  if(!APP.pinHash) return Promise.resolve(false);
+  return sha256Hex(buf).then(function(h){ return h===APP.pinHash; });
+}
+
+// ── MULTI-COMPTES ("Ajouter un compte") ── meme mecanique que ROM_BUSINESS/ROM_MONEY.
+function accountKey(phone){ return (phone||'').replace(/[^0-9+]/g,''); }
+function getAccountsStore(){
+  try{ var d=localStorage.getItem('romgui_accounts'); return d?JSON.parse(d):{}; }catch(e){ return {}; }
+}
+function setAccountsStore(obj){ try{ localStorage.setItem('romgui_accounts', JSON.stringify(obj)); }catch(e){} }
+function getActivePhoneKey(){ try{ return localStorage.getItem('romgui_active_phone')||''; }catch(e){ return ''; } }
+function setActivePhoneKey(k){ try{ localStorage.setItem('romgui_active_phone', k||''); }catch(e){} }
+function jwtDecodePayload(token){
+  try{
+    var parts=(token||'').split('.');
+    if(parts.length!==3) return null;
+    var b64=parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length%4) b64+='=';
+    var json=decodeURIComponent(atob(b64).split('').map(function(c){
+      return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+function isTokenValid(token){
+  var pl=jwtDecodePayload(token);
+  return !!(pl && pl.exp && pl.exp*1000>Date.now());
+}
+function save(){
+  try{
+    localStorage.setItem('romgui', JSON.stringify(APP));
+    if(APP.phone){
+      var key=accountKey(APP.phone);
+      var accounts=getAccountsStore();
+      accounts[key]=APP;
+      setAccountsStore(accounts);
+      setActivePhoneKey(key);
+    }
+  }catch(e){}
+}
+function load(){
+  try{
+    var raw = localStorage.getItem('romgui');
+    if(!raw) return false;
+    var o = JSON.parse(raw);
+    for(var k in o) APP[k]=o[k];
+    return true;
+  }catch(e){ return false; }
+}
+function getToken(){ return APP.token||''; }
+function getDeviceId(){
+  try{
+    var id = localStorage.getItem('romgui_device_id');
+    if(!id){
+      id = 'dev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12);
+      localStorage.setItem('romgui_device_id', id);
+    }
+    return id;
+  }catch(e){ return ''; }
+}
+
+var SESSION_EXPIRED_MESSAGES = ['Token manquant','Token invalide ou expire','Session revoquee depuis un autre appareil. Reconnectez-vous.','Compte suspendu'];
+var _sessionExpiredHandled = false;
+function handleSessionExpired(){
+  if(_sessionExpiredHandled) return;
+  _sessionExpiredHandled = true;
+  APP.token = '';
+  save();
+  closeSheet();
+  goto('s-login');
+  setupLoginScreen();
+  toast(t('session_expired_toast'), true);
+  setTimeout(function(){ _sessionExpiredHandled=false; }, 2000);
+}
+function apiCall(endpoint, method, data, token){
+  if(!navigator.onLine) return Promise.resolve({success:false, message:'Pas de connexion internet', offline:true});
+  var opts={ method:method||'GET', headers:{'Content-Type':'application/json'} };
+  if(token) opts.headers['Authorization']='Bearer '+token;
+  if(data && method!=='GET') opts.body=JSON.stringify(data);
+  return fetch(API_URL+endpoint, opts)
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(token && res && res.success===false && SESSION_EXPIRED_MESSAGES.indexOf(res.message)!==-1) handleSessionExpired();
+      return res;
+    })
+    .catch(function(e){ return {success:false,message:'Erreur reseau: '+e.message}; });
+}
+
+function goto(id){
+  var all=['s-splash','s-welcome','s-register','s-login','s-pinconfirm','s-agrement','s-app'];
+  for(var i=0;i<all.length;i++){
+    var el=document.getElementById(all[i]);
+    if(el) el.classList.toggle('on', all[i]===id);
+  }
+}
+function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
+function curSuffix(){ return (APP.currency||'XOF')==='XOF' ? 'F' : APP.currency; }
+
+// ── MODALE DE CONFIRMATION ──
+var _userConfirmCallback = null;
+function userOpenConfirmModal(config){
+  document.getElementById('user-confirm-icon').textContent = config.icon || '⚠️';
+  document.getElementById('user-confirm-title').textContent = config.title || t('confirm_default_title');
+  document.getElementById('user-confirm-message').textContent = config.message || '';
+  var btn = document.getElementById('user-confirm-btn');
+  btn.textContent = config.confirmLabel || t('confirm_btn_default');
+  btn.style.background = config.confirmColor || 'var(--re)';
+  _userConfirmCallback = config.onConfirm;
+  document.getElementById('user-confirm-overlay').style.display='flex';
+}
+function userCloseConfirmModal(){
+  document.getElementById('user-confirm-overlay').style.display='none';
+  _userConfirmCallback = null;
+}
+function userConfirmModalSubmit(){
+  var cb = _userConfirmCallback;
+  userCloseConfirmModal();
+  if(cb) cb();
+}
+function toast(msg, isErr){
+  var el=document.getElementById('toast');
+  if(!el) return;
+  el.textContent=msg; el.className='toast on'+(isErr?' err':'');
+  setTimeout(function(){ el.className='toast'; }, 2600);
+}
+
+// ── INSCRIPTION ──
+function showRegA(){
+  document.getElementById('reg-a').style.display='block';
+  document.getElementById('reg-b').style.display='none';
+  loadRegCountries();
+}
+function loadRegCountries(){
+  var sel=document.getElementById('r-country');
+  if(!sel || sel.getAttribute('data-loaded')==='1') return;
+  apiCall('/auth?action=countries','GET',null,false).then(function(res){
+    if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
+      sel.innerHTML='<option value="">'+t('reg_choose_country')+'</option>'
+        + res.data.countries.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+      sel.setAttribute('data-loaded','1');
+    } else {
+      sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
+    }
+  }).catch(function(){
+    sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
+  });
+}
+function regStep1(){
+  var name = document.getElementById('r-name').value.trim();
+  var addr = document.getElementById('r-addr').value.trim();
+  var country = document.getElementById('r-country').value;
+  var phone = document.getElementById('r-phone').value.trim();
+  if(!name){ toast(t('reg_err_name'), true); return; }
+  if(!country){ toast(t('reg_err_country'), true); return; }
+  if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast(t('reg_err_phone'), true); return; }
+  APP.fullName = name; APP.address = addr; APP.country = country; APP.phone = phone;
+  document.getElementById('reg-a').style.display='none';
+  document.getElementById('reg-b').style.display='flex';
+  rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
+  document.getElementById('pin-phase-label').textContent=t('reg_pin_choose');
+  document.getElementById('reg-pin-msg').textContent='';
+}
+var rgBuf='', rgPhase=1, rgPin1='';
+function updateRgDots(){
+  for(var i=0;i<4;i++){ var el=document.getElementById('rg'+i); if(el) el.classList.toggle('on', i<rgBuf.length); }
+}
+function rgDel(){ if(rgBuf.length>0){ rgBuf=rgBuf.slice(0,-1); updateRgDots(); } }
+function rgPin(d){
+  if(rgBuf.length>=4) return;
+  rgBuf+=d; updateRgDots();
+  if(rgBuf.length===4){
+    var buf=rgBuf;
+    setTimeout(function(){
+      if(rgPhase===1){
+        rgPin1=buf; rgBuf=''; rgPhase=2; updateRgDots();
+        document.getElementById('pin-phase-label').textContent=t('reg_pin_confirm_title');
+        document.getElementById('reg-pin-msg').textContent='';
+      } else {
+        if(buf===rgPin1){
+          setPin(buf);
+          finishRegister();
+        } else {
+          rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
+          document.getElementById('pin-phase-label').textContent=t('reg_pin_choose');
+          document.getElementById('reg-pin-msg').textContent=t('reg_pin_mismatch');
+        }
+      }
+    }, 150);
+  }
+}
+function finishRegister(){
+  toast(t('reg_creating'));
+  apiCall('/agent?action=register','POST',{
+    full_name:APP.fullName, phone:APP.phone, pin:PIN_MEM,
+    address:APP.address, country:APP.country, device_id:getDeviceId()
+  }).then(function(res){
+    if(res && res.success && res.data){
+      APP.token=res.data.token; APP.agentId=res.data.agent_id;
+      APP.status=res.data.status||'pending_approval'; save();
+      goto('s-agrement');
+      loadAgrementScreen();
+    } else {
+      toast((res&&res.message)||t('reg_err_create'), true);
+    }
+  });
+}
+
+// ── CONNEXION ──
+var _addAccountMode = false;
+var _switchPrefillPhone = '';
+function startAddAccount(){
+  save();
+  _addAccountMode = true;
+  _switchPrefillPhone = '';
+  var pi=document.getElementById('login-phone-input'); if(pi) pi.value='';
+  goto('s-login');
+  setupLoginScreen();
+}
+function cancelAddAccount(){
+  _addAccountMode = false;
+  _switchPrefillPhone = '';
+  goto('s-app');
+}
+function setupLoginScreen(){
+  var known = _addAccountMode ? _switchPrefillPhone : APP.phone;
+  var wrap = document.getElementById('login-phone-wrap');
+  var input = document.getElementById('login-phone-input');
+  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?t('login_title_add'):(APP.fullName||t('login_title_default')); }
+  else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent=t('login_title_default'); }
+  lgBuf=''; updateLgDots();
+  document.getElementById('login-err').textContent='';
+}
+var lgBuf='';
+function updateLgDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('ld'+i); if(el) el.classList.toggle('on', i<lgBuf.length); } }
+function lgDel(){ if(lgBuf.length>0){ lgBuf=lgBuf.slice(0,-1); updateLgDots(); } }
+function lgPin(d){
+  if(lgBuf.length>=4) return;
+  lgBuf+=d; updateLgDots();
+  if(lgBuf.length===4){
+    var buf=lgBuf;
+    setTimeout(function(){
+      var phoneInput=document.getElementById('login-phone-input');
+      var phone=(phoneInput&&phoneInput.value.trim())||APP.phone||'';
+      if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent=t('login_err_phone_required'); return; }
+      apiCall('/agent?action=login','POST',{phone:phone,pin:buf,device_id:getDeviceId()}).then(function(res){
+        if(res && res.success && res.data){
+          APP.phone=phone; APP.token=res.data.token; APP.agentId=res.data.agent_id;
+          APP.fullName=res.data.full_name; APP.address=res.data.address;
+          APP.balance=res.data.balance; APP.country=res.data.country||APP.country;
+          APP.currency=res.data.currency||APP.currency; APP.status=res.data.status;
+          APP.rejectionReason=res.data.rejection_reason||''; APP.isDistributor=!!res.data.is_distributor;
+          _addAccountMode=false; _switchPrefillPhone='';
+          setPin(buf).then(function(){
+            save();
+            if(APP.status==='active'){ launchApp(); } else { goto('s-agrement'); loadAgrementScreen(); }
+          });
+        } else if(res && res.offline && !_addAccountMode && phone===APP.phone && APP.pinHash){
+          checkPinLocal(buf).then(function(match){
+            if(!match){
+              lgBuf=''; updateLgDots();
+              document.getElementById('login-err').textContent=t('login_err_wrong');
+              return;
+            }
+            lgBuf=''; updateLgDots();
+            if(APP.status==='active'){ launchApp(); } else { goto('s-agrement'); loadAgrementScreen(); }
+          });
+        } else {
+          lgBuf=''; updateLgDots();
+          document.getElementById('login-err').textContent=(res&&res.message)||t('login_err_wrong');
+        }
+      });
+    }, 150);
+  }
+}
+
+// ── PIN CONFIRM GENERIQUE (actions financieres sous VOTRE propre PIN) ──
+var pcBuf='', pcCallback=null;
+function requirePin(subtitle, cb){
+  pcBuf=''; pcCallback=cb; updatePcDots();
+  document.getElementById('pc-sub').textContent=subtitle;
+  document.getElementById('pc-err').textContent='';
+  closeSheet();
+  setTimeout(function(){ goto('s-pinconfirm'); }, 50);
+}
+function updatePcDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('pc'+i); if(el) el.classList.toggle('on', i<pcBuf.length); } }
+function pcDel(){ if(pcBuf.length>0){ pcBuf=pcBuf.slice(0,-1); updatePcDots(); } }
+var _moneyActionInFlight = false;
+function pinCancel(){ pcCallback=null; _moneyActionInFlight=false; goto('s-app'); }
+function pcPin(d){
+  if(pcBuf.length>=4) return;
+  pcBuf+=d; updatePcDots();
+  if(pcBuf.length===4){
+    var buf=pcBuf;
+    setTimeout(function(){
+      checkPinLocal(buf).then(function(match){
+        if(match){
+          PIN_MEM=buf; goto('s-app');
+          if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+          return;
+        }
+        apiCall('/agent?action=login','POST',{phone:APP.phone,pin:buf,device_id:getDeviceId()}).then(function(res){
+          if(res && res.success && res.data && res.data.token){
+            APP.token=res.data.token;
+            setPin(buf).then(save);
+            goto('s-app');
+            if(pcCallback){ var cb=pcCallback; pcCallback=null; cb(); }
+          } else {
+            pcBuf=''; updatePcDots();
+            document.getElementById('pc-err').textContent=t('pinconfirm_wrong');
+          }
+        });
+      });
+    }, 150);
+  }
+}
+
+// ── AGREMENT (documents + statut) ──
+function loadAgrementScreen(){
+  var body=document.getElementById('agr-body');
+  body.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=application-status','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      APP.status=res.data.status; APP.rejectionReason=res.data.rejection_reason||''; save();
+      renderAgrementScreen();
+    } else {
+      body.innerHTML='<div class="empty-note" style="color:var(--rd)">'+((res&&res.message)||t('network_error'))+'</div>';
+    }
+  }).catch(function(){ body.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+window._agrDocStatus={};
+function renderAgrementScreen(){
+  var body=document.getElementById('agr-body');
+  apiCall('/agent?action=doc-list','GET',null,getToken()).then(function(res){
+    window._agrDocStatus={};
+    if(res && res.success && res.data){
+      (res.data.documents||[]).forEach(function(d){ window._agrDocStatus[d.doc_type]=d.uploaded_at; });
+    }
+    var allRequiredSent = AGENT_DOC_REQUIRED.every(function(k){ return !!window._agrDocStatus[k]; });
+    var html='';
+    if(APP.status==='rejected'){
+      html+='<div class="agr-icon">✗</div><div class="agr-title">'+t('agr_rejected_title')+'</div>'
+        +'<div class="fee-note warn" style="margin-bottom:16px"><b>'+t('agr_rejected_sub')+'</b> '+(APP.rejectionReason||'')+'</div>'
+        +'<div class="agr-sub">'+t('agr_rejected_note')+'</div>';
+    } else if(allRequiredSent){
+      html+='<div class="agr-icon">⏳</div><div class="agr-title">'+t('agr_complete_title')+'</div>'
+        +'<div class="agr-sub">'+t('agr_complete_sub')+'</div>';
+    } else {
+      html+='<div class="agr-icon">📋</div><div class="agr-title">'+t('agr_pending_title')+'</div>'
+        +'<div class="agr-sub">'+t('agr_pending_sub')+'</div>';
+    }
+    if(!allRequiredSent || APP.status==='rejected'){
+      html+='<div class="section-title" style="margin-top:10px">'+t('agr_doc_required')+'</div>'
+        + AGENT_DOC_REQUIRED.map(agrDocCard).join('')
+        +'<div class="section-title" style="margin-top:10px">'+t('agr_doc_optional')+'</div>'
+        + AGENT_DOC_OPTIONAL.map(agrDocCard).join('');
+    }
+    html+='<button class="btn-g" style="background:var(--g);margin-top:16px" onclick="refreshAgrementStatus()">'+t('agr_refresh_btn')+'</button>';
+    body.innerHTML=html;
+    applyI18n();
+  });
+}
+function agrDocCard(key){
+  var uploadedAt=window._agrDocStatus[key];
+  var loc=APP.lang==='en'?'en-US':'fr-FR';
+  var h='<div class="card" style="padding:12px;margin-bottom:10px;text-align:left">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:'+(uploadedAt?'4px':'8px')+'">'
+    +'<span style="font-size:13px;font-weight:700">'+t('doc_'+key)+'</span>'
+    +(uploadedAt?'<span style="color:var(--gold);font-size:17px;font-weight:900">✓</span>':'')
+    +'</div>';
+  if(uploadedAt){
+    h+='<div style="font-size:10px;color:var(--t3)">'+t('agr_doc_uploaded_on').replace('{date}',new Date(uploadedAt).toLocaleDateString(loc))+'</div>';
+  } else {
+    h+='<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
+      +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'agrdoc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'agrdoc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
+      +'</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function handleAgentDocFile(input, key){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var MAX=1200;
+      var w=img.width, h=img.height;
+      if(w>h){ if(w>MAX){ h=Math.round(h*MAX/w); w=MAX; } } else { if(h>MAX){ w=Math.round(w*MAX/h); h=MAX; } }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      uploadAgentDoc(key, cv.toDataURL('image/jpeg',0.8));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value='';
+}
+function uploadAgentDoc(key, photo){
+  toast(t('agr_doc_uploading'));
+  apiCall('/agent?action=doc-upload','POST',{doc_type:key,photo:photo},getToken()).then(function(res){
+    if(res && res.success){
+      toast(t('agr_doc_upload_success'));
+      renderAgrementScreen();
+    } else {
+      toast((res&&res.message)||t('agr_doc_upload_error'), true);
+    }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+function refreshAgrementStatus(){
+  apiCall('/agent?action=application-status','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      APP.status=res.data.status; APP.rejectionReason=res.data.rejection_reason||''; save();
+      if(APP.status==='active'){
+        apiCall('/agent?action=balance','GET',null,getToken()).then(function(res2){
+          if(res2 && res2.success && res2.data){
+            APP.balance=res2.data.balance; APP.currency=res2.data.currency||APP.currency;
+            APP.isDistributor=!!res2.data.is_distributor; save();
+          }
+          launchApp();
+        });
+      } else {
+        renderAgrementScreen();
+      }
+    }
+  });
+}
+
+// ── LANCEMENT APP ──
+function launchApp(){
+  goto('s-app');
+  document.getElementById('prof-name').textContent = APP.fullName||'—';
+  document.getElementById('prof-phone').textContent = APP.phone||'—';
+  updateBalDisplay();
+  refreshBalance();
+  refreshHistory();
+  updateDistributorMenu();
+  startInactivityTimer();
+}
+function updateBalDisplay(){
+  document.getElementById('hdr-balance').textContent = fmt(APP.balance);
+  document.getElementById('hdr-cur').textContent = curSuffix();
+}
+function refreshBalance(){
+  return apiCall('/agent?action=balance','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      APP.balance=res.data.balance; APP.currency=res.data.currency||APP.currency;
+      APP.isDistributor=!!res.data.is_distributor; save();
+      updateBalDisplay();
+      updateDistributorMenu();
+    }
+  });
+}
+function updateDistributorMenu(){
+  var menu=document.getElementById('profil-menu');
+  if(!menu) return;
+  var existing=document.getElementById('menu-dist-requests');
+  if(existing) existing.remove();
+  var existingLoc=document.getElementById('menu-dist-location');
+  if(existingLoc) existingLoc.remove();
+  if(APP.isDistributor){
+    var row=document.createElement('div');
+    row.className='tx-row'; row.id='menu-dist-requests';
+    row.style.cssText='padding:14px 16px;cursor:pointer';
+    row.onclick=function(){ openSheet('incoming-recharges'); };
+    row.innerHTML='<div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></div><span style="font-size:14px;font-weight:600">'+t('sheet_title_incoming_recharges')+'</span>';
+    menu.insertBefore(row, menu.firstChild);
+
+    var row2=document.createElement('div');
+    row2.className='tx-row'; row2.id='menu-dist-location';
+    row2.style.cssText='padding:14px 16px;cursor:pointer';
+    row2.onclick=function(){ openSheet('set-location'); };
+    row2.innerHTML='<div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><span style="font-size:14px;font-weight:600">Ma position</span>';
+    menu.insertBefore(row2, menu.firstChild);
+  }
+}
+
+// ── NAVIGATION ──
+var PAGES=['home','historique','profil'];
+function navGo(p){
+  PAGES.forEach(function(pg){
+    var el=document.getElementById('pg-'+pg); if(el) el.style.display = pg===p?'block':'none';
+    var nb=document.getElementById('nb-'+pg); if(nb) nb.classList.toggle('on', pg===p);
+  });
+  document.getElementById('main-scroll').scrollTop=0;
+  if(p==='historique'){ refreshHistory(true); }
+}
+
+// ── HISTORIQUE ──
+function txIcon(tx){
+  if(tx.type==='agent_commission') return {ico:'💰',bg:'var(--gl)'};
+  if(tx.type==='agent_recharge') return {ico:'🔄',bg:'var(--gl)'};
+  return tx.direction==='credit' ? {ico:'⬇️',bg:'var(--gl)'} : {ico:'⬆️',bg:'var(--rl)'};
+}
+function txTypeLabel(tx){ return t('tx_type_'+tx.type) !== ('tx_type_'+tx.type) ? t('tx_type_'+tx.type) : t('tx_type_generic'); }
+function renderTxRows(rows, containerId){
+  var c=document.getElementById(containerId);
+  if(!c) return;
+  if(!rows.length){ c.innerHTML='<div class="empty-note">'+t('hist_no_tx')+'</div>'; return; }
+  var h='';
+  var loc = APP.lang==='en'?'en-US':'fr-FR';
+  rows.forEach(function(tx){
+    var isCredit = tx.direction==='credit';
+    var name = tx.customer_name || tx.customer_phone || t('label_client');
+    var ic = txIcon(tx);
+    var d = new Date(tx.created_at);
+    var amtColor = isCredit?'var(--gd)':'var(--re)';
+    var amtText = (isCredit?'+':'-')+fmt(tx.amount)+' '+curSuffix();
+    h+='<div class="tx-row"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+      +'<div><div class="tx-name">'+name+'</div><div class="tx-date"><span class="tx-type">'+txTypeLabel(tx)+'</span> · '+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
+      +'<div class="tx-amt" style="color:'+amtColor+'">'+amtText+'</div></div>';
+  });
+  c.innerHTML=h;
+}
+function refreshHistory(full){
+  return apiCall('/agent?action=history','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      txList = res.data.transactions||[];
+      renderTxRows(txList.slice(0,5), 'home-tx-list');
+      if(full) renderTxRows(txList, 'hist-tx-list');
+    }
+  });
+}
+
+// ── SHEETS ──
+var SHEET_TITLE_KEYS={
+  'depot':'sheet_title_depot','retrait':'sheet_title_retrait','recharge':'sheet_title_recharge',
+  'find-distributors':'sheet_title_find_distributors','incoming-recharges':'sheet_title_incoming_recharges',
+  'set-location':'sheet_title_set_location','change-pin':'sheet_title_change_pin','devices':'sheet_title_devices',
+  'account-switch':'sheet_title_account_switch','appearance':'sheet_title_appearance','language':'sheet_title_language'
+};
+function openSheet(type, extra){
+  var titleKey = SHEET_TITLE_KEYS[type];
+  document.getElementById('sh-title').textContent = titleKey ? t(titleKey) : '—';
+  var b=document.getElementById('sh-body');
+  buildSheet(type, b, extra);
+  document.getElementById('sh-bg').classList.add('on');
+  setTimeout(function(){ document.getElementById('sh').classList.add('on'); }, 10);
+}
+function closeSheet(){
+  document.getElementById('sh').classList.remove('on');
+  document.getElementById('sh-bg').classList.remove('on');
+}
+function buildSheet(type, b, extra){
+  if(type==='depot') shDepot(b);
+  else if(type==='retrait') shRetrait(b);
+  else if(type==='recharge') shRecharge(b);
+  else if(type==='find-distributors') shFindDistributors(b);
+  else if(type==='incoming-recharges') shIncomingRecharges(b);
+  else if(type==='set-location') shSetLocation(b);
+  else if(type==='change-pin') shChangePin(b);
+  else if(type==='devices') shDevices(b);
+  else if(type==='account-switch') shAccountSwitch(b);
+  else if(type==='appearance') shAppearance(b);
+  else if(type==='language') shLanguage(b);
+}
+
+// ── DEPOT (cash-in, PIN de l'agent) ──
+function shDepot(b){
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('dep_customer_phone')+'</label><input class="finput" id="dep-phone" type="tel"></div>'
+    +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="fee-note free">'+t('dep_note')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
+}
+function doDepot(){
+  if(_moneyActionInFlight) return;
+  var phone=document.getElementById('dep-phone').value.trim();
+  var amount=parseFloat(document.getElementById('dep-amount').value);
+  if(!phone){ toast(t('dep_err_phone'), true); return; }
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  _moneyActionInFlight = true;
+  requirePin(t('dep_note'), function(){
+    apiCall('/agent?action=cash-in','POST',{customer_phone:phone,amount:amount,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
+      if(res && res.success){
+        toast(fmt(amount)+' '+curSuffix()+' — '+t('dep_success'));
+        refreshBalance(); refreshHistory();
+      } else {
+        toast((res&&res.message)||t('dep_err_generic'), true);
+      }
+    }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); });
+  });
+}
+
+// ── RETRAIT (cash-out, PIN du CLIENT — pas de requirePin, champ dedie) ──
+function shRetrait(b){
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('ret_customer_phone')+'</label><input class="finput" id="ret-phone" type="tel"></div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="frow"><label class="flabel" style="color:var(--rd)">'+t('ret_pin_label')+'</label><input class="finput" id="ret-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="fee-note warn">'+t('ret_note')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="doRetrait()">'+t('ret_btn')+'</button>';
+}
+function doRetrait(){
+  if(_moneyActionInFlight) return;
+  var phone=document.getElementById('ret-phone').value.trim();
+  var amount=parseFloat(document.getElementById('ret-amount').value);
+  var pin=document.getElementById('ret-pin').value.trim();
+  if(!phone){ toast(t('ret_err_phone'), true); return; }
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  if(!/^\d{4}$/.test(pin)){ toast(t('ret_err_pin'), true); return; }
+  _moneyActionInFlight = true;
+  apiCall('/agent?action=cash-out','POST',{customer_phone:phone,amount:amount,pin:pin},getToken()).then(function(res){
+    _moneyActionInFlight = false;
+    if(res && res.success){
+      toast(fmt(amount)+' '+curSuffix()+' — '+t('ret_success'));
+      closeSheet();
+      refreshBalance(); refreshHistory();
+    } else {
+      toast((res&&res.message)||t('ret_err_generic'), true);
+    }
+  }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); });
+}
+
+// ── RECHARGE DE FLOAT (demande, pas de PIN — aucun mouvement direct) ──
+function shRecharge(b){
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('rec_amount')+'</label><input class="finput" id="rec-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="frow"><label class="flabel">'+t('rec_note')+'</label><input class="finput" id="rec-note"></div>'
+    +'<div class="frow"><label class="flabel">'+t('rec_distributor_phone')+'</label><input class="finput" id="rec-dist-phone" type="tel"></div>'
+    +'<div class="fee-note">'+t('rec_distributor_hint')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" id="rec-submit-btn" onclick="doRequestRecharge()">'+t('rec_btn')+'</button>'
+    +'<div id="rec-result"></div>'
+    +'<a onclick="shRechargeHistory(document.getElementById(\'sh-body\'))" style="display:block;text-align:center;margin-top:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('rec_history_title')+'</a>';
+}
+function doRequestRecharge(){
+  var amount=parseFloat(document.getElementById('rec-amount').value);
+  var note=document.getElementById('rec-note').value.trim();
+  var distPhone=document.getElementById('rec-dist-phone').value.trim();
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  var btn=document.getElementById('rec-submit-btn');
+  btn.disabled=true; btn.textContent=t('rec_sending');
+  var body={amount:amount};
+  if(note) body.note=note;
+  if(distPhone) body.distributor_phone=distPhone;
+  apiCall('/agent?action=request-recharge','POST',body,getToken()).then(function(res){
+    btn.disabled=false; btn.textContent=t('rec_btn');
+    if(res && res.success){
+      toast(t('rec_success'));
+      var resBox=document.getElementById('rec-result');
+      if(resBox && res.data && res.data.confirmation_code){
+        resBox.innerHTML='<div class="fee-note" style="margin-top:12px;text-align:center"><b>'+t('rec_code_label')+'</b><div style="font-size:24px;font-weight:900;letter-spacing:4px;margin-top:6px;color:var(--gd)">'+res.data.confirmation_code+'</div></div>';
+      }
+    } else {
+      toast((res&&res.message)||t('rec_err_generic'), true);
+    }
+  }).catch(function(){ btn.disabled=false; btn.textContent=t('rec_btn'); toast(t('network_error'), true); });
+}
+function shRechargeHistory(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=recharge-history','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var reqs=res.data.requests||[];
+      if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('rec_history_empty')+'</div>'; return; }
+      var loc=APP.lang==='en'?'en-US':'fr-FR';
+      var statusColor={pending:'var(--gd)',approved:'var(--gold)',rejected:'var(--re)'};
+      var h='';
+      reqs.forEach(function(r){
+        h+='<div class="card" style="margin-bottom:8px;padding:12px">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+fmt(r.amount)+' '+curSuffix()+'</b><span style="color:'+(statusColor[r.status]||'var(--t2)')+';font-weight:700;font-size:12px">'+t('rec_status_'+r.status)+'</span></div>'
+          +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+new Date(r.created_at).toLocaleString(loc)+'</div>'
+          +(r.confirmation_code && r.status==='pending' ? '<div style="font-size:11px;color:var(--gd);margin-top:4px">'+t('rec_code_label')+' '+r.confirmation_code+'</div>' : '')
+          +(r.reject_reason ? '<div style="font-size:11px;color:var(--re);margin-top:4px">'+r.reject_reason+'</div>' : '')
+          +'</div>';
+      });
+      b.innerHTML=h;
+    } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
+  }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+
+// ── TROUVER UN DISTRIBUTEUR ──
+function shFindDistributors(b){
+  b.innerHTML='<button class="btn-g" style="background:var(--gold);margin-bottom:10px" onclick="findDistributorsByLocation()">'+t('find_use_location')+'</button>'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px"><input class="finput" id="find-city" data-i18n-ph="find_city_ph" placeholder="'+t('find_city_ph')+'" style="margin-bottom:0"><button class="chip" style="flex-shrink:0" onclick="findDistributorsByCity()">'+t('find_search_btn')+'</button></div>'
+    +'<div id="find-results"><div class="empty-note">'+t('find_empty')+'</div></div>';
+}
+function findDistributorsByLocation(){
+  var results=document.getElementById('find-results');
+  results.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  if(!navigator.geolocation){ results.innerHTML='<div class="empty-note">'+t('find_geoloc_denied')+'</div>'; return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    doFindDistributors('lat='+pos.coords.latitude+'&lng='+pos.coords.longitude);
+  }, function(){
+    results.innerHTML='<div class="empty-note">'+t('find_geoloc_denied')+'</div>';
+  }, {timeout:8000});
+}
+function findDistributorsByCity(){
+  var city=document.getElementById('find-city').value.trim();
+  if(!city) return;
+  doFindDistributors('city='+encodeURIComponent(city));
+}
+function doFindDistributors(query){
+  var results=document.getElementById('find-results');
+  results.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=find-distributors&'+query,'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var list=res.data.distributors||[];
+      if(!list.length){ results.innerHTML='<div class="empty-note">'+t('find_empty')+'</div>'; return; }
+      var h='';
+      list.forEach(function(d){
+        h+='<div class="card" style="margin-bottom:8px;padding:12px">'
+          +'<div style="font-weight:700;font-size:14px">'+(d.full_name||'—')+'</div>'
+          +'<div style="font-size:12px;color:var(--t2);margin-top:2px">'+(d.city||d.country||'')+(d.distance_km!=null?' · '+t('find_distance').replace('{km}',d.distance_km):'')+'</div>'
+          +'<a href="tel:'+d.phone_number+'" style="display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:var(--gd)">'+t('find_call_btn')+' '+d.phone_number+'</a>'
+          +'</div>';
+      });
+      results.innerHTML=h;
+    } else { results.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
+  }).catch(function(){ results.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+
+// ── MA POSITION (distributeur uniquement) ──
+function shSetLocation(b){
+  b.innerHTML='<div class="frow"><label class="flabel">Ville / Commune / Quartier</label><input class="finput" id="loc-city"></div>'
+    +'<button class="chip" style="width:100%;padding:12px;margin-bottom:14px" onclick="useCurrentLocationForSet()">'+t('find_use_location')+'</button>'
+    +'<input type="hidden" id="loc-lat"><input type="hidden" id="loc-lng">'
+    +'<button class="btn-g" style="background:var(--g)" onclick="doSetLocation()">'+t('btn_validate')+'</button>';
+}
+function useCurrentLocationForSet(){
+  if(!navigator.geolocation){ toast(t('find_geoloc_denied'), true); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    document.getElementById('loc-lat').value=pos.coords.latitude;
+    document.getElementById('loc-lng').value=pos.coords.longitude;
+    toast(t('loc_captured_toast'));
+  }, function(){ toast(t('find_geoloc_denied'), true); });
+}
+function doSetLocation(){
+  var city=document.getElementById('loc-city').value.trim();
+  var lat=document.getElementById('loc-lat').value;
+  var lng=document.getElementById('loc-lng').value;
+  apiCall('/agent?action=set-location','POST',{city:city,latitude:lat,longitude:lng},getToken()).then(function(res){
+    if(res && res.success){ toast(t('btn_validate')); closeSheet(); }
+    else { toast((res&&res.message)||t('err_generic'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+
+// ── DEMANDES ENTRANTES (distributeur uniquement) ──
+function shIncomingRecharges(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=list-incoming-recharges','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var reqs=res.data.requests||[];
+      if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('inc_empty')+'</div>'; return; }
+      var loc=APP.lang==='en'?'en-US':'fr-FR';
+      var h='';
+      reqs.forEach(function(r){
+        h+='<div class="card" style="margin-bottom:10px;padding:12px">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+(r.full_name||r.phone_number)+'</b><span style="font-weight:800">'+fmt(r.amount)+' '+curSuffix()+'</span></div>'
+          +'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+r.phone_number+' · '+new Date(r.created_at).toLocaleString(loc)+'</div>'
+          +(r.note?'<div style="font-size:12px;color:var(--t2);margin-top:4px">'+r.note+'</div>':'')
+          +'<input class="finput" id="inc-code-'+r.id+'" maxlength="6" inputmode="numeric" placeholder="'+t('inc_code_ph')+'" style="margin-top:10px;margin-bottom:8px">'
+          +'<div style="display:flex;gap:8px">'
+          +'<button class="chip" style="flex:1;background:var(--gl);color:var(--gd)" onclick="doApproveIncoming(\''+r.id+'\')">'+t('inc_approve_btn')+'</button>'
+          +'<button class="chip" style="flex:1;background:var(--rl);color:var(--rd)" onclick="doRejectIncoming(\''+r.id+'\')">'+t('inc_reject_btn')+'</button>'
+          +'</div></div>';
+      });
+      b.innerHTML=h;
+    } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
+  }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+function doApproveIncoming(id){
+  var codeInput=document.getElementById('inc-code-'+id);
+  var code=codeInput?codeInput.value.trim():'';
+  if(!/^\d{6}$/.test(code)){ toast(t('inc_err_code'), true); return; }
+  if(_moneyActionInFlight) return;
+  _moneyActionInFlight = true;
+  requirePin(t('inc_approve_btn'), function(){
+    apiCall('/agent?action=approve-recharge-request','POST',{id:id,code:code,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
+      if(res && res.success){
+        toast(t('inc_approved'));
+        refreshBalance();
+        var b=document.getElementById('sh-body');
+        if(b && document.getElementById('sh').classList.contains('on')) shIncomingRecharges(b);
+      } else {
+        toast((res&&res.message)||t('err_generic'), true);
+      }
+    }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); });
+  });
+}
+function doRejectIncoming(id){
+  userOpenConfirmModal({
+    icon:'✗', title:t('inc_reject_confirm_title'), message:t('inc_reject_confirm_msg'),
+    confirmLabel:t('inc_reject_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/agent?action=reject-recharge-request','POST',{id:id},getToken()).then(function(res){
+        if(res && res.success){
+          toast(t('inc_rejected'));
+          var b=document.getElementById('sh-body');
+          if(b && document.getElementById('sh').classList.contains('on')) shIncomingRecharges(b);
+        } else { toast((res&&res.message)||t('err_generic'), true); }
+      }).catch(function(){ toast(t('network_error'), true); });
+    }
+  });
+}
+
+// ── CHANGER LE PIN ──
+function shChangePin(b){
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('cp_current')+'</label><input class="finput" id="cp-cur" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">'+t('cp_new')+'</label><input class="finput" id="cp-new" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<div class="frow"><label class="flabel">'+t('cp_confirm_new')+'</label><input class="finput" id="cp-new2" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="doChangePin()">'+t('btn_validate')+'</button>';
+}
+function doChangePin(){
+  var cur=document.getElementById('cp-cur').value.trim();
+  var np=document.getElementById('cp-new').value.trim();
+  var np2=document.getElementById('cp-new2').value.trim();
+  if(!/^\d{4}$/.test(cur)||!/^\d{4}$/.test(np)){ toast(t('cp_err_invalid'), true); return; }
+  if(np!==np2){ toast(t('cp_err_mismatch'), true); return; }
+  apiCall('/agent?action=change-pin','POST',{old_pin:cur,new_pin:np},getToken()).then(function(res){
+    if(res && res.success){
+      setPin(np).then(function(){ save(); closeSheet(); toast(t('cp_updated')); });
+    } else { toast((res&&res.message)||t('err_generic'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+
+// ── MES APPAREILS ──
+function shDevices(b){
+  b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">'+t('loading')+'</div>';
+  loadDevicesList(b);
+}
+function loadDevicesList(b){
+  apiCall('/agent?action=devices','GET',null,getToken()).then(function(res){
+    if(!res || !res.success || !res.data){ b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('dev_load_error')+'</div>'; return; }
+    var devices = res.data.devices||[];
+    if(!devices.length){
+      b.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">'+t('dev_none')+'</div>';
+      return;
+    }
+    var html = '';
+    var loc = APP.lang==='en'?'en-US':'fr-FR';
+    devices.forEach(function(d){
+      var ua = (d.user_agent||'').length>60 ? d.user_agent.slice(0,60)+'…' : (d.user_agent||'?');
+      var when = new Date(d.last_seen).toLocaleString(loc);
+      var statusHtml;
+      if(d.is_current){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--gd)">'+t('dev_this_one')+'</span>';
+      } else if(d.revoked){
+        statusHtml = '<span style="font-size:11px;font-weight:700;color:var(--t3)">'+t('dev_revoked')+'</span>';
+      } else {
+        statusHtml = '<button onclick="doRevokeDevice(&apos;'+d.device_id+'&apos;)" style="background:var(--rl);color:var(--rd);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'+t('dev_disconnect_btn')+'</button>';
+      }
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:.5px solid var(--bord);border-radius:12px;margin-bottom:8px;'+(d.revoked?'opacity:.5':'')+'">'
+        + '<div style="min-width:0">'
+        + '<div style="font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ua+'</div>'
+        + '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+t('dev_seen_on')+when+'</div>'
+        + '</div>'
+        + '<div style="flex-shrink:0;margin-left:10px">'+statusHtml+'</div>'
+        + '</div>';
+    });
+    b.innerHTML = html;
+  }).catch(function(){
+    b.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">'+t('dev_load_error')+'</div>';
+  });
+}
+function doRevokeDevice(deviceId){
+  userOpenConfirmModal({
+    icon:'📴', title:t('dev_revoke_confirm_title'), message:t('dev_revoke_confirm'),
+    confirmLabel:t('dev_revoke_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      apiCall('/agent?action=revoke-device','POST',{device_id:deviceId},getToken()).then(function(res){
+        if(res && res.success){
+          toast(t('dev_revoked_toast'));
+          var b = document.getElementById('sh-body');
+          if(b) loadDevicesList(b);
+        } else {
+          toast((res&&res.message)||t('err_generic'), true);
+        }
+      }).catch(function(){ toast(t('err_generic'), true); });
+    }
+  });
+}
+
+// ── MES COMPTES ──
+function ini(name){ return (name||'?').trim().charAt(0).toUpperCase(); }
+function shAccountSwitch(b){
+  var accounts = getAccountsStore();
+  var activeKey = getActivePhoneKey();
+  var keys = Object.keys(accounts);
+  var html = '';
+  if(!keys.length){
+    html += '<div style="text-align:center;padding:20px;color:var(--t3);font-size:13px">'+t('acc_none')+'</div>';
+  }
+  keys.forEach(function(key){
+    var acc = accounts[key];
+    var n = acc.fullName || t('acc_default_name');
+    var isActive = (key===activeKey);
+    html += '<div onclick="switchToAccount(\''+key+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div);cursor:pointer">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--gd);flex-shrink:0">'+ini(n)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+n+'</div><div style="font-size:11px;color:var(--t3)">'+(acc.phone||key)+'</div></div>'
+      +(isActive?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>':'')
+      +'<span onclick="confirmRemoveAccount(event,\''+key+'\')" style="padding:8px;flex-shrink:0;color:var(--t3);cursor:pointer;font-size:15px">✕</span>'
+      +'</div>';
+  });
+  html += '<div onclick="closeSheet();startAddAccount()" style="display:flex;align-items:center;gap:12px;padding:14px 0 4px;cursor:pointer;color:var(--g)">'
+    +'<div style="width:40px;height:40px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:700;color:var(--g)">+</div>'
+    +'<div style="font-size:14px;font-weight:700">'+t('profil_add_account')+'</div></div>';
+  b.innerHTML = html;
+}
+function switchToAccount(key){
+  var accounts = getAccountsStore();
+  var acc = accounts[key];
+  if(!acc) return;
+  if(key===getActivePhoneKey()){ closeSheet(); return; }
+  save();
+  if(isTokenValid(acc.token)){
+    for(var k in acc) APP[k]=acc[k];
+    setActivePhoneKey(key);
+    save();
+    closeSheet();
+    if(APP.status==='active'){ launchApp(); } else { goto('s-agrement'); loadAgrementScreen(); }
+  } else {
+    closeSheet();
+    _addAccountMode = true;
+    _switchPrefillPhone = acc.phone || key;
+    goto('s-login');
+    setupLoginScreen();
+  }
+}
+function confirmRemoveAccount(ev, key){
+  if(ev) ev.stopPropagation();
+  var accounts = getAccountsStore();
+  var acc = accounts[key];
+  var n = (acc && acc.fullName) || t('acc_default_this');
+  userOpenConfirmModal({
+    icon:'👤', title:t('acc_remove_confirm_title'), message:t('acc_remove_confirm').replace('{name}',n),
+    confirmLabel:t('acc_remove_confirm_btn'), confirmColor:'var(--re)',
+    onConfirm:function(){ removeAccountAndHandleUI(key); }
+  });
+}
+function removeAccountAndHandleUI(key){
+  var wasActive = (key===getActivePhoneKey());
+  var accounts = getAccountsStore();
+  delete accounts[key];
+  setAccountsStore(accounts);
+  if(!wasActive){
+    var b=document.getElementById('sh-body');
+    if(b && document.getElementById('sh').classList.contains('on')) shAccountSwitch(b);
+    return;
+  }
+  setActivePhoneKey('');
+  try{ localStorage.removeItem('romgui'); }catch(e){}
+  APP.fullName=''; APP.phone=''; APP.address=''; APP.agentId=''; APP.pinHash=''; APP.token='';
+  APP.balance=0; APP.isDistributor=false; APP.status=''; APP.rejectionReason='';
+  var remaining = Object.keys(accounts);
+  closeSheet();
+  if(remaining.length>0){
+    switchToAccount(remaining[0]);
+  } else {
+    goto('s-welcome');
+  }
+}
+
+// ── APPARENCE / LANGUE ──
+function applyTheme(){
+  var th = APP.theme || 'system';
+  var dark = (th==='dark') || (th==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+}
+try{
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+      if((APP.theme||'system')==='system') applyTheme();
+    });
+  }
+}catch(e){}
+function renderAppearanceScreen(b){
+  var current = APP.theme || 'system';
+  function row(id, label, iconSvg){
+    var selected = (current===id);
+    return '<div onclick="setAppTheme(\''+id+'\')" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid '+(selected?'var(--g)':'var(--bord)')+';border-radius:14px;margin-bottom:10px;cursor:pointer;background:var(--card)">'
+      +'<span style="color:var(--t2);flex-shrink:0">'+iconSvg+'</span>'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--t1)">'+label+'</span>'
+      +'<span style="width:20px;height:20px;border-radius:50%;border:2px solid '+(selected?'var(--g)':'var(--t3)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +(selected?'<span style="width:10px;height:10px;border-radius:50%;background:var(--g)"></span>':'')
+      +'</span></div>';
+  }
+  var sunIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+  var moonIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
+  var systemIcon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+  b.innerHTML = row('light',t('theme_light'),sunIcon) + row('dark',t('theme_dark'),moonIcon) + row('system',t('theme_system'),systemIcon);
+}
+function shAppearance(b){ renderAppearanceScreen(b); }
+function setAppTheme(id){
+  APP.theme = id;
+  save();
+  applyTheme();
+  renderAppearanceScreen(document.getElementById('sh-body'));
+}
+function renderLanguageScreen(b){
+  var current = APP.lang || 'fr';
+  function row(id, label){
+    var selected = (current===id);
+    return '<div onclick="setAppLang(\''+id+'\')" style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid '+(selected?'var(--g)':'var(--bord)')+';border-radius:14px;margin-bottom:10px;cursor:pointer;background:var(--card)">'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--t1)">'+label+'</span>'
+      +'<span style="width:20px;height:20px;border-radius:50%;border:2px solid '+(selected?'var(--g)':'var(--t3)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +(selected?'<span style="width:10px;height:10px;border-radius:50%;background:var(--g)"></span>':'')
+      +'</span></div>';
+  }
+  b.innerHTML = row('fr', t('lang_fr')) + row('en', t('lang_en'));
+}
+function shLanguage(b){ renderLanguageScreen(b); }
+function setAppLang(id){
+  APP.lang = id;
+  save();
+  applyI18n();
+  renderLanguageScreen(document.getElementById('sh-body'));
+}
+
+// ── DECONNEXION ──
+function doLogout(){
+  userOpenConfirmModal({
+    icon:'🚪', title:t('profil_logout'), message:t('logout_confirm'),
+    confirmLabel:t('profil_logout'), confirmColor:'var(--re)',
+    onConfirm:function(){
+      APP.token=''; save();
+      goto('s-welcome');
+    }
+  });
+}
+
+// ── AUTO-VERROUILLAGE apres 5 min d'inactivite / ecran verrouille ──
+var _inactivityTimer = null;
+var _INACTIVITY_MS = 300000;
+var _inactivityListenersAttached = false;
+function lockAppForInactivity(){
+  var appScreen = document.getElementById('s-app');
+  if(appScreen && appScreen.classList.contains('on')){
+    closeSheet();
+    goto('s-login');
+    setupLoginScreen();
+    toast(t('app_locked_toast'), true);
+  }
+}
+function resetInactivityTimer(){
+  if(_inactivityTimer) clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(lockAppForInactivity, _INACTIVITY_MS);
+}
+function onVisibilityChange(){
+  if(document.hidden){ lockAppForInactivity(); return; }
+  resetInactivityTimer();
+  var appScreen = document.getElementById('s-app');
+  if(appScreen && appScreen.classList.contains('on')){ refreshBalance(); refreshHistory(); }
+}
+function startInactivityTimer(){
+  if(_inactivityListenersAttached) { resetInactivityTimer(); return; }
+  _inactivityListenersAttached = true;
+  ['touchstart','touchmove','click','keydown','scroll','mousemove'].forEach(function(evt){
+    document.addEventListener(evt, resetInactivityTimer, {passive:true});
+  });
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  resetInactivityTimer();
+}
+
+// ── DEMARRAGE ──
+window.addEventListener('load', function(){
+  var found = load();
+  applyTheme();
+  applyI18n();
+  setTimeout(function(){
+    if(found && APP.token && APP.agentId){
+      if(APP.status==='active'){ launchApp(); } else { goto('s-agrement'); loadAgrementScreen(); }
+    } else if(found && APP.pinHash){
+      goto('s-login'); setupLoginScreen();
+    } else {
+      goto('s-welcome');
+    }
+  }, 700);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+});
+</script>
+</body>
+</html>
