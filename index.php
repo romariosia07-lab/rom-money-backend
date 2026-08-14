@@ -2240,6 +2240,7 @@ function route_agent($action) {
         'reject-recharge-request'  => agent_reject_recharge_request(),
         'doc-upload'        => agent_document_upload(),
         'doc-list'          => agent_document_list(),
+        'doc-view'          => agent_document_view(),
         'application-status' => agent_application_status(),
         'set-location'      => agent_set_location(),
         'find-distributors' => agent_find_distributors(),
@@ -2388,6 +2389,19 @@ function agent_document_list() {
         $notices = [];
     }
     ok(['documents'=>$rows,'notices'=>$notices]);
+}
+
+// Permet a l'agent de revoir un document deja envoye (verification apres
+// coup, meme des semaines plus tard) - a la demande, jamais inclus dans
+// doc_list() pour ne pas dechiffrer/transferer toutes les photos a chaque
+// rafraichissement de l'ecran d'agrement.
+function agent_document_view() {
+    $pl = agent_auth_allow_pending();
+    $docType = trim($_GET['doc_type'] ?? '');
+    if(!$docType) fail('Type de document requis');
+    $d = q("SELECT photo FROM agent_documents WHERE agent_id=? AND doc_type=? ORDER BY uploaded_at DESC LIMIT 1",[$pl['sub'],$docType])->fetch();
+    if(!$d) fail('Document introuvable',404);
+    ok(['photo'=>kyc_decrypt($d['photo'])]);
 }
 
 // Permet a un agent 'pending_approval'/'rejected' de savoir ou en est sa
