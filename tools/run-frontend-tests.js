@@ -18,7 +18,7 @@ const path = require('path');
 const vm = require('vm');
 
 const FILES = [
-  { rel: 'index.html', abs: path.join(__dirname, '..', 'index.html') },
+  { rel: 'money/index.html', abs: path.join(__dirname, '..', 'money', 'index.html') },
   { rel: 'ROM_BUSINESS/index.html', abs: path.join(__dirname, '..', 'ROM_BUSINESS', 'index.html') },
   { rel: 'ROM_GUICHET/index.html', abs: path.join(__dirname, '..', 'ROM_GUICHET', 'index.html') },
 ];
@@ -102,12 +102,12 @@ for (const { rel, abs } of FILES) {
   check(`${rel}: no duplicate I18N key definitions`, dupes.length === 0, dupes.join(', '));
 
   // --- index.html-specific business logic ---
-  if (rel === 'index.html') {
+  if (rel === 'money/index.html') {
     const { txCatKey, canAnn, txCatLabel, APP } = sandbox;
     if (typeof txCatKey !== 'function' || typeof canAnn !== 'function' || typeof txCatLabel !== 'function') {
-      check('index.html: txCatKey/canAnn/txCatLabel defined', false);
+      check('money/index.html: txCatKey/canAnn/txCatLabel defined', false);
     } else {
-      check('index.html: txCatKey/canAnn/txCatLabel defined', true);
+      check('money/index.html: txCatKey/canAnn/txCatLabel defined', true);
 
       check('txCatKey: catKey present takes priority', txCatKey({ cat: 'Marchand', catKey: 'merchant_payment' }) === 'merchant_payment');
       check('txCatKey: legacy fallback (QR)', txCatKey({ cat: 'QR' }) === 'qr');
