@@ -2366,6 +2366,9 @@ function agent_document_upload() {
     try {
         q("INSERT INTO agent_documents (agent_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())",
           [$pl['sub'],$docType,$encrypted]);
+        // Le renvoi de ce type de document repond a la note laissee par
+        // l'admin lors du retrait precedent - elle n'a plus lieu d'etre.
+        q("DELETE FROM agent_document_notices WHERE agent_id=? AND doc_type=?",[$pl['sub'],$docType]);
     } catch(Exception $e) {
         log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
     }
@@ -2379,7 +2382,12 @@ function agent_document_list() {
     } catch(Exception $e) {
         $rows = [];
     }
-    ok(['documents'=>$rows]);
+    try {
+        $notices = q("SELECT doc_type, reason, created_at FROM agent_document_notices WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
+    } catch(Exception $e) {
+        $notices = [];
+    }
+    ok(['documents'=>$rows,'notices'=>$notices]);
 }
 
 // Permet a un agent 'pending_approval'/'rejected' de savoir ou en est sa
@@ -7069,9 +7077,15 @@ function admin_agent_delete_document() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('Document requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $d = q("SELECT ad.doc_type, a.phone_number FROM agent_documents ad JOIN agents a ON a.id=ad.agent_id WHERE ad.id=?",[$id])->fetch();
+    $d = q("SELECT ad.agent_id, ad.doc_type, a.phone_number FROM agent_documents ad JOIN agents a ON a.id=ad.agent_id WHERE ad.id=?",[$id])->fetch();
     if(!$d) fail('Document introuvable',404);
     q("DELETE FROM agent_documents WHERE id=?",[$id]);
+    // Contrairement au refus de toute la demande (qui a deja sa propre
+    // rejection_reason globale), retirer UN SEUL document pour en demander un
+    // meilleur n'a aujourd'hui aucune trace visible cote agent - il voit juste
+    // le creneau redevenu vide, sans savoir pourquoi. On garde une note legere
+    // (jamais la photo elle-meme) jusqu'a ce qu'il renvoie ce type de document.
+    q("INSERT INTO agent_document_notices (agent_id,doc_type,reason) VALUES (?,?,?)",[$d['agent_id'],$d['doc_type'],$reason]);
     admin_log('agent_delete_document','success',$d['phone_number'],$reason.' ('.$d['doc_type'].')');
     ok(null,'Document supprime');
 }
@@ -7103,6 +7117,9 @@ function admin_agent_reject_registration() {
     // Refuse = aucune trace dans le systeme = suppression automatique et
     // immediate des documents fournis, sans etape manuelle separee.
     q("DELETE FROM agent_documents WHERE agent_id=?",[$id]);
+    // Les notes individuelles eventuelles n'ont plus de sens : la raison
+    // globale (rejection_reason ci-dessus) prend le relais a l'affichage.
+    q("DELETE FROM agent_document_notices WHERE agent_id=?",[$id]);
     admin_log('agent_reject_registration','success',$a['phone_number'],$reason);
     ok(null,'Demande d\'agrement refusee');
 }
@@ -7794,6 +7811,17 @@ function route_install() {
     )",
     "ALTER TABLE agent_documents DROP CONSTRAINT IF EXISTS agent_documents_agent_id_doc_type_key",
     "CREATE INDEX IF NOT EXISTS idx_agent_documents_agent ON agent_documents(agent_id)",
+    // Note legere laissee quand un admin retire UN document precis (pas toute
+    // la demande) pour en demander un meilleur - jamais la photo elle-meme,
+    // juste la raison, effacee automatiquement des que l'agent renvoie ce type.
+    "CREATE TABLE IF NOT EXISTS agent_document_notices (
+        id SERIAL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        doc_type VARCHAR(30) NOT NULL,
+        reason VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_doc_notices_agent ON agent_document_notices(agent_id)",
     "CREATE TABLE IF NOT EXISTS agent_wallets (
         id VARCHAR(36) PRIMARY KEY,
         agent_id VARCHAR(36) NOT NULL UNIQUE,
