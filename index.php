@@ -2245,6 +2245,7 @@ function route_agent($action) {
         'list-incoming-recharges' => agent_list_incoming_recharge_requests(),
         'approve-recharge-request' => agent_approve_recharge_request(),
         'reject-recharge-request'  => agent_reject_recharge_request(),
+        'distributor-history'      => agent_distributor_history(),
         'doc-upload'        => agent_document_upload(),
         'doc-list'          => agent_document_list(),
         'doc-view'          => agent_document_view(),
@@ -3018,28 +3019,26 @@ function agent_tx_history() {
 
 // Demande de recharge du float, validee par l'admin (pas de credit direct) -
 // meme state machine pending/approved/rejected que kyc_requests.
+// Plus de ciblage d'un distributeur precis a la demande (retire - voir
+// agent_list_incoming_recharge_requests() ci-dessous) : la seule vraie
+// protection est le code de confirmation communique en personne, or
+// l'admin pouvait deja approuver n'importe quelle demande sans etre cible
+// (aucun controle de ciblage dans admin_agent_approve_recharge()) - incohe-
+// rent avec le fait de restreindre les distributeurs a une seule demande
+// choisie a l'avance. distributor_id reste sur la table mais n'est plus
+// renseigne qu'A L'APPROBATION (par qui a effectivement servi la demande),
+// jamais a la creation.
 function agent_request_recharge() {
     $pl = agent_auth(); $b = body();
     $amount = (float)($b['amount'] ?? 0);
     $note = trim($b['note'] ?? '');
-    $distributorPhone = trim($b['distributor_phone'] ?? '');
     if($amount<=0) fail('Montant invalide');
-    // Si un distributeur est cible, la demande lui est adressee directement
-    // (il approuve depuis son propre float, sans mot de passe admin) plutot
-    // que d'aller a la file d'attente Admin Principal.
-    $distributorId = null;
-    if($distributorPhone){
-        $dist = q("SELECT id,is_distributor FROM agents WHERE phone_number=?",[$distributorPhone])->fetch();
-        if(!$dist) fail('Distributeur introuvable',404);
-        if(!$dist['is_distributor']) fail("Ce numero n'est pas enregistre comme distributeur");
-        $distributorId = $dist['id'];
-    }
     $id = uid();
     // Code a 6 chiffres que l'agent devra communiquer en personne (verbalement,
     // par appel...) a celui qui approuve - preuve d'un contact reel entre les
     // deux parties avant que l'argent ne bouge, jamais expose dans les listes.
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,distributor_id,confirmation_code) VALUES (?,?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$distributorId,$code]);
+    q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,confirmation_code) VALUES (?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$code]);
     ok(['id'=>$id,'confirmation_code'=>$code],'Demande de recharge envoyee');
 }
 function agent_recharge_history() {
@@ -3051,15 +3050,33 @@ function agent_recharge_history() {
 }
 
 // ── Hierarchie distributeurs ──
-// Un distributeur voit et traite lui-meme les demandes de recharge qui le
-// ciblent, sans mot de passe admin : il ne fait que rediriger du float deja
-// approuve depuis SON PROPRE compte, ce n'est jamais une creation d'argent
-// (contrairement a admin_agent_approve_recharge()).
+// File d'attente PARTAGEE entre tous les distributeurs (plus de ciblage a
+// la demande) : n'importe quel distributeur peut servir n'importe quelle
+// demande en attente, exactement comme l'admin pouvait deja le faire - le
+// code de confirmation reste la seule vraie protection (preuve d'un contact
+// reel avec le demandeur). Reserve aux comptes distributeur (sinon un agent
+// normal pourrait voir les montants/noms de toutes les demandes du reseau).
 function agent_list_incoming_recharge_requests() {
     $pl = agent_auth();
+    $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
     $rows = q("SELECT r.id,r.amount,r.note,r.created_at,a.full_name,a.phone_number
         FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
-        WHERE r.distributor_id=? AND r.status='pending' ORDER BY r.created_at ASC",[$pl['sub']])->fetchAll();
+        WHERE r.status='pending' AND r.agent_id!=? ORDER BY r.created_at ASC",[$pl['sub']])->fetchAll();
+    ok(['requests'=>$rows]);
+}
+
+// Trace des propres operations du distributeur (ce qu'il a lui-meme
+// approuve/rejete) - jusqu'ici totalement absent : un distributeur ne
+// pouvait voir QUE sa file d'attente de demandes en cours, jamais un
+// historique de ce qu'il avait deja traite.
+function agent_distributor_history() {
+    $pl = agent_auth();
+    $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
+    $rows = q("SELECT r.id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,a.full_name,a.phone_number
+        FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
+        WHERE r.distributor_id=? ORDER BY r.reviewed_at DESC LIMIT 100",[$pl['sub']])->fetchAll();
     ok(['requests'=>$rows]);
 }
 
@@ -3078,14 +3095,22 @@ function agent_approve_recharge_request() {
     // argent qui sort de son float, une session deja ouverte ne suffit pas.
     agent_pin_check($pl['sub'], $pin, $me['pin_hash']);
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
-    if(!$r || $r['distributor_id'] !== $pl['sub']) fail('Demande introuvable',404);
+    if(!$r) fail('Demande introuvable',404);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
+    if($r['agent_id'] === $pl['sub']) fail('Vous ne pouvez pas approuver votre propre demande', 422);
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
-    $distWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    $distWallet = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
     $reqWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
     if(!$distWallet || !$reqWallet) fail('Portefeuille introuvable',404);
-    if((float)q("SELECT balance FROM agent_wallets WHERE id=?",[$distWallet['id']])->fetchColumn() < (float)$r['amount']) fail('Solde du distributeur insuffisant');
+    if((float)$distWallet['balance'] < (float)$r['amount']) fail('Solde du distributeur insuffisant');
     db()->beginTransaction();
+    // File d'attente partagee entre tous les distributeurs (plus de ciblage
+    // a la demande) : ce "claim" atomique (UPDATE conditionne sur
+    // status='pending') empeche deux distributeurs d'approuver la meme
+    // demande en meme temps - sans ca, la seconde approbation debiterait un
+    // distributeur pour une demande deja servie.
+    $claimed = q("UPDATE agent_recharge_requests SET status='approved', distributor_id=?, reviewed_at=NOW() WHERE id=? AND status='pending'",[$pl['sub'],$id])->rowCount();
+    if(!$claimed){ db()->rollBack(); fail('Cette demande vient d\'etre traitee par quelqu\'un d\'autre', 409); }
     try {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'agent_recharge','completed',?,?)",
@@ -3093,7 +3118,6 @@ function agent_approve_recharge_request() {
         $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$r['amount'],$distWallet['id'],$r['amount']])->rowCount();
         if(!$rows) throw new Exception('Solde du distributeur insuffisant');
         q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$reqWallet['id']]);
-        q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
         db()->commit();
         $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$distWallet['id']])->fetchColumn();
         ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
@@ -3105,7 +3129,10 @@ function agent_reject_recharge_request() {
     $id = trim($b['id'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$id) fail('Demande requise');
-    $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND distributor_id=? AND status='pending'",[$reason?:null,$id,$pl['sub']])->rowCount();
+    // File partagee : n'importe quel distributeur peut decliner une demande
+    // en attente (etat terminal, comme avant - un agent decline devra
+    // refaire une demande plutot que de "faire le tour" des distributeurs).
+    $n = q("UPDATE agent_recharge_requests SET status='rejected', distributor_id=?, reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$pl['sub'],$reason?:null,$id])->rowCount();
     if(!$n) fail('Demande introuvable ou deja traitee',404);
     ok(null,'Demande rejetee');
 }
@@ -4984,6 +5011,7 @@ function route_admin($action) {
         'agent-recharge-list'      => admin_agent_list_recharge_requests(),
         'agent-recharge-approve'   => admin_agent_approve_recharge(),
         'agent-recharge-reject'    => admin_agent_reject_recharge(),
+        'agent-recharge-movements' => admin_agent_recharge_movements(),
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
         'agent-toggle-distributor' => admin_agent_toggle_distributor(),
@@ -7303,10 +7331,11 @@ function admin_agent_list_recharge_requests() {
     $b = body();
     check_admin_password($b);
     $status = trim($b['status'] ?? 'pending');
-    // Visibilite sur les demandes ciblant un distributeur (dist_name/dist_phone
-    // non-null) meme si l'admin n'agit plus dessus - c'est le distributeur
-    // lui-meme qui approuve/rejette (voir agent_approve_recharge_request()).
-    // Colonnes listees explicitement (jamais r.*) : confirmation_code ne doit
+    // dist_name/dist_phone n'est renseigne qu'une fois la demande traitee
+    // (approuvee/rejetee) - qui l'a servie, jamais un ciblage a l'avance
+    // (file d'attente partagee entre tous les distributeurs + admin, voir
+    // agent_approve_recharge_request()). Colonnes listees explicitement
+    // (jamais r.*) : confirmation_code ne doit
     // JAMAIS transiter par cette liste, seul le demandeur doit pouvoir le
     // retrouver (voir agent_recharge_history()), sinon le code ne prouve
     // plus un contact reel entre les deux parties.
@@ -7348,12 +7377,16 @@ function admin_agent_approve_recharge() {
         }
     }
     db()->beginTransaction();
+    // Meme "claim" atomique que agent_approve_recharge_request() : la file
+    // est desormais partagee entre l'admin ET tous les distributeurs, un
+    // distributeur pourrait approuver au meme instant.
+    $claimed = q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=? AND status='pending'",[$id])->rowCount();
+    if(!$claimed){ db()->rollBack(); fail('Cette demande vient d\'etre traitee par quelqu\'un d\'autre', 409); }
     try {
         $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'agent_recharge','completed',?,?)",
           [$txid,$aw['id'],$r['amount'],$reference,'Recharge de float approuvee']);
         q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$aw['id']]);
-        q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=?",[$id]);
         db()->commit();
         admin_log('agent_recharge_approve','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>'Recharge de '.$r['amount']]));
         $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
@@ -7372,6 +7405,49 @@ function admin_agent_reject_recharge() {
     if(!$n) fail('Demande introuvable ou deja traitee',404);
     admin_log('agent_recharge_reject','success',null,$reason);
     ok(null,'Demande rejetee');
+}
+
+// Registre complet de tous les mouvements de recharge de float agent
+// (admin_agent_approve_recharge() ET agent_approve_recharge_request(),
+// desormais dans une file partagee - voir plus haut), avec tous les filtres
+// utiles. Construit depuis `transactions` (source de verite du mouvement
+// d'argent reel), pas depuis agent_recharge_requests (etat de workflow) :
+// sender_agent_wallet_id NULL = credit direct par l'Admin Principal (Gains
+// ROM) ; renseigne = redirige depuis le float d'un distributeur.
+function admin_agent_recharge_movements() {
+    $b = body();
+    check_admin_password($b);
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    $agentPhone = trim($b['agent_phone'] ?? '');
+    $distPhone = trim($b['distributor_phone'] ?? '');
+    $minAmount = isset($b['min_amount']) && $b['min_amount']!=='' ? (float)$b['min_amount'] : null;
+    $maxAmount = isset($b['max_amount']) && $b['max_amount']!=='' ? (float)$b['max_amount'] : null;
+    $source = trim($b['source'] ?? ''); // '' = tous, 'admin' = credit direct, 'distributor' = via distributeur
+
+    $where = ["t.type='agent_recharge'", "t.status='completed'"];
+    $params = [];
+    if($dateFrom){ $where[] = "t.created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if($dateTo){ $where[] = "t.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    if($agentPhone){ $where[] = "ra.phone_number = ?"; $params[] = $agentPhone; }
+    if($distPhone){ $where[] = "rd.phone_number = ?"; $params[] = $distPhone; }
+    if($minAmount !== null){ $where[] = "t.amount >= ?"; $params[] = $minAmount; }
+    if($maxAmount !== null){ $where[] = "t.amount <= ?"; $params[] = $maxAmount; }
+    if($source === 'admin'){ $where[] = "t.sender_agent_wallet_id IS NULL"; }
+    if($source === 'distributor'){ $where[] = "t.sender_agent_wallet_id IS NOT NULL"; }
+
+    $sql = "SELECT t.id,t.amount,t.reference,t.description,t.created_at,
+        ra.full_name receiver_name, ra.phone_number receiver_phone,
+        rd.full_name sender_name, rd.phone_number sender_phone
+        FROM transactions t
+        JOIN agent_wallets raw ON raw.id = t.receiver_agent_wallet_id
+        JOIN agents ra ON ra.id = raw.agent_id
+        LEFT JOIN agent_wallets rdw ON rdw.id = t.sender_agent_wallet_id
+        LEFT JOIN agents rd ON rd.id = rdw.agent_id
+        WHERE ".implode(' AND ', $where)."
+        ORDER BY t.created_at DESC LIMIT 300";
+    $rows = q($sql, $params)->fetchAll();
+    ok(['movements'=>$rows]);
 }
 
 // Bascule le statut "distributeur" - mirror exact de

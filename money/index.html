@@ -1140,6 +1140,26 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentRecharges()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
       <div id="agt-recharge-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
 
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_movements_title">Tous les mouvements de recharge de float</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_movements_desc">Traçabilité complète : chaque recharge de float agent, créditée directement par l'Admin Principal ou redirigée depuis le float d'un distributeur — la file de demandes ci-dessus étant désormais partagée entre tous les distributeurs et l'admin, c'est ici que se vérifie qui a réellement servi chaque sortie d'argent.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_agent_phone_label">Numéro de l'agent</label><input class="finput" id="agtmv-agent-phone" placeholder="0000000000"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_movements_dist_phone_label">Numéro du distributeur</label><input class="finput" id="agtmv-dist-phone" placeholder="0000000000"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="finput" id="agtmv-date-from" type="date" style="margin-bottom:0">
+        <input class="finput" id="agtmv-date-to" type="date" style="margin-bottom:0">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="finput" id="agtmv-min" type="number" data-i18n-admin-ph="admin_movements_min_ph" placeholder="Montant min" style="margin-bottom:0">
+        <input class="finput" id="agtmv-max" type="number" data-i18n-admin-ph="admin_movements_max_ph" placeholder="Montant max" style="margin-bottom:0">
+      </div>
+      <select class="finput" id="agtmv-source" style="margin-bottom:12px">
+        <option value="" data-i18n-admin="admin_movements_source_all">Origine : Toutes</option>
+        <option value="admin" data-i18n-admin="admin_movements_source_admin">Origine : Admin Principal</option>
+        <option value="distributor" data-i18n-admin="admin_movements_source_distributor">Origine : Distributeur</option>
+      </select>
+      <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentRechargeMovements()" data-i18n-admin="admin_movements_filter_btn">Filtrer / Actualiser</button>
+      <div id="agtmv-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
+
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_tiers_title">Paliers de commission journalière</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_tiers_desc">Toujours exprimés en XOF (convertis automatiquement dans la devise réelle de chaque agent). La commission est un total pour la journée entière, pas par opération.</div>
       <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentTiers()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
@@ -1677,6 +1697,17 @@ var I18N = {
   admin_agents_recharge_desc: {fr:"Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...). L'agent doit vous communiquer en personne le code de confirmation à 6 chiffres généré avec sa demande — sans ce code, impossible d'approuver.", en:"An agent requests to recharge their float from ROM_GUICHET; only approve after actually receiving the off-app payment (transfer, cash...). The agent must give you, in person, the 6-digit confirmation code generated with their request — approval is impossible without it."},
   admin_refresh_list_btn: {fr:'Actualiser la liste', en:'Refresh list'},
   admin_click_refresh: {fr:'Clique sur "Actualiser la liste" pour charger', en:'Click "Refresh list" to load'},
+  admin_agents_movements_title: {fr:'Tous les mouvements de recharge de float', en:'All float recharge movements'},
+  admin_agents_movements_desc: {fr:"Traçabilité complète : chaque recharge de float agent, créditée directement par l'Admin Principal ou redirigée depuis le float d'un distributeur — la file de demandes ci-dessus étant désormais partagée entre tous les distributeurs et l'admin, c'est ici que se vérifie qui a réellement servi chaque sortie d'argent.", en:"Full traceability: every agent float recharge, whether credited directly by the Main Admin or redirected from a distributor's float — since the request queue above is now shared between all distributors and the admin, this is where you verify who actually served each outflow."},
+  admin_movements_dist_phone_label: {fr:'Numéro du distributeur', en:"Distributor's phone number"},
+  admin_movements_min_ph: {fr:'Montant min', en:'Min amount'},
+  admin_movements_max_ph: {fr:'Montant max', en:'Max amount'},
+  admin_movements_source_all: {fr:'Origine : Toutes', en:'Source: All'},
+  admin_movements_source_admin: {fr:'Origine : Admin Principal', en:'Source: Main Admin'},
+  admin_movements_source_distributor: {fr:'Origine : Distributeur', en:'Source: Distributor'},
+  admin_movements_filter_btn: {fr:'Filtrer / Actualiser', en:'Filter / Refresh'},
+  admin_movements_empty: {fr:'Aucun mouvement pour ces filtres.', en:'No movement for these filters.'},
+  admin_movements_source_admin_label: {fr:'Crédit direct Admin Principal', en:'Direct Main Admin credit'},
   admin_agents_tiers_title: {fr:'Paliers de commission journalière', en:'Daily commission tiers'},
   admin_agents_tiers_desc: {fr:'Toujours exprimés en XOF (convertis automatiquement dans la devise réelle de chaque agent). La commission est un total pour la journée entière, pas par opération.', en:"Always expressed in XOF (automatically converted into each agent's real currency). The commission is a total for the whole day, not per operation."},
   admin_agents_list_title: {fr:'Liste des agents', en:'Agent list'},
@@ -1718,7 +1749,6 @@ var I18N = {
   admin_yes_label: {fr:'Oui', en:'Yes'},
   admin_remove_distributor_btn: {fr:'Retirer le statut distributeur', en:'Remove distributor status'},
   admin_make_distributor_btn: {fr:'Faire de cet agent un distributeur', en:'Make this agent a distributor'},
-  admin_pending_distributor_prefix: {fr:'→ En attente du distributeur :', en:'→ Awaiting distributor:'},
   admin_confirmation_code_label: {fr:"Code de confirmation (communiqué par l'agent)", en:'Confirmation code (given by the agent)'},
   admin_confirmation_code_required: {fr:'Code de confirmation requis', en:'Confirmation code required'},
   admin_agents_pending_title: {fr:"Demandes d'agrément en attente", en:'Pending approval requests'},
@@ -4882,9 +4912,11 @@ function adminLoadAgentRecharges(){
           +(r.note?('<span style="color:var(--t3)">'+adminEsc(r.note)+'</span><br>'):'')
           +'<span style="color:var(--t3);font-size:10px">'+new Date(r.created_at).toLocaleString()+'</span>'
           +'</div>'
-          +(r.dist_phone
-            ? ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px">'+at('admin_pending_distributor_prefix')+' '+adminEsc(r.dist_name)+' ('+r.dist_phone+')</div>')
-            : (window._earningsPw
+          // File partagee entre l'admin et tous les distributeurs (plus de
+          // ciblage a la demande - voir agent_request_recharge()) : toute
+          // demande en attente est actionnable ici, qui que ce soit qui
+          // finisse par la servir en premier (distributeur ou admin).
+          +(window._earningsPw
               ? ('<div class="frow" style="margin-top:-6px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_confirmation_code_label">Code de confirmation (communiqué par l\'agent)</label>'
                  +'<input class="finput" id="agtrchcode-'+r.id+'" maxlength="6" inputmode="numeric" placeholder="000000" style="margin-bottom:0"></div>'
                  +'<button class="btn-w" style="margin-top:0;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
@@ -4899,7 +4931,7 @@ function adminLoadAgentRecharges(){
                  +'<input class="finput" id="agtrchrej-'+r.id+'-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">'
                  +'</div>'
                  +'<button style="width:100%;padding:13px;margin-bottom:14px;background:var(--rl);color:var(--re);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminRejectAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>')
-              : ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>')));
+              : ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>'));
       });
       box.innerHTML=html;
       applyAdminLang();
@@ -4930,6 +4962,47 @@ function adminRejectAgentRecharge(id){
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
   });
+}
+
+// Registre complet de tous les mouvements de recharge de float (credit
+// direct admin OU redirige depuis un distributeur) - la file de demandes
+// ci-dessus n'est que la queue "en attente" ; ceci est la tracabilite reelle
+// de chaque sortie d'argent, avec tous les filtres.
+function adminLoadAgentRechargeMovements(){
+  var box=document.getElementById('agtmv-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  var body={admin_password:window._adminPw};
+  var agentPhone=document.getElementById('agtmv-agent-phone').value.trim();
+  var distPhone=document.getElementById('agtmv-dist-phone').value.trim();
+  var dateFrom=document.getElementById('agtmv-date-from').value;
+  var dateTo=document.getElementById('agtmv-date-to').value;
+  var minAmount=document.getElementById('agtmv-min').value;
+  var maxAmount=document.getElementById('agtmv-max').value;
+  var source=document.getElementById('agtmv-source').value;
+  if(agentPhone) body.agent_phone=agentPhone;
+  if(distPhone) body.distributor_phone=distPhone;
+  if(dateFrom) body.date_from=dateFrom;
+  if(dateTo) body.date_to=dateTo;
+  if(minAmount) body.min_amount=minAmount;
+  if(maxAmount) body.max_amount=maxAmount;
+  if(source) body.source=source;
+  apiCall('/admin?action=agent-recharge-movements','POST',body,'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.movements){
+      var list=res.data.movements;
+      if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_movements_empty')+'</div>'; return; }
+      var html='';
+      list.forEach(function(m){
+        var origin=m.sender_name ? (adminEsc(m.sender_name)+' ('+m.sender_phone+')') : at('admin_movements_source_admin_label');
+        html+='<div style="border:1px solid var(--bord);border-radius:12px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+fmt(m.amount)+' XOF</b><span style="color:var(--t3);font-size:10px">'+new Date(m.created_at).toLocaleString()+'</span></div>'
+          +'<div>→ '+adminEsc(m.receiver_name)+' ('+m.receiver_phone+')</div>'
+          +'<div style="color:var(--t3);font-size:11px">'+origin+'</div>'
+          +'<div style="color:var(--t3);font-size:10px;font-family:monospace">'+m.reference+'</div>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
 
 function adminLoadAgentTiers(){

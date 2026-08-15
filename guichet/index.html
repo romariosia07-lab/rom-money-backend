@@ -502,8 +502,7 @@ var I18N = {
   env_err_generic:{fr:"Échec de l'envoi",en:'Send failed'},
   rec_amount:{fr:'Montant à recharger',en:'Amount to recharge'},
   rec_note:{fr:'Note (optionnel)',en:'Note (optional)'},
-  rec_distributor_phone:{fr:'Numéro du distributeur (optionnel)',en:"Distributor's phone number (optional)"},
-  rec_distributor_hint:{fr:"Laissez vide pour envoyer la demande à l'Admin Principal.",en:'Leave empty to send the request to the Main Admin.'},
+  rec_hint:{fr:"Votre demande sera visible par tous les distributeurs et par l'Admin Principal. Communiquez le code ci-dessous à la personne qui vous recharge en personne.",en:'Your request will be visible to all distributors and to the Main Admin. Share the code below in person with whoever tops you up.'},
   rec_btn:{fr:'Envoyer la demande',en:'Send request'},
   rec_sending:{fr:'Envoi...',en:'Sending...'},
   rec_success:{fr:'Demande envoyée',en:'Request sent'},
@@ -533,6 +532,8 @@ var I18N = {
   id_unverified_badge:{fr:'⚠ Non vérifié (nom déclaré)',en:'⚠ Unverified (self-declared name)'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
+  dist_hist_title:{fr:'Historique de mes recharges effectuées',en:'History of recharges I processed'},
+  dist_hist_empty:{fr:"Vous n'avez encore traité aucune demande.",en:"You haven't processed any request yet."},
   inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
   inc_approve_btn:{fr:'Approuver',en:'Approve'},
   inc_reject_btn:{fr:'Rejeter',en:'Reject'},
@@ -1728,8 +1729,7 @@ function doConfirmEnvoyerCode(){
 function shRecharge(b){
   b.innerHTML='<div class="frow"><label class="flabel">'+t('rec_amount')+'</label><input class="finput" id="rec-amount" type="number" inputmode="numeric"></div>'
     +'<div class="frow"><label class="flabel">'+t('rec_note')+'</label><input class="finput" id="rec-note"></div>'
-    +'<div class="frow"><label class="flabel">'+t('rec_distributor_phone')+'</label><input class="finput" id="rec-dist-phone" type="tel"></div>'
-    +'<div class="fee-note">'+t('rec_distributor_hint')+'</div>'
+    +'<div class="fee-note">'+t('rec_hint')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="rec-submit-btn" onclick="doRequestRecharge()">'+t('rec_btn')+'</button>'
     +'<div id="rec-result"></div>'
     +'<a onclick="shRechargeHistory(document.getElementById(\'sh-body\'))" style="display:block;text-align:center;margin-top:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('rec_history_title')+'</a>';
@@ -1737,13 +1737,11 @@ function shRecharge(b){
 function doRequestRecharge(){
   var amount=parseFloat(document.getElementById('rec-amount').value);
   var note=document.getElementById('rec-note').value.trim();
-  var distPhone=document.getElementById('rec-dist-phone').value.trim();
   if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
   var btn=document.getElementById('rec-submit-btn');
   btn.disabled=true; btn.textContent=t('rec_sending');
   var body={amount:amount};
   if(note) body.note=note;
-  if(distPhone) body.distributor_phone=distPhone;
   apiCall('/agent?action=request-recharge','POST',body,getToken()).then(function(res){
     btn.disabled=false; btn.textContent=t('rec_btn');
     if(res && res.success){
@@ -1849,9 +1847,10 @@ function doSetLocation(){
 function shIncomingRecharges(b){
   b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
   apiCall('/agent?action=list-incoming-recharges','GET',null,getToken()).then(function(res){
+    var histLink='<a onclick="shDistributorHistory(document.getElementById(\'sh-body\'))" style="display:block;text-align:center;margin-top:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('dist_hist_title')+'</a>';
     if(res && res.success && res.data){
       var reqs=res.data.requests||[];
-      if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('inc_empty')+'</div>'; return; }
+      if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('inc_empty')+'</div>'+histLink; return; }
       var loc=APP.lang==='en'?'en-US':'fr-FR';
       var h='';
       reqs.forEach(function(r){
@@ -1864,6 +1863,30 @@ function shIncomingRecharges(b){
           +'<button class="chip" style="flex:1;background:var(--gl);color:var(--gd)" onclick="doApproveIncoming(\''+r.id+'\')">'+t('inc_approve_btn')+'</button>'
           +'<button class="chip" style="flex:1;background:var(--rl);color:var(--rd)" onclick="doRejectIncoming(\''+r.id+'\')">'+t('inc_reject_btn')+'</button>'
           +'</div></div>';
+      });
+      b.innerHTML=h+histLink;
+    } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
+  }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+// Trace des propres operations du distributeur (approuvees/rejetees) -
+// jusqu'ici totalement absente, seule la file d'attente en cours etait
+// visible.
+function shDistributorHistory(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=distributor-history','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var reqs=res.data.requests||[];
+      if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('dist_hist_empty')+'</div>'; return; }
+      var loc=APP.lang==='en'?'en-US':'fr-FR';
+      var statusColor={approved:'var(--gold)',rejected:'var(--re)'};
+      var h='';
+      reqs.forEach(function(r){
+        h+='<div class="card" style="margin-bottom:8px;padding:12px">'
+          +'<div style="display:flex;justify-content:space-between"><b>'+(r.full_name||r.phone_number)+'</b><span style="color:'+(statusColor[r.status]||'var(--t2)')+';font-weight:700;font-size:12px">'+t('rec_status_'+r.status)+'</span></div>'
+          +'<div style="font-size:12px;color:var(--t2);margin-top:2px">'+fmt(r.amount)+' '+curSuffix()+' · '+r.phone_number+'</div>'
+          +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+new Date(r.reviewed_at||r.created_at).toLocaleString(loc)+'</div>'
+          +(r.reject_reason ? '<div style="font-size:11px;color:var(--re);margin-top:4px">'+r.reject_reason+'</div>' : '')
+          +'</div>';
       });
       b.innerHTML=h;
     } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
