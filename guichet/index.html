@@ -508,6 +508,7 @@ var I18N = {
   rec_success:{fr:'Demande envoyée',en:'Request sent'},
   rec_err_generic:{fr:'Échec de la demande',en:'Request failed'},
   rec_code_label:{fr:'Code de confirmation (communiquez-le au distributeur) :',en:'Confirmation code (share it with the distributor):'},
+  rec_reference_label:{fr:'Référence :',en:'Reference:'},
   rec_pending_title:{fr:'Demande en attente',en:'Request pending'},
   rec_pending_refresh:{fr:'Actualiser le statut',en:'Refresh status'},
   rec_history_title:{fr:'Historique de mes demandes',en:'My request history'},
@@ -1797,6 +1798,7 @@ function shRechargeHistory(b){
           +'<div style="display:flex;justify-content:space-between"><b>'+fmt(r.amount)+' '+curSuffix()+'</b><span style="color:'+(statusColor[r.status]||'var(--t2)')+';font-weight:700;font-size:12px">'+t('rec_status_'+r.status)+'</span></div>'
           +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+new Date(r.created_at).toLocaleString(loc)+'</div>'
           +(r.confirmation_code && r.status==='pending' ? '<div style="font-size:11px;color:var(--gd);margin-top:4px">'+t('rec_code_label')+' '+r.confirmation_code+'</div>' : '')
+          +(r.reference && r.status==='approved' ? '<div style="font-size:11px;color:var(--t3);margin-top:4px;font-family:monospace">'+t('rec_reference_label')+' '+r.reference+'</div>' : '')
           +(r.reject_reason ? '<div style="font-size:11px;color:var(--re);margin-top:4px">'+r.reject_reason+'</div>' : '')
           +'</div>';
       });
@@ -1913,6 +1915,7 @@ function shDistributorHistory(b){
           +'<div style="display:flex;justify-content:space-between"><b>'+(r.full_name||r.phone_number)+'</b><span style="color:'+(statusColor[r.status]||'var(--t2)')+';font-weight:700;font-size:12px">'+t('rec_status_'+r.status)+'</span></div>'
           +'<div style="font-size:12px;color:var(--t2);margin-top:2px">'+fmt(r.amount)+' '+curSuffix()+' · '+r.phone_number+'</div>'
           +'<div style="font-size:11px;color:var(--t3);margin-top:4px">'+new Date(r.reviewed_at||r.created_at).toLocaleString(loc)+'</div>'
+          +(r.reference && r.status==='approved' ? '<div style="font-size:11px;color:var(--t3);margin-top:4px;font-family:monospace">'+t('rec_reference_label')+' '+r.reference+'</div>' : '')
           +(r.reject_reason ? '<div style="font-size:11px;color:var(--re);margin-top:4px">'+r.reject_reason+'</div>' : '')
           +'</div>';
       });

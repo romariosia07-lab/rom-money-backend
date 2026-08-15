@@ -3053,7 +3053,10 @@ function agent_recharge_history() {
     $pl = agent_auth();
     // confirmation_code inclus ici uniquement : c'est LE demandeur qui doit
     // pouvoir le retrouver pour le communiquer a celui qui approuve.
-    $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason,confirmation_code FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
+    // reference (uniquement renseignee une fois approuvee) sert de preuve
+    // pour la comptabilite - contrairement au code, elle reste valable/utile
+    // apres traitement.
+    $rows = q("SELECT id,amount,note,status,created_at,reviewed_at,reject_reason,confirmation_code,reference FROM agent_recharge_requests WHERE agent_id=? ORDER BY created_at DESC",[$pl['sub']])->fetchAll();
     ok(['requests'=>$rows]);
 }
 
@@ -3082,7 +3085,7 @@ function agent_distributor_history() {
     $pl = agent_auth();
     $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
-    $rows = q("SELECT r.id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,a.full_name,a.phone_number
+    $rows = q("SELECT r.id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,r.reference,a.full_name,a.phone_number
         FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
         WHERE r.distributor_id=? ORDER BY r.reviewed_at DESC LIMIT 100",[$pl['sub']])->fetchAll();
     ok(['requests'=>$rows]);
@@ -3123,16 +3126,20 @@ function agent_approve_recharge_request() {
             fail('Ce montant depasserait le plafond de float autorise pour ce distributeur ('.$targetAgent['max_float_cap'].' XOF).', 422);
         }
     }
+    // Genere AVANT le claim pour pouvoir l'enregistrer sur la demande
+    // elle-meme (visible ensuite dans l'historique agent/distributeur pour
+    // preuve/comptabilite - le code de confirmation n'a lui plus aucun
+    // interet une fois la demande traitee).
+    $txid = uid(); $reference = ref();
     db()->beginTransaction();
     // File d'attente partagee entre tous les distributeurs (plus de ciblage
     // a la demande) : ce "claim" atomique (UPDATE conditionne sur
     // status='pending') empeche deux distributeurs d'approuver la meme
     // demande en meme temps - sans ca, la seconde approbation debiterait un
     // distributeur pour une demande deja servie.
-    $claimed = q("UPDATE agent_recharge_requests SET status='approved', distributor_id=?, reviewed_at=NOW() WHERE id=? AND status='pending'",[$pl['sub'],$id])->rowCount();
+    $claimed = q("UPDATE agent_recharge_requests SET status='approved', distributor_id=?, reference=?, reviewed_at=NOW() WHERE id=? AND status='pending'",[$pl['sub'],$reference,$id])->rowCount();
     if(!$claimed){ db()->rollBack(); fail('Cette demande vient d\'etre traitee par quelqu\'un d\'autre', 409); }
     try {
-        $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'agent_recharge','completed',?,?)",
           [$txid,$distWallet['id'],$reqWallet['id'],$r['amount'],$reference,'Recharge via distributeur']);
         $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$r['amount'],$distWallet['id'],$r['amount']])->rowCount();
@@ -7396,14 +7403,16 @@ function admin_agent_approve_recharge() {
             fail('Ce montant depasserait le plafond de float autorise pour ce distributeur ('.$targetAgent['max_float_cap'].' XOF). Augmentez son plafond avant d\'approuver, si besoin.', 422);
         }
     }
+    // Genere AVANT le claim pour pouvoir l'enregistrer sur la demande elle-
+    // meme (visible ensuite dans l'historique agent pour preuve/comptabilite).
+    $txid = uid(); $reference = ref();
     db()->beginTransaction();
     // Meme "claim" atomique que agent_approve_recharge_request() : la file
     // est desormais partagee entre l'admin ET tous les distributeurs, un
     // distributeur pourrait approuver au meme instant.
-    $claimed = q("UPDATE agent_recharge_requests SET status='approved', reviewed_at=NOW() WHERE id=? AND status='pending'",[$id])->rowCount();
+    $claimed = q("UPDATE agent_recharge_requests SET status='approved', reference=?, reviewed_at=NOW() WHERE id=? AND status='pending'",[$reference,$id])->rowCount();
     if(!$claimed){ db()->rollBack(); fail('Cette demande vient d\'etre traitee par quelqu\'un d\'autre', 409); }
     try {
-        $txid = uid(); $reference = ref();
         q("INSERT INTO transactions (id,receiver_agent_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,'agent_recharge','completed',?,?)",
           [$txid,$aw['id'],$r['amount'],$reference,'Recharge de float approuvee']);
         q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$aw['id']]);
@@ -8364,6 +8373,12 @@ function route_install() {
     // Impossible a reutiliser : une fois la demande approuvee/rejetee, son
     // statut n'est plus 'pending' et le code ne peut plus rien valider.
     "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS confirmation_code VARCHAR(10)",
+    // Reference de la transaction reelle, renseignee UNIQUEMENT une fois la
+    // demande approuvee (jamais pour 'pending'/'rejected', aucune transaction
+    // n'existe encore) - contrairement au code de confirmation, reste utile
+    // apres traitement : c'est la piece justificative pour la comptabilite
+    // de l'agent/du distributeur, visible dans leurs historiques respectifs.
+    "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS reference VARCHAR(30)",
     // Demandes de code de confirmation pour un retrait (cash-out) identifie
     // par numero de telephone plutot que par QR scanne - voir
     // agent_request_cash_out_code()/agent_confirm_cash_out(). Le code n'est
