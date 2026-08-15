@@ -158,7 +158,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
   <div class="welcome-title" data-i18n="welcome_title">Bienvenue sur ROM_GUICHET</div>
   <div class="welcome-sub" data-i18n="welcome_sub">L'espace des agents et distributeurs ROM_MONEY : dépôt, retrait et gestion de votre float.</div>
   <button class="btn-g" onclick="goto('s-register');showRegA()" data-i18n="welcome_btn_create">Devenir agent</button>
-  <button class="btn-w" onclick="goto('s-login');setupLoginScreen()" data-i18n="welcome_btn_login">J'ai déjà un compte</button>
+  <button class="btn-w" onclick="goto('s-login');setupLoginScreen(true)" data-i18n="welcome_btn_login">J'ai déjà un compte</button>
 </div>
 
 <!-- REGISTER -->
@@ -201,7 +201,6 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 <div class="screen" id="s-login">
   <div class="pin-av">🧑‍💼</div>
   <div class="pin-title" id="login-title" data-i18n="login_title_default">Connexion agent</div>
-  <button id="login-not-you" class="pin-link" style="display:none;margin-top:0;margin-bottom:14px" onclick="switchLoginNumber()" data-i18n="login_not_you">Pas vous ? Utiliser un autre numéro</button>
   <div id="login-phone-wrap" style="width:100%;max-width:280px;margin-bottom:16px">
     <input id="login-phone-input" type="tel" data-i18n-ph="login_ph_phone" placeholder="Numéro de téléphone"
       style="width:100%;padding:12px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:15px;color:#fff;outline:none;text-align:center;font-family:inherit">
@@ -372,7 +371,6 @@ var I18N = {
   login_title_default:{fr:'Connexion agent',en:'Agent login'},
   login_title_add:{fr:'Connexion',en:'Login'},
   login_ph_phone:{fr:'Numéro de téléphone',en:'Phone number'},
-  login_not_you:{fr:'Pas vous ? Utiliser un autre numéro',en:'Not you? Use a different number'},
   login_back:{fr:'← Retour',en:'← Back'},
   login_err_phone_required:{fr:'Entrez votre numéro',en:'Enter your phone number'},
   login_err_wrong:{fr:'Numéro ou PIN incorrect',en:'Wrong phone number or PIN'},
@@ -793,26 +791,19 @@ function cancelAddAccount(){
     goto('s-welcome');
   }
 }
-function setupLoginScreen(){
-  var known = _addAccountMode ? _switchPrefillPhone : APP.phone;
+// forceFresh=true (depuis "J'ai deja un compte" sur l'ecran d'accueil) :
+// toujours demander numero + PIN, comme une premiere connexion classique -
+// jamais de pre-remplissage/masquage automatique dans ce cas precis. Sans
+// forceFresh (reprise apres verrouillage par inactivite, ou "Ajouter un
+// compte" depuis le Profil), le numero deja connu reste reutilise.
+function setupLoginScreen(forceFresh){
+  var known = !forceFresh && (_addAccountMode ? _switchPrefillPhone : APP.phone);
   var wrap = document.getElementById('login-phone-wrap');
   var input = document.getElementById('login-phone-input');
-  var notYouBtn = document.getElementById('login-not-you');
   if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?t('login_title_add'):(APP.fullName||known); }
   else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent=t('login_title_default'); }
-  // Le numero est cache/pre-rempli des qu'un compte est deja connu sur cet
-  // appareil (comportement voulu pour une reconnexion rapide) - mais sans ce
-  // lien, rien ne permettait de se rendre compte qu'un AUTRE numero pouvait
-  // etre utilise : ca donnait l'impression que l'app se connectait "toute
-  // seule" au compte precedent sans jamais demander lequel.
-  if(notYouBtn) notYouBtn.style.display = known ? 'inline-block' : 'none';
   lgBuf=''; updateLgDots();
   document.getElementById('login-err').textContent='';
-}
-function switchLoginNumber(){
-  _addAccountMode = true;
-  _switchPrefillPhone = '';
-  setupLoginScreen();
 }
 var lgBuf='';
 function updateLgDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('ld'+i); if(el) el.classList.toggle('on', i<lgBuf.length); } }
@@ -824,7 +815,12 @@ function lgPin(d){
     var buf=lgBuf;
     setTimeout(function(){
       var phoneInput=document.getElementById('login-phone-input');
-      var phone=(phoneInput&&phoneInput.value.trim())||APP.phone||'';
+      var wrap=document.getElementById('login-phone-wrap');
+      // Si le champ est visible (on demande explicitement le numero), on
+      // n'utilise QUE ce qui est tape dedans - jamais un repli silencieux
+      // vers un ancien numero memorise, meme s'il existe.
+      var fieldVisible = wrap && wrap.style.display!=='none';
+      var phone = fieldVisible ? (phoneInput&&phoneInput.value.trim()) : ((phoneInput&&phoneInput.value.trim())||APP.phone||'');
       if(!phone){ lgBuf=''; updateLgDots(); document.getElementById('login-err').textContent=t('login_err_phone_required'); return; }
       apiCall('/agent?action=login','POST',{phone:phone,pin:buf,device_id:getDeviceId()}).then(function(res){
         if(res && res.success && res.data){
