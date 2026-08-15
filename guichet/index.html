@@ -507,6 +507,8 @@ var I18N = {
   qr_scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
   qr_invalid:{fr:'QR invalide ou non reconnu',en:'Invalid or unrecognized QR'},
   verify_btn:{fr:'Vérifier',en:'Verify'},
+  id_verified_badge:{fr:'✓ Identité vérifiée',en:'✓ Verified identity'},
+  id_unverified_badge:{fr:'⚠ Non vérifié (nom déclaré)',en:'⚠ Unverified (self-declared name)'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
@@ -1343,10 +1345,19 @@ function startDepotQrScan(){
     }).catch(function(){ toast(t('network_error'), true); });
   }, function(){ shDepot(document.getElementById('sh-body')); });
 }
+// L'agent doit toujours savoir si le nom affiche est l'identite legale
+// verifiee par KYC (nom/prenoms exacts de la piece d'identite) ou juste le
+// nom declare a l'inscription (jamais controle) - la distinction est
+// visible ici plutot que de presenter les deux de la meme facon.
+function identityBadgeHtml(customer){
+  return customer.is_verified
+    ? '<span style="color:var(--gold);font-size:11px;font-weight:700">'+t('id_verified_badge')+'</span>'
+    : '<span style="color:var(--rd);font-size:11px;font-weight:700">'+t('id_unverified_badge')+'</span>';
+}
 function renderDepotAmountForm(customer){
   window._pendingDepotPhone = customer.phone_number;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
     +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note free">'+t('dep_note')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
@@ -1400,7 +1411,11 @@ function startRetraitQrScan(){
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
       if(res && res.success && res.data){
-        renderRetraitQrAmountForm(res.data, text);
+        // Un QR "carte" (imprimable, pas l'app live) n'a pas la meme valeur
+        // de preuve - meme trouve par scan, il suit le chemin code SMS,
+        // jamais l'execution immediate reservee au vrai "Mon QR" live.
+        if(res.data.verified_live){ renderRetraitQrAmountForm(res.data, text); }
+        else { renderRetraitPhoneAmountForm(res.data); }
       } else {
         var r2=document.getElementById('qr-result');
         if(r2){
@@ -1429,7 +1444,7 @@ function renderRetraitQrAmountForm(customer, qrText){
   window._pendingRetraitQr = qrText;
   window._pendingRetraitPhone = null;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-qr-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note free">'+t('ret_note_qr')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="ret-qr-confirm-btn" onclick="doRetraitQr()">'+t('ret_btn')+'</button>';
@@ -1459,7 +1474,7 @@ function doRetraitQr(){
 function renderRetraitPhoneAmountForm(customer){
   window._pendingRetraitPhone = customer.phone_number;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note warn">'+t('ret_note_code')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="ret-request-btn" onclick="doRequestRetraitCode()">'+t('ret_send_code_btn')+'</button>';
