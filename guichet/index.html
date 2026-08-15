@@ -330,6 +330,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
   <img id="docview-img" src="" style="max-width:100%;max-height:85vh;border-radius:10px;object-fit:contain" onclick="event.stopPropagation()">
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.3.1/dist/jsQR.min.js"></script>
 <script>
 var API_URL = 'https://rom-money-backend.onrender.com';
 
@@ -464,13 +465,19 @@ var I18N = {
   dep_err_generic:{fr:'Échec du dépôt',en:'Cash-in failed'},
   ret_customer_phone:{fr:'Numéro du client',en:"Customer's phone number"},
   ret_amount:{fr:'Montant à retirer',en:'Amount to withdraw'},
-  ret_pin_label:{fr:'PIN du CLIENT (pas le vôtre)',en:"CUSTOMER's PIN (not yours)"},
-  ret_note:{fr:"Vous remettez ce montant en espèces au client. C'est SON solde qui est débité — il doit entrer lui-même son PIN.",en:"You hand this amount in cash to the customer. THEIR balance is debited — they must enter their own PIN."},
   ret_btn:{fr:'Confirmer le retrait',en:'Confirm cash-out'},
   ret_err_phone:{fr:'Numéro client requis',en:"Customer's phone number required"},
-  ret_err_pin:{fr:'PIN du client requis (4 chiffres)',en:"Customer's PIN required (4 digits)"},
   ret_success:{fr:'Retrait effectué',en:'Cash-out completed'},
   ret_err_generic:{fr:'Échec du retrait',en:'Cash-out failed'},
+  ret_or_manual:{fr:'— ou saisissez son numéro —',en:"— or enter their number —"},
+  ret_note_code:{fr:'Un code de confirmation à 6 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 6-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
+  ret_note_qr:{fr:'QR reconnu — aucun code requis. Vérifiez le montant avant de confirmer.',en:'QR recognized — no code required. Check the amount before confirming.'},
+  ret_send_code_btn:{fr:'Envoyer le code au client',en:'Send code to customer'},
+  ret_sending_code:{fr:'Envoi en cours...',en:'Sending...'},
+  ret_code_sent_to:{fr:'Code envoyé à {name} ({phone}). Demandez-le-lui pour finaliser.',en:'Code sent to {name} ({phone}). Ask them for it to finalize.'},
+  ret_code_label:{fr:'Code communiqué par le client',en:'Code given by the customer'},
+  ret_confirm_code_btn:{fr:'Valider et finaliser le retrait',en:'Confirm and finalize cash-out'},
+  ret_err_code:{fr:'Code à 6 chiffres requis',en:'6-digit code required'},
   rec_amount:{fr:'Montant à recharger',en:'Amount to recharge'},
   rec_note:{fr:'Note (optionnel)',en:'Note (optional)'},
   rec_distributor_phone:{fr:'Numéro du distributeur (optionnel)',en:"Distributor's phone number (optional)"},
@@ -492,6 +499,13 @@ var I18N = {
   find_call_btn:{fr:'📞 Appeler',en:'📞 Call'},
   find_distance:{fr:'{km} km',en:'{km} km'},
   find_geoloc_denied:{fr:'Géolocalisation refusée ou indisponible',en:'Geolocation denied or unavailable'},
+  qr_scan_desc:{fr:'Scannez le QR personnel du client (affiché dans son app ROM_MONEY)',en:"Scan the customer's personal QR (shown in their ROM_MONEY app)"},
+  qr_scan_point:{fr:'Visez le QR du client',en:"Aim at the customer's QR"},
+  qr_scan_btn:{fr:'📷 Scanner le QR du client',en:"📷 Scan customer's QR"},
+  camera_denied:{fr:'Accès caméra refusé',en:'Camera access denied'},
+  qr_identifying:{fr:'Identification...',en:'Identifying...'},
+  qr_scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
+  qr_invalid:{fr:'QR invalide ou non reconnu',en:'Invalid or unrecognized QR'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
@@ -1204,6 +1218,62 @@ function openSheet(type, extra){
 function closeSheet(){
   document.getElementById('sh').classList.remove('on');
   document.getElementById('sh-bg').classList.remove('on');
+  stopQrScan();
+}
+
+// ── SCANNER QR GENERIQUE (partage entre depot et retrait) ──
+var _qrStream=null, _qrRAF=null, _qrOnScanned=null, _qrOnCancel=null;
+function qrScannerHtml(){
+  return '<div style="font-size:12px;color:var(--t2);text-align:center;margin-bottom:14px">'+t('qr_scan_desc')+'</div>'
+    +'<div style="background:#111;border-radius:12px;overflow:hidden;position:relative;height:220px">'
+    +'<video id="qr-vid" style="width:100%;height:100%;object-fit:cover" autoplay playsinline muted></video>'
+    +'<canvas id="qr-canvas" style="display:none"></canvas>'
+    +'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">'
+    +'<div style="width:150px;height:150px;border:2px solid var(--g);border-radius:12px"></div></div>'
+    +'<p style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);margin:0">'+t('qr_scan_point')+'</p>'
+    +'</div>'
+    +'<div id="qr-result" style="margin-top:12px"></div>'
+    +'<button class="chip" style="width:100%;margin-top:10px;background:var(--bg);color:var(--t1)" onclick="cancelQrScan()">'+t('cancel')+'</button>';
+}
+function cancelQrScan(){
+  stopQrScan();
+  var cb=_qrOnCancel; _qrOnCancel=null;
+  if(cb) cb(); else closeSheet();
+}
+function startQrScan(onScanned, onCancel){
+  _qrOnScanned = onScanned;
+  _qrOnCancel = onCancel;
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}}).then(function(stream){
+    _qrStream=stream;
+    var v=document.getElementById('qr-vid');
+    if(!v) return;
+    v.srcObject=stream;
+    v.play().then(qrScanLoop);
+  }).catch(function(){ toast(t('camera_denied'), true); });
+}
+function stopQrScan(){
+  if(_qrRAF){ cancelAnimationFrame(_qrRAF); _qrRAF=null; }
+  if(_qrStream){ _qrStream.getTracks().forEach(function(tr){ tr.stop(); }); _qrStream=null; }
+}
+function qrScanLoop(){
+  if(!_qrStream) return;
+  var v=document.getElementById('qr-vid');
+  var c=document.getElementById('qr-canvas');
+  if(!v||!c||v.readyState<2){ _qrRAF=requestAnimationFrame(qrScanLoop); return; }
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  var ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(v,0,0);
+  try{
+    var img=ctx.getImageData(0,0,c.width,c.height);
+    var code=(typeof jsQR!=='undefined')?jsQR(img.data,img.width,img.height):null;
+    if(code && code.data){
+      stopQrScan();
+      var cb=_qrOnScanned; _qrOnScanned=null;
+      if(cb) cb(code.data);
+      return;
+    }
+  }catch(e){}
+  _qrRAF=requestAnimationFrame(qrScanLoop);
 }
 function buildSheet(type, b, extra){
   if(type==='depot') shDepot(b);
@@ -1221,10 +1291,31 @@ function buildSheet(type, b, extra){
 
 // ── DEPOT (cash-in, PIN de l'agent) ──
 function shDepot(b){
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('dep_customer_phone')+'</label><input class="finput" id="dep-phone" type="tel"></div>'
+  b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startDepotQrScan()">'+t('qr_scan_btn')+'</button>'
+    +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:2px 0 12px">'+t('ret_or_manual')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('dep_customer_phone')+'</label><input class="finput" id="dep-phone" type="tel"></div>'
     +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note free">'+t('dep_note')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
+}
+function startDepotQrScan(){
+  var b=document.getElementById('sh-body');
+  b.innerHTML=qrScannerHtml();
+  startQrScan(function(text){
+    var result=document.getElementById('qr-result');
+    if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
+    apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
+      if(res && res.success && res.data){
+        shDepot(document.getElementById('sh-body'));
+        document.getElementById('dep-phone').value=res.data.phone_number;
+        toast(res.data.full_name);
+      } else {
+        var r2=document.getElementById('qr-result');
+        if(r2) r2.innerHTML='<div style="text-align:center;padding:12px;color:var(--rd);font-size:12px">'+((res&&res.message)||t('qr_invalid'))+'</div>'
+          +'<button class="chip" style="width:100%;margin-top:8px" onclick="startDepotQrScan()">'+t('qr_scan_again')+'</button>';
+      }
+    }).catch(function(){ toast(t('network_error'), true); });
+  }, function(){ shDepot(document.getElementById('sh-body')); });
 }
 function doDepot(){
   if(_moneyActionInFlight) return;
@@ -1246,33 +1337,110 @@ function doDepot(){
   });
 }
 
-// ── RETRAIT (cash-out, PIN du CLIENT — pas de requirePin, champ dedie) ──
+// ── RETRAIT (cash-out) — plus jamais de PIN client tape sur l'appareil de
+// l'agent. Deux chemins : QR scanne depuis l'app du client (execution
+// immediate, aucun code) ou numero saisi a la main (code a 6 chiffres
+// envoye par SMS, communique oralement par le client pour finaliser).
 function shRetrait(b){
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('ret_customer_phone')+'</label><input class="finput" id="ret-phone" type="tel"></div>'
+  b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startRetraitQrScan()">'+t('qr_scan_btn')+'</button>'
+    +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:2px 0 12px">'+t('ret_or_manual')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_customer_phone')+'</label><input class="finput" id="ret-phone" type="tel"></div>'
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
-    +'<div class="frow"><label class="flabel" style="color:var(--rd)">'+t('ret_pin_label')+'</label><input class="finput" id="ret-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'
-    +'<div class="fee-note warn">'+t('ret_note')+'</div>'
-    +'<button class="btn-g" style="background:var(--g)" onclick="doRetrait()">'+t('ret_btn')+'</button>';
+    +'<div class="fee-note warn">'+t('ret_note_code')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" id="ret-request-btn" onclick="doRequestRetraitCode()">'+t('ret_send_code_btn')+'</button>';
 }
-function doRetrait(){
+function startRetraitQrScan(){
+  var b=document.getElementById('sh-body');
+  b.innerHTML=qrScannerHtml();
+  startQrScan(function(text){
+    var result=document.getElementById('qr-result');
+    if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
+    apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
+      if(res && res.success && res.data){
+        renderRetraitQrAmountForm(res.data, text);
+      } else {
+        var r2=document.getElementById('qr-result');
+        if(r2) r2.innerHTML='<div style="text-align:center;padding:12px;color:var(--rd);font-size:12px">'+((res&&res.message)||t('qr_invalid'))+'</div>'
+          +'<button class="chip" style="width:100%;margin-top:8px" onclick="startRetraitQrScan()">'+t('qr_scan_again')+'</button>';
+      }
+    }).catch(function(){ toast(t('network_error'), true); });
+  }, function(){ shRetrait(document.getElementById('sh-body')); });
+}
+// Le texte scanne n'est jamais injecte dans le HTML/onclick (risque
+// d'injection si un QR malveillant contenait des guillemets/apostrophes) -
+// garde en memoire, jamais serialise dans une chaine.
+function renderRetraitQrAmountForm(customer, qrText){
+  window._pendingRetraitQr = qrText;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-qr-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="fee-note free">'+t('ret_note_qr')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" id="ret-qr-confirm-btn" onclick="doRetraitQr()">'+t('ret_btn')+'</button>';
+}
+function doRetraitQr(){
   if(_moneyActionInFlight) return;
-  var phone=document.getElementById('ret-phone').value.trim();
-  var amount=parseFloat(document.getElementById('ret-amount').value);
-  var pin=document.getElementById('ret-pin').value.trim();
-  if(!phone){ toast(t('ret_err_phone'), true); return; }
+  var qr=window._pendingRetraitQr;
+  var amount=parseFloat(document.getElementById('ret-qr-amount').value);
+  if(!qr){ toast(t('qr_invalid'), true); return; }
   if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
-  if(!/^\d{4}$/.test(pin)){ toast(t('ret_err_pin'), true); return; }
   _moneyActionInFlight = true;
-  apiCall('/agent?action=cash-out','POST',{customer_phone:phone,amount:amount,pin:pin},getToken()).then(function(res){
+  var btn=document.getElementById('ret-qr-confirm-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/agent?action=cash-out','POST',{qr:qr,amount:amount},getToken()).then(function(res){
     _moneyActionInFlight = false;
     if(res && res.success){
+      window._pendingRetraitQr=null;
       toast(fmt(amount)+' '+curSuffix()+' — '+t('ret_success'));
       closeSheet();
       refreshBalance(); refreshHistory();
     } else {
       toast((res&&res.message)||t('ret_err_generic'), true);
+      if(btn) btn.disabled=false;
     }
-  }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); });
+  }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+function doRequestRetraitCode(){
+  var phone=document.getElementById('ret-phone').value.trim();
+  var amount=parseFloat(document.getElementById('ret-amount').value);
+  if(!phone){ toast(t('ret_err_phone'), true); return; }
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  var btn=document.getElementById('ret-request-btn');
+  if(btn){ btn.disabled=true; btn.textContent=t('ret_sending_code'); }
+  apiCall('/agent?action=cash-out-request','POST',{customer_phone:phone,amount:amount},getToken()).then(function(res){
+    if(res && res.success && res.data){
+      renderRetraitCodeConfirmForm(res.data.request_id, res.data.customer_name, phone, amount);
+    } else {
+      toast((res&&res.message)||t('ret_err_generic'), true);
+      if(btn){ btn.disabled=false; btn.textContent=t('ret_send_code_btn'); }
+    }
+  }).catch(function(){ toast(t('network_error'), true); if(btn){ btn.disabled=false; btn.textContent=t('ret_send_code_btn'); } });
+}
+function renderRetraitCodeConfirmForm(requestId, customerName, phone, amount){
+  window._pendingRetraitRequestId = requestId;
+  window._pendingRetraitAmount = amount;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px">'+t('ret_code_sent_to').replace('{name}',customerName).replace('{phone}',phone)+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_code_label')+'</label><input class="finput" id="ret-code" maxlength="6" inputmode="numeric" placeholder="000000"></div>'
+    +'<button class="btn-g" style="background:var(--g)" id="ret-confirm-btn" onclick="doConfirmRetraitCode()">'+t('ret_confirm_code_btn')+'</button>';
+}
+function doConfirmRetraitCode(){
+  if(_moneyActionInFlight) return;
+  var code=document.getElementById('ret-code').value.trim();
+  if(!/^\d{6}$/.test(code)){ toast(t('ret_err_code'), true); return; }
+  _moneyActionInFlight = true;
+  var btn=document.getElementById('ret-confirm-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/agent?action=cash-out-confirm','POST',{request_id:window._pendingRetraitRequestId,code:code},getToken()).then(function(res){
+    _moneyActionInFlight = false;
+    if(res && res.success){
+      toast(fmt(window._pendingRetraitAmount)+' '+curSuffix()+' — '+t('ret_success'));
+      closeSheet();
+      refreshBalance(); refreshHistory();
+    } else {
+      toast((res&&res.message)||t('ret_err_generic'), true);
+      if(btn) btn.disabled=false;
+    }
+  }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
 }
 
 // ── RECHARGE DE FLOAT (demande, pas de PIN — aucun mouvement direct) ──
