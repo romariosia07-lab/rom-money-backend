@@ -485,8 +485,11 @@ var I18N = {
   env_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
   env_verify_recipient_btn:{fr:'Vérifier le destinataire',en:'Verify recipient'},
   env_err_recipient_phone:{fr:'Numéro du destinataire requis',en:"Recipient's phone number required"},
-  env_amount:{fr:'Montant à envoyer (frais inclus)',en:'Amount to send (fees included)'},
-  env_fee_preview:{fr:'Frais estimés (1%) : {fee} {cur} — le destinataire recevra environ {net} {cur}. Montant exact confirmé par le serveur.',en:'Estimated fee (1%): {fee} {cur} — the recipient will receive about {net} {cur}. Exact amount confirmed by the server.'},
+  env_amount_brut:{fr:'Montant total prélevé (brut)',en:'Total amount charged (gross)'},
+  env_amount_net:{fr:'Net reçu par le destinataire',en:'Net received by recipient'},
+  env_fee_brut_label:{fr:'Montant brut',en:'Gross amount'},
+  env_fee_pct_label:{fr:'Frais estimés (1%)',en:'Estimated fee (1%)'},
+  env_fee_net_label:{fr:'Net reçu',en:'Net received'},
   env_note_code:{fr:'Un code de confirmation à 6 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 6-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
   env_note_qr:{fr:'QR reconnu — aucun code requis. Vérifiez les informations avant de confirmer.',en:'QR recognized — no code required. Check the information before confirming.'},
   env_btn:{fr:"Confirmer l'envoi",en:'Confirm send'},
@@ -1613,43 +1616,67 @@ function resolveEnvoyerRecipient(){
 }
 function renderEnvoyerAmountForm(customer, recipient){
   window._pendingEnvoyerRecipient = recipient;
+  window._envLastField = 'brut';
   var verifiedLive = window._pendingEnvoyerVerifiedLive;
   var b=document.getElementById('sh-body');
   b.innerHTML='<div class="fee-note free" style="margin-bottom:10px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
     +'<div style="text-align:center;font-size:16px;color:var(--t3);margin:-6px 0 10px">→</div>'
     +'<div class="fee-note free" style="margin-bottom:14px"><b>'+recipient.full_name+'</b> '+identityBadgeHtml(recipient)+'<br>'+recipient.phone_number+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('env_amount')+'</label><input class="finput" id="env-amount" type="number" inputmode="numeric" oninput="updateEnvoyerFeePreview()"></div>'
+    +'<div class="frow"><label class="flabel">'+t('env_amount_brut')+'</label><input class="finput" id="env-amount-brut" type="number" inputmode="numeric" oninput="syncEnvoyerAmount(\'brut\')"></div>'
+    +'<div class="frow"><label class="flabel">'+t('env_amount_net')+'</label><input class="finput" id="env-amount-net" type="number" inputmode="numeric" oninput="syncEnvoyerAmount(\'net\')"></div>'
     +'<div class="fee-note" id="env-fee-preview"></div>'
     +'<div class="fee-note '+(verifiedLive?'free':'warn')+'">'+t(verifiedLive?'env_note_qr':'env_note_code')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="env-confirm-btn" onclick="doEnvoyerTiers()">'+t(verifiedLive?'env_btn':'env_send_code_btn')+'</button>';
-  updateEnvoyerFeePreview();
 }
-// Simple apercu indicatif (1%, sans tenir compte de la franchise quotidienne
-// deja consommee) - le montant exact fait toujours foi cote serveur.
-function updateEnvoyerFeePreview(){
-  var el=document.getElementById('env-fee-preview');
-  if(!el) return;
-  var amount=parseFloat(document.getElementById('env-amount').value);
-  if(!amount || amount<=0){ el.innerHTML=''; return; }
-  var fee=Math.round(amount*0.01);
-  var net=amount-fee;
-  el.textContent=t('env_fee_preview').replace('{fee}',fmt(fee)).replace('{net}',fmt(net)).replace(/\{cur\}/g,curSuffix());
+// Deux champs synchronises (brut <-> net), sur le modele de syncFeeFields()/
+// getAmountIntent() de money/index.html : l'agent peut taper soit le montant
+// total preleve sur le client, soit le montant que le destinataire doit
+// recevoir. Apercu indicatif (1% fixe, sans tenir compte de la franchise
+// quotidienne deja consommee par le client, inconnue cote guichet) - le
+// montant exact fait toujours foi cote serveur, qui refait le calcul avec
+// mode+amount tels quels (jamais un brut deja converti cote client, pour
+// eviter un ecart d'arrondi).
+function syncEnvoyerAmount(field){
+  window._envLastField = field;
+  var brutEl=document.getElementById('env-amount-brut');
+  var netEl=document.getElementById('env-amount-net');
+  var preview=document.getElementById('env-fee-preview');
+  if(!brutEl || !netEl || !preview) return;
+  var brut, net, fee;
+  if(field==='net'){
+    net=parseFloat(netEl.value);
+    if(!net || net<=0){ brutEl.value=''; preview.innerHTML=''; return; }
+    brut=Math.round(net/0.99);
+    fee=Math.round(brut*0.01);
+    net=brut-fee;
+    brutEl.value=brut;
+  } else {
+    brut=parseFloat(brutEl.value);
+    if(!brut || brut<=0){ netEl.value=''; preview.innerHTML=''; return; }
+    fee=Math.round(brut*0.01);
+    net=brut-fee;
+    netEl.value=net;
+  }
+  preview.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>'+t('env_fee_brut_label')+'</span><span style="font-weight:700">'+fmt(brut)+' '+curSuffix()+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;margin-bottom:3px;color:var(--rd)"><span>'+t('env_fee_pct_label')+'</span><span style="font-weight:700">-'+fmt(fee)+' '+curSuffix()+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;color:var(--gd);border-top:.5px solid var(--bord);padding-top:4px;margin-top:4px"><span style="font-weight:700">'+t('env_fee_net_label')+'</span><span style="font-weight:900">'+fmt(net)+' '+curSuffix()+'</span></div>';
 }
 function doEnvoyerTiers(){
   if(_moneyActionInFlight) return;
   var customer=window._pendingEnvoyerCustomer;
   var recipient=window._pendingEnvoyerRecipient;
-  var amount=parseFloat(document.getElementById('env-amount').value);
+  var mode=window._envLastField==='net' ? 'net' : 'brut';
+  var amount=parseFloat(document.getElementById(mode==='net' ? 'env-amount-net' : 'env-amount-brut').value);
   if(!customer || !recipient){ toast(t('qr_invalid'), true); return; }
   if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
   var btn=document.getElementById('env-confirm-btn');
   if(window._pendingEnvoyerVerifiedLive){
     _moneyActionInFlight = true;
     if(btn) btn.disabled=true;
-    apiCall('/agent?action=send-to-third-party','POST',{qr:window._pendingEnvoyerQr,recipient_phone:recipient.phone_number,amount:amount},getToken()).then(function(res){
+    apiCall('/agent?action=send-to-third-party','POST',{qr:window._pendingEnvoyerQr,recipient_phone:recipient.phone_number,amount:amount,mode:mode},getToken()).then(function(res){
       _moneyActionInFlight = false;
       if(res && res.success){
-        toast(fmt(amount)+' '+curSuffix()+' — '+t('env_success'));
+        toast(fmt(res.data.amount)+' '+curSuffix()+' — '+t('env_success'));
         closeSheet();
         refreshBalance(); refreshHistory();
       } else {
@@ -1659,9 +1686,9 @@ function doEnvoyerTiers(){
     }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
   } else {
     if(btn){ btn.disabled=true; btn.textContent=t('env_sending_code'); }
-    apiCall('/agent?action=send-to-third-party-request','POST',{customer_phone:customer.phone_number,recipient_phone:recipient.phone_number,amount:amount},getToken()).then(function(res){
+    apiCall('/agent?action=send-to-third-party-request','POST',{customer_phone:customer.phone_number,recipient_phone:recipient.phone_number,amount:amount,mode:mode},getToken()).then(function(res){
       if(res && res.success && res.data){
-        renderEnvoyerCodeConfirmForm(res.data.request_id, res.data.customer_name, customer.phone_number, amount);
+        renderEnvoyerCodeConfirmForm(res.data.request_id, res.data.customer_name, customer.phone_number, res.data.brut);
       } else {
         toast((res&&res.message)||t('env_err_generic'), true);
         if(btn){ btn.disabled=false; btn.textContent=t('env_send_code_btn'); }

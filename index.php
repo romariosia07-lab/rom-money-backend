@@ -2810,23 +2810,21 @@ function agent_confirm_cash_out() {
 // personnels) - duplication limitee et volontaire. Pas de canal Africa/
 // conversion de devise : un guichet agent opere localement, donc expediteur
 // et destinataire doivent avoir la meme devise.
-function agent_execute_transfer($senderCustomer, $recipientPhone, $amount) {
-    $recv = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
-    if(!$recv) fail('Destinataire introuvable',404);
-    if($recv['id']===$senderCustomer['id']) fail('Envoi a soi-meme impossible');
-    $senderCurrency = $senderCustomer['currency'] ?: 'XOF';
-    $recvCurrency = $recv['currency'] ?: 'XOF';
-    if($senderCurrency !== $recvCurrency) fail("L'envoi a un tiers via un guichet agent doit se faire dans la meme devise.", 422);
-
+// Calcule brut/net/frais pour un envoi a un tiers via agent, dans les DEUX
+// sens (comme tx_send()/getAmountIntent() cote money/index.html) : mode
+// 'brut' = l'agent a tape le montant total preleve sur le client ; mode
+// 'net' = l'agent a tape le montant que le destinataire doit recevoir, et
+// le brut necessaire est resolu a l'envers. Meme franchise quotidienne
+// cumulee que tx_send() (montant deja envoye aujourd'hui par CE client,
+// tous canaux "national" confondus - un envoi via guichet agent compte
+// dans le meme cumul qu'un envoi depuis l'app, pour ne pas offrir une
+// double franchise).
+function agent_transfer_amounts($senderWalletId, $senderCurrency, $amount, $mode) {
     $rateNational = (float)get_setting('fee_rate_national', 0.01);
     $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
-    // Meme logique de franchise quotidienne cumulee que tx_send() (montant
-    // deja envoye aujourd'hui par CE client, tous canaux "national"
-    // confondus - un envoi via guichet agent compte dans le meme cumul
-    // qu'un envoi depuis l'app, pour ne pas offrir une double franchise).
     $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
         WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
-        AND created_at::date=CURRENT_DATE",[$senderCustomer['wid']])->fetch()['t']??0);
+        AND created_at::date=CURRENT_DATE",[$senderWalletId])->fetch()['t']??0);
     if($senderCurrency === 'XOF'){
         $remainingFree = max(0, $freeThreshold - $sentTodayNational);
     } else {
@@ -2840,12 +2838,35 @@ function agent_execute_transfer($senderCustomer, $recipientPhone, $amount) {
             $remainingFree = $rf;
         }
     }
-    // $amount = montant total preleve sur le client (frais inclus), comme
-    // pour un depot/retrait - coherent avec ce que l'agent voit et confirme.
-    $brut = $amount;
-    $feeable = max(0, $brut - $remainingFree);
-    $fee = round($feeable * $rateNational);
-    $net = $brut - $fee;
+    if($mode === 'net'){
+        $net = $amount;
+        if($net <= $remainingFree){
+            $brut = $net; $fee = 0;
+        } else {
+            $brut = round(($net - $rateNational*$remainingFree) / (1-$rateNational));
+            $feeable = max(0, $brut - $remainingFree);
+            $fee = round($feeable * $rateNational);
+            $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
+        }
+    } else {
+        $brut = $amount;
+        $feeable = max(0, $brut - $remainingFree);
+        $fee = round($feeable * $rateNational);
+        $net = $brut - $fee;
+    }
+    return ['brut'=>$brut,'net'=>$net,'fee'=>$fee];
+}
+
+function agent_execute_transfer($senderCustomer, $recipientPhone, $amount, $mode='brut') {
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
+    if(!$recv) fail('Destinataire introuvable',404);
+    if($recv['id']===$senderCustomer['id']) fail('Envoi a soi-meme impossible');
+    $senderCurrency = $senderCustomer['currency'] ?: 'XOF';
+    $recvCurrency = $recv['currency'] ?: 'XOF';
+    if($senderCurrency !== $recvCurrency) fail("L'envoi a un tiers via un guichet agent doit se faire dans la meme devise.", 422);
+
+    $amounts = agent_transfer_amounts($senderCustomer['wid'], $senderCurrency, $amount, $mode);
+    $brut = $amounts['brut']; $net = $amounts['net']; $fee = $amounts['fee'];
     if($net<=0) fail('Montant invalide');
     if((float)$senderCustomer['balance'] < $brut) fail('Solde du client insuffisant');
 
@@ -2898,12 +2919,13 @@ function agent_send_to_third_party() {
     $qr = trim($b['qr'] ?? '');
     $recipientPhone = trim($b['recipient_phone'] ?? '');
     $amount = (float)($b['amount'] ?? 0);
+    $mode = ($b['mode'] ?? 'brut') === 'net' ? 'net' : 'brut';
     if(!$qr) fail('QR requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero du destinataire invalide');
     if($amount<=0) fail('Montant invalide');
     $customer = agent_resolve_customer_by_qr($qr);
     if(empty($customer['verified_live'])) fail("Ce QR n'autorise pas un envoi immediat - utilisez le code envoye par SMS.", 422);
-    $result = agent_execute_transfer($customer, $recipientPhone, $amount);
+    $result = agent_execute_transfer($customer, $recipientPhone, $amount, $mode);
     ok($result, 'Envoi effectue');
 }
 
@@ -2917,6 +2939,7 @@ function agent_request_send_to_third_party_code() {
     $customerPhone = trim($b['customer_phone'] ?? '');
     $recipientPhone = trim($b['recipient_phone'] ?? '');
     $amount = (float)($b['amount'] ?? 0);
+    $mode = ($b['mode'] ?? 'brut') === 'net' ? 'net' : 'brut';
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero du client invalide');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero du destinataire invalide');
     if($amount<=0) fail('Montant invalide');
@@ -2927,19 +2950,30 @@ function agent_request_send_to_third_party_code() {
     if(!$recipient) fail('Destinataire introuvable',404);
     if($recipient['id']===$customer['id']) fail('Envoi a soi-meme impossible');
     if(($recipient['currency']?:'XOF') !== ($customer['currency']?:'XOF')) fail("L'envoi a un tiers via un guichet agent doit se faire dans la meme devise.", 422);
-    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
+
+    // Le montant BRUT (preleve reellement sur le client) est resolu et fige
+    // ICI, quel que soit le mode tape par l'agent (brut ou net) - le meme
+    // principe que pour le retrait : impossible de faire lire un code au
+    // client pour un montant puis de l'executer pour un montant different.
+    $amounts = agent_transfer_amounts($customer['wid'], $customer['currency']?:'XOF', $amount, $mode);
+    $brut = $amounts['brut']; $net = $amounts['net']; $fee = $amounts['fee'];
+    if($net<=0) fail('Montant invalide');
+    if((float)$customer['balance'] < $brut) fail('Solde du client insuffisant');
 
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $id = uid();
     $expiresAt = date('Y-m-d H:i:s', time()+600);
-    $message = 'ROM_MONEY: code de confirmation pour un envoi de '.number_format($amount,0,',',' ').' '.($customer['currency']?:'XOF')
-        .' vers '.$recipientPhone.' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
+    $cur = $customer['currency'] ?: 'XOF';
+    $message = 'ROM_MONEY: code de confirmation pour un envoi de '.number_format($brut,0,',',' ').' '.$cur
+        .' ('.number_format($net,0,',',' ').' '.$cur.' recus par le destinataire, '.number_format($fee,0,',',' ').' '.$cur.' de frais) vers '.$recipientPhone
+        .' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
     if(!send_sms_africastalking($customer['phone_number'] ?? $customerPhone, $message)) {
         fail('Envoi du SMS impossible, reessayez');
     }
     q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at,request_type,recipient_phone) VALUES (?,?,?,?,?,?,?,'transfer',?)",
-      [$id,$pl['sub'],$customer['id'],$customerPhone,$amount,$code,$expiresAt,$recipientPhone]);
-    ok(['request_id'=>$id,'customer_name'=>$customer['verified_name']?:$customer['full_name']],'Code envoye au client');
+      [$id,$pl['sub'],$customer['id'],$customerPhone,$brut,$code,$expiresAt,$recipientPhone]);
+    ok(['request_id'=>$id,'customer_name'=>$customer['verified_name']?:$customer['full_name'],
+        'brut'=>$brut,'net'=>$net,'fee'=>$fee],'Code envoye au client');
 }
 
 // Etape 2/2 : fonction dediee separee de agent_confirm_cash_out() (plutot
