@@ -254,6 +254,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
   <div class="qa-grid">
     <button class="qa" onclick="openSheet('depot')"><div class="qa-ico">⬇️</div><span class="qa-lbl" data-i18n="qa_depot">Dépôt</span></button>
     <button class="qa" onclick="openSheet('retrait')"><div class="qa-ico">⬆️</div><span class="qa-lbl" data-i18n="qa_retrait">Retrait</span></button>
+    <button class="qa" onclick="openSheet('envoyer')"><div class="qa-ico">📤</div><span class="qa-lbl" data-i18n="qa_envoyer">Envoyer</span></button>
     <button class="qa" onclick="openSheet('recharge')"><div class="qa-ico">🔄</div><span class="qa-lbl" data-i18n="qa_recharge">Recharger</span></button>
     <button class="qa" onclick="openSheet('find-distributors')"><div class="qa-ico">📍</div><span class="qa-lbl" data-i18n="qa_distributeurs">Distributeurs</span></button>
   </div>
@@ -390,6 +391,7 @@ var I18N = {
   bal_label:{fr:'Float disponible',en:'Available float'},
   qa_depot:{fr:'Dépôt',en:'Cash-in'},
   qa_retrait:{fr:'Retrait',en:'Cash-out'},
+  qa_envoyer:{fr:'Envoyer',en:'Send'},
   qa_recharge:{fr:'Recharger',en:'Recharge'},
   qa_distributeurs:{fr:'Distributeurs',en:'Distributors'},
   home_recent:{fr:'Opérations récentes',en:'Recent operations'},
@@ -447,6 +449,7 @@ var I18N = {
   // depot/retrait
   sheet_title_depot:{fr:'Dépôt client',en:'Customer cash-in'},
   sheet_title_retrait:{fr:'Retrait client',en:'Customer cash-out'},
+  sheet_title_envoyer:{fr:'Envoyer à un tiers',en:'Send to a third party'},
   sheet_title_recharge:{fr:'Recharger mon float',en:'Recharge my float'},
   sheet_title_find_distributors:{fr:'Trouver un distributeur',en:'Find a distributor'},
   sheet_title_incoming_recharges:{fr:'Demandes de recharge entrantes',en:'Incoming recharge requests'},
@@ -478,6 +481,22 @@ var I18N = {
   ret_code_label:{fr:'Code communiqué par le client',en:'Code given by the customer'},
   ret_confirm_code_btn:{fr:'Valider et finaliser le retrait',en:'Confirm and finalize cash-out'},
   ret_err_code:{fr:'Code à 6 chiffres requis',en:'6-digit code required'},
+  env_customer_phone:{fr:'Numéro du client (expéditeur)',en:"Customer's phone number (sender)"},
+  env_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
+  env_verify_recipient_btn:{fr:'Vérifier le destinataire',en:'Verify recipient'},
+  env_err_recipient_phone:{fr:'Numéro du destinataire requis',en:"Recipient's phone number required"},
+  env_amount:{fr:'Montant à envoyer (frais inclus)',en:'Amount to send (fees included)'},
+  env_fee_preview:{fr:'Frais estimés (1%) : {fee} {cur} — le destinataire recevra environ {net} {cur}. Montant exact confirmé par le serveur.',en:'Estimated fee (1%): {fee} {cur} — the recipient will receive about {net} {cur}. Exact amount confirmed by the server.'},
+  env_note_code:{fr:'Un code de confirmation à 6 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 6-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
+  env_note_qr:{fr:'QR reconnu — aucun code requis. Vérifiez les informations avant de confirmer.',en:'QR recognized — no code required. Check the information before confirming.'},
+  env_btn:{fr:"Confirmer l'envoi",en:'Confirm send'},
+  env_send_code_btn:{fr:'Envoyer le code au client',en:'Send code to customer'},
+  env_sending_code:{fr:'Envoi en cours...',en:'Sending...'},
+  env_code_sent_to:{fr:'Code envoyé à {name} ({phone}). Demandez-le-lui pour finaliser.',en:'Code sent to {name} ({phone}). Ask them for it to finalize.'},
+  env_code_label:{fr:'Code communiqué par le client',en:'Code given by the customer'},
+  env_confirm_code_btn:{fr:"Valider et finaliser l'envoi",en:'Confirm and finalize send'},
+  env_success:{fr:'Envoi effectué',en:'Send completed'},
+  env_err_generic:{fr:"Échec de l'envoi",en:'Send failed'},
   rec_amount:{fr:'Montant à recharger',en:'Amount to recharge'},
   rec_note:{fr:'Note (optionnel)',en:'Note (optional)'},
   rec_distributor_phone:{fr:'Numéro du distributeur (optionnel)',en:"Distributor's phone number (optional)"},
@@ -1205,7 +1224,7 @@ function refreshHistory(full){
 
 // ── SHEETS ──
 var SHEET_TITLE_KEYS={
-  'depot':'sheet_title_depot','retrait':'sheet_title_retrait','recharge':'sheet_title_recharge',
+  'depot':'sheet_title_depot','retrait':'sheet_title_retrait','envoyer':'sheet_title_envoyer','recharge':'sheet_title_recharge',
   'find-distributors':'sheet_title_find_distributors','incoming-recharges':'sheet_title_incoming_recharges',
   'set-location':'sheet_title_set_location','change-pin':'sheet_title_change_pin','devices':'sheet_title_devices',
   'account-switch':'sheet_title_account_switch','appearance':'sheet_title_appearance','language':'sheet_title_language'
@@ -1281,6 +1300,7 @@ function qrScanLoop(){
 function buildSheet(type, b, extra){
   if(type==='depot') shDepot(b);
   else if(type==='retrait') shRetrait(b);
+  else if(type==='envoyer') shEnvoyerTiers(b);
   else if(type==='recharge') shRecharge(b);
   else if(type==='find-distributors') shFindDistributors(b);
   else if(type==='incoming-recharges') shIncomingRecharges(b);
@@ -1518,6 +1538,160 @@ function doConfirmRetraitCode(){
       refreshBalance(); refreshHistory();
     } else {
       toast((res&&res.message)||t('ret_err_generic'), true);
+      if(btn) btn.disabled=false;
+    }
+  }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+
+// ── ENVOYER A UN TIERS — identifie le client (comme un retrait, QR ou
+// numero manuel), puis le destinataire final (numero uniquement), avec un
+// apercu de frais avant confirmation. Meme branchement que le retrait selon
+// verified_live : QR live scanne -> execution immediate ; sinon -> code a 6
+// chiffres envoye par SMS au CLIENT (jamais a l'agent).
+function shEnvoyerTiers(b){
+  b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startEnvoyerQrScan()">'+t('qr_scan_btn')+'</button>'
+    +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:2px 0 12px">'+t('ret_or_manual')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('env_customer_phone')+'</label><input class="finput" id="env-phone" type="tel"></div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="resolveEnvoyerPhone()">'+t('verify_btn')+'</button>';
+}
+function resolveEnvoyerPhone(){
+  var phone=document.getElementById('env-phone').value.trim();
+  if(!phone){ toast(t('ret_err_phone'), true); return; }
+  toast(t('qr_identifying'));
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){ renderEnvoyerRecipientForm(res.data, null, false); }
+    else { toast((res&&res.message)||t('qr_invalid'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+function startEnvoyerQrScan(){
+  var b=document.getElementById('sh-body');
+  b.innerHTML=qrScannerHtml();
+  startQrScan(function(text){
+    var result=document.getElementById('qr-result');
+    if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
+    apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
+      if(res && res.success && res.data){
+        renderEnvoyerRecipientForm(res.data, text, !!res.data.verified_live);
+      } else {
+        var r2=document.getElementById('qr-result');
+        if(r2){
+          var el=document.createElement('div');
+          el.style.cssText='text-align:center;padding:12px;color:var(--rd);font-size:12px';
+          el.textContent=(res&&res.message)||t('qr_invalid');
+          var raw=document.createElement('div');
+          raw.style.cssText='font-size:10px;color:var(--t3);margin-top:4px;word-break:break-all;font-family:monospace';
+          raw.textContent=text.slice(0,120);
+          r2.innerHTML='';
+          r2.appendChild(el); r2.appendChild(raw);
+          var again=document.createElement('button');
+          again.className='chip'; again.style.cssText='width:100%;margin-top:8px';
+          again.textContent=t('qr_scan_again');
+          again.onclick=startEnvoyerQrScan;
+          r2.appendChild(again);
+        }
+      }
+    }).catch(function(){ toast(t('network_error'), true); });
+  }, function(){ shEnvoyerTiers(document.getElementById('sh-body')); });
+}
+function renderEnvoyerRecipientForm(customer, qrText, verifiedLive){
+  window._pendingEnvoyerCustomer = customer;
+  window._pendingEnvoyerQr = qrText;
+  window._pendingEnvoyerVerifiedLive = verifiedLive;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('env_recipient_phone')+'</label><input class="finput" id="env-recipient-phone" type="tel"></div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="resolveEnvoyerRecipient()">'+t('env_verify_recipient_btn')+'</button>';
+}
+function resolveEnvoyerRecipient(){
+  var phone=document.getElementById('env-recipient-phone').value.trim();
+  if(!phone){ toast(t('env_err_recipient_phone'), true); return; }
+  toast(t('qr_identifying'));
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){ renderEnvoyerAmountForm(window._pendingEnvoyerCustomer, res.data); }
+    else { toast((res&&res.message)||t('qr_invalid'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+function renderEnvoyerAmountForm(customer, recipient){
+  window._pendingEnvoyerRecipient = recipient;
+  var verifiedLive = window._pendingEnvoyerVerifiedLive;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:10px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+    +'<div style="text-align:center;font-size:16px;color:var(--t3);margin:-6px 0 10px">→</div>'
+    +'<div class="fee-note free" style="margin-bottom:14px"><b>'+recipient.full_name+'</b> '+identityBadgeHtml(recipient)+'<br>'+recipient.phone_number+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('env_amount')+'</label><input class="finput" id="env-amount" type="number" inputmode="numeric" oninput="updateEnvoyerFeePreview()"></div>'
+    +'<div class="fee-note" id="env-fee-preview"></div>'
+    +'<div class="fee-note '+(verifiedLive?'free':'warn')+'">'+t(verifiedLive?'env_note_qr':'env_note_code')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" id="env-confirm-btn" onclick="doEnvoyerTiers()">'+t(verifiedLive?'env_btn':'env_send_code_btn')+'</button>';
+  updateEnvoyerFeePreview();
+}
+// Simple apercu indicatif (1%, sans tenir compte de la franchise quotidienne
+// deja consommee) - le montant exact fait toujours foi cote serveur.
+function updateEnvoyerFeePreview(){
+  var el=document.getElementById('env-fee-preview');
+  if(!el) return;
+  var amount=parseFloat(document.getElementById('env-amount').value);
+  if(!amount || amount<=0){ el.innerHTML=''; return; }
+  var fee=Math.round(amount*0.01);
+  var net=amount-fee;
+  el.textContent=t('env_fee_preview').replace('{fee}',fmt(fee)).replace('{net}',fmt(net)).replace(/\{cur\}/g,curSuffix());
+}
+function doEnvoyerTiers(){
+  if(_moneyActionInFlight) return;
+  var customer=window._pendingEnvoyerCustomer;
+  var recipient=window._pendingEnvoyerRecipient;
+  var amount=parseFloat(document.getElementById('env-amount').value);
+  if(!customer || !recipient){ toast(t('qr_invalid'), true); return; }
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  var btn=document.getElementById('env-confirm-btn');
+  if(window._pendingEnvoyerVerifiedLive){
+    _moneyActionInFlight = true;
+    if(btn) btn.disabled=true;
+    apiCall('/agent?action=send-to-third-party','POST',{qr:window._pendingEnvoyerQr,recipient_phone:recipient.phone_number,amount:amount},getToken()).then(function(res){
+      _moneyActionInFlight = false;
+      if(res && res.success){
+        toast(fmt(amount)+' '+curSuffix()+' — '+t('env_success'));
+        closeSheet();
+        refreshBalance(); refreshHistory();
+      } else {
+        toast((res&&res.message)||t('env_err_generic'), true);
+        if(btn) btn.disabled=false;
+      }
+    }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
+  } else {
+    if(btn){ btn.disabled=true; btn.textContent=t('env_sending_code'); }
+    apiCall('/agent?action=send-to-third-party-request','POST',{customer_phone:customer.phone_number,recipient_phone:recipient.phone_number,amount:amount},getToken()).then(function(res){
+      if(res && res.success && res.data){
+        renderEnvoyerCodeConfirmForm(res.data.request_id, res.data.customer_name, customer.phone_number, amount);
+      } else {
+        toast((res&&res.message)||t('env_err_generic'), true);
+        if(btn){ btn.disabled=false; btn.textContent=t('env_send_code_btn'); }
+      }
+    }).catch(function(){ toast(t('network_error'), true); if(btn){ btn.disabled=false; btn.textContent=t('env_send_code_btn'); } });
+  }
+}
+function renderEnvoyerCodeConfirmForm(requestId, customerName, phone, amount){
+  window._pendingEnvoyerRequestId = requestId;
+  window._pendingEnvoyerAmount = amount;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px">'+t('env_code_sent_to').replace('{name}',customerName).replace('{phone}',phone)+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('env_code_label')+'</label><input class="finput" id="env-code" maxlength="6" inputmode="numeric" placeholder="000000"></div>'
+    +'<button class="btn-g" style="background:var(--g)" id="env-confirm-code-btn" onclick="doConfirmEnvoyerCode()">'+t('env_confirm_code_btn')+'</button>';
+}
+function doConfirmEnvoyerCode(){
+  if(_moneyActionInFlight) return;
+  var code=document.getElementById('env-code').value.trim();
+  if(!/^\d{6}$/.test(code)){ toast(t('ret_err_code'), true); return; }
+  _moneyActionInFlight = true;
+  var btn=document.getElementById('env-confirm-code-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/agent?action=send-to-third-party-confirm','POST',{request_id:window._pendingEnvoyerRequestId,code:code},getToken()).then(function(res){
+    _moneyActionInFlight = false;
+    if(res && res.success){
+      toast(fmt(window._pendingEnvoyerAmount)+' '+curSuffix()+' — '+t('env_success'));
+      closeSheet();
+      refreshBalance(); refreshHistory();
+    } else {
+      toast((res&&res.message)||t('env_err_generic'), true);
       if(btn) btn.disabled=false;
     }
   }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });

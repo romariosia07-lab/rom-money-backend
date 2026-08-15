@@ -2234,6 +2234,9 @@ function route_agent($action) {
         'cash-out'          => agent_cash_out(),
         'cash-out-request'  => agent_request_cash_out_code(),
         'cash-out-confirm'  => agent_confirm_cash_out(),
+        'send-to-third-party'         => agent_send_to_third_party(),
+        'send-to-third-party-request' => agent_request_send_to_third_party_code(),
+        'send-to-third-party-confirm' => agent_confirm_send_to_third_party(),
         'resolve-customer-qr' => agent_resolve_customer_qr(),
         'resolve-customer'  => agent_resolve_customer(),
         'history'           => agent_tx_history(),
@@ -2796,6 +2799,171 @@ function agent_confirm_cash_out() {
     $result = agent_execute_cash_out($pl['sub'], $customer, (float)$r['amount']);
     q("UPDATE agent_cashout_requests SET status='completed' WHERE id=?",[$requestId]);
     ok($result, 'Retrait effectue');
+}
+
+// "Envoyer a un tiers" : le client identifie par l'agent (comme pour un
+// retrait) envoie de l'argent electronique a un tiers, pas de l'especes a
+// lui-meme. Reprend le sous-ensemble "canal national" de tx_send() (frais 1%
+// avec franchise quotidienne cumulee, meme compte systeme de frais) sans
+// toucher a tx_send() elle-meme (deja en production pour les vrais transferts
+// personnels) - duplication limitee et volontaire. Pas de canal Africa/
+// conversion de devise : un guichet agent opere localement, donc expediteur
+// et destinataire doivent avoir la meme devise.
+function agent_execute_transfer($senderCustomer, $recipientPhone, $amount) {
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
+    if(!$recv) fail('Destinataire introuvable',404);
+    if($recv['id']===$senderCustomer['id']) fail('Envoi a soi-meme impossible');
+    $senderCurrency = $senderCustomer['currency'] ?: 'XOF';
+    $recvCurrency = $recv['currency'] ?: 'XOF';
+    if($senderCurrency !== $recvCurrency) fail("L'envoi a un tiers via un guichet agent doit se faire dans la meme devise.", 422);
+
+    $rateNational = (float)get_setting('fee_rate_national', 0.01);
+    $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
+    // Meme logique de franchise quotidienne cumulee que tx_send() (montant
+    // deja envoye aujourd'hui par CE client, tous canaux "national"
+    // confondus - un envoi via guichet agent compte dans le meme cumul
+    // qu'un envoi depuis l'app, pour ne pas offrir une double franchise).
+    $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+        WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
+        AND created_at::date=CURRENT_DATE",[$senderCustomer['wid']])->fetch()['t']??0);
+    if($senderCurrency === 'XOF'){
+        $remainingFree = max(0, $freeThreshold - $sentTodayNational);
+    } else {
+        $sentTodayXof = convert_currency($sentTodayNational, $senderCurrency, 'XOF');
+        if($sentTodayXof === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $remainingFreeXof = max(0, $freeThreshold - $sentTodayXof);
+        $remainingFree = $remainingFreeXof;
+        if($remainingFreeXof > 0){
+            $rf = convert_currency($remainingFreeXof, 'XOF', $senderCurrency);
+            if($rf === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+            $remainingFree = $rf;
+        }
+    }
+    // $amount = montant total preleve sur le client (frais inclus), comme
+    // pour un depot/retrait - coherent avec ce que l'agent voit et confirme.
+    $brut = $amount;
+    $feeable = max(0, $brut - $remainingFree);
+    $fee = round($feeable * $rateNational);
+    $net = $brut - $fee;
+    if($net<=0) fail('Montant invalide');
+    if((float)$senderCustomer['balance'] < $brut) fail('Solde du client insuffisant');
+
+    check_receive_limit($recv['id'], $net, false);
+    $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,net_amount,receiver_amount,type,status,reference,description,cancel_deadline,channel,sender_currency,receiver_currency,currency) VALUES (?,?,?,?,?,?,'transfer','pending',?,?,?,?,?,?,?)",
+          [$txid,$senderCustomer['wid'],$recv['wid'],$brut,$net,$net,$reference,'Envoi a un tiers via agent',$deadline,'national',$senderCurrency,$recvCurrency,$senderCurrency]);
+        $rows = q("UPDATE wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$senderCustomer['wid'],$brut])->rowCount();
+        if(!$rows) throw new Exception('Solde du client insuffisant');
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$net,$recv['wid']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+
+        $fee_phone = '0160629502'; // Compte systeme ROM_MONEY
+        if($fee > 0){
+            $fee_recv = q("SELECT u.id,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$fee_phone])->fetch();
+            if($fee_recv && $fee_recv['id'] !== $senderCustomer['id']){
+                $fee_txid = uid(); $fee_ref = ref();
+                $feeAccountCurrency = $fee_recv['currency'] ?: 'XOF';
+                $feeConverted = $fee;
+                if($feeAccountCurrency !== $senderCurrency){
+                    $c = convert_currency($fee, $senderCurrency, $feeAccountCurrency);
+                    if($c !== null) $feeConverted = round($c, 2);
+                }
+                q("INSERT INTO transactions (id,sender_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
+                  [$fee_txid,$senderCustomer['wid'],$fee_recv['wid'],$feeConverted,$fee_ref,'Frais ROM_MONEY 1% (envoi via agent)']);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$feeConverted,$fee_recv['wid']]);
+            }
+        }
+        apply_referral_bonus($senderCustomer['id'], $fee, $senderCurrency);
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, "Echec de l'envoi", 500);
+    }
+    fraud_check_transaction($senderCustomer['wid'], $recipientPhone, $brut, $txid, $reference);
+    web_push_send_to_user($recv['id'], 'ROM_MONEY',
+        'Vous avez recu '.number_format($net,0,',',' ').' '.($recvCurrency==='XOF'||$recvCurrency==='XAF'?'F':$recvCurrency).' de '.($senderCustomer['verified_name']?:$senderCustomer['full_name']?:'un utilisateur'),
+        [], 'credit');
+    $newBal = (float)q("SELECT balance FROM wallets WHERE id=?",[$senderCustomer['wid']])->fetchColumn();
+    return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
+        'recipient_name'=>$recv['verified_name']?:$recv['full_name'],'cancel_before'=>$deadline,
+        'sender_new_balance'=>$newBal];
+}
+
+function agent_send_to_third_party() {
+    $pl = agent_auth(); $b = body();
+    $qr = trim($b['qr'] ?? '');
+    $recipientPhone = trim($b['recipient_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    if(!$qr) fail('QR requis');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero du destinataire invalide');
+    if($amount<=0) fail('Montant invalide');
+    $customer = agent_resolve_customer_by_qr($qr);
+    if(empty($customer['verified_live'])) fail("Ce QR n'autorise pas un envoi immediat - utilisez le code envoye par SMS.", 422);
+    $result = agent_execute_transfer($customer, $recipientPhone, $amount);
+    ok($result, 'Envoi effectue');
+}
+
+// Etape 1/2 du chemin "numero manuel" (meme principe que
+// agent_request_cash_out_code()) : valide tout en amont, envoie le code par
+// SMS AU CLIENT (jamais a l'agent), et le SMS inclut le destinataire+frais
+// pour que le client puisse verifier avant de communiquer le code.
+function agent_request_send_to_third_party_code() {
+    $pl = agent_auth(); $b = body();
+    rate_limit_check('agent_transfer_request', 10, 60);
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $recipientPhone = trim($b['recipient_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero du client invalide');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero du destinataire invalide');
+    if($amount<=0) fail('Montant invalide');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+    $recipient = q("SELECT u.id,u.full_name,u.verified_name,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
+    if(!$recipient) fail('Destinataire introuvable',404);
+    if($recipient['id']===$customer['id']) fail('Envoi a soi-meme impossible');
+    if(($recipient['currency']?:'XOF') !== ($customer['currency']?:'XOF')) fail("L'envoi a un tiers via un guichet agent doit se faire dans la meme devise.", 422);
+    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
+
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $id = uid();
+    $expiresAt = date('Y-m-d H:i:s', time()+600);
+    $message = 'ROM_MONEY: code de confirmation pour un envoi de '.number_format($amount,0,',',' ').' '.($customer['currency']?:'XOF')
+        .' vers '.$recipientPhone.' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
+    if(!send_sms_africastalking($customer['phone_number'] ?? $customerPhone, $message)) {
+        fail('Envoi du SMS impossible, reessayez');
+    }
+    q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at,request_type,recipient_phone) VALUES (?,?,?,?,?,?,?,'transfer',?)",
+      [$id,$pl['sub'],$customer['id'],$customerPhone,$amount,$code,$expiresAt,$recipientPhone]);
+    ok(['request_id'=>$id,'customer_name'=>$customer['verified_name']?:$customer['full_name']],'Code envoye au client');
+}
+
+// Etape 2/2 : fonction dediee separee de agent_confirm_cash_out() (plutot
+// qu'un branchement interne) pour ne jamais risquer la fonction deja en
+// production pour le retrait.
+function agent_confirm_send_to_third_party() {
+    $pl = agent_auth(); $b = body();
+    $requestId = trim($b['request_id'] ?? '');
+    $code = trim($b['code'] ?? '');
+    if(!$requestId || !$code) fail('Demande et code requis');
+
+    $r = q("SELECT * FROM agent_cashout_requests WHERE id=? AND agent_id=? AND status='pending' AND request_type='transfer'",[$requestId,$pl['sub']])->fetch();
+    if(!$r) fail('Demande introuvable ou deja traitee',404);
+    if(strtotime($r['expires_at']) < time()){
+        q("UPDATE agent_cashout_requests SET status='expired' WHERE id=?",[$requestId]);
+        fail('Code expire, refaites une demande');
+    }
+    if(!hash_equals($r['code'], $code)) fail('Code incorrect');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$r['customer_user_id']])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+
+    $result = agent_execute_transfer($customer, $r['recipient_phone'], (float)$r['amount']);
+    q("UPDATE agent_cashout_requests SET status='completed' WHERE id=?",[$requestId]);
+    ok($result, 'Envoi effectue');
 }
 
 function agent_tx_history() {
@@ -8081,6 +8249,13 @@ function route_install() {
         expires_at TIMESTAMP NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS idx_agent_cashout_requests_agent ON agent_cashout_requests(agent_id)",
+    // Reutilise pour "Envoyer a un tiers" (meme mecanique code/expiration/SMS,
+    // juste une destination differente) plutot qu'une nouvelle table :
+    // request_type distingue 'cashout' (defaut, retrait existant) de
+    // 'transfer' (nouveau), recipient_phone n'est renseigne que pour ce
+    // dernier.
+    "ALTER TABLE agent_cashout_requests ADD COLUMN IF NOT EXISTS request_type VARCHAR(20) DEFAULT 'cashout'",
+    "ALTER TABLE agent_cashout_requests ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(20)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
