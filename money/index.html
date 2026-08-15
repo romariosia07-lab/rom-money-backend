@@ -784,7 +784,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('alerts')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_alerts">⚠ Alertes</span><span id="admin-fraud-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
       <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_merchants">Marchands</span></button>
-      <button class="admin-tab-btn" onclick="adminTab('agents')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_agents">Agents</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('agents')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_agents">Agents</span><span id="admin-agents-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
       <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_account">Compte</span></button>
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
@@ -3771,6 +3771,7 @@ function adminLoadRequests(){
   adminTab('dashboard');
   adminStartKycPolling();
   adminRefreshFraudBadge();
+  adminRefreshAgentsBadge();
   adminLoadKycList();
 }
 
@@ -4851,7 +4852,7 @@ function adminDeleteAgentDocument(docId, agentId){
 
 function adminApproveAgentRegistration(agentId){
   apiCall('/admin?action=agent-approve-registration','POST',{admin_password:window._adminPw,agent_id:agentId},'').then(function(res){
-    if(res&&res.success){ toast(at('admin_agent_registration_approved')); adminLoadAgentPending(); }
+    if(res&&res.success){ toast(at('admin_agent_registration_approved')); adminLoadAgentPending(); adminRefreshAgentsBadge(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
@@ -4864,7 +4865,7 @@ function adminRejectAgentRegistration(agentId){
     needsReason:false, confirmLabel:at('admin_reject_btn'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=agent-reject-registration','POST',{admin_password:window._adminPw,agent_id:agentId,reason:reason},'').then(function(res){
-        if(res&&res.success){ toast(at('admin_agent_registration_rejected')); adminLoadAgentPending(); }
+        if(res&&res.success){ toast(at('admin_agent_registration_rejected')); adminLoadAgentPending(); adminRefreshAgentsBadge(); }
         else { toast((res&&res.message)||at('admin_error_generic'), true); }
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
@@ -4916,7 +4917,7 @@ function adminApproveAgentRecharge(id){
   var code = codeInput ? codeInput.value.trim() : '';
   if(!code){ toast(at('admin_confirmation_code_required'), true); return; }
   apiCall('/admin?action=agent-recharge-approve','POST',{admin_password:window._adminPw,earnings_password:window._earningsPw,id:id,code:code},'').then(function(res){
-    if(res&&res.success){ toast(at('admin_agent_recharge_approved')); adminLoadAgentRecharges(); }
+    if(res&&res.success){ toast(at('admin_agent_recharge_approved')); adminLoadAgentRecharges(); adminRefreshAgentsBadge(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
@@ -4929,7 +4930,7 @@ function adminRejectAgentRecharge(id){
     needsReason:false, confirmLabel:at('admin_reject_btn'), confirmColor:'var(--re)',
     onConfirm:function(){
       apiCall('/admin?action=agent-recharge-reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
-        if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); }
+        if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); adminRefreshAgentsBadge(); }
         else { toast((res&&res.message)||at('admin_error_generic'), true); }
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
@@ -5693,6 +5694,29 @@ function adminRefreshFraudBadge(){
     var b=document.getElementById('admin-fraud-badge');
     if(!b) return;
     var count=(res&&res.success&&res.data)?(res.data.unreviewed_count||0):0;
+    if(count>0){ b.textContent=count; b.style.display='inline-block'; }
+    else { b.style.display='none'; }
+  }).catch(function(){});
+}
+// Meme principe que le badge KYC/Alertes : sans lui, l'admin devait ouvrir
+// l'onglet Agents et cliquer "Actualiser la liste" juste pour savoir s'il y
+// avait quelque chose en attente. Compte les demandes d'agrement en attente
+// + les demandes de recharge en attente pour l'Admin Principal (celles
+// ciblant un distributeur sont exclues - ce n'est pas a l'admin d'agir
+// dessus, voir le commentaire dans admin_agent_list_recharge_requests()).
+function adminRefreshAgentsBadge(){
+  var b=document.getElementById('admin-agents-badge');
+  if(!b) return;
+  Promise.all([
+    apiCall('/admin?action=agent-pending-list','POST',{admin_password:window._adminPw},''),
+    apiCall('/admin?action=agent-recharge-list','POST',{admin_password:window._adminPw,status:'pending'},'')
+  ]).then(function(results){
+    var pendingAgents=(results[0]&&results[0].success&&results[0].data&&results[0].data.agents)?results[0].data.agents.length:0;
+    var pendingRecharges=0;
+    if(results[1]&&results[1].success&&results[1].data&&results[1].data.requests){
+      pendingRecharges=results[1].data.requests.filter(function(r){ return !r.dist_phone; }).length;
+    }
+    var count=pendingAgents+pendingRecharges;
     if(count>0){ b.textContent=count; b.style.display='inline-block'; }
     else { b.style.display='none'; }
   }).catch(function(){});
