@@ -10486,7 +10486,7 @@ function openQRMenu(){
     +'<div id="wallet-scan-view" style="display:none;padding:8px 0"></div>';
 
   setTimeout(function(){
-    drawQR('recv-qr-wallet', APP.phone || APP.userID);
+    drawQR('recv-qr-wallet', APP.userID+'|'+APP.qrSeed+'|'+APP.phone);
   }, 150);
 
   bg.classList.add('on');
@@ -10497,7 +10497,7 @@ function imprimerQR(){
   var tmpDiv = document.createElement("div");
   tmpDiv.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:256px;height:256px";
   document.body.appendChild(tmpDiv);
-  var qrText = APP.phone || APP.userID;
+  var qrText = APP.userID+'|'+APP.qrSeed+'|'+APP.phone;
   try{ new QRCode(tmpDiv,{text:qrText,width:250,height:250,colorDark:"#085041",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
   setTimeout(function(){
     var c = tmpDiv.querySelector("canvas");
@@ -10588,7 +10588,7 @@ function showQRFullscreen(){
   var qrInner = document.getElementById('qr-fs-inner');
   try{
     new QRCode(qrInner, {
-      text: APP.phone || APP.userID,
+      text: APP.userID+'|'+APP.qrSeed+'|'+APP.phone,
       width:200, height:200,
       colorDark:'#0F6E56', colorLight:'#ffffff',
       correctLevel: QRCode.CorrectLevel.H

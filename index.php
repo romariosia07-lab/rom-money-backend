@@ -2600,16 +2600,17 @@ function send_sms_africastalking($phone, $message) {
 }
 
 // Resout un QR personnel ROM_MONEY (userId|qrSeed|phone, meme format que
-// money/index.html shQr()) en identite client complete - partage entre
-// l'endpoint de resolution (apercu avant envoi) et le retrait immediat par QR.
-// Deux formats de QR personnel ROM_MONEY coexistent cote client :
-//   - "Mon QR" (shQr, ecran principal) : userId|qrSeed|phone - preuve de
-//     possession live du telephone deverrouille du client.
-//   - L'ancienne "carte QR" imprimable (openQRMenu) : juste le numero brut,
-//     concue pour etre imprimee - meme valeur de preuve qu'une carte
-//     physique (peut etre copiee/perdue), donc verified_live=false : le
-//     retrait devra quand meme passer par le code SMS, jamais l'execution
-//     immediate reservee au vrai scan live.
+// money/index.html shQr()/shReceive()/openQRMenu() - unifie sur ce seul
+// format depuis la correction du bug "QR invalide" cote agent) en identite
+// client complete - partage entre l'endpoint de resolution (apercu avant
+// envoi) et le retrait immediat par QR.
+// Le repli sur un numero brut (sans '|') reste gere ici pour les cartes QR
+// deja imprimees AVANT cette unification (ancien format openQRMenu, numero
+// seul) - meme valeur de preuve qu'une carte physique (peut etre
+// copiee/perdue), donc verified_live=false : le retrait devra quand meme
+// passer par le code SMS, jamais l'execution immediate reservee au vrai
+// scan live. A retirer une fois qu'on est sur qu'aucune ancienne carte
+// imprimee n'est plus en circulation.
 function agent_resolve_customer_by_qr($qr) {
     $parts = explode('|', $qr);
     if(count($parts) >= 2){
