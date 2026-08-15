@@ -3030,6 +3030,9 @@ function agent_tx_history() {
 // jamais a la creation.
 function agent_request_recharge() {
     $pl = agent_auth(); $b = body();
+    // Meme limite que les autres demandes agent (cash-out-request,
+    // send-to-third-party-request) : 10 tentatives par minute par compte.
+    rate_limit_check('agent_recharge_request', 10, 60);
     $amount = (float)($b['amount'] ?? 0);
     $note = trim($b['note'] ?? '');
     if($amount<=0) fail('Montant invalide');
