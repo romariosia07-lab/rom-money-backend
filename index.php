@@ -3105,9 +3105,21 @@ function agent_approve_recharge_request() {
     if($r['agent_id'] === $pl['sub']) fail('Vous ne pouvez pas approuver votre propre demande', 422);
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
     $distWallet = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
-    $reqWallet = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
+    $reqWallet = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
     if(!$distWallet || !$reqWallet) fail('Portefeuille introuvable',404);
     if((float)$distWallet['balance'] < (float)$r['amount']) fail('Solde du distributeur insuffisant');
+    // Meme plafond de float que admin_agent_approve_recharge() (protection
+    // contre le risque qu'une trop grosse somme soit confiee d'un coup a un
+    // distributeur) - sans ce controle ici, la file partagee permettait de
+    // le contourner completement des qu'un AUTRE distributeur approuvait a
+    // la place de l'admin.
+    $targetAgent = q("SELECT is_distributor,max_float_cap FROM agents WHERE id=?",[$r['agent_id']])->fetch();
+    if($targetAgent && $targetAgent['is_distributor'] && $targetAgent['max_float_cap'] !== null){
+        $futureBalance = (float)$reqWallet['balance'] + (float)$r['amount'];
+        if($futureBalance > (float)$targetAgent['max_float_cap']){
+            fail('Ce montant depasserait le plafond de float autorise pour ce distributeur ('.$targetAgent['max_float_cap'].' XOF).', 422);
+        }
+    }
     db()->beginTransaction();
     // File d'attente partagee entre tous les distributeurs (plus de ciblage
     // a la demande) : ce "claim" atomique (UPDATE conditionne sur
