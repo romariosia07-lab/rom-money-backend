@@ -5439,10 +5439,18 @@ function admin_merchant_documents() {
     $merchantId = trim($b['merchant_id'] ?? '');
     if(!$merchantId) fail('Marchand requis');
     try {
-        $rows = q("SELECT id, doc_type, status, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY doc_type, uploaded_at DESC",[$merchantId])->fetchAll();
+        $rows = q("SELECT id, doc_type, status, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY uploaded_at DESC",[$merchantId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
+    // Meme raisonnement que admin_agent_documents() : ordre logique (celui
+    // utilise cote marchand a l'envoi), pas l'ordre alphabetique du type.
+    usort($rows, function($a, $b2) {
+        $ia = array_search($a['doc_type'], MERCHANT_DOC_TYPES); $ia = $ia===false ? 999 : $ia;
+        $ib = array_search($b2['doc_type'], MERCHANT_DOC_TYPES); $ib = $ib===false ? 999 : $ib;
+        if($ia !== $ib) return $ia <=> $ib;
+        return strcmp($b2['uploaded_at'], $a['uploaded_at']);
+    });
     foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
     unset($r);
     ok(['documents'=>$rows]);
@@ -7071,10 +7079,21 @@ function admin_agent_documents() {
     $agentId = trim($b['agent_id'] ?? '');
     if(!$agentId) fail('Agent requis');
     try {
-        $rows = q("SELECT id, doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY doc_type, uploaded_at DESC",[$agentId])->fetchAll();
+        $rows = q("SELECT id, doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY uploaded_at DESC",[$agentId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
+    // Trie selon l'ordre logique agent (requis puis optionnels, meme ordre
+    // que cote agent au moment de l'envoi) plutot que l'ordre alphabetique
+    // du type - sinon l'admin voit une disposition incoherente avec ce que
+    // l'agent avait sous les yeux en envoyant ses documents.
+    $order = array_merge(AGENT_DOC_TYPES, AGENT_OPTIONAL_DOC_TYPES);
+    usort($rows, function($a, $b2) use ($order) {
+        $ia = array_search($a['doc_type'], $order); $ia = $ia===false ? 999 : $ia;
+        $ib = array_search($b2['doc_type'], $order); $ib = $ib===false ? 999 : $ib;
+        if($ia !== $ib) return $ia <=> $ib;
+        return strcmp($b2['uploaded_at'], $a['uploaded_at']);
+    });
     foreach($rows as &$r){ $r['photo'] = kyc_decrypt($r['photo']); }
     unset($r);
     ok(['documents'=>$rows]);
