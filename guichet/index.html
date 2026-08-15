@@ -201,6 +201,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 <div class="screen" id="s-login">
   <div class="pin-av">🧑‍💼</div>
   <div class="pin-title" id="login-title" data-i18n="login_title_default">Connexion agent</div>
+  <button id="login-not-you" class="pin-link" style="display:none;margin-top:0;margin-bottom:14px" onclick="switchLoginNumber()" data-i18n="login_not_you">Pas vous ? Utiliser un autre numéro</button>
   <div id="login-phone-wrap" style="width:100%;max-width:280px;margin-bottom:16px">
     <input id="login-phone-input" type="tel" data-i18n-ph="login_ph_phone" placeholder="Numéro de téléphone"
       style="width:100%;padding:12px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:15px;color:#fff;outline:none;text-align:center;font-family:inherit">
@@ -371,6 +372,7 @@ var I18N = {
   login_title_default:{fr:'Connexion agent',en:'Agent login'},
   login_title_add:{fr:'Connexion',en:'Login'},
   login_ph_phone:{fr:'Numéro de téléphone',en:'Phone number'},
+  login_not_you:{fr:'Pas vous ? Utiliser un autre numéro',en:'Not you? Use a different number'},
   login_back:{fr:'← Retour',en:'← Back'},
   login_err_phone_required:{fr:'Entrez votre numéro',en:'Enter your phone number'},
   login_err_wrong:{fr:'Numéro ou PIN incorrect',en:'Wrong phone number or PIN'},
@@ -781,16 +783,36 @@ function startAddAccount(){
 function cancelAddAccount(){
   _addAccountMode = false;
   _switchPrefillPhone = '';
-  goto('s-app');
+  // _addAccountMode sert a la fois pour "Ajouter un compte" depuis le Profil
+  // (une session valide existe deja, "Retour" doit revenir dedans) et pour
+  // "Pas vous ?" depuis l'ecran d'accueil (aucune session active - revenir a
+  // s-app afficherait un ecran vide/casse puisqu'on ne s'est jamais connecte).
+  if(APP.token && APP.agentId && isTokenValid(APP.token)){
+    goto('s-app');
+  } else {
+    goto('s-welcome');
+  }
 }
 function setupLoginScreen(){
   var known = _addAccountMode ? _switchPrefillPhone : APP.phone;
   var wrap = document.getElementById('login-phone-wrap');
   var input = document.getElementById('login-phone-input');
-  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?t('login_title_add'):(APP.fullName||t('login_title_default')); }
+  var notYouBtn = document.getElementById('login-not-you');
+  if(known){ wrap.style.display='none'; input.value=known; document.getElementById('login-title').textContent=_addAccountMode?t('login_title_add'):(APP.fullName||known); }
   else { wrap.style.display='block'; input.value=''; document.getElementById('login-title').textContent=t('login_title_default'); }
+  // Le numero est cache/pre-rempli des qu'un compte est deja connu sur cet
+  // appareil (comportement voulu pour une reconnexion rapide) - mais sans ce
+  // lien, rien ne permettait de se rendre compte qu'un AUTRE numero pouvait
+  // etre utilise : ca donnait l'impression que l'app se connectait "toute
+  // seule" au compte precedent sans jamais demander lequel.
+  if(notYouBtn) notYouBtn.style.display = known ? 'inline-block' : 'none';
   lgBuf=''; updateLgDots();
   document.getElementById('login-err').textContent='';
+}
+function switchLoginNumber(){
+  _addAccountMode = true;
+  _switchPrefillPhone = '';
+  setupLoginScreen();
 }
 var lgBuf='';
 function updateLgDots(){ for(var i=0;i<4;i++){ var el=document.getElementById('ld'+i); if(el) el.classList.toggle('on', i<lgBuf.length); } }
