@@ -2599,12 +2599,26 @@ function send_sms_africastalking($phone, $message) {
 // Resout un QR personnel ROM_MONEY (userId|qrSeed|phone, meme format que
 // money/index.html shQr()) en identite client complete - partage entre
 // l'endpoint de resolution (apercu avant envoi) et le retrait immediat par QR.
+// Deux formats de QR personnel ROM_MONEY coexistent cote client :
+//   - "Mon QR" (shQr, ecran principal) : userId|qrSeed|phone - preuve de
+//     possession live du telephone deverrouille du client.
+//   - L'ancienne "carte QR" imprimable (openQRMenu) : juste le numero brut,
+//     concue pour etre imprimee - meme valeur de preuve qu'une carte
+//     physique (peut etre copiee/perdue), donc verified_live=false : le
+//     retrait devra quand meme passer par le code SMS, jamais l'execution
+//     immediate reservee au vrai scan live.
 function agent_resolve_customer_by_qr($qr) {
     $parts = explode('|', $qr);
-    if(count($parts) < 2) fail('QR invalide');
-    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=? AND w.qr_seed=?",[$parts[0],$parts[1]])->fetch();
-    if(!$customer) fail('QR invalide',404);
-    return $customer;
+    if(count($parts) >= 2){
+        $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=? AND w.qr_seed=?",[$parts[0],$parts[1]])->fetch();
+        if($customer){ $customer['verified_live'] = true; return $customer; }
+    }
+    $phone = trim($qr);
+    if(preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))){
+        $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$phone])->fetch();
+        if($customer){ $customer['verified_live'] = false; return $customer; }
+    }
+    fail('QR invalide',404);
 }
 
 function agent_resolve_customer_qr() {
@@ -2613,7 +2627,8 @@ function agent_resolve_customer_qr() {
     if(!$qr) fail('QR requis');
     $customer = agent_resolve_customer_by_qr($qr);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
-        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency']]);
+        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
+        'is_verified'=>!empty($customer['verified_name']),'verified_live'=>$customer['verified_live']]);
 }
 
 // Identification par numero (saisie manuelle) - simple apercu en lecture
@@ -2626,7 +2641,8 @@ function agent_resolve_customer() {
     $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$phone])->fetch();
     if(!$customer) fail('Client introuvable',404);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
-        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency']]);
+        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
+        'is_verified'=>!empty($customer['verified_name'])]);
 }
 
 // Cash-in : le client donne du cash physique a l'agent, qui le credite
@@ -2721,6 +2737,7 @@ function agent_cash_out() {
     if(!$qr) fail('QR requis');
     if($amount<=0) fail('Montant invalide');
     $customer = agent_resolve_customer_by_qr($qr);
+    if(empty($customer['verified_live'])) fail("Ce QR n'autorise pas un retrait immediat - utilisez le code envoye par SMS.", 422);
     $result = agent_execute_cash_out($pl['sub'], $customer, $amount);
     ok($result, 'Retrait effectue');
 }
