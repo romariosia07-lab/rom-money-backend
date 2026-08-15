@@ -1875,6 +1875,15 @@ function doConfirmEnvoyerCode(){
 // toujours (aucun mecanisme de "deja retire" - envoyer son gain deplace
 // simplement une partie du float vers un compte personnel, comme n'importe
 // quel autre mouvement).
+// toLocaleDateString('fr-FR', {weekday:'short', month:'short'}) rend "sam."/
+// "août" en minuscules (comportement standard de l'API, aucune option pour
+// changer la casse) - capitalise chaque mot alphabetique (pas les nombres)
+// pour "Sam. 15 Août 2026".
+function capitalizeDateParts(str){
+  return str.split(' ').map(function(w){
+    return /^[a-zà-ÿ]/i.test(w) ? w.charAt(0).toUpperCase()+w.slice(1) : w;
+  }).join(' ');
+}
 function shGains(b){
   b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
   apiCall('/agent?action=earnings-summary','GET',null,getToken()).then(function(res){
@@ -1896,7 +1905,7 @@ function shGains(b){
         days.forEach(function(dRow){
           var dt=new Date(dRow.day);
           h+='<div class="tx-row"><div class="tx-ico" style="background:var(--gl)">💰</div>'
-            +'<div><div class="tx-name">'+dt.toLocaleDateString(loc,{weekday:'short',day:'numeric',month:'short'})+'</div></div>'
+            +'<div><div class="tx-name">'+capitalizeDateParts(dt.toLocaleDateString(loc,{weekday:'short',day:'numeric',month:'short',year:'numeric'}))+'</div></div>'
             +'<div class="tx-amt" style="color:var(--gd)">+'+fmt(dRow.amount)+' '+curSuffix()+'</div></div>';
         });
       }
