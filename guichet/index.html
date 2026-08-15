@@ -54,7 +54,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 .reg-title{font-size:22px;font-weight:800;color:var(--t1);margin-bottom:6px}
 .reg-sub{font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:22px}
 .flabel{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block}
-.finput{width:100%;background:var(--bg);border:.5px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:15px;color:var(--t1);outline:none;-webkit-appearance:none}
+.finput{width:100%;background:var(--bg);border:1px solid var(--bord);border-radius:var(--rs);padding:14px;font-size:15px;color:var(--t1);outline:none;-webkit-appearance:none}
 .finput:focus{border-color:var(--g)}
 /* Android/Chrome force un fond clair + un texte sombre sur les champs
    autoremplis (nom, telephone...), invisible sur le fond sombre du theme -
@@ -99,9 +99,9 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 .bal-amt{color:#fff;font-size:32px;font-weight:900}
 .bal-amt .cur{font-size:15px;font-weight:600;margin-left:4px;opacity:.8}
 
-.qa-grid{display:flex;flex-wrap:wrap;justify-content:space-around;row-gap:14px;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:18px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
+.qa-grid{display:grid;grid-template-columns:repeat(3,1fr);row-gap:18px;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:20px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
 .qa{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
-.qa-ico{width:48px;height:48px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px}
+.qa-ico{width:54px;height:54px;border-radius:15px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:25px}
 .qa-lbl{font-size:11px;font-weight:700;color:var(--t1)}
 
 .section{margin:18px 16px}
@@ -248,7 +248,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 <div class="screen" id="s-app">
   <div class="app-header">
     <div class="bal-label" style="padding-top:4px"><span data-i18n="bal_label">Float disponible</span></div>
-    <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur" id="hdr-cur">FCFA</span></div>
+    <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur" id="hdr-cur">FCFA</span> <span onclick="toggleBalanceVisibility()" id="bal-eye" style="cursor:pointer;font-size:16px;opacity:.75;margin-left:4px;vertical-align:middle">👁</span></div>
   </div>
 
   <div class="qa-grid">
@@ -271,19 +271,21 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
     <div class="page" id="pg-historique" style="display:none">
       <div class="section">
         <div class="section-title" data-i18n="history_title">Historique</div>
-        <select class="finput" id="hist-filter-type" onchange="applyHistFilter()">
-          <option value="" data-i18n="hist_filter_type_all">Type : Tous</option>
-          <option value="agent_cash_in" data-i18n="tx_type_agent_cash_in">Dépôt</option>
-          <option value="agent_cash_out" data-i18n="tx_type_agent_cash_out">Retrait</option>
-          <option value="transfer" data-i18n="tx_type_transfer">Envoi à un tiers</option>
-          <option value="agent_recharge" data-i18n="tx_type_agent_recharge">Recharge float</option>
-          <option value="agent_earnings_send" data-i18n="tx_type_agent_earnings_send">Envoi de gain</option>
-        </select>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <div style="flex:1"><label class="flabel" data-i18n="hist_filter_from">Du</label><input class="finput" id="hist-filter-from" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
-          <div style="flex:1"><label class="flabel" data-i18n="hist_filter_to">Au</label><input class="finput" id="hist-filter-to" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
+        <div class="card" style="margin-bottom:14px">
+          <select class="finput" id="hist-filter-type" onchange="applyHistFilter()">
+            <option value="" data-i18n="hist_filter_type_all">Type : Tous</option>
+            <option value="agent_cash_in" data-i18n="tx_type_agent_cash_in">Dépôt</option>
+            <option value="agent_cash_out" data-i18n="tx_type_agent_cash_out">Retrait</option>
+            <option value="transfer" data-i18n="tx_type_transfer">Envoi à un tiers</option>
+            <option value="agent_recharge" data-i18n="tx_type_agent_recharge">Recharge float</option>
+            <option value="agent_earnings_send" data-i18n="tx_type_agent_earnings_send">Envoi de gain</option>
+          </select>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1"><label class="flabel" data-i18n="hist_filter_from">Du</label><input class="finput" id="hist-filter-from" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
+            <div style="flex:1"><label class="flabel" data-i18n="hist_filter_to">Au</label><input class="finput" id="hist-filter-to" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
+          </div>
+          <a onclick="resetHistFilter()" style="display:block;text-align:right;font-size:12px;color:var(--g);font-weight:700;cursor:pointer" data-i18n="hist_filter_reset">Réinitialiser</a>
         </div>
-        <a onclick="resetHistFilter()" style="display:block;text-align:right;font-size:12px;color:var(--g);font-weight:700;cursor:pointer;margin-bottom:14px" data-i18n="hist_filter_reset">Réinitialiser</a>
         <div class="card" id="hist-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
       </div>
     </div>
@@ -353,7 +355,7 @@ var APP = {
   fullName:'', phone:'', address:'', city:'', country:'', currency:'XOF',
   agentId:'', pinHash:'', token:'',
   balance:0, isDistributor:false, status:'', rejectionReason:'',
-  theme:'system', lang:'fr'
+  theme:'system', lang:'fr', balanceHidden:false
 };
 
 // ── I18N (FR/EN) ──
@@ -604,6 +606,9 @@ var I18N = {
   tx_detail_title:{fr:'Détail de l\'opération',en:'Operation detail'},
   tx_detail_amount:{fr:'Montant',en:'Amount'},
   tx_detail_counterpart:{fr:'Avec',en:'With'},
+  tx_detail_counterpart_client:{fr:'Client',en:'Customer'},
+  tx_detail_counterpart_recharge:{fr:'Approuvé par',en:'Approved by'},
+  tx_detail_counterpart_recipient:{fr:'Destinataire',en:'Recipient'},
   tx_detail_type:{fr:'Type',en:'Type'},
   tx_detail_status:{fr:'Statut',en:'Status'},
   tx_detail_reference:{fr:'Référence',en:'Reference'},
@@ -616,6 +621,8 @@ var I18N = {
   gains_empty:{fr:'Aucun gain pour le moment.',en:'No earnings yet.'},
   gains_send_btn:{fr:'Envoyer mon gain',en:'Send my earnings'},
   sheet_title_send_earnings:{fr:'Envoyer mon gain',en:'Send my earnings'},
+  earn_tab_self:{fr:'Mon compte',en:'My account'},
+  earn_tab_other:{fr:'Autre compte',en:'Other account'},
   earn_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
   earn_recipient_hint:{fr:'Votre propre numéro (compte ROM_MONEY) : gratuit. Un autre numéro : 1% de frais.',en:'Your own number (ROM_MONEY account): free. Any other number: 1% fee.'},
   earn_amount:{fr:'Montant à envoyer',en:'Amount to send'},
@@ -1191,8 +1198,19 @@ function launchApp(){
   startInactivityTimer();
 }
 function updateBalDisplay(){
-  document.getElementById('hdr-balance').textContent = fmt(APP.balance);
+  document.getElementById('hdr-balance').textContent = APP.balanceHidden ? '••••••' : fmt(APP.balance);
   document.getElementById('hdr-cur').textContent = curSuffix();
+  var eye=document.getElementById('bal-eye'); if(eye) eye.textContent = APP.balanceHidden ? '🙈' : '👁';
+}
+// Masque a la fois le float en accueil et le total cumule dans "Mes gains"
+// (meme reglage partage, persiste via save() comme le reste de APP).
+function toggleBalanceVisibility(){
+  APP.balanceHidden = !APP.balanceHidden;
+  save();
+  updateBalDisplay();
+  var gainsEl=document.getElementById('gains-total-amt');
+  if(gainsEl) gainsEl.textContent = APP.balanceHidden ? '••••••' : (gainsEl.getAttribute('data-real')+' '+curSuffix());
+  var gainsEye=document.getElementById('gains-eye'); if(gainsEye) gainsEye.textContent = APP.balanceHidden ? '🙈' : '👁';
 }
 function refreshBalance(){
   return apiCall('/agent?action=balance','GET',null,getToken()).then(function(res){
@@ -1255,6 +1273,15 @@ function txCounterpartName(tx){
   if(tx.type==='agent_recharge') return tx.counterpart_agent_name || t('label_admin');
   return tx.customer_name || tx.customer_phone || t('label_client');
 }
+// Le libelle "Avec" generique ne veut rien dire pour une recharge (ce n'est
+// jamais un client) - chaque type d'operation a son propre libelle plus
+// precis.
+function txCounterpartLabel(tx){
+  if(tx.type==='agent_cash_in' || tx.type==='agent_cash_out') return t('tx_detail_counterpart_client');
+  if(tx.type==='agent_recharge') return t('tx_detail_counterpart_recharge');
+  if(tx.type==='agent_earnings_send') return t('tx_detail_counterpart_recipient');
+  return t('tx_detail_counterpart');
+}
 function renderTxRows(rows, containerId){
   var c=document.getElementById(containerId);
   if(!c) return;
@@ -1298,7 +1325,7 @@ function showAgentTxDetail(id){
     +'<div style="font-size:12px;color:var(--t3);margin-top:4px">'+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
     +'<div class="fee-note free">'
-    +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--t2)">'+t('tx_detail_counterpart')+'</span><span style="font-weight:700">'+txCounterpartName(tx)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--t2)">'+txCounterpartLabel(tx)+'</span><span style="font-weight:700">'+txCounterpartName(tx)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_type')+'</span><span style="font-weight:700">'+txTypeLabel(tx)+'</span></div>'
     +(tx.reference ? '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_reference')+'</span><span style="font-weight:700;font-family:monospace;font-size:11px">'+tx.reference+'</span></div>' : '')
     +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_status')+'</span><span style="font-weight:700">'+statusLabel+'</span></div>'
@@ -1857,7 +1884,10 @@ function shGains(b){
       var loc=APP.lang==='en'?'en-US':'fr-FR';
       var h='<div style="text-align:center;margin-bottom:16px">'
         +'<div style="font-size:11px;color:var(--t3)">'+t('gains_total_label')+'</div>'
-        +'<div style="font-size:28px;font-weight:900;color:var(--gd)">'+fmt(total)+' '+curSuffix()+'</div>'
+        +'<div style="font-size:28px;font-weight:900;color:var(--gd)">'
+        +'<span id="gains-total-amt" data-real="'+fmt(total)+'">'+(APP.balanceHidden?'••••••':(fmt(total)+' '+curSuffix()))+'</span>'
+        +' <span onclick="toggleBalanceVisibility()" id="gains-eye" style="cursor:pointer;font-size:16px;opacity:.75;vertical-align:middle">'+(APP.balanceHidden?'🙈':'👁')+'</span>'
+        +'</div>'
         +'</div>'
         +'<button class="btn-g" style="background:var(--g);margin-bottom:16px" onclick="openSheet(\'send-earnings\')">'+t('gains_send_btn')+'</button>';
       if(!days.length){
@@ -1875,11 +1905,41 @@ function shGains(b){
   }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
 }
 function shSendEarnings(b){
-  b.innerHTML='<div class="frow"><label class="flabel">'+t('earn_recipient_phone')+'</label><input class="finput" id="earn-phone" type="tel" oninput="updateEarnFeePreview()"></div>'
+  b.innerHTML='<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<button class="chip" id="earn-tab-self" style="flex:1;padding:11px" onclick="setEarnRecipientMode(true)">'+t('earn_tab_self')+'</button>'
+    +'<button class="chip" id="earn-tab-other" style="flex:1;padding:11px" onclick="setEarnRecipientMode(false)">'+t('earn_tab_other')+'</button>'
+    +'</div>'
+    +'<div class="frow"><label class="flabel">'+t('earn_recipient_phone')+'</label><input class="finput" id="earn-phone" type="tel" oninput="updateEarnFeePreview()"></div>'
     +'<div class="fee-note">'+t('earn_recipient_hint')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('earn_amount')+'</label><input class="finput" id="earn-amount" type="number" inputmode="numeric" oninput="updateEarnFeePreview()"></div>'
     +'<div class="fee-note" id="earn-fee-preview"></div>'
     +'<button class="btn-g" style="background:var(--g)" id="earn-confirm-btn" onclick="doSendEarnings()">'+t('earn_btn')+'</button>';
+  setEarnRecipientMode(true);
+}
+// "Mon compte" pre-remplit et verrouille le champ avec le numero de l'agent
+// lui-meme (evite d'avoir a le retaper a chaque fois) ; "Autre compte" laisse
+// une saisie libre. Les deux mènent au meme calcul de frais cote serveur -
+// ceci n'est qu'un raccourci de saisie.
+function setEarnRecipientMode(isSelf){
+  var phoneInput=document.getElementById('earn-phone');
+  var tabSelf=document.getElementById('earn-tab-self');
+  var tabOther=document.getElementById('earn-tab-other');
+  if(!phoneInput) return;
+  var activeStyle='background:var(--gl);color:var(--gd)';
+  var inactiveStyle='background:none;color:var(--t2)';
+  if(isSelf){
+    phoneInput.value = APP.phone||'';
+    phoneInput.readOnly = true;
+    if(tabSelf) tabSelf.style.cssText+=activeStyle;
+    if(tabOther) tabOther.style.cssText+=inactiveStyle;
+  } else {
+    phoneInput.value = '';
+    phoneInput.readOnly = false;
+    if(tabOther) tabOther.style.cssText+=activeStyle;
+    if(tabSelf) tabSelf.style.cssText+=inactiveStyle;
+    phoneInput.focus();
+  }
+  updateEarnFeePreview();
 }
 function updateEarnFeePreview(){
   var el=document.getElementById('earn-fee-preview');
