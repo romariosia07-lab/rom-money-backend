@@ -506,6 +506,7 @@ var I18N = {
   qr_identifying:{fr:'Identification...',en:'Identifying...'},
   qr_scan_again:{fr:'Scanner à nouveau',en:'Scan again'},
   qr_invalid:{fr:'QR invalide ou non reconnu',en:'Invalid or unrecognized QR'},
+  verify_btn:{fr:'Vérifier',en:'Verify'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
@@ -1290,13 +1291,24 @@ function buildSheet(type, b, extra){
 }
 
 // ── DEPOT (cash-in, PIN de l'agent) ──
+// ── DEPOT ── quel que soit le moyen d'identification (QR ou numero tape a
+// la main), l'identite resolue s'affiche TOUJOURS avant le montant, pour
+// que l'agent verifie qu'il s'agit bien de la bonne personne avant de
+// continuer - jamais d'envoi direct sans ce controle visuel.
 function shDepot(b){
   b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startDepotQrScan()">'+t('qr_scan_btn')+'</button>'
     +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:2px 0 12px">'+t('ret_or_manual')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('dep_customer_phone')+'</label><input class="finput" id="dep-phone" type="tel"></div>'
-    +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
-    +'<div class="fee-note free">'+t('dep_note')+'</div>'
-    +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
+    +'<button class="btn-g" style="background:var(--g)" onclick="resolveDepotPhone()">'+t('verify_btn')+'</button>';
+}
+function resolveDepotPhone(){
+  var phone=document.getElementById('dep-phone').value.trim();
+  if(!phone){ toast(t('dep_err_phone'), true); return; }
+  toast(t('qr_identifying'));
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){ renderDepotAmountForm(res.data); }
+    else { toast((res&&res.message)||t('qr_invalid'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
 }
 function startDepotQrScan(){
   var b=document.getElementById('sh-body');
@@ -1306,20 +1318,42 @@ function startDepotQrScan(){
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
       if(res && res.success && res.data){
-        shDepot(document.getElementById('sh-body'));
-        document.getElementById('dep-phone').value=res.data.phone_number;
-        toast(res.data.full_name);
+        renderDepotAmountForm(res.data);
       } else {
+        // Le texte scanne s'affiche ici (jamais dans un onclick/HTML injecte)
+        // pour diagnostiquer immediatement un probleme de lecture (QR flou,
+        // mauvais ecran...) plutot que de rester une boite noire.
         var r2=document.getElementById('qr-result');
-        if(r2) r2.innerHTML='<div style="text-align:center;padding:12px;color:var(--rd);font-size:12px">'+((res&&res.message)||t('qr_invalid'))+'</div>'
-          +'<button class="chip" style="width:100%;margin-top:8px" onclick="startDepotQrScan()">'+t('qr_scan_again')+'</button>';
+        if(r2){
+          var el=document.createElement('div');
+          el.style.cssText='text-align:center;padding:12px;color:var(--rd);font-size:12px';
+          el.textContent=(res&&res.message)||t('qr_invalid');
+          var raw=document.createElement('div');
+          raw.style.cssText='font-size:10px;color:var(--t3);margin-top:4px;word-break:break-all;font-family:monospace';
+          raw.textContent=text.slice(0,120);
+          r2.innerHTML='';
+          r2.appendChild(el); r2.appendChild(raw);
+          var again=document.createElement('button');
+          again.className='chip'; again.style.cssText='width:100%;margin-top:8px';
+          again.textContent=t('qr_scan_again');
+          again.onclick=startDepotQrScan;
+          r2.appendChild(again);
+        }
       }
     }).catch(function(){ toast(t('network_error'), true); });
   }, function(){ shDepot(document.getElementById('sh-body')); });
 }
+function renderDepotAmountForm(customer){
+  window._pendingDepotPhone = customer.phone_number;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="fee-note free">'+t('dep_note')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
+}
 function doDepot(){
   if(_moneyActionInFlight) return;
-  var phone=document.getElementById('dep-phone').value.trim();
+  var phone=window._pendingDepotPhone;
   var amount=parseFloat(document.getElementById('dep-amount').value);
   if(!phone){ toast(t('dep_err_phone'), true); return; }
   if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
@@ -1328,6 +1362,7 @@ function doDepot(){
     apiCall('/agent?action=cash-in','POST',{customer_phone:phone,amount:amount,pin:PIN_MEM},getToken()).then(function(res){
       _moneyActionInFlight = false;
       if(res && res.success){
+        window._pendingDepotPhone=null;
         toast(fmt(amount)+' '+curSuffix()+' — '+t('dep_success'));
         refreshBalance(); refreshHistory();
       } else {
@@ -1338,16 +1373,24 @@ function doDepot(){
 }
 
 // ── RETRAIT (cash-out) — plus jamais de PIN client tape sur l'appareil de
-// l'agent. Deux chemins : QR scanne depuis l'app du client (execution
-// immediate, aucun code) ou numero saisi a la main (code a 6 chiffres
-// envoye par SMS, communique oralement par le client pour finaliser).
+// l'agent, et l'identite resolue s'affiche TOUJOURS avant le montant (QR ou
+// numero manuel). Deux chemins ensuite : QR scanne (execution immediate,
+// aucun code) ou numero saisi a la main (code a 6 chiffres envoye par SMS,
+// communique oralement par le client pour finaliser).
 function shRetrait(b){
   b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startRetraitQrScan()">'+t('qr_scan_btn')+'</button>'
     +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:2px 0 12px">'+t('ret_or_manual')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('ret_customer_phone')+'</label><input class="finput" id="ret-phone" type="tel"></div>'
-    +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
-    +'<div class="fee-note warn">'+t('ret_note_code')+'</div>'
-    +'<button class="btn-g" style="background:var(--g)" id="ret-request-btn" onclick="doRequestRetraitCode()">'+t('ret_send_code_btn')+'</button>';
+    +'<button class="btn-g" style="background:var(--g)" onclick="resolveRetraitPhone()">'+t('verify_btn')+'</button>';
+}
+function resolveRetraitPhone(){
+  var phone=document.getElementById('ret-phone').value.trim();
+  if(!phone){ toast(t('ret_err_phone'), true); return; }
+  toast(t('qr_identifying'));
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){ renderRetraitPhoneAmountForm(res.data); }
+    else { toast((res&&res.message)||t('qr_invalid'), true); }
+  }).catch(function(){ toast(t('network_error'), true); });
 }
 function startRetraitQrScan(){
   var b=document.getElementById('sh-body');
@@ -1360,8 +1403,21 @@ function startRetraitQrScan(){
         renderRetraitQrAmountForm(res.data, text);
       } else {
         var r2=document.getElementById('qr-result');
-        if(r2) r2.innerHTML='<div style="text-align:center;padding:12px;color:var(--rd);font-size:12px">'+((res&&res.message)||t('qr_invalid'))+'</div>'
-          +'<button class="chip" style="width:100%;margin-top:8px" onclick="startRetraitQrScan()">'+t('qr_scan_again')+'</button>';
+        if(r2){
+          var el=document.createElement('div');
+          el.style.cssText='text-align:center;padding:12px;color:var(--rd);font-size:12px';
+          el.textContent=(res&&res.message)||t('qr_invalid');
+          var raw=document.createElement('div');
+          raw.style.cssText='font-size:10px;color:var(--t3);margin-top:4px;word-break:break-all;font-family:monospace';
+          raw.textContent=text.slice(0,120);
+          r2.innerHTML='';
+          r2.appendChild(el); r2.appendChild(raw);
+          var again=document.createElement('button');
+          again.className='chip'; again.style.cssText='width:100%;margin-top:8px';
+          again.textContent=t('qr_scan_again');
+          again.onclick=startRetraitQrScan;
+          r2.appendChild(again);
+        }
       }
     }).catch(function(){ toast(t('network_error'), true); });
   }, function(){ shRetrait(document.getElementById('sh-body')); });
@@ -1371,6 +1427,7 @@ function startRetraitQrScan(){
 // garde en memoire, jamais serialise dans une chaine.
 function renderRetraitQrAmountForm(customer, qrText){
   window._pendingRetraitQr = qrText;
+  window._pendingRetraitPhone = null;
   var b=document.getElementById('sh-body');
   b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-qr-amount" type="number" inputmode="numeric"></div>'
@@ -1399,8 +1456,16 @@ function doRetraitQr(){
     }
   }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
 }
+function renderRetraitPhoneAmountForm(customer){
+  window._pendingRetraitPhone = customer.phone_number;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b><br>'+customer.phone_number+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
+    +'<div class="fee-note warn">'+t('ret_note_code')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" id="ret-request-btn" onclick="doRequestRetraitCode()">'+t('ret_send_code_btn')+'</button>';
+}
 function doRequestRetraitCode(){
-  var phone=document.getElementById('ret-phone').value.trim();
+  var phone=window._pendingRetraitPhone;
   var amount=parseFloat(document.getElementById('ret-amount').value);
   if(!phone){ toast(t('ret_err_phone'), true); return; }
   if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
