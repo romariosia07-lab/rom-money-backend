@@ -473,14 +473,14 @@ var I18N = {
   ret_success:{fr:'Retrait effectué',en:'Cash-out completed'},
   ret_err_generic:{fr:'Échec du retrait',en:'Cash-out failed'},
   ret_or_manual:{fr:'— ou saisissez son numéro —',en:"— or enter their number —"},
-  ret_note_code:{fr:'Un code de confirmation à 6 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 6-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
+  ret_note_code:{fr:'Un code de confirmation à 4 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 4-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
   ret_note_qr:{fr:'QR reconnu — aucun code requis. Vérifiez le montant avant de confirmer.',en:'QR recognized — no code required. Check the amount before confirming.'},
   ret_send_code_btn:{fr:'Envoyer le code au client',en:'Send code to customer'},
   ret_sending_code:{fr:'Envoi en cours...',en:'Sending...'},
   ret_code_sent_to:{fr:'Code envoyé à {name} ({phone}). Demandez-le-lui pour finaliser.',en:'Code sent to {name} ({phone}). Ask them for it to finalize.'},
   ret_code_label:{fr:'Code communiqué par le client',en:'Code given by the customer'},
   ret_confirm_code_btn:{fr:'Valider et finaliser le retrait',en:'Confirm and finalize cash-out'},
-  ret_err_code:{fr:'Code à 6 chiffres requis',en:'6-digit code required'},
+  ret_err_code:{fr:'Code à 4 chiffres requis',en:'4-digit code required'},
   env_customer_phone:{fr:'Numéro du client (expéditeur)',en:"Customer's phone number (sender)"},
   env_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
   env_verify_recipient_btn:{fr:'Vérifier le destinataire',en:'Verify recipient'},
@@ -490,7 +490,7 @@ var I18N = {
   env_fee_brut_label:{fr:'Montant brut',en:'Gross amount'},
   env_fee_pct_label:{fr:'Frais estimés (1%)',en:'Estimated fee (1%)'},
   env_fee_net_label:{fr:'Net reçu',en:'Net received'},
-  env_note_code:{fr:'Un code de confirmation à 6 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 6-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
+  env_note_code:{fr:'Un code de confirmation à 4 chiffres sera envoyé par SMS au client. Redemandez-le-lui pour finaliser.',en:'A 4-digit confirmation code will be sent by SMS to the customer. Ask them for it to finalize.'},
   env_note_qr:{fr:'QR reconnu — aucun code requis. Vérifiez les informations avant de confirmer.',en:'QR recognized — no code required. Check the information before confirming.'},
   env_btn:{fr:"Confirmer l'envoi",en:'Confirm send'},
   env_send_code_btn:{fr:'Envoyer le code au client',en:'Send code to customer'},
@@ -1409,7 +1409,7 @@ function doDepot(){
 // ── RETRAIT (cash-out) — plus jamais de PIN client tape sur l'appareil de
 // l'agent, et l'identite resolue s'affiche TOUJOURS avant le montant (QR ou
 // numero manuel). Deux chemins ensuite : QR scanne (execution immediate,
-// aucun code) ou numero saisi a la main (code a 6 chiffres envoye par SMS,
+// aucun code) ou numero saisi a la main (code a 4 chiffres envoye par SMS,
 // communique oralement par le client pour finaliser).
 function shRetrait(b){
   b.innerHTML='<button class="chip" style="width:100%;padding:12px;margin-bottom:14px;background:var(--gl);color:var(--gd)" onclick="startRetraitQrScan()">'+t('qr_scan_btn')+'</button>'
@@ -1523,13 +1523,13 @@ function renderRetraitCodeConfirmForm(requestId, customerName, phone, amount){
   window._pendingRetraitAmount = amount;
   var b=document.getElementById('sh-body');
   b.innerHTML='<div class="fee-note free" style="margin-bottom:14px">'+t('ret_code_sent_to').replace('{name}',customerName).replace('{phone}',phone)+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('ret_code_label')+'</label><input class="finput" id="ret-code" maxlength="6" inputmode="numeric" placeholder="000000"></div>'
+    +'<div class="frow"><label class="flabel">'+t('ret_code_label')+'</label><input class="finput" id="ret-code" maxlength="4" inputmode="numeric" placeholder="0000"></div>'
     +'<button class="btn-g" style="background:var(--g)" id="ret-confirm-btn" onclick="doConfirmRetraitCode()">'+t('ret_confirm_code_btn')+'</button>';
 }
 function doConfirmRetraitCode(){
   if(_moneyActionInFlight) return;
   var code=document.getElementById('ret-code').value.trim();
-  if(!/^\d{6}$/.test(code)){ toast(t('ret_err_code'), true); return; }
+  if(!/^\d{4}$/.test(code)){ toast(t('ret_err_code'), true); return; }
   _moneyActionInFlight = true;
   var btn=document.getElementById('ret-confirm-btn');
   if(btn) btn.disabled=true;
@@ -1701,13 +1701,13 @@ function renderEnvoyerCodeConfirmForm(requestId, customerName, phone, amount){
   window._pendingEnvoyerAmount = amount;
   var b=document.getElementById('sh-body');
   b.innerHTML='<div class="fee-note free" style="margin-bottom:14px">'+t('env_code_sent_to').replace('{name}',customerName).replace('{phone}',phone)+'</div>'
-    +'<div class="frow"><label class="flabel">'+t('env_code_label')+'</label><input class="finput" id="env-code" maxlength="6" inputmode="numeric" placeholder="000000"></div>'
+    +'<div class="frow"><label class="flabel">'+t('env_code_label')+'</label><input class="finput" id="env-code" maxlength="4" inputmode="numeric" placeholder="0000"></div>'
     +'<button class="btn-g" style="background:var(--g)" id="env-confirm-code-btn" onclick="doConfirmEnvoyerCode()">'+t('env_confirm_code_btn')+'</button>';
 }
 function doConfirmEnvoyerCode(){
   if(_moneyActionInFlight) return;
   var code=document.getElementById('env-code').value.trim();
-  if(!/^\d{6}$/.test(code)){ toast(t('ret_err_code'), true); return; }
+  if(!/^\d{4}$/.test(code)){ toast(t('ret_err_code'), true); return; }
   _moneyActionInFlight = true;
   var btn=document.getElementById('env-confirm-code-btn');
   if(btn) btn.disabled=true;

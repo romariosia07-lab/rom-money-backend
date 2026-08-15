@@ -2702,7 +2702,7 @@ function agent_cash_in() {
 //     execution immediate, aucun code demande - la presentation physique en
 //     personne suffit.
 //   - Numero saisi a la main / future carte physique (agent_request_cash_out_
-//     code() + agent_confirm_cash_out()) : un code a 6 chiffres est envoye
+//     code() + agent_confirm_cash_out()) : un code a 4 chiffres est envoye
 //     par SMS au client, qui le communique de vive voix a l'agent.
 // La logique transactionnelle (debit client + credit agent + commission) est
 // partagee par les deux chemins via agent_execute_cash_out(), pour ne
@@ -2764,7 +2764,7 @@ function agent_request_cash_out_code() {
     if($customer['currency'] !== $aw['currency']) fail('Le retrait doit se faire dans la meme devise que votre guichet.', 422);
     if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
 
-    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $code = str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     $id = uid();
     $expiresAt = date('Y-m-d H:i:s', time()+600);
     $message = 'ROM_MONEY: code de confirmation pour un retrait de '.number_format($amount,0,',',' ').' '.$customer['currency']
@@ -2960,7 +2960,7 @@ function agent_request_send_to_third_party_code() {
     if($net<=0) fail('Montant invalide');
     if((float)$customer['balance'] < $brut) fail('Solde du client insuffisant');
 
-    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $code = str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     $id = uid();
     $expiresAt = date('Y-m-d H:i:s', time()+600);
     $cur = $customer['currency'] ?: 'XOF';
