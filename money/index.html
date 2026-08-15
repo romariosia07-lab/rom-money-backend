@@ -2631,13 +2631,8 @@ var I18N = {
   wallet_tab_scan: {fr:'📷 Scanner', en:'📷 Scan'},
   wallet_share_qr_desc: {fr:"Partagez votre QR pour recevoir de l'argent", en:'Share your QR to receive money'},
   offline_stale_data: {fr:'Hors ligne — dernières données connues', en:'Offline — last known data'},
-  wallet_btn_print_qr: {fr:'📄 Imprimer QR', en:'📄 Print QR'},
   wallet_btn_fullscreen: {fr:'👁 Plein écran', en:'👁 Full screen'},
-  wallet_qr_gen_error: {fr:'Erreur generation QR', en:'QR generation error'},
-  wallet_qr_scan_to_pay: {fr:'Scannez pour payer', en:'Scan to pay'},
   wallet_slogan: {fr:'UNE AFRIQUE, UN PORTEFEUILLE', en:'ONE AFRICA, ONE WALLET'},
-  wallet_pdf_downloaded_toast: {fr:'PDF telecharge !', en:'PDF downloaded!'},
-  wallet_pdf_load_error: {fr:'Erreur chargement PDF', en:'PDF loading error'},
   wallet_camera_activating: {fr:'Activation de la camera...', en:'Activating camera...'},
   wallet_btn_stop_camera: {fr:'Arreter la camera', en:'Stop camera'},
 
@@ -10460,7 +10455,6 @@ function openQRMenu(){
 
   var s1='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--accent-text);font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.1)';
   var s2='flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:none;color:var(--t3);font-family:inherit';
-  var b1='flex:1;padding:11px;background:var(--gl);border:.5px solid var(--gm);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:var(--accent-text);font-family:inherit';
   var b2='flex:1;padding:11px;background:var(--gdd);border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit';
 
   b.innerHTML = ''
@@ -10479,7 +10473,6 @@ function openQRMenu(){
     +'</div>'
     +'<div style="font-size:12px;color:var(--t2);text-align:center">'+t('wallet_share_qr_desc')+'</div>'
     +'<div style="display:flex;gap:10px;width:100%">'
-    +'<button onclick="imprimerQR()" style="'+b1+'">'+t('wallet_btn_print_qr')+'</button>'
     +'<button onclick="showQRFullscreen()" style="'+b2+'">'+t('wallet_btn_fullscreen')+'</button>'
     +'</div>'
     +'</div>'
@@ -10491,81 +10484,6 @@ function openQRMenu(){
 
   bg.classList.add('on');
   sh.classList.add('on');
-}
-
-function imprimerQR(){
-  var tmpDiv = document.createElement("div");
-  tmpDiv.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:256px;height:256px";
-  document.body.appendChild(tmpDiv);
-  var qrText = APP.userID+'|'+APP.qrSeed+'|'+APP.phone;
-  try{ new QRCode(tmpDiv,{text:qrText,width:250,height:250,colorDark:"#085041",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
-  setTimeout(function(){
-    var c = tmpDiv.querySelector("canvas");
-    var qrURL = c ? c.toDataURL("image/png") : "";
-    document.body.removeChild(tmpDiv);
-    if(!qrURL){ toast(t('wallet_qr_gen_error')); return; }
-    function buildPDF(qrURL, logoData){
-      var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
-      if(!jsPDF){ toast(t('invoice_jspdf_not_loaded'), true); return; }
-      var doc = new jsPDF({orientation:"portrait", unit:"mm", format:"a5"});
-      var pw=148, ph=210, cx=pw/2;
-
-      // ── PAGE 1 ── (small)
-      var y = 20;
-      // Logo 20x20 centered
-      doc.addImage(logoData,"JPEG",cx-10,y,20,20); y+=24;
-      // Title
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      doc.setTextColor(8,80,65);
-      doc.text(t('wallet_qr_scan_to_pay'),cx,y,{align:"center"}); y+=6;
-      // QR 60x60 centered
-      doc.addImage(qrURL,"PNG",cx-30,y,60,60); y+=64;
-      // Slogan
-      doc.setFontSize(7);
-      doc.setTextColor(245,166,35);
-      doc.text(t('wallet_slogan'),cx,y,{align:"center"});
-      // Border
-      doc.setDrawColor(8,80,65);
-      doc.setLineWidth(0.4);
-      doc.roundedRect(8,8,pw-16,y-3,3,3);
-
-      // ── PAGE 2 ── (2x bigger, same A5)
-      doc.addPage("a5");
-      var y2 = 14;
-      // Logo 35x35 centered
-      doc.addImage(logoData,"JPEG",cx-17.5,y2,35,35); y2+=40;
-      // Title 2x
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(18);
-      doc.setTextColor(8,80,65);
-      doc.text(t('wallet_qr_scan_to_pay'),cx,y2,{align:"center"}); y2+=10;
-      // QR 100x100 centered
-      doc.addImage(qrURL,"PNG",cx-50,y2,100,100); y2+=105;
-      // Slogan 2x
-      doc.setFontSize(11);
-      doc.setTextColor(245,166,35);
-      doc.text(t('wallet_slogan'),cx,y2,{align:"center"});
-      // Border
-      doc.setDrawColor(8,80,65);
-      doc.setLineWidth(0.4);
-      doc.roundedRect(5,5,pw-10,y2+5,3,3);
-
-      doc.save("ROM_MONEY_QR.pdf");
-      toast(t('wallet_pdf_downloaded_toast'));
-    }
-    getLogoBase64(function(logoData){
-      if(window.jspdf){
-        buildPDF(qrURL, logoData);
-      } else {
-        var s = document.createElement("script");
-        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-        s.onload = function(){ buildPDF(qrURL, logoData); };
-        s.onerror = function(){ toast(t('wallet_pdf_load_error'), true); };
-        document.head.appendChild(s);
-      }
-    });
-  }, 500);
 }
 
 function showQRFullscreen(){
