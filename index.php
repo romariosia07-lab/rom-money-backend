@@ -2240,6 +2240,8 @@ function route_agent($action) {
         'resolve-customer-qr' => agent_resolve_customer_qr(),
         'resolve-customer'  => agent_resolve_customer(),
         'history'           => agent_tx_history(),
+        'earnings-summary'  => agent_earnings_summary(),
+        'send-earnings'     => agent_send_earnings(),
         'request-recharge'  => agent_request_recharge(),
         'recharge-history'  => agent_recharge_history(),
         'list-incoming-recharges' => agent_list_incoming_recharge_requests(),
@@ -3002,19 +3004,110 @@ function agent_confirm_send_to_third_party() {
     ok($result, 'Envoi effectue');
 }
 
+// Les commissions (type='agent_commission') sont exclues d'ici : trop
+// nombreuses (une par operation) pour un historique general, remplacees par
+// un ecran dedie "Gain" qui les regroupe par jour (voir
+// agent_earnings_summary()). counterpart_agent_name resout le "distributeur
+// ou Admin" pour une recharge de float (sender_agent_wallet_id NULL = credit
+// direct Admin Principal, sinon le nom du distributeur qui a approuve) -
+// avant ça, ces lignes affichaient "Client" par defaut cote frontend, ce qui
+// n'avait aucun sens pour une recharge (aucun client implique).
 function agent_tx_history() {
     $pl = agent_auth();
     $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
     if(!$aw) fail('Portefeuille introuvable',404);
     $rows = q("SELECT t.*,
         CASE WHEN t.sender_agent_wallet_id=? THEN 'debit' ELSE 'credit' END as direction,
-        cu.full_name customer_name, cu.phone_number customer_phone
+        cu.full_name customer_name, cu.phone_number customer_phone,
+        ca.full_name counterpart_agent_name
         FROM transactions t
         LEFT JOIN wallets cw ON cw.id = COALESCE(t.sender_wallet_id, t.receiver_wallet_id)
         LEFT JOIN users cu ON cu.id = cw.user_id
-        WHERE t.sender_agent_wallet_id=? OR t.receiver_agent_wallet_id=?
-        ORDER BY t.created_at DESC LIMIT 50",[$aw['id'],$aw['id'],$aw['id']])->fetchAll();
+        LEFT JOIN agent_wallets caw ON caw.id = (CASE WHEN t.receiver_agent_wallet_id=? THEN t.sender_agent_wallet_id ELSE t.receiver_agent_wallet_id END)
+        LEFT JOIN agents ca ON ca.id = caw.agent_id
+        WHERE (t.sender_agent_wallet_id=? OR t.receiver_agent_wallet_id=?) AND t.type != 'agent_commission'
+        ORDER BY t.created_at DESC LIMIT 50",[$aw['id'],$aw['id'],$aw['id'],$aw['id']])->fetchAll();
     ok(['transactions'=>$rows]);
+}
+
+// Total cumule + detail par jour des commissions - remplace l'affichage
+// d'une ligne par operation (illisible sur la duree) dans l'historique
+// general. Fenetre limitee a 90 jours, largement suffisant pour un usage
+// courant sans faire grossir la reponse indefiniment.
+function agent_earnings_summary() {
+    $pl = agent_auth();
+    $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if(!$aw) fail('Portefeuille introuvable',404);
+    $total = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+        WHERE receiver_agent_wallet_id=? AND type='agent_commission' AND status='completed'",[$aw['id']])->fetch()['t']??0);
+    $days = q("SELECT created_at::date as day, SUM(amount) amount FROM transactions
+        WHERE receiver_agent_wallet_id=? AND type='agent_commission' AND status='completed'
+        AND created_at >= CURRENT_DATE - INTERVAL '90 days'
+        GROUP BY created_at::date ORDER BY day DESC",[$aw['id']])->fetchAll();
+    ok(['total'=>$total,'days'=>$days]);
+}
+
+// Envoi du gain (ou de n'importe quelle part du float, en pratique - l'ecran
+// "Gain" n'est que le point d'entree) vers un compte personnel ROM_MONEY.
+// Gratuit vers SON PROPRE numero (meme numero que le compte agent) ; 1% de
+// frais sinon. Pas de franchise quotidienne comme tx_send() (ce n'est pas un
+// transfert personnel client, juste un flux plus simple, tel que demande).
+function agent_send_earnings() {
+    $pl = agent_auth(); $b = body();
+    $recipientPhone = trim($b['recipient_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    $pin = trim($b['pin'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
+
+    $me = q("SELECT phone_number,pin_hash FROM agents WHERE id=?",[$pl['sub']])->fetch();
+    agent_pin_check($pl['sub'], $pin, $me['pin_hash']);
+    $aw = q("SELECT id,balance,currency FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if(!$aw) fail('Portefeuille introuvable',404);
+
+    $recv = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
+    if(!$recv) fail('Destinataire introuvable',404);
+    if(($recv['currency']?:'XOF') !== ($aw['currency']?:'XOF')) fail("L'envoi doit se faire dans la meme devise que votre guichet.", 422);
+
+    $isSelf = ($recipientPhone === $me['phone_number']);
+    $brut = $amount;
+    $fee = $isSelf ? 0 : round($brut * 0.01);
+    $net = $brut - $fee;
+    if($net<=0) fail('Montant invalide');
+    if((float)$aw['balance'] < $brut) fail('Solde insuffisant');
+
+    check_receive_limit($recv['id'], $net, false);
+    db()->beginTransaction();
+    try {
+        $txid = uid(); $reference = ref();
+        $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+        q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_wallet_id,amount,net_amount,type,status,reference,description,cancel_deadline,currency) VALUES (?,?,?,?,?,'agent_earnings_send','pending',?,?,?,?)",
+          [$txid,$aw['id'],$recv['wid'],$brut,$net,$reference,'Envoi de gain via agent',$deadline,$aw['currency']]);
+        $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$brut,$aw['id'],$brut])->rowCount();
+        if(!$rows) throw new Exception('Solde insuffisant');
+        q("UPDATE wallets SET balance=balance+? WHERE id=?",[$net,$recv['wid']]);
+        q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
+
+        if($fee > 0){
+            $fee_recv = q("SELECT u.id,w.id wid,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
+            if($fee_recv){
+                $fee_txid = uid(); $fee_ref = ref();
+                q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_wallet_id,amount,type,status,reference,description) VALUES (?,?,?,?,'fee','completed',?,?)",
+                  [$fee_txid,$aw['id'],$fee_recv['wid'],$fee,$fee_ref,'Frais ROM_MONEY 1% (envoi de gain agent)']);
+                q("UPDATE wallets SET balance=balance+? WHERE id=?",[$fee,$fee_recv['wid']]);
+            }
+        }
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, "Echec de l'envoi", 500);
+    }
+    web_push_send_to_user($recv['id'], 'ROM_MONEY',
+        'Vous avez recu '.number_format($net,0,',',' ').' '.($aw['currency']==='XOF'||$aw['currency']==='XAF'?'F':$aw['currency']).' via un agent ROM_GUICHET.');
+    $newBal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+    ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$brut,'net_amount'=>$net,'fee'=>$fee,
+        'recipient_name'=>$recv['verified_name']?:$recv['full_name'],'new_balance'=>$newBal],'Envoi effectue');
 }
 
 // Demande de recharge du float, validee par l'admin (pas de credit direct) -

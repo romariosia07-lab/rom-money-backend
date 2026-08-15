@@ -99,7 +99,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 .bal-amt{color:#fff;font-size:32px;font-weight:900}
 .bal-amt .cur{font-size:15px;font-weight:600;margin-left:4px;opacity:.8}
 
-.qa-grid{display:flex;justify-content:space-around;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:18px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
+.qa-grid{display:flex;flex-wrap:wrap;justify-content:space-around;row-gap:14px;margin:-18px 14px 0;background:var(--card);border-radius:16px;padding:18px 8px;box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;z-index:1}
 .qa{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
 .qa-ico{width:48px;height:48px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:22px}
 .qa-lbl{font-size:11px;font-weight:700;color:var(--t1)}
@@ -256,6 +256,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
     <button class="qa" onclick="openSheet('retrait')"><div class="qa-ico">⬆️</div><span class="qa-lbl" data-i18n="qa_retrait">Retrait</span></button>
     <button class="qa" onclick="openSheet('envoyer')"><div class="qa-ico">📤</div><span class="qa-lbl" data-i18n="qa_envoyer">Envoyer</span></button>
     <button class="qa" onclick="openSheet('recharge')"><div class="qa-ico">🔄</div><span class="qa-lbl" data-i18n="qa_recharge">Recharger</span></button>
+    <button class="qa" onclick="openSheet('gains')"><div class="qa-ico">💰</div><span class="qa-lbl" data-i18n="qa_gains">Gain</span></button>
     <button class="qa" onclick="openSheet('find-distributors')"><div class="qa-ico">📍</div><span class="qa-lbl" data-i18n="qa_distributeurs">Distributeurs</span></button>
   </div>
 
@@ -270,6 +271,19 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
     <div class="page" id="pg-historique" style="display:none">
       <div class="section">
         <div class="section-title" data-i18n="history_title">Historique</div>
+        <select class="finput" id="hist-filter-type" onchange="applyHistFilter()">
+          <option value="" data-i18n="hist_filter_type_all">Type : Tous</option>
+          <option value="agent_cash_in" data-i18n="tx_type_agent_cash_in">Dépôt</option>
+          <option value="agent_cash_out" data-i18n="tx_type_agent_cash_out">Retrait</option>
+          <option value="transfer" data-i18n="tx_type_transfer">Envoi à un tiers</option>
+          <option value="agent_recharge" data-i18n="tx_type_agent_recharge">Recharge float</option>
+          <option value="agent_earnings_send" data-i18n="tx_type_agent_earnings_send">Envoi de gain</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="flex:1"><label class="flabel" data-i18n="hist_filter_from">Du</label><input class="finput" id="hist-filter-from" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
+          <div style="flex:1"><label class="flabel" data-i18n="hist_filter_to">Au</label><input class="finput" id="hist-filter-to" type="date" onchange="applyHistFilter()" style="margin-bottom:0"></div>
+        </div>
+        <a onclick="resetHistFilter()" style="display:block;text-align:right;font-size:12px;color:var(--g);font-weight:700;cursor:pointer;margin-bottom:14px" data-i18n="hist_filter_reset">Réinitialiser</a>
         <div class="card" id="hist-tx-list"><div class="empty-note" data-i18n="loading">Chargement...</div></div>
       </div>
     </div>
@@ -576,8 +590,40 @@ var I18N = {
   tx_type_agent_cash_out:{fr:'Retrait',en:'Cash-out'},
   tx_type_agent_commission:{fr:'Commission',en:'Commission'},
   tx_type_agent_recharge:{fr:'Recharge float',en:'Float recharge'},
+  tx_type_transfer:{fr:'Envoi à un tiers',en:'Send to third party'},
+  tx_type_agent_earnings_send:{fr:'Envoi de gain',en:'Earnings sent'},
   tx_type_generic:{fr:'Opération',en:'Operation'},
-  label_client:{fr:'Client',en:'Customer'}
+  label_client:{fr:'Client',en:'Customer'},
+  label_admin:{fr:'Admin Principal',en:'Main Admin'},
+  hist_filter_type_all:{fr:'Type : Tous',en:'Type: All'},
+  hist_filter_from:{fr:'Du',en:'From'},
+  hist_filter_to:{fr:'Au',en:'To'},
+  hist_filter_apply:{fr:'Filtrer',en:'Filter'},
+  hist_filter_reset:{fr:'Réinitialiser',en:'Reset'},
+  hist_no_match:{fr:'Aucune opération pour ces filtres.',en:'No operation for these filters.'},
+  tx_detail_title:{fr:'Détail de l\'opération',en:'Operation detail'},
+  tx_detail_amount:{fr:'Montant',en:'Amount'},
+  tx_detail_counterpart:{fr:'Avec',en:'With'},
+  tx_detail_type:{fr:'Type',en:'Type'},
+  tx_detail_status:{fr:'Statut',en:'Status'},
+  tx_detail_reference:{fr:'Référence',en:'Reference'},
+  tx_detail_date:{fr:'Date',en:'Date'},
+  tx_status_completed:{fr:'Terminée',en:'Completed'},
+  tx_status_pending:{fr:'En cours',en:'In progress'},
+  qa_gains:{fr:'Gain',en:'Earnings'},
+  sheet_title_gains:{fr:'Mes gains',en:'My earnings'},
+  gains_total_label:{fr:'Total cumulé',en:'Total earned'},
+  gains_empty:{fr:'Aucun gain pour le moment.',en:'No earnings yet.'},
+  gains_send_btn:{fr:'Envoyer mon gain',en:'Send my earnings'},
+  sheet_title_send_earnings:{fr:'Envoyer mon gain',en:'Send my earnings'},
+  earn_recipient_phone:{fr:'Numéro du destinataire',en:"Recipient's phone number"},
+  earn_recipient_hint:{fr:'Votre propre numéro (compte ROM_MONEY) : gratuit. Un autre numéro : 1% de frais.',en:'Your own number (ROM_MONEY account): free. Any other number: 1% fee.'},
+  earn_amount:{fr:'Montant à envoyer',en:'Amount to send'},
+  earn_btn:{fr:'Confirmer l\'envoi',en:'Confirm send'},
+  earn_success:{fr:'Gain envoyé',en:'Earnings sent'},
+  earn_err_generic:{fr:'Échec de l\'envoi',en:'Send failed'},
+  earn_fee_free:{fr:'Envoi gratuit (votre propre compte)',en:'Free send (your own account)'},
+  earn_fee_paid:{fr:'Frais de 1% appliqués (compte tiers)',en:'1% fee applied (third-party account)'}
 };
 function t(key){ return (I18N[key] && I18N[key][APP.lang||'fr']) || key; }
 function applyI18n(){
@@ -1195,11 +1241,20 @@ function navGo(p){
 
 // ── HISTORIQUE ──
 function txIcon(tx){
-  if(tx.type==='agent_commission') return {ico:'💰',bg:'var(--gl)'};
   if(tx.type==='agent_recharge') return {ico:'🔄',bg:'var(--gl)'};
+  if(tx.type==='agent_earnings_send') return {ico:'💰',bg:'var(--gl)'};
   return tx.direction==='credit' ? {ico:'⬇️',bg:'var(--gl)'} : {ico:'⬆️',bg:'var(--rl)'};
 }
 function txTypeLabel(tx){ return t('tx_type_'+tx.type) !== ('tx_type_'+tx.type) ? t('tx_type_'+tx.type) : t('tx_type_generic'); }
+// Le nom affiche depend du type : un client reel pour depot/retrait/envoi a
+// un tiers/envoi de gain, mais une recharge de float n'a jamais de "client"
+// - c'est soit l'Admin Principal (credit direct), soit le nom du
+// distributeur qui a approuve (voir counterpart_agent_name, resolu cote
+// serveur dans agent_tx_history()).
+function txCounterpartName(tx){
+  if(tx.type==='agent_recharge') return tx.counterpart_agent_name || t('label_admin');
+  return tx.customer_name || tx.customer_phone || t('label_client');
+}
 function renderTxRows(rows, containerId){
   var c=document.getElementById(containerId);
   if(!c) return;
@@ -1208,30 +1263,88 @@ function renderTxRows(rows, containerId){
   var loc = APP.lang==='en'?'en-US':'fr-FR';
   rows.forEach(function(tx){
     var isCredit = tx.direction==='credit';
-    var name = tx.customer_name || tx.customer_phone || t('label_client');
+    var name = txCounterpartName(tx);
     var ic = txIcon(tx);
     var d = new Date(tx.created_at);
     var amtColor = isCredit?'var(--gd)':'var(--re)';
     var amtText = (isCredit?'+':'-')+fmt(tx.amount)+' '+curSuffix();
-    h+='<div class="tx-row"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
+    h+='<div class="tx-row" style="cursor:pointer" onclick="showAgentTxDetail(\''+tx.id+'\')"><div class="tx-ico" style="background:'+ic.bg+'">'+ic.ico+'</div>'
       +'<div><div class="tx-name">'+name+'</div><div class="tx-date"><span class="tx-type">'+txTypeLabel(tx)+'</span> · '+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div></div>'
       +'<div class="tx-amt" style="color:'+amtColor+'">'+amtText+'</div></div>';
   });
   c.innerHTML=h;
+}
+// Detail complet d'une operation - meme donnees deja recues dans /agent?
+// action=history (aucun appel reseau supplementaire), affiche dans une
+// sheet comme le reste de l'app.
+function showAgentTxDetail(id){
+  var tx=null;
+  for(var i=0;i<txList.length;i++){ if(String(txList[i].id)===String(id)){ tx=txList[i]; break; } }
+  if(!tx) return;
+  var titleEl=document.getElementById('sh-title');
+  var b=document.getElementById('sh-body');
+  var bg=document.getElementById('sh-bg');
+  var sh=document.getElementById('sh');
+  if(!titleEl||!b||!bg||!sh) return;
+  titleEl.textContent=t('tx_detail_title');
+  var isCredit = tx.direction==='credit';
+  var color = isCredit?'var(--gd)':'var(--re)';
+  var sign = isCredit?'+':'-';
+  var loc = APP.lang==='en'?'en-US':'fr-FR';
+  var d = new Date(tx.created_at);
+  var statusLabel = tx.status==='completed' ? t('tx_status_completed') : (tx.status==='pending' ? t('tx_status_pending') : tx.status);
+  b.innerHTML='<div style="text-align:center;padding:6px 0 16px">'
+    +'<div style="font-size:26px;font-weight:900;color:'+color+'">'+sign+fmt(tx.amount)+' '+curSuffix()+'</div>'
+    +'<div style="font-size:12px;color:var(--t3);margin-top:4px">'+d.toLocaleDateString(loc)+' '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})+'</div>'
+    +'</div>'
+    +'<div class="fee-note free">'
+    +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--t2)">'+t('tx_detail_counterpart')+'</span><span style="font-weight:700">'+txCounterpartName(tx)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_type')+'</span><span style="font-weight:700">'+txTypeLabel(tx)+'</span></div>'
+    +(tx.reference ? '<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_reference')+'</span><span style="font-weight:700;font-family:monospace;font-size:11px">'+tx.reference+'</span></div>' : '')
+    +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:.5px solid var(--bord)"><span style="color:var(--t2)">'+t('tx_detail_status')+'</span><span style="font-weight:700">'+statusLabel+'</span></div>'
+    +'</div>';
+  bg.classList.add('on');
+  setTimeout(function(){ sh.classList.add('on'); }, 10);
 }
 function refreshHistory(full){
   return apiCall('/agent?action=history','GET',null,getToken()).then(function(res){
     if(res && res.success && res.data){
       txList = res.data.transactions||[];
       renderTxRows(txList.slice(0,5), 'home-tx-list');
-      if(full) renderTxRows(txList, 'hist-tx-list');
+      if(full) applyHistFilter();
     }
   });
+}
+// Filtre purement cote client (les 50 dernieres operations sont deja toutes
+// en memoire via txList, inutile d'aller solliciter le serveur pour un
+// filtre type/periode sur un aussi petit volume).
+function applyHistFilter(){
+  var type=document.getElementById('hist-filter-type').value;
+  var from=document.getElementById('hist-filter-from').value;
+  var to=document.getElementById('hist-filter-to').value;
+  var rows=txList.filter(function(tx){
+    if(type && tx.type!==type) return false;
+    var d=tx.created_at.slice(0,10);
+    if(from && d<from) return false;
+    if(to && d>to) return false;
+    return true;
+  });
+  var c=document.getElementById('hist-tx-list');
+  var hasFilters = !!(type || from || to);
+  if(!rows.length && hasFilters){ c.innerHTML='<div class="empty-note">'+t('hist_no_match')+'</div>'; return; }
+  renderTxRows(rows, 'hist-tx-list');
+}
+function resetHistFilter(){
+  document.getElementById('hist-filter-type').value='';
+  document.getElementById('hist-filter-from').value='';
+  document.getElementById('hist-filter-to').value='';
+  applyHistFilter();
 }
 
 // ── SHEETS ──
 var SHEET_TITLE_KEYS={
   'depot':'sheet_title_depot','retrait':'sheet_title_retrait','envoyer':'sheet_title_envoyer','recharge':'sheet_title_recharge',
+  'gains':'sheet_title_gains','send-earnings':'sheet_title_send_earnings',
   'find-distributors':'sheet_title_find_distributors','incoming-recharges':'sheet_title_incoming_recharges',
   'set-location':'sheet_title_set_location','change-pin':'sheet_title_change_pin','devices':'sheet_title_devices',
   'account-switch':'sheet_title_account_switch','appearance':'sheet_title_appearance','language':'sheet_title_language'
@@ -1309,6 +1422,8 @@ function buildSheet(type, b, extra){
   else if(type==='retrait') shRetrait(b);
   else if(type==='envoyer') shEnvoyerTiers(b);
   else if(type==='recharge') shRecharge(b);
+  else if(type==='gains') shGains(b);
+  else if(type==='send-earnings') shSendEarnings(b);
   else if(type==='find-distributors') shFindDistributors(b);
   else if(type==='incoming-recharges') shIncomingRecharges(b);
   else if(type==='set-location') shSetLocation(b);
@@ -1726,6 +1841,82 @@ function doConfirmEnvoyerCode(){
       if(btn) btn.disabled=false;
     }
   }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+
+// ── GAINS (commissions) — regroupees par jour, plus une ligne par
+// operation (illisible sur la duree). Le total en haut est le cumul depuis
+// toujours (aucun mecanisme de "deja retire" - envoyer son gain deplace
+// simplement une partie du float vers un compte personnel, comme n'importe
+// quel autre mouvement).
+function shGains(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=earnings-summary','GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      var total=res.data.total||0;
+      var days=res.data.days||[];
+      var loc=APP.lang==='en'?'en-US':'fr-FR';
+      var h='<div style="text-align:center;margin-bottom:16px">'
+        +'<div style="font-size:11px;color:var(--t3)">'+t('gains_total_label')+'</div>'
+        +'<div style="font-size:28px;font-weight:900;color:var(--gd)">'+fmt(total)+' '+curSuffix()+'</div>'
+        +'</div>'
+        +'<button class="btn-g" style="background:var(--g);margin-bottom:16px" onclick="openSheet(\'send-earnings\')">'+t('gains_send_btn')+'</button>';
+      if(!days.length){
+        h+='<div class="empty-note">'+t('gains_empty')+'</div>';
+      } else {
+        days.forEach(function(dRow){
+          var dt=new Date(dRow.day);
+          h+='<div class="tx-row"><div class="tx-ico" style="background:var(--gl)">💰</div>'
+            +'<div><div class="tx-name">'+dt.toLocaleDateString(loc,{weekday:'short',day:'numeric',month:'short'})+'</div></div>'
+            +'<div class="tx-amt" style="color:var(--gd)">+'+fmt(dRow.amount)+' '+curSuffix()+'</div></div>';
+        });
+      }
+      b.innerHTML=h;
+    } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
+  }).catch(function(){ b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; });
+}
+function shSendEarnings(b){
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('earn_recipient_phone')+'</label><input class="finput" id="earn-phone" type="tel" oninput="updateEarnFeePreview()"></div>'
+    +'<div class="fee-note">'+t('earn_recipient_hint')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('earn_amount')+'</label><input class="finput" id="earn-amount" type="number" inputmode="numeric" oninput="updateEarnFeePreview()"></div>'
+    +'<div class="fee-note" id="earn-fee-preview"></div>'
+    +'<button class="btn-g" style="background:var(--g)" id="earn-confirm-btn" onclick="doSendEarnings()">'+t('earn_btn')+'</button>';
+}
+function updateEarnFeePreview(){
+  var el=document.getElementById('earn-fee-preview');
+  if(!el) return;
+  var phone=document.getElementById('earn-phone').value.trim();
+  var amount=parseFloat(document.getElementById('earn-amount').value);
+  if(!amount || amount<=0){ el.innerHTML=''; return; }
+  var isSelf = !!phone && phone===APP.phone;
+  if(isSelf){
+    el.innerHTML='<span style="color:var(--gd)">'+t('earn_fee_free')+'</span>';
+  } else {
+    var fee=Math.round(amount*0.01);
+    el.innerHTML='<span style="color:var(--re)">'+t('earn_fee_paid')+' (-'+fmt(fee)+' '+curSuffix()+')</span>';
+  }
+}
+function doSendEarnings(){
+  if(_moneyActionInFlight) return;
+  var phone=document.getElementById('earn-phone').value.trim();
+  var amount=parseFloat(document.getElementById('earn-amount').value);
+  if(!phone){ toast(t('env_err_recipient_phone'), true); return; }
+  if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+  _moneyActionInFlight = true;
+  var btn=document.getElementById('earn-confirm-btn');
+  if(btn) btn.disabled=true;
+  requirePin(t('earn_btn'), function(){
+    apiCall('/agent?action=send-earnings','POST',{recipient_phone:phone,amount:amount,pin:PIN_MEM},getToken()).then(function(res){
+      _moneyActionInFlight = false;
+      if(res && res.success){
+        toast(fmt(res.data.amount)+' '+curSuffix()+' — '+t('earn_success'));
+        closeSheet();
+        refreshBalance(); refreshHistory();
+      } else {
+        toast((res&&res.message)||t('earn_err_generic'), true);
+        if(btn) btn.disabled=false;
+      }
+    }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); if(btn) btn.disabled=false; });
+  });
 }
 
 // ── RECHARGE DE FLOAT (demande, pas de PIN — aucun mouvement direct) ──
