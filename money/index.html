@@ -1130,12 +1130,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="btn-w" style="margin-bottom:16px" onclick="adminSearchAgent()" data-i18n-admin="admin_tx_search_btn">Rechercher</button>
       <div id="agt-result"></div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_pending_title">Demandes d'agrément en attente</div>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px"><span data-i18n-admin="admin_agents_pending_title">Demandes d'agrément en attente</span><span id="admin-agents-pending-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;font-weight:800"></span></div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_pending_desc">Un nouvel agent ne peut pas utiliser l'application tant que son dossier (pièce d'identité + photo du local) n'a pas été examiné et approuvé.</div>
       <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentPending()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
       <div id="agt-pending-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_recharge_title">Demandes de recharge de float en attente</div>
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px"><span data-i18n-admin="admin_agents_recharge_title">Demandes de recharge de float en attente</span><span id="admin-agents-recharge-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;font-weight:800"></span></div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_recharge_desc">Un agent demande à recharger son float depuis ROM_GUICHET ; approuvez uniquement après réception réelle du paiement hors-app (virement, espèces...).</div>
       <button class="btn-w" style="margin-bottom:14px" onclick="adminLoadAgentRecharges()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
       <div id="agt-recharge-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
@@ -5704,6 +5704,12 @@ function adminRefreshFraudBadge(){
 // + les demandes de recharge en attente pour l'Admin Principal (celles
 // ciblant un distributeur sont exclues - ce n'est pas a l'admin d'agir
 // dessus, voir le commentaire dans admin_agent_list_recharge_requests()).
+function adminSetBadge(id, count){
+  var b=document.getElementById(id);
+  if(!b) return;
+  if(count>0){ b.textContent=count; b.style.display='inline-block'; }
+  else { b.style.display='none'; }
+}
 function adminRefreshAgentsBadge(){
   var b=document.getElementById('admin-agents-badge');
   if(!b) return;
@@ -5716,9 +5722,9 @@ function adminRefreshAgentsBadge(){
     if(results[1]&&results[1].success&&results[1].data&&results[1].data.requests){
       pendingRecharges=results[1].data.requests.filter(function(r){ return !r.dist_phone; }).length;
     }
-    var count=pendingAgents+pendingRecharges;
-    if(count>0){ b.textContent=count; b.style.display='inline-block'; }
-    else { b.style.display='none'; }
+    adminSetBadge('admin-agents-pending-badge', pendingAgents);
+    adminSetBadge('admin-agents-recharge-badge', pendingRecharges);
+    adminSetBadge('admin-agents-badge', pendingAgents+pendingRecharges);
   }).catch(function(){});
 }
 function adminLoadFraudAlerts(){
