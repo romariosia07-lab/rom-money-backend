@@ -2232,6 +2232,9 @@ function route_agent($action) {
         'change-pin'        => agent_change_pin(),
         'cash-in'           => agent_cash_in(),
         'cash-out'          => agent_cash_out(),
+        'cash-out-request'  => agent_request_cash_out_code(),
+        'cash-out-confirm'  => agent_confirm_cash_out(),
+        'resolve-customer-qr' => agent_resolve_customer_qr(),
         'history'           => agent_tx_history(),
         'request-recharge'  => agent_request_recharge(),
         'recharge-history'  => agent_recharge_history(),
@@ -2558,6 +2561,60 @@ function agent_commission_for($agentId, $agentWalletId) {
     }
 }
 
+// Envoie un SMS via Africa's Talking - utilise pour les codes de confirmation
+// de retrait (voir agent_request_cash_out_code()). Cle API en variable
+// d'environnement (meme principe que GOOGLE_VISION_API_KEY) : echoue
+// proprement (false) si non configuree, ne bloque jamais le reste de l'app.
+function send_sms_africastalking($phone, $message) {
+    $username = getenv('AFRICASTALKING_USERNAME');
+    $apiKey = getenv('AFRICASTALKING_API_KEY');
+    if(!$username || !$apiKey) {
+        error_log('[SMS] AFRICASTALKING_USERNAME/AFRICASTALKING_API_KEY absentes des variables d\'environnement');
+        return false;
+    }
+    try {
+        $ch = curl_init('https://api.africastalking.com/version1/messaging');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['apiKey: '.$apiKey, 'Content-Type: application/x-www-form-urlencoded', 'Accept: application/json'],
+            CURLOPT_POSTFIELDS => http_build_query(['username'=>$username, 'to'=>$phone, 'message'=>$message]),
+            CURLOPT_TIMEOUT => 10,
+        ]);
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if($code<200 || $code>=300){
+            error_log('[SMS] Africa\'s Talking a repondu '.$code.' :: '.$res);
+            return false;
+        }
+        return true;
+    } catch(Exception $e) {
+        error_log('[SMS] Echec envoi :: '.$e->getMessage());
+        return false;
+    }
+}
+
+// Resout un QR personnel ROM_MONEY (userId|qrSeed|phone, meme format que
+// money/index.html shQr()) en identite client complete - partage entre
+// l'endpoint de resolution (apercu avant envoi) et le retrait immediat par QR.
+function agent_resolve_customer_by_qr($qr) {
+    $parts = explode('|', $qr);
+    if(count($parts) < 2) fail('QR invalide');
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=? AND w.qr_seed=?",[$parts[0],$parts[1]])->fetch();
+    if(!$customer) fail('QR invalide',404);
+    return $customer;
+}
+
+function agent_resolve_customer_qr() {
+    $pl = agent_auth();
+    $qr = trim($_GET['qr'] ?? '');
+    if(!$qr) fail('QR requis');
+    $customer = agent_resolve_customer_by_qr($qr);
+    ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
+        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency']]);
+}
+
 // Cash-in : le client donne du cash physique a l'agent, qui le credite
 // numeriquement. C'est le float de L'AGENT qui est debite, donc c'est
 // l'agent qui confirme avec SON PROPRE PIN (recevoir de l'argent ne
@@ -2604,24 +2661,22 @@ function agent_cash_in() {
 }
 
 // Cash-out : le client donne du solde numerique, l'agent lui remet du cash
-// physique. C'est le solde du CLIENT qui est debite, donc c'est lui qui
-// confirme avec SON PROPRE PIN (comme merchant_collect()).
-function agent_cash_out() {
-    $pl = agent_auth(); $b = body();
-    $customerPhone = trim($b['customer_phone'] ?? '');
-    $amount = (float)($b['amount'] ?? 0);
-    $pin = trim($b['pin'] ?? '');
-    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
-    if($amount<=0) fail('Montant invalide');
-    if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
-
-    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.pin_hash,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
-    if(!$customer) fail('Client introuvable',404);
-    pin_check($customer['id'], $pin, $customer['pin_hash']);
-    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
-
-    $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+// physique. C'est le solde du CLIENT qui est debite - plus jamais autorise
+// par un PIN client tape sur l'appareil de l'agent (retire completement,
+// remplace par deux chemins distincts) :
+//   - QR scanne depuis l'app du client (agent_cash_out() ci-dessous) :
+//     execution immediate, aucun code demande - la presentation physique en
+//     personne suffit.
+//   - Numero saisi a la main / future carte physique (agent_request_cash_out_
+//     code() + agent_confirm_cash_out()) : un code a 6 chiffres est envoye
+//     par SMS au client, qui le communique de vive voix a l'agent.
+// La logique transactionnelle (debit client + credit agent + commission) est
+// partagee par les deux chemins via agent_execute_cash_out(), pour ne
+// jamais la dupliquer.
+function agent_execute_cash_out($agentId, $customer, $amount) {
+    $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$agentId])->fetch();
     if($customer['currency'] !== $aw['currency']) fail('Le retrait doit se faire dans la meme devise que votre guichet.', 422);
+    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
 
     db()->beginTransaction();
     try {
@@ -2639,10 +2694,77 @@ function agent_cash_out() {
         db()->rollBack();
         log_and_fail($e, 'Echec du retrait', 500);
     }
-    agent_commission_for($pl['sub'], $aw['id']);
+    agent_commission_for($agentId, $aw['id']);
     $newBal = (float)q("SELECT balance FROM wallets WHERE id=?",[$customer['wid']])->fetchColumn();
-    ok(['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'customer_name'=>$customer['verified_name']?:$customer['full_name'],
-        'cancel_before'=>$deadline,'customer_new_balance'=>$newBal],'Retrait effectue');
+    return ['transaction_id'=>$txid,'reference'=>$reference,'amount'=>$amount,'customer_name'=>$customer['verified_name']?:$customer['full_name'],
+        'cancel_before'=>$deadline,'customer_new_balance'=>$newBal];
+}
+
+function agent_cash_out() {
+    $pl = agent_auth(); $b = body();
+    $qr = trim($b['qr'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    if(!$qr) fail('QR requis');
+    if($amount<=0) fail('Montant invalide');
+    $customer = agent_resolve_customer_by_qr($qr);
+    $result = agent_execute_cash_out($pl['sub'], $customer, $amount);
+    ok($result, 'Retrait effectue');
+}
+
+// Etape 1/2 du chemin "numero manuel" : valide tout en amont (client existe,
+// devise identique, solde suffisant) AVANT d'envoyer le SMS, pour ne jamais
+// gaspiller un SMS sur une operation vouee a l'echec. Ne deplace aucun argent.
+function agent_request_cash_out_code() {
+    $pl = agent_auth(); $b = body();
+    rate_limit_check('agent_cashout_request', 10, 60);
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $amount = (float)($b['amount'] ?? 0);
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+    if($amount<=0) fail('Montant invalide');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+
+    $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+    if($customer['currency'] !== $aw['currency']) fail('Le retrait doit se faire dans la meme devise que votre guichet.', 422);
+    if((float)$customer['balance'] < $amount) fail('Solde du client insuffisant');
+
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $id = uid();
+    $expiresAt = date('Y-m-d H:i:s', time()+600);
+    $message = 'ROM_MONEY: code de confirmation pour un retrait de '.number_format($amount,0,',',' ').' '.$customer['currency']
+        .' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
+    if(!send_sms_africastalking($customer['phone_number'] ?? $customerPhone, $message)) {
+        fail('Envoi du SMS impossible, reessayez');
+    }
+    q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at) VALUES (?,?,?,?,?,?,?)",
+      [$id,$pl['sub'],$customer['id'],$customerPhone,$amount,$code,$expiresAt]);
+    ok(['request_id'=>$id,'customer_name'=>$customer['verified_name']?:$customer['full_name']],'Code envoye au client');
+}
+
+// Etape 2/2 : le montant vient de la demande d'origine (jamais resaisi ici),
+// donc impossible pour un agent de faire lire un code pour un petit montant
+// puis de s'en servir pour un montant different.
+function agent_confirm_cash_out() {
+    $pl = agent_auth(); $b = body();
+    $requestId = trim($b['request_id'] ?? '');
+    $code = trim($b['code'] ?? '');
+    if(!$requestId || !$code) fail('Demande et code requis');
+
+    $r = q("SELECT * FROM agent_cashout_requests WHERE id=? AND agent_id=? AND status='pending'",[$requestId,$pl['sub']])->fetch();
+    if(!$r) fail('Demande introuvable ou deja traitee',404);
+    if(strtotime($r['expires_at']) < time()){
+        q("UPDATE agent_cashout_requests SET status='expired' WHERE id=?",[$requestId]);
+        fail('Code expire, refaites une demande');
+    }
+    if(!hash_equals($r['code'], $code)) fail('Code incorrect');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$r['customer_user_id']])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+
+    $result = agent_execute_cash_out($pl['sub'], $customer, (float)$r['amount']);
+    q("UPDATE agent_cashout_requests SET status='completed' WHERE id=?",[$requestId]);
+    ok($result, 'Retrait effectue');
 }
 
 function agent_tx_history() {
@@ -7912,6 +8034,22 @@ function route_install() {
     // Impossible a reutiliser : une fois la demande approuvee/rejetee, son
     // statut n'est plus 'pending' et le code ne peut plus rien valider.
     "ALTER TABLE agent_recharge_requests ADD COLUMN IF NOT EXISTS confirmation_code VARCHAR(10)",
+    // Demandes de code de confirmation pour un retrait (cash-out) identifie
+    // par numero de telephone plutot que par QR scanne - voir
+    // agent_request_cash_out_code()/agent_confirm_cash_out(). Le code n'est
+    // JAMAIS renvoye a l'agent, uniquement envoye par SMS au client.
+    "CREATE TABLE IF NOT EXISTS agent_cashout_requests (
+        id VARCHAR(36) PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        customer_user_id VARCHAR(36) NOT NULL,
+        customer_phone VARCHAR(20) NOT NULL,
+        amount DECIMAL(15,2) NOT NULL,
+        code VARCHAR(6) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_cashout_requests_agent ON agent_cashout_requests(agent_id)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
