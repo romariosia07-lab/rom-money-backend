@@ -2235,6 +2235,7 @@ function route_agent($action) {
         'cash-out-request'  => agent_request_cash_out_code(),
         'cash-out-confirm'  => agent_confirm_cash_out(),
         'resolve-customer-qr' => agent_resolve_customer_qr(),
+        'resolve-customer'  => agent_resolve_customer(),
         'history'           => agent_tx_history(),
         'request-recharge'  => agent_request_recharge(),
         'recharge-history'  => agent_recharge_history(),
@@ -2611,6 +2612,19 @@ function agent_resolve_customer_qr() {
     $qr = trim($_GET['qr'] ?? '');
     if(!$qr) fail('QR requis');
     $customer = agent_resolve_customer_by_qr($qr);
+    ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
+        'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency']]);
+}
+
+// Identification par numero (saisie manuelle) - simple apercu en lecture
+// seule pour verification avant de lancer un depot/retrait, meme principe
+// que agent_resolve_customer_qr() mais par numero plutot que QR.
+function agent_resolve_customer() {
+    $pl = agent_auth();
+    $phone = trim($_GET['phone'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Numero invalide');
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$phone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
         'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency']]);
 }
