@@ -508,6 +508,8 @@ var I18N = {
   rec_success:{fr:'Demande envoyée',en:'Request sent'},
   rec_err_generic:{fr:'Échec de la demande',en:'Request failed'},
   rec_code_label:{fr:'Code de confirmation (communiquez-le au distributeur) :',en:'Confirmation code (share it with the distributor):'},
+  rec_pending_title:{fr:'Demande en attente',en:'Request pending'},
+  rec_pending_refresh:{fr:'Actualiser le statut',en:'Refresh status'},
   rec_history_title:{fr:'Historique de mes demandes',en:'My request history'},
   rec_history_empty:{fr:'Aucune demande de recharge.',en:'No recharge requests.'},
   rec_status_pending:{fr:'En attente',en:'Pending'},
@@ -1726,12 +1728,41 @@ function doConfirmEnvoyerCode(){
 }
 
 // ── RECHARGE DE FLOAT (demande, pas de PIN — aucun mouvement direct) ──
+// Une seule demande en attente a la fois (impose cote serveur aussi, voir
+// agent_request_recharge()) : tant qu'elle n'est pas traitee, l'ecran
+// affiche SES informations (montant + code) au lieu du formulaire de
+// creation - sinon le code n'etait visible qu'une fois, juste apres l'envoi,
+// et disparaissait completement si l'agent fermait la sheet avant de l'avoir
+// note. Des qu'elle est approuvee ou rejetee, le formulaire redevient
+// disponible normalement.
 function shRecharge(b){
+  b.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
+  apiCall('/agent?action=recharge-history','GET',null,getToken()).then(function(res){
+    var pending = res && res.success && res.data && res.data.requests
+      ? res.data.requests.find(function(r){ return r.status==='pending'; }) : null;
+    if(pending){ renderPendingRecharge(b, pending); }
+    else { renderRechargeForm(b); }
+  }).catch(function(){ renderRechargeForm(b); });
+}
+function renderRechargeForm(b){
   b.innerHTML='<div class="frow"><label class="flabel">'+t('rec_amount')+'</label><input class="finput" id="rec-amount" type="number" inputmode="numeric"></div>'
     +'<div class="frow"><label class="flabel">'+t('rec_note')+'</label><input class="finput" id="rec-note"></div>'
     +'<div class="fee-note">'+t('rec_hint')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="rec-submit-btn" onclick="doRequestRecharge()">'+t('rec_btn')+'</button>'
     +'<div id="rec-result"></div>'
+    +'<a onclick="shRechargeHistory(document.getElementById(\'sh-body\'))" style="display:block;text-align:center;margin-top:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('rec_history_title')+'</a>';
+}
+function renderPendingRecharge(b, r){
+  var loc=APP.lang==='en'?'en-US':'fr-FR';
+  b.innerHTML='<div class="fee-note free" style="text-align:center">'
+    +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t('rec_pending_title')+'</div>'
+    +'<div style="font-size:22px;font-weight:900">'+fmt(r.amount)+' '+curSuffix()+'</div>'
+    +(r.note ? '<div style="font-size:12px;color:var(--t2);margin-top:4px">'+r.note+'</div>' : '')
+    +'<div style="font-size:11px;color:var(--t3);margin-top:8px">'+t('rec_code_label')+'</div>'
+    +'<div style="font-size:26px;font-weight:900;letter-spacing:5px;margin-top:4px;color:var(--gd)">'+r.confirmation_code+'</div>'
+    +'<div style="font-size:11px;color:var(--t3);margin-top:8px">'+new Date(r.created_at).toLocaleString(loc)+'</div>'
+    +'</div>'
+    +'<button class="btn-w" onclick="shRecharge(document.getElementById(\'sh-body\'))">'+t('rec_pending_refresh')+'</button>'
     +'<a onclick="shRechargeHistory(document.getElementById(\'sh-body\'))" style="display:block;text-align:center;margin-top:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('rec_history_title')+'</a>';
 }
 function doRequestRecharge(){
@@ -1746,10 +1777,7 @@ function doRequestRecharge(){
     btn.disabled=false; btn.textContent=t('rec_btn');
     if(res && res.success){
       toast(t('rec_success'));
-      var resBox=document.getElementById('rec-result');
-      if(resBox && res.data && res.data.confirmation_code){
-        resBox.innerHTML='<div class="fee-note" style="margin-top:12px;text-align:center"><b>'+t('rec_code_label')+'</b><div style="font-size:24px;font-weight:900;letter-spacing:4px;margin-top:6px;color:var(--gd)">'+res.data.confirmation_code+'</div></div>';
-      }
+      renderPendingRecharge(document.getElementById('sh-body'), {amount:amount, note:note, confirmation_code:res.data.confirmation_code, created_at:new Date().toISOString()});
     } else {
       toast((res&&res.message)||t('rec_err_generic'), true);
     }

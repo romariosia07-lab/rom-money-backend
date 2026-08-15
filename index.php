@@ -3033,6 +3033,11 @@ function agent_request_recharge() {
     $amount = (float)($b['amount'] ?? 0);
     $note = trim($b['note'] ?? '');
     if($amount<=0) fail('Montant invalide');
+    // Une seule demande en attente a la fois : sinon deux codes differents
+    // coexistent pour le meme agent, risque de confusion (mauvais code
+    // communique) et de double recharge si les deux finissent approuvees.
+    $existing = q("SELECT id FROM agent_recharge_requests WHERE agent_id=? AND status='pending'",[$pl['sub']])->fetch();
+    if($existing) fail("Vous avez deja une demande de recharge en attente - attendez qu'elle soit traitee (ou refusee) avant d'en faire une nouvelle", 422);
     $id = uid();
     // Code a 6 chiffres que l'agent devra communiquer en personne (verbalement,
     // par appel...) a celui qui approuve - preuve d'un contact reel entre les
