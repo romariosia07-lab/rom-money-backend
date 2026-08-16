@@ -4296,6 +4296,21 @@ function route_kyc($action) {
 function check_admin_password($b) {
     check_admin_password_str((string)($b['admin_password'] ?? ''));
 }
+// Resout QUEL admin correspond a ce mot de passe : soit ADMIN_PASSWORD (le
+// mot de passe partage d'origine, toujours valable - attribue a "Admin
+// Principal"), soit l'un des comptes nommes admin_accounts (mot de passe
+// individuel par personne, pour que le journal d'audit indique qui a fait
+// quoi). Tous les comptes ont exactement les memes acces - aucune
+// restriction par compte, uniquement une identification. Retourne null si
+// aucune correspondance.
+function resolve_admin_name($pw) {
+    if($pw !== '' && hash_equals(ADMIN_PASSWORD, $pw)) return 'Admin Principal';
+    $accounts = q("SELECT name, password_hash FROM admin_accounts WHERE active=1")->fetchAll();
+    foreach($accounts as $a){
+        if(password_verify($pw, $a['password_hash'])) return $a['name'];
+    }
+    return null;
+}
 // Verifie le mot de passe admin ET applique le meme verrou anti-devinette
 // que l'ecran de connexion (partage le meme compteur audit_logs) : avant,
 // seul admin/login etait protege contre le brute-force, les ~34 autres
@@ -4304,10 +4319,15 @@ function check_admin_password($b) {
 // verrou.
 function check_admin_password_str($pw) {
     admin_bruteforce_check();
-    if(!hash_equals(ADMIN_PASSWORD, $pw)) {
+    $name = resolve_admin_name($pw);
+    if($name === null) {
         admin_log('admin_login','failed',null,dk('d_wrong_password'));
         fail('Mot de passe admin incorrect',401);
     }
+    // Ramasse par admin_log() ci-dessous pour attribuer chaque entree du
+    // journal a la bonne personne, sans devoir modifier la signature de
+    // check_admin_password() dans ses ~80 points d'appel.
+    $GLOBALS['_current_admin_name'] = $name;
 }
 
 // Meme logique anti-devinette que admin_bruteforce_check(), mais comptee
@@ -5177,6 +5197,9 @@ function route_admin($action) {
         'merchant-test-credit-wallet' => admin_merchant_test_credit_wallet(),
         'late-cancel'       => admin_late_cancel(),
         'audit-list'        => admin_audit_list(),
+        'accounts-list'     => admin_accounts_list(),
+        'accounts-create'   => admin_accounts_create(),
+        'accounts-set-active' => admin_accounts_set_active(),
         'dashboard-stats'   => admin_dashboard_stats(),
         'audit-export-xlsx' => admin_audit_export_xlsx(),
         'audit-export-pdf'  => admin_audit_export_pdf(),
@@ -5390,8 +5413,13 @@ function admin_log($action, $result, $targetPhone, $details) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
     $stored = is_array($details) ? ('I18N::'.json_encode($details, JSON_UNESCAPED_UNICODE)) : $details;
-    q("INSERT INTO audit_logs (action,result,target_phone,details,ip_address,user_agent) VALUES (?,?,?,?,?,?)",
-      [$action,$result,$targetPhone,$stored,$ip,$ua]);
+    // Renseigne par check_admin_password_str() plus tot dans la meme requete
+    // - null pour les tres rares appels sans mot de passe admin prealable
+    // (ex: echec de connexion, ou le mot de passe teste ne correspond a
+    // personne - voir admin_login pas de nom resolu).
+    $adminName = $GLOBALS['_current_admin_name'] ?? null;
+    q("INSERT INTO audit_logs (action,result,target_phone,details,ip_address,user_agent,admin_name) VALUES (?,?,?,?,?,?,?)",
+      [$action,$result,$targetPhone,$stored,$ip,$ua,$adminName]);
     admin_notify_if_sensitive($action, $result, $targetPhone, $stored, $ip);
 }
 // Raccourci pour construire une entree traduisible sans repeter la structure
@@ -6552,6 +6580,48 @@ function admin_list_frozen() {
     ok(['frozen'=>$rows]);
 }
 
+// ── COMPTES ADMIN NOMMES ── identification uniquement (voir
+// resolve_admin_name()) : tous les comptes ont les memes acces complets que
+// le mot de passe partage ADMIN_PASSWORD, qui reste toujours valable en
+// parallele. Createur/gestionnaire = n'importe qui connait deja un mot de
+// passe admin valide (aucune hierarchie entre comptes).
+function admin_accounts_list() {
+    $b = body();
+    check_admin_password($b);
+    $rows = q("SELECT id,name,active,created_at FROM admin_accounts ORDER BY created_at ASC")->fetchAll();
+    ok(['accounts'=>$rows]);
+}
+function admin_accounts_create() {
+    $b = body();
+    check_admin_password($b);
+    $name = trim($b['name'] ?? '');
+    $pw = (string)($b['password'] ?? '');
+    if(!$name) fail('Le nom est requis');
+    if(mb_strlen($pw) < 6) fail('Le mot de passe doit contenir au moins 6 caracteres');
+    if($name === 'Admin Principal') fail('Ce nom est reserve');
+    $exists = q("SELECT id FROM admin_accounts WHERE name=?",[$name])->fetch();
+    if($exists) fail('Un compte avec ce nom existe deja');
+    q("INSERT INTO admin_accounts (name,password_hash) VALUES (?,?)",[$name,password_hash($pw,PASSWORD_BCRYPT)]);
+    admin_log('admin_account_create','success',null,dk('d_ref_with_reason',['ref'=>$name,'reason'=>'Nouveau compte admin']));
+    ok(null,'Compte cree');
+}
+// Desactivation plutot que suppression : garde l'historique du journal
+// d'audit coherent (les entrees passees restent attribuees a ce nom), et
+// reste reversible en cas d'erreur - meme principe deja etabli partout
+// ailleurs dans ce projet (blocage plutot que suppression definitive).
+function admin_accounts_set_active() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    $active = !empty($b['active']) ? 1 : 0;
+    if(!$id) fail('Compte requis');
+    $acc = q("SELECT name FROM admin_accounts WHERE id=?",[$id])->fetch();
+    if(!$acc) fail('Compte introuvable',404);
+    q("UPDATE admin_accounts SET active=? WHERE id=?",[$active,$id]);
+    admin_log($active ? 'admin_account_reactivate' : 'admin_account_deactivate','success',null,dk('d_ref_with_reason',['ref'=>$acc['name'],'reason'=>$active?'Reactive':'Desactive']));
+    ok(null,'Compte mis a jour');
+}
+
 function admin_audit_list() {
     $b = body();
     check_admin_password($b);
@@ -6608,12 +6678,13 @@ function admin_audit_export_xlsx() {
     $rows = admin_audit_get_rows();
 
     $data = [];
-    $data[] = [[ 'Date',1,'s' ], [ 'Action',1,'s' ], [ 'Resultat',1,'s' ], [ 'Compte',1,'s' ], [ 'Details',1,'s' ]];
+    $data[] = [[ 'Date',1,'s' ], [ 'Action',1,'s' ], [ 'Resultat',1,'s' ], [ 'Admin',1,'s' ], [ 'Compte',1,'s' ], [ 'Details',1,'s' ]];
     foreach($rows as $l){
         $data[] = [
             [ date('d/m/Y H:i', strtotime($l['created_at'])), 2, 's' ],
             [ admin_audit_action_label($l['action']), 2, 's' ],
             [ admin_audit_result_label($l['result']), 2, 's' ],
+            [ $l['admin_name'] ?: 'Inconnu', 2, 's' ],
             [ $l['target_phone'] ?: '-', 2, 's' ],
             [ $l['details'] ?: '', 2, 's' ]
         ];
@@ -6652,8 +6723,8 @@ function admin_audit_export_pdf() {
 
     $pdf->SetFont('Arial','B',9);
     $pdf->SetFillColor(230,241,251);
-    $w = [26,38,22,30,74];
-    $headers = ['Date','Action','Resultat','Compte','Details'];
+    $w = [24,34,20,26,26,60];
+    $headers = ['Date','Action','Resultat','Admin','Compte','Details'];
     foreach($headers as $i=>$h){ $pdf->Cell($w[$i],8,pdf_str($h),1,0,'C',true); }
     $pdf->Ln();
 
@@ -6662,8 +6733,9 @@ function admin_audit_export_pdf() {
         $pdf->Cell($w[0],7,date('d/m/y H:i',strtotime($l['created_at'])),1);
         $pdf->Cell($w[1],7,pdf_str(admin_audit_action_label($l['action'])),1);
         $pdf->Cell($w[2],7,pdf_str(admin_audit_result_label($l['result'])),1);
-        $pdf->Cell($w[3],7,pdf_str($l['target_phone'] ?: '-'),1);
-        $pdf->Cell($w[4],7,substr(pdf_str($l['details'] ?: ''),0,58),1);
+        $pdf->Cell($w[3],7,pdf_str($l['admin_name'] ?: 'Inconnu'),1);
+        $pdf->Cell($w[4],7,pdf_str($l['target_phone'] ?: '-'),1);
+        $pdf->Cell($w[5],7,substr(pdf_str($l['details'] ?: ''),0,46),1);
         $pdf->Ln();
     }
 
@@ -8699,6 +8771,24 @@ function route_install() {
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20)",
     "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT",
+    // Qui a fait quoi : nom resolu depuis le mot de passe utilise (voir
+    // resolve_admin_name()) - "Admin Principal" (ADMIN_PASSWORD partage) ou
+    // le nom d'un compte admin_accounts. NULL pour les entrees anterieures
+    // a cette fonctionnalite (aucun moyen de savoir qui, a l'epoque il n'y
+    // avait qu'un seul mot de passe partage sans identite associee).
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS admin_name VARCHAR(100)",
+    // Comptes admin nommes : IDENTIFICATION uniquement, pas de restriction
+    // d'acces (decision explicite - tous les comptes ont les memes acces
+    // complets que le mot de passe partage ADMIN_PASSWORD, qui reste
+    // toujours valable en parallele comme filet de securite). Objectif
+    // unique : savoir qui a fait quoi dans le journal d'audit.
+    "CREATE TABLE IF NOT EXISTS admin_accounts (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        active SMALLINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
     "CREATE TABLE IF NOT EXISTS waitlist (
         id SERIAL PRIMARY KEY,
         phone VARCHAR(20) NOT NULL,

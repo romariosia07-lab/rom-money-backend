@@ -917,6 +917,17 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
+        <div class="admin-stitle" data-i18n-admin="admin_accounts_title">👥 Comptes admin</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_accounts_desc">Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Tous les comptes ont exactement les mêmes accès complets, aucune restriction.</div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_name_label">Nom</label><input class="finput" id="admacc-name" placeholder="Ex: Kofi"></div>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_password_label">Mot de passe (6 caractères minimum)</label><input class="finput" id="admacc-password" type="password"></div>
+        <button class="btn-g" onclick="adminCreateAccount()" data-i18n-admin="admin_accounts_create_btn">Créer ce compte</button>
+        <div id="admacc-create-status" style="margin:10px 0;font-size:12px"></div>
+        <button class="btn-w" style="margin-top:14px" onclick="adminLoadAccounts()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
+        <div id="admacc-list-box" style="margin-top:10px"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
+      </div>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
         <div class="admin-stitle" data-i18n-admin="admin_backfill_title">✓ Comptes vérifiés — noms manquants</div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_backfill_desc">Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n'a pas été enregistré (typiquement des comptes approuvés avant l'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.</div>
         <button class="btn-g" onclick="adminBackfillVerifiedNames()" data-i18n-admin="admin_backfill_btn">Corriger les comptes déjà vérifiés</button>
@@ -1968,6 +1979,21 @@ var I18N = {
   admin_kyc_encrypt_title: {fr:'🔒 Chiffrement des photos KYC', en:'🔒 KYC photo encryption'},
   admin_kyc_encrypt_desc: {fr:'Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.', en:'New KYC requests are encrypted automatically. This button also encrypts requests already in the database, sent before this update. No effect on those already encrypted — can be run again safely.'},
   admin_kyc_encrypt_btn: {fr:'Chiffrer les anciennes photos KYC', en:'Encrypt old KYC photos'},
+  admin_accounts_title: {fr:'👥 Comptes admin', en:'👥 Admin accounts'},
+  admin_accounts_desc: {fr:"Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Tous les comptes ont exactement les mêmes accès complets, aucune restriction.", en:"Give each person who needs admin access their own password (in addition to the shared password, which stays valid) — the audit log then shows who did what. All accounts have exactly the same full access, no restrictions."},
+  admin_accounts_name_label: {fr:'Nom', en:'Name'},
+  admin_accounts_password_label: {fr:'Mot de passe (6 caractères minimum)', en:'Password (6 characters minimum)'},
+  admin_accounts_create_btn: {fr:'Créer ce compte', en:'Create this account'},
+  admin_accounts_err_name: {fr:'Le nom est requis', en:'Name is required'},
+  admin_accounts_err_password: {fr:'Le mot de passe doit contenir au moins 6 caractères', en:'Password must be at least 6 characters'},
+  admin_accounts_created_toast: {fr:'Compte créé', en:'Account created'},
+  admin_accounts_updated_toast: {fr:'Compte mis à jour', en:'Account updated'},
+  admin_accounts_empty: {fr:'Aucun compte admin nommé pour le moment.', en:'No named admin account yet.'},
+  admin_accounts_status_active: {fr:'Actif', en:'Active'},
+  admin_accounts_status_inactive: {fr:'Désactivé', en:'Deactivated'},
+  admin_accounts_deactivate_btn: {fr:'Désactiver', en:'Deactivate'},
+  admin_accounts_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
+  admin_accounts_unknown: {fr:'Inconnu (avant cette fonctionnalité)', en:'Unknown (before this feature)'},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -2054,6 +2080,9 @@ var I18N = {
   action_delete_kyc: {fr:"Suppression d'une demande KYC", en:'KYC request deleted'},
   action_exchange_rates_refresh: {fr:'Taux de change actualisés', en:'Exchange rates refreshed'},
   action_kyc_migrate_encrypt: {fr:'Chiffrement des anciennes photos KYC', en:'Old KYC photos encrypted'},
+  action_admin_account_create: {fr:'Création d\'un compte admin', en:'Admin account created'},
+  action_admin_account_deactivate: {fr:'Désactivation d\'un compte admin', en:'Admin account deactivated'},
+  action_admin_account_reactivate: {fr:'Réactivation d\'un compte admin', en:'Admin account reactivated'},
   admin_header_subtitle: {fr:'Espace sécurisé', en:'Secure area'},
   d_wrong_password: {fr:'Mot de passe incorrect', en:'Incorrect password'},
   d_2fa_invalid: {fr:'Code 2FA invalide', en:'Invalid 2FA code'},
@@ -2805,7 +2834,7 @@ function TYPE_FR_GET(key){
   return map[key] ? at(map[key]) : null;
 }
 function ACTION_FR_GET(action){
-  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings',backfill_verified_names:'action_backfill_verified_names',delete_kyc:'action_delete_kyc',exchange_rates_refresh:'action_exchange_rates_refresh',kyc_migrate_encrypt:'action_kyc_migrate_encrypt'};
+  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings',backfill_verified_names:'action_backfill_verified_names',delete_kyc:'action_delete_kyc',exchange_rates_refresh:'action_exchange_rates_refresh',kyc_migrate_encrypt:'action_kyc_migrate_encrypt',admin_account_create:'action_admin_account_create',admin_account_deactivate:'action_admin_account_deactivate',admin_account_reactivate:'action_admin_account_reactivate'};
   return map[action] ? at(map[action]) : null;
 }
 function RESULT_FR_GET(result){
@@ -5661,6 +5690,7 @@ function adminLoadAuditLog(){
       box.innerHTML=logs.map(function(l){
         return '<div class="admin-audit-row">'
           +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR_GET(l.action)||l.action)+'</b>'+resultPill(l.result)+'</div>'
+          +'<div style="color:var(--gd);font-weight:700;margin-top:3px">👤 '+(l.admin_name?adminEsc(l.admin_name):at('admin_accounts_unknown'))+'</div>'
           +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
           +'<div style="color:var(--t2);margin-top:2px">'+translateAuditDetail(l.details)+'</div>'
           +(l.ip_address?'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+at('admin_audit_ip_label').replace('{ip}',l.ip_address)+(l.user_agent?' — '+parseUserAgent(l.user_agent):'')+'</div>':'')
@@ -6170,6 +6200,48 @@ function adminRefreshExchangeRates(){
       toast((res&&res.message)||at('admin_error_generic'), true);
     }
   }).catch(function(){ if(statusBox) statusBox.textContent=''; toast(at('admin_dash_error_network'), true); });
+}
+// ── COMPTES ADMIN NOMMES (identification uniquement, memes acces pour tous) ──
+function adminCreateAccount(){
+  var name=document.getElementById('admacc-name').value.trim();
+  var pw=document.getElementById('admacc-password').value;
+  var statusBox=document.getElementById('admacc-create-status');
+  if(!name){ toast(at('admin_accounts_err_name'), true); return; }
+  if(pw.length<6){ toast(at('admin_accounts_err_password'), true); return; }
+  apiCall('/admin?action=accounts-create','POST',{admin_password:window._adminPw,name:name,password:pw},'').then(function(res){
+    if(res&&res.success){
+      toast(at('admin_accounts_created_toast'));
+      document.getElementById('admacc-name').value=''; document.getElementById('admacc-password').value='';
+      if(statusBox) statusBox.textContent='';
+      adminLoadAccounts();
+    } else {
+      toast((res&&res.message)||at('admin_error_generic'), true);
+    }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminLoadAccounts(){
+  var box=document.getElementById('admacc-list-box');
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  apiCall('/admin?action=accounts-list','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.accounts){
+      var list=res.data.accounts;
+      if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_accounts_empty')+'</div>'; return; }
+      var html='';
+      list.forEach(function(a){
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid var(--bord);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+          +'<div><b style="color:var(--t1)">'+adminEsc(a.name)+'</b><div style="font-size:10px;color:var(--t3)">'+new Date(a.created_at).toLocaleDateString()+' — '+(a.active?at('admin_accounts_status_active'):at('admin_accounts_status_inactive'))+'</div></div>'
+          +'<button style="padding:6px 12px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(a.active?'var(--rl)':'var(--gl)')+';color:'+(a.active?'var(--re)':'var(--g)')+'" onclick="adminSetAccountActive('+a.id+','+(a.active?0:1)+')">'+(a.active?at('admin_accounts_deactivate_btn'):at('admin_accounts_reactivate_btn'))+'</button>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+    } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminSetAccountActive(id, active){
+  apiCall('/admin?action=accounts-set-active','POST',{admin_password:window._adminPw,id:id,active:active},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_accounts_updated_toast')); adminLoadAccounts(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminBackfillVerifiedNames(){
   var statusBox = document.getElementById('admin-backfill-status');
