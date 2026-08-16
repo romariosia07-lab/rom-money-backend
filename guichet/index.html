@@ -300,7 +300,6 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
       </div>
       <div class="section">
         <div class="card" style="padding:0;overflow:hidden" id="profil-menu">
-          <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('recharge-history')"><div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_recharge_history">Historique de mes recharges</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('change-pin')"><div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_change_pin">Changer le PIN</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('appearance')"><div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_appearance">Apparence</span></div>
           <div class="tx-row" style="padding:14px 16px;cursor:pointer" onclick="openSheet('devices')"><div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg></div><span style="font-size:14px;font-weight:600" data-i18n="profil_devices">Mes appareils</span></div>
@@ -417,7 +416,6 @@ var I18N = {
   nav_home:{fr:'Accueil',en:'Home'},
   nav_history:{fr:'Historique',en:'History'},
   nav_profile:{fr:'Profil',en:'Profile'},
-  profil_recharge_history:{fr:'Historique de mes recharges',en:'My recharge history'},
   profil_change_pin:{fr:'Changer le PIN',en:'Change PIN'},
   profil_appearance:{fr:'Apparence',en:'Appearance'},
   profil_devices:{fr:'Mes appareils',en:'My devices'},
@@ -533,6 +531,7 @@ var I18N = {
   rec_status_pending:{fr:'En attente',en:'Pending'},
   rec_status_approved:{fr:'Approuvée',en:'Approved'},
   rec_status_rejected:{fr:'Rejetée',en:'Rejected'},
+  rec_status_expired:{fr:'Expirée',en:'Expired'},
   find_use_location:{fr:'📍 Utiliser ma position',en:'📍 Use my location'},
   find_city_ph:{fr:'Ou entrez une ville',en:'Or enter a city'},
   find_search_btn:{fr:'Rechercher',en:'Search'},
@@ -1391,7 +1390,6 @@ function resetHistFilter(){
 // ── SHEETS ──
 var SHEET_TITLE_KEYS={
   'depot':'sheet_title_depot','retrait':'sheet_title_retrait','envoyer':'sheet_title_envoyer','recharge':'sheet_title_recharge',
-  'recharge-history':'rec_history_title',
   'gains':'sheet_title_gains','send-earnings':'sheet_title_send_earnings',
   'find-distributors':'sheet_title_find_distributors','incoming-recharges':'sheet_title_incoming_recharges',
   'set-location':'sheet_title_set_location','change-pin':'sheet_title_change_pin','devices':'sheet_title_devices',
@@ -1470,7 +1468,6 @@ function buildSheet(type, b, extra){
   else if(type==='retrait') shRetrait(b);
   else if(type==='envoyer') shEnvoyerTiers(b);
   else if(type==='recharge') shRecharge(b);
-  else if(type==='recharge-history') shRechargeHistory(b);
   else if(type==='gains') shGains(b);
   else if(type==='send-earnings') shSendEarnings(b);
   else if(type==='find-distributors') shFindDistributors(b);
@@ -2073,7 +2070,7 @@ function shRechargeHistory(b){
       var reqs=res.data.requests||[];
       if(!reqs.length){ b.innerHTML='<div class="empty-note">'+t('rec_history_empty')+'</div>'; return; }
       var loc=APP.lang==='en'?'en-US':'fr-FR';
-      var statusColor={pending:'var(--gd)',approved:'var(--gold)',rejected:'var(--re)'};
+      var statusColor={pending:'var(--gd)',approved:'var(--gold)',rejected:'var(--re)',expired:'var(--t3)'};
       var h='';
       reqs.forEach(function(r){
         h+='<div class="card" style="margin-bottom:8px;padding:12px">'

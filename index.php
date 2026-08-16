@@ -3142,8 +3142,21 @@ function agent_request_recharge() {
     q("INSERT INTO agent_recharge_requests (id,agent_id,amount,note,confirmation_code) VALUES (?,?,?,?,?)",[$id,$pl['sub'],$amount,$note?:null,$code]);
     ok(['id'=>$id,'confirmation_code'=>$code],'Demande de recharge envoyee');
 }
+// Annule automatiquement (avec raison) toute demande de recharge encore
+// 'pending' passe 24h, pour la securite : un code de confirmation ne doit
+// jamais rester utilisable indefiniment. Pas de tache planifiee dans ce
+// projet - meme principe "verifie a l'usage" que agent_confirm_cash_out()
+// pour agent_cashout_requests (expires_at, 10 min), applique ici a chaque
+// point d'entree qui lit ou agit sur ces demandes.
+function agent_expire_stale_recharge_requests() {
+    q("UPDATE agent_recharge_requests SET status='expired', reject_reason=?, reviewed_at=NOW()
+       WHERE status='pending' AND created_at < NOW() - INTERVAL '24 hours'",
+      ['Demande expiree automatiquement apres 24h sans traitement']);
+}
+
 function agent_recharge_history() {
     $pl = agent_auth();
+    agent_expire_stale_recharge_requests();
     // confirmation_code inclus ici uniquement : c'est LE demandeur qui doit
     // pouvoir le retrouver pour le communiquer a celui qui approuve.
     // reference (uniquement renseignee une fois approuvee) sert de preuve
@@ -3164,6 +3177,7 @@ function agent_list_incoming_recharge_requests() {
     $pl = agent_auth();
     $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
+    agent_expire_stale_recharge_requests();
     $rows = q("SELECT r.id,r.amount,r.note,r.created_at,a.full_name,a.phone_number
         FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
         WHERE r.status='pending' AND r.agent_id!=? ORDER BY r.created_at ASC",[$pl['sub']])->fetchAll();
@@ -3178,6 +3192,7 @@ function agent_distributor_history() {
     $pl = agent_auth();
     $me = q("SELECT is_distributor FROM agents WHERE id=?",[$pl['sub']])->fetch();
     if(!$me || !$me['is_distributor']) fail("Vous n'etes pas enregistre comme distributeur", 403);
+    agent_expire_stale_recharge_requests();
     $rows = q("SELECT r.id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,r.reference,a.full_name,a.phone_number
         FROM agent_recharge_requests r JOIN agents a ON a.id=r.agent_id
         WHERE r.distributor_id=? ORDER BY r.reviewed_at DESC LIMIT 100",[$pl['sub']])->fetchAll();
@@ -3198,8 +3213,10 @@ function agent_approve_recharge_request() {
     // (meme principe que requirePin() cote personnel/marchand) : c'est SON
     // argent qui sort de son float, une session deja ouverte ne suffit pas.
     agent_pin_check($pl['sub'], $pin, $me['pin_hash']);
+    agent_expire_stale_recharge_requests();
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
+    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 24h sans traitement), le demandeur doit en refaire une', 410);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if($r['agent_id'] === $pl['sub']) fail('Vous ne pouvez pas approuver votre propre demande', 422);
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
@@ -3249,6 +3266,7 @@ function agent_reject_recharge_request() {
     $id = trim($b['id'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$id) fail('Demande requise');
+    agent_expire_stale_recharge_requests();
     // File partagee : n'importe quel distributeur peut decliner une demande
     // en attente (etat terminal, comme avant - un agent decline devra
     // refaire une demande plutot que de "faire le tour" des distributeurs).
@@ -7451,6 +7469,7 @@ function admin_agent_list_recharge_requests() {
     $b = body();
     check_admin_password($b);
     $status = trim($b['status'] ?? 'pending');
+    agent_expire_stale_recharge_requests();
     // dist_name/dist_phone n'est renseigne qu'une fois la demande traitee
     // (approuvee/rejetee) - qui l'a servie, jamais un ciblage a l'avance
     // (file d'attente partagee entre tous les distributeurs + admin, voir
@@ -7480,8 +7499,10 @@ function admin_agent_approve_recharge() {
     $code = trim($b['code'] ?? '');
     if(!$id) fail('Demande requise');
     if(!$code) fail('Code de confirmation requis');
+    agent_expire_stale_recharge_requests();
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
+    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 24h sans traitement), le demandeur doit en refaire une', 410);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
     $aw = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
@@ -7523,6 +7544,7 @@ function admin_agent_reject_recharge() {
     $reason = trim($b['reason'] ?? '');
     if(!$id) fail('Demande requise');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
+    agent_expire_stale_recharge_requests();
     $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$reason,$id])->rowCount();
     if(!$n) fail('Demande introuvable ou deja traitee',404);
     admin_log('agent_recharge_reject','success',null,$reason);
