@@ -249,6 +249,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
   <div class="app-header">
     <div class="bal-label" style="padding-top:4px"><span data-i18n="bal_label">Float disponible</span></div>
     <div class="bal-amt"><span id="hdr-balance">— —</span><span class="cur" id="hdr-cur">FCFA</span> <span onclick="toggleBalanceVisibility()" id="bal-eye" style="cursor:pointer;font-size:16px;opacity:.75;margin-left:4px;vertical-align:middle">👁</span></div>
+    <div id="dist-badge" style="display:none;margin-top:6px;background:var(--g);color:var(--gdd);border-radius:8px;padding:3px 10px;font-size:11px;font-weight:800;letter-spacing:.3px">🏅 <span data-i18n="dist_badge_label">Distributeur</span></div>
   </div>
 
   <div class="qa-grid">
@@ -259,6 +260,8 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
     <button class="qa" onclick="openSheet('gains')"><div class="qa-ico">💰</div><span class="qa-lbl" data-i18n="qa_gains">Gain</span></button>
     <button class="qa" onclick="openSheet('find-distributors')"><div class="qa-ico">📍</div><span class="qa-lbl" data-i18n="qa_distributeurs">Distributeurs</span></button>
   </div>
+
+  <div id="dist-status-banner"></div>
 
   <div id="main-scroll">
     <div class="page" id="pg-home">
@@ -479,6 +482,9 @@ var I18N = {
   sheet_title_recharge:{fr:'Recharger mon float',en:'Recharge my float'},
   sheet_title_find_distributors:{fr:'Trouver un distributeur',en:'Find a distributor'},
   sheet_title_incoming_recharges:{fr:'Demandes de recharge entrantes',en:'Incoming recharge requests'},
+  dist_badge_label:{fr:'Distributeur',en:'Distributor'},
+  dist_pending_banner_title:{fr:'{n} demande(s) de recharge en attente',en:'{n} pending recharge request(s)'},
+  dist_pending_banner_sub:{fr:'Appuyez pour les traiter',en:'Tap to review them'},
   sheet_title_change_pin:{fr:'Changer le PIN',en:'Change PIN'},
   sheet_title_devices:{fr:'Mes appareils',en:'My devices'},
   sheet_title_account_switch:{fr:'Mes comptes',en:'My accounts'},
@@ -1248,7 +1254,10 @@ function refreshBalance(){
   });
 }
 function updateDistributorMenu(){
+  var badge=document.getElementById('dist-badge');
+  if(badge) badge.style.display = APP.isDistributor ? 'block' : 'none';
   var menu=document.getElementById('profil-menu');
+  var banner=document.getElementById('dist-status-banner');
   if(!menu) return;
   var existing=document.getElementById('menu-dist-requests');
   if(existing) existing.remove();
@@ -1259,7 +1268,7 @@ function updateDistributorMenu(){
     row.className='tx-row'; row.id='menu-dist-requests';
     row.style.cssText='padding:14px 16px;cursor:pointer';
     row.onclick=function(){ openSheet('incoming-recharges'); };
-    row.innerHTML='<div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></div><span style="font-size:14px;font-weight:600">'+t('sheet_title_incoming_recharges')+'</span>';
+    row.innerHTML='<div class="set-ico" style="background:rgba(227,151,15,.14);color:var(--gd)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></div><span style="font-size:14px;font-weight:600">'+t('sheet_title_incoming_recharges')+'</span><span id="dist-req-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;font-weight:800"></span>';
     menu.insertBefore(row, menu.firstChild);
 
     var row2=document.createElement('div');
@@ -1268,7 +1277,30 @@ function updateDistributorMenu(){
     row2.onclick=function(){ openSheet('set-location'); };
     row2.innerHTML='<div class="set-ico" style="background:rgba(27,94,58,.12);color:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div><span style="font-size:14px;font-weight:600">Ma position</span>';
     menu.insertBefore(row2, menu.firstChild);
-  }
+
+    refreshIncomingRequestsBadge();
+  } else if(banner) { banner.innerHTML=''; }
+}
+// Visible directement sur l'accueil (pas seulement dans Profil) : un
+// distributeur avec des demandes de recharge en attente doit le savoir sans
+// avoir a aller chercher. Meme donnee que la file "Demandes de recharge
+// entrantes", juste affichee a deux endroits (bandeau accueil + badge Profil).
+function refreshIncomingRequestsBadge(){
+  apiCall('/agent?action=list-incoming-recharges','GET',null,getToken()).then(function(res){
+    var count = (res && res.success && res.data && res.data.requests) ? res.data.requests.length : 0;
+    var badge=document.getElementById('dist-req-badge');
+    if(badge){ badge.style.display = count>0 ? 'inline-block' : 'none'; badge.textContent = count>99 ? '99+' : String(count); }
+    var banner=document.getElementById('dist-status-banner');
+    if(!banner) return;
+    if(count>0){
+      banner.innerHTML='<div class="section" style="margin-top:14px"><div class="card" style="background:var(--gl);border:none;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openSheet(\'incoming-recharges\')">'
+        +'<div style="font-size:20px">🔔</div>'
+        +'<div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--gd)">'+t('dist_pending_banner_title').replace('{n}',count)+'</div><div style="font-size:11px;color:var(--t2)">'+t('dist_pending_banner_sub')+'</div></div>'
+        +'</div></div>';
+    } else {
+      banner.innerHTML='';
+    }
+  }).catch(function(){});
 }
 
 // ── NAVIGATION ──
@@ -2281,6 +2313,7 @@ function doApproveIncoming(id){
       if(res && res.success){
         toast(t('inc_approved'));
         refreshBalance();
+        refreshIncomingRequestsBadge();
         var b=document.getElementById('sh-body');
         if(b && document.getElementById('sh').classList.contains('on')) shIncomingRecharges(b);
       } else {
@@ -2297,6 +2330,7 @@ function doRejectIncoming(id){
       apiCall('/agent?action=reject-recharge-request','POST',{id:id},getToken()).then(function(res){
         if(res && res.success){
           toast(t('inc_rejected'));
+          refreshIncomingRequestsBadge();
           var b=document.getElementById('sh-body');
           if(b && document.getElementById('sh').classList.contains('on')) shIncomingRecharges(b);
         } else { toast((res&&res.message)||t('err_generic'), true); }
