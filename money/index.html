@@ -2691,6 +2691,9 @@ var I18N = {
   tx_cat_deposit: {fr:'Depot', en:'Deposit'},
   tx_cat_qr: {fr:'QR', en:'QR'},
   tx_cat_collect: {fr:'Encaissement', en:'Collection'},
+  tx_cat_agent_deposit: {fr:'Dépôt agent', en:'Agent deposit'},
+  tx_cat_agent_withdraw: {fr:'Retrait agent', en:'Agent withdrawal'},
+  tx_cat_agent_earnings_received: {fr:"Reçu d'un agent", en:'Received from agent'},
   tx_type_national_transfer: {fr:'Transfert National', en:'National Transfer'},
   stats_tooltip_received_prefix: {fr:'Reçu: ', en:'Received: '},
   stats_tooltip_sent_prefix: {fr:'Envoyé: ', en:'Sent: '},
@@ -3330,9 +3333,42 @@ function txCatLabel(tx, isCr){
     referral_bonus: t('tx_cat_referral_bonus'),
     qr: t('tx_cat_qr'),
     collect: t('tx_cat_collect'),
-    deposit: t('tx_cat_deposit')
+    deposit: t('tx_cat_deposit'),
+    agent_cash_in: t('tx_cat_agent_deposit'),
+    agent_cash_out: t('tx_cat_agent_withdraw'),
+    agent_earnings_received: t('tx_cat_agent_earnings_received')
   };
   return map.hasOwnProperty(k) ? map[k] : (tx.cat || k);
+}
+
+// Convertit une ligne brute de /transactions?action=history en objet txList
+// (nom, categorie, montant affiche...) - factorise depuis deux copies
+// identiques (chargement initial + refreshTxList()) qui derivaient toutes
+// les deux du meme bug : aucun cas pour les types agent_cash_in/agent_cash_out/
+// agent_earnings_send, qui retombaient sur "Inconnu"/la description brute
+// et la categorie generique "Depot" par defaut (voir tx_history() cote
+// backend, qui ne resolvait pas non plus de nom pour une contrepartie agent).
+// unkName/genPay sont precalcules par l'appelant (t() n'est pas utilisable
+// ici : le parametre local "t" de .map() masque la fonction globale t()).
+function mapHistoryTx(t, unkName, genPay){
+  var displayAmt = t.direction==='credit'
+    ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
+    : parseFloat(t.amount);
+  var CAT_MAP = {
+    transfer:['Transfert','transfer'], payment:['Achat','payment'], merchant_payment:['Marchand','merchant_payment'],
+    merchant_withdraw:['Virement marchand','merchant_withdraw'], bank_withdraw:['Retrait banque','bank_withdraw'],
+    bank_deposit:['Depot banque','bank_deposit'], referral_bonus:['Bonus parrainage','referral_bonus'],
+    agent_cash_in:['Depot agent','agent_cash_in'], agent_cash_out:['Retrait agent','agent_cash_out'],
+    agent_earnings_send:["Recu d'un agent",'agent_earnings_received']
+  };
+  var catEntry = CAT_MAP[t.type];
+  return {
+    id:t.id, name:t.direction==='credit'?(t.sender_name||unkName):(t.receiver_name||t.description||genPay),
+    legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
+    type:t.direction, amt:displayAmt,
+    cat: catEntry ? catEntry[0] : 'Depot', catKey: catEntry ? catEntry[1] : 'deposit',
+    ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
+  };
 }
 
 function ini(n){
@@ -7157,19 +7193,7 @@ function launchApp(){
     apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
       if(res&&res.success&&res.data&&res.data.transactions&&res.data.transactions.length>0){
         var _unkName = t('tx_unknown_sender'), _genPay = t('tx_generic_payment');
-        txList=res.data.transactions.map(function(t){
-          var displayAmt = t.direction==='credit'
-            ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
-            : parseFloat(t.amount);
-          return {
-            id:t.id, name:t.direction==='credit'?(t.sender_name||_unkName):(t.receiver_name||t.description||_genPay),
-            legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
-            type:t.direction, amt:displayAmt,
-            cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-            catKey:t.type==='transfer'?'transfer':t.type==='payment'?'payment':t.type==='merchant_payment'?'merchant_payment':t.type==='merchant_withdraw'?'merchant_withdraw':t.type==='bank_withdraw'?'bank_withdraw':t.type==='bank_deposit'?'bank_deposit':t.type==='referral_bonus'?'referral_bonus':'deposit',
-            ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
-          };
-        });
+        txList=res.data.transactions.map(function(tr){ return mapHistoryTx(tr, _unkName, _genPay); });
         renderTx('home'); save();
       }
     });
@@ -9759,18 +9783,7 @@ function refreshTxList(){
   return apiCall('/transactions?action=history&limit=20','GET',null,tok).then(function(res){
     if(res&&res.success&&res.data&&res.data.transactions){
       var _unkName = t('tx_unknown_sender'), _genPay = t('tx_generic_payment');
-      txList=res.data.transactions.map(function(t){
-        var displayAmt = t.direction==='credit'
-          ? (t.receiver_amount!=null ? parseFloat(t.receiver_amount) : (t.net_amount!=null ? parseFloat(t.net_amount) : parseFloat(t.amount)))
-          : parseFloat(t.amount);
-        return {
-          id:t.id, name:t.direction==='credit'?(t.sender_name||_unkName):(t.receiver_name||t.description||_genPay),
-          legalName:t.direction==='credit'?(t.sender_verified_name||null):(t.receiver_verified_name||null),
-          type:t.direction, amt:displayAmt,
-          cat:t.type==='transfer'?'Transfert':t.type==='payment'?'Achat':t.type==='merchant_payment'?'Marchand':t.type==='merchant_withdraw'?'Virement marchand':t.type==='bank_withdraw'?'Retrait banque':t.type==='bank_deposit'?'Depot banque':t.type==='referral_bonus'?'Bonus parrainage':'Depot',
-          ts:new Date(t.created_at).getTime(), ann:t.status==='cancelled', frozen:t.status==='frozen', channel:t.channel||'national', ref:t.reference, motif:t.description||''
-        };
-      });
+      txList=res.data.transactions.map(function(tr){ return mapHistoryTx(tr, _unkName, _genPay); });
     }
   }).catch(function(){});
 }

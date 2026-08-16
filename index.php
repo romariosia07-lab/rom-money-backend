@@ -3844,6 +3844,13 @@ function tx_cancel() {
     } catch(Exception $e) { db()->rollBack(); fail('Echec annulation',500); }
 }
 
+// ag_s/ag_r (agents, via agent_wallets) resolvent le nom d'un agent
+// ROM_GUICHET comme contrepartie - sans ca, un depot/retrait via agent ou un
+// envoi de gain (sender_agent_wallet_id/receiver_agent_wallet_id, jamais un
+// wallet personnel ni marchand) tombait dans aucune des jointures
+// existantes : "Inconnu" cote credit, le champ description brut affiche a
+// la place d'un nom cote debit (et le type de l'operation retombait sur la
+// categorie generique par defaut cote frontend, voir txCatKey()/mapHistoryTx()).
 function tx_history() {
     $pl  = auth();
     $page = max(1,(int)($_GET['page']??1));
@@ -3858,13 +3865,15 @@ function tx_history() {
     elseif($fil==='cancelled'){$where.=" AND t.status='cancelled'";}
     $txs = db()->prepare("SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END direction,
-        COALESCE(su.full_name, sm.business_name) sender_name, COALESCE(su.phone_number, sm.phone_number) sender_phone, su.verified_name sender_verified_name,
-        COALESCE(ru.full_name, rm.business_name) receiver_name, COALESCE(ru.phone_number, rm.phone_number) receiver_phone, ru.verified_name receiver_verified_name
+        COALESCE(su.full_name, sm.business_name, ag_s.full_name) sender_name, COALESCE(su.phone_number, sm.phone_number, ag_s.phone_number) sender_phone, su.verified_name sender_verified_name,
+        COALESCE(ru.full_name, rm.business_name, ag_r.full_name) receiver_name, COALESCE(ru.phone_number, rm.phone_number, ag_r.phone_number) receiver_phone, ru.verified_name receiver_verified_name
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
+        LEFT JOIN agent_wallets agw_s ON t.sender_agent_wallet_id=agw_s.id LEFT JOIN agents ag_s ON agw_s.agent_id=ag_s.id
+        LEFT JOIN agent_wallets agw_r ON t.receiver_agent_wallet_id=agw_r.id LEFT JOIN agents ag_r ON agw_r.agent_id=ag_r.id
         $where ORDER BY t.created_at DESC LIMIT $lim OFFSET $off");
     $txs->execute(array_merge([$wid],$params));
     ok(['transactions'=>$txs->fetchAll(),'page'=>$page,'limit'=>$lim]);
@@ -3877,13 +3886,15 @@ function tx_detail() {
     $wid = q("SELECT id FROM wallets WHERE user_id=?",[$pl['sub']])->fetchColumn();
     $tx = q("SELECT t.*,
         CASE WHEN t.sender_wallet_id=? THEN 'debit' ELSE 'credit' END direction,
-        COALESCE(su.full_name, sm.business_name) sender_name, su.verified_name sender_verified_name, su.country sender_country,
-        COALESCE(ru.full_name, rm.business_name) receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
+        COALESCE(su.full_name, sm.business_name, ag_s.full_name) sender_name, su.verified_name sender_verified_name, su.country sender_country,
+        COALESCE(ru.full_name, rm.business_name, ag_r.full_name) receiver_name, ru.verified_name receiver_verified_name, ru.country receiver_country
         FROM transactions t
         LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
+        LEFT JOIN agent_wallets agw_s ON t.sender_agent_wallet_id=agw_s.id LEFT JOIN agents ag_s ON agw_s.agent_id=ag_s.id
+        LEFT JOIN agent_wallets agw_r ON t.receiver_agent_wallet_id=agw_r.id LEFT JOIN agents ag_r ON agw_r.agent_id=ag_r.id
         WHERE t.id=? AND (t.sender_wallet_id=? OR t.receiver_wallet_id=?)",[$wid,$id,$wid,$wid])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
     $tx['can_cancel'] = $tx['status']==='completed' && $tx['direction']==='debit'
