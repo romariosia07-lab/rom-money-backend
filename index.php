@@ -5200,6 +5200,7 @@ function route_admin($action) {
         'accounts-list'     => admin_accounts_list(),
         'accounts-create'   => admin_accounts_create(),
         'accounts-set-active' => admin_accounts_set_active(),
+        'accounts-reset-password' => admin_accounts_reset_password(),
         'dashboard-stats'   => admin_dashboard_stats(),
         'audit-export-xlsx' => admin_audit_export_xlsx(),
         'audit-export-pdf'  => admin_audit_export_pdf(),
@@ -6595,7 +6596,11 @@ function admin_accounts_create() {
     $b = body();
     check_admin_password($b);
     $name = trim($b['name'] ?? '');
-    $pw = (string)($b['password'] ?? '');
+    // trim() ici pour rester coherent avec check_admin_password_str() /
+    // le champ de connexion frontend qui trim deja - sinon un espace de
+    // trop tape sans le voir a la creation rendait le compte injoignable
+    // des la connexion (le hash stocke ne correspondait plus jamais).
+    $pw = trim((string)($b['password'] ?? ''));
     if(!$name) fail('Le nom est requis');
     if(mb_strlen($pw) < 6) fail('Le mot de passe doit contenir au moins 6 caracteres');
     if($name === 'Admin Principal') fail('Ce nom est reserve');
@@ -6620,6 +6625,23 @@ function admin_accounts_set_active() {
     q("UPDATE admin_accounts SET active=? WHERE id=?",[$active,$id]);
     admin_log($active ? 'admin_account_reactivate' : 'admin_account_deactivate','success',null,dk('d_ref_with_reason',['ref'=>$acc['name'],'reason'=>$active?'Reactive':'Desactive']));
     ok(null,'Compte mis a jour');
+}
+// Sans ceci, un mot de passe mal saisi/oublie a la creation obligeait a
+// abandonner le nom choisi (unique en base) pour en recreer un autre - ici
+// on garde le meme compte (et donc son historique d'audit), juste un
+// nouveau mot de passe.
+function admin_accounts_reset_password() {
+    $b = body();
+    check_admin_password($b);
+    $id = (int)($b['id'] ?? 0);
+    $pw = trim((string)($b['password'] ?? ''));
+    if(!$id) fail('Compte requis');
+    if(mb_strlen($pw) < 6) fail('Le mot de passe doit contenir au moins 6 caracteres');
+    $acc = q("SELECT name FROM admin_accounts WHERE id=?",[$id])->fetch();
+    if(!$acc) fail('Compte introuvable',404);
+    q("UPDATE admin_accounts SET password_hash=? WHERE id=?",[password_hash($pw,PASSWORD_BCRYPT),$id]);
+    admin_log('admin_account_reset_password','success',null,dk('d_ref_with_reason',['ref'=>$acc['name'],'reason'=>'Mot de passe reinitialise']));
+    ok(null,'Mot de passe mis a jour');
 }
 
 function admin_audit_list() {

@@ -1994,6 +1994,8 @@ var I18N = {
   admin_accounts_deactivate_btn: {fr:'Désactiver', en:'Deactivate'},
   admin_accounts_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
   admin_accounts_unknown: {fr:'Inconnu (avant cette fonctionnalité)', en:'Unknown (before this feature)'},
+  admin_accounts_reset_btn: {fr:'Valider le nouveau mot de passe', en:'Confirm new password'},
+  admin_accounts_reset_toast: {fr:'Mot de passe réinitialisé', en:'Password reset'},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -2083,6 +2085,7 @@ var I18N = {
   action_admin_account_create: {fr:'Création d\'un compte admin', en:'Admin account created'},
   action_admin_account_deactivate: {fr:'Désactivation d\'un compte admin', en:'Admin account deactivated'},
   action_admin_account_reactivate: {fr:'Réactivation d\'un compte admin', en:'Admin account reactivated'},
+  action_admin_account_reset_password: {fr:'Réinitialisation du mot de passe d\'un compte admin', en:'Admin account password reset'},
   admin_header_subtitle: {fr:'Espace sécurisé', en:'Secure area'},
   d_wrong_password: {fr:'Mot de passe incorrect', en:'Incorrect password'},
   d_2fa_invalid: {fr:'Code 2FA invalide', en:'Invalid 2FA code'},
@@ -2834,7 +2837,7 @@ function TYPE_FR_GET(key){
   return map[key] ? at(map[key]) : null;
 }
 function ACTION_FR_GET(action){
-  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings',backfill_verified_names:'action_backfill_verified_names',delete_kyc:'action_delete_kyc',exchange_rates_refresh:'action_exchange_rates_refresh',kyc_migrate_encrypt:'action_kyc_migrate_encrypt',admin_account_create:'action_admin_account_create',admin_account_deactivate:'action_admin_account_deactivate',admin_account_reactivate:'action_admin_account_reactivate'};
+  var map={pin_reset:'action_pin_reset',late_cancel:'action_late_cancel',tx_freeze:'action_tx_freeze',tx_unfreeze:'action_tx_unfreeze',tx_freeze_confirm_cancel:'action_tx_freeze_confirm_cancel',admin_login:'action_admin_login',country_toggle:'action_country_toggle',account_block:'action_account_block',account_unblock:'action_account_unblock',account_delete:'action_account_delete',update_country:'action_update_country','2fa_setup_started':'action_2fa_setup_started','2fa_setup_confirm':'action_2fa_setup_confirm','2fa_disable':'action_2fa_disable','2fa_regenerate_codes':'action_2fa_regenerate_codes',kyc_approve_corrected:'action_kyc_approve_corrected',update_settings:'action_update_settings',backfill_verified_names:'action_backfill_verified_names',delete_kyc:'action_delete_kyc',exchange_rates_refresh:'action_exchange_rates_refresh',kyc_migrate_encrypt:'action_kyc_migrate_encrypt',admin_account_create:'action_admin_account_create',admin_account_deactivate:'action_admin_account_deactivate',admin_account_reactivate:'action_admin_account_reactivate',admin_account_reset_password:'action_admin_account_reset_password'};
   return map[action] ? at(map[action]) : null;
 }
 function RESULT_FR_GET(result){
@@ -6204,7 +6207,10 @@ function adminRefreshExchangeRates(){
 // ── COMPTES ADMIN NOMMES (identification uniquement, memes acces pour tous) ──
 function adminCreateAccount(){
   var name=document.getElementById('admacc-name').value.trim();
-  var pw=document.getElementById('admacc-password').value;
+  // trim() ici pour rester coherent avec adminLogin() qui trim deja le
+  // mot de passe tape - sinon un espace de trop a la creation (facile a
+  // taper sans le voir) rendait le compte injoignable des la connexion.
+  var pw=document.getElementById('admacc-password').value.trim();
   var statusBox=document.getElementById('admacc-create-status');
   if(!name){ toast(at('admin_accounts_err_name'), true); return; }
   if(pw.length<6){ toast(at('admin_accounts_err_password'), true); return; }
@@ -6228,9 +6234,17 @@ function adminLoadAccounts(){
       if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_accounts_empty')+'</div>'; return; }
       var html='';
       list.forEach(function(a){
-        html+='<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid var(--bord);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+        html+='<div style="border:1px solid var(--bord);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
           +'<div><b style="color:var(--t1)">'+adminEsc(a.name)+'</b><div style="font-size:10px;color:var(--t3)">'+new Date(a.created_at).toLocaleDateString()+' — '+(a.active?at('admin_accounts_status_active'):at('admin_accounts_status_inactive'))+'</div></div>'
-          +'<button style="padding:6px 12px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(a.active?'var(--rl)':'var(--gl)')+';color:'+(a.active?'var(--re)':'var(--g)')+'" onclick="adminSetAccountActive('+a.id+','+(a.active?0:1)+')">'+(a.active?at('admin_accounts_deactivate_btn'):at('admin_accounts_reactivate_btn'))+'</button>'
+          +'<div style="display:flex;gap:6px">'
+          +'<button style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--gl);color:var(--g)" onclick="adminToggleResetPw('+a.id+')">🔑</button>'
+          +'<button style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(a.active?'var(--rl)':'var(--gl)')+';color:'+(a.active?'var(--re)':'var(--g)')+'" onclick="adminSetAccountActive('+a.id+','+(a.active?0:1)+')">'+(a.active?at('admin_accounts_deactivate_btn'):at('admin_accounts_reactivate_btn'))+'</button>'
+          +'</div></div>'
+          +'<div id="admacc-reset-row-'+a.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bord)">'
+          +'<input class="finput" id="admacc-reset-pw-'+a.id+'" type="password" placeholder="'+at('admin_accounts_password_label')+'" style="margin-bottom:6px">'
+          +'<button class="btn-w" style="margin-bottom:0" onclick="adminResetAccountPassword('+a.id+')">'+at('admin_accounts_reset_btn')+'</button>'
+          +'</div>'
           +'</div>';
       });
       box.innerHTML=html;
@@ -6240,6 +6254,19 @@ function adminLoadAccounts(){
 function adminSetAccountActive(id, active){
   apiCall('/admin?action=accounts-set-active','POST',{admin_password:window._adminPw,id:id,active:active},'').then(function(res){
     if(res&&res.success){ toast(at('admin_accounts_updated_toast')); adminLoadAccounts(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminToggleResetPw(id){
+  var row=document.getElementById('admacc-reset-row-'+id);
+  if(row) row.style.display = row.style.display==='none' ? 'block' : 'none';
+}
+function adminResetAccountPassword(id){
+  var input=document.getElementById('admacc-reset-pw-'+id);
+  var pw=input?input.value.trim():'';
+  if(pw.length<6){ toast(at('admin_accounts_err_password'), true); return; }
+  apiCall('/admin?action=accounts-reset-password','POST',{admin_password:window._adminPw,id:id,password:pw},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_accounts_reset_toast')); adminLoadAccounts(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
