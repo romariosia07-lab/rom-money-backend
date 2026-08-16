@@ -547,6 +547,10 @@ var I18N = {
   find_call_btn:{fr:'📞 Appeler',en:'📞 Call'},
   find_distance:{fr:'{km} km',en:'{km} km'},
   find_geoloc_denied:{fr:'Géolocalisation refusée ou indisponible',en:'Geolocation denied or unavailable'},
+  find_geoloc_denied_permission:{fr:"Accès à la position refusé. Autorisez la géolocalisation dans les réglages de votre navigateur, ou entrez une ville ci-dessous.",en:'Location access denied. Allow geolocation in your browser settings, or enter a city below.'},
+  find_geoloc_denied_unavailable:{fr:"Position indisponible - vérifiez que la localisation est activée sur votre téléphone, ou entrez une ville ci-dessous.",en:'Position unavailable - check that location is enabled on your phone, or enter a city below.'},
+  find_geoloc_denied_timeout:{fr:"La recherche de position a pris trop de temps. Réessayez, ou entrez une ville ci-dessous.",en:'Finding your position took too long. Try again, or enter a city below.'},
+  find_view_all_btn:{fr:'Voir tous les distributeurs',en:'See all distributors'},
   qr_scan_desc:{fr:'Scannez le QR personnel du client (affiché dans son app ROM_MONEY)',en:"Scan the customer's personal QR (shown in their ROM_MONEY app)"},
   qr_scan_point:{fr:'Visez le QR du client',en:"Aim at the customer's QR"},
   qr_scan_btn:{fr:'📷 Scanner le QR du client',en:"📷 Scan customer's QR"},
@@ -2099,18 +2103,30 @@ function shRechargeHistory(b){
 // ── TROUVER UN DISTRIBUTEUR ──
 function shFindDistributors(b){
   b.innerHTML='<button class="btn-g" style="background:var(--gold);margin-bottom:10px" onclick="findDistributorsByLocation()">'+t('find_use_location')+'</button>'
-    +'<div style="display:flex;gap:8px;margin-bottom:14px"><input class="finput" id="find-city" data-i18n-ph="find_city_ph" placeholder="'+t('find_city_ph')+'" style="margin-bottom:0"><button class="chip" style="flex-shrink:0" onclick="findDistributorsByCity()">'+t('find_search_btn')+'</button></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px"><input class="finput" id="find-city" data-i18n-ph="find_city_ph" placeholder="'+t('find_city_ph')+'" style="margin-bottom:0"><button class="chip" style="flex-shrink:0" onclick="findDistributorsByCity()">'+t('find_search_btn')+'</button></div>'
+    +'<a onclick="doFindDistributors(\'\')" style="display:block;text-align:center;margin-bottom:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('find_view_all_btn')+'</a>'
     +'<div id="find-results"><div class="empty-note">'+t('find_empty')+'</div></div>';
 }
+// Sur un vrai telephone, l'obtention d'une position peut prendre bien plus
+// de temps qu'en test (premiere localisation "a froid", interieur, reseau
+// faible...) - 8s etait trop court et declenchait l'erreur generique meme
+// apres avoir accepte la permission. maximumAge accepte une position deja
+// connue recente (plus rapide, largement assez precis pour "distributeur
+// proche"). Le message d'erreur distingue maintenant refus / indisponible /
+// delai depasse (error.code), au lieu d'un seul message qui ne dit pas a
+// l'agent quoi faire.
 function findDistributorsByLocation(){
   var results=document.getElementById('find-results');
   results.innerHTML='<div class="empty-note">'+t('loading')+'</div>';
   if(!navigator.geolocation){ results.innerHTML='<div class="empty-note">'+t('find_geoloc_denied')+'</div>'; return; }
   navigator.geolocation.getCurrentPosition(function(pos){
     doFindDistributors('lat='+pos.coords.latitude+'&lng='+pos.coords.longitude);
-  }, function(){
-    results.innerHTML='<div class="empty-note">'+t('find_geoloc_denied')+'</div>';
-  }, {timeout:8000});
+  }, function(err){
+    var key = err && err.code===1 ? 'find_geoloc_denied_permission'
+      : err && err.code===3 ? 'find_geoloc_denied_timeout'
+      : 'find_geoloc_denied_unavailable';
+    results.innerHTML='<div class="empty-note">'+t(key)+'</div>';
+  }, {timeout:20000, maximumAge:60000});
 }
 function findDistributorsByCity(){
   var city=document.getElementById('find-city').value.trim();
