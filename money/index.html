@@ -2229,6 +2229,8 @@ var I18N = {
   tx_detail_amount_deposited: {fr:'Montant déposé', en:'Amount deposited'},
   tx_detail_amount_received: {fr:'Montant reçu', en:'Amount received'},
   invoice_country_label: {fr:'Pays', en:'Country'},
+  tx_type_simple_deposit: {fr:'Dépôt', en:'Deposit'},
+  tx_type_simple_withdraw: {fr:'Retrait', en:'Withdrawal'},
   tx_received_suffix: {fr:'reçu', en:'received'},
   tx_sent_suffix: {fr:'envoyé', en:'sent'},
   tx_empty_list: {fr:'Aucune transaction', en:'No transactions'},
@@ -10710,6 +10712,11 @@ function openTxDetail(id){
   // reste (transferts, marchand, banque...) garde l'affichage habituel.
   var isAgentTx = (_txCk==='agent_cash_in' || _txCk==='agent_cash_out' || _txCk==='agent_earnings_received');
   var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
+  // Sur la facture agent specifiquement, "Type" reste simple (Depot/Retrait)
+  // plutot que le libelle "Depot agent"/"Retrait agent" utilise ailleurs
+  // (liste des operations) - redondant ici avec "Nom de l'agent" juste au-dessus.
+  if(_txCk==='agent_cash_in') typeLabel = t('tx_type_simple_deposit');
+  else if(_txCk==='agent_cash_out') typeLabel = t('tx_type_simple_withdraw');
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
   var bg=document.getElementById('sh-bg');
@@ -10778,6 +10785,8 @@ function genererFacture(id){
   var _txCk = txCatKey(tx);
   var isAgentTx = (_txCk==='agent_cash_in' || _txCk==='agent_cash_out' || _txCk==='agent_earnings_received');
   var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
+  if(_txCk==='agent_cash_in') typeLabel = t('tx_type_simple_deposit');
+  else if(_txCk==='agent_cash_out') typeLabel = t('tx_type_simple_withdraw');
   var sign=dir==='debit'?'-':'+';
   var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
   function buildF(ld){
