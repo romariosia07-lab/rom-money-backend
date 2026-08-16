@@ -2224,6 +2224,11 @@ var I18N = {
   fx_preview_receiver_gets: {fr:'💱 Le destinataire recevra environ ', en:'💱 The recipient will receive approximately '},
   tx_unknown_sender: {fr:'Inconnu', en:'Unknown'},
   tx_generic_payment: {fr:'Paiement', en:'Payment'},
+  tx_detail_agent_name: {fr:"Nom de l'agent", en:"Agent's name"},
+  tx_detail_amount_withdrawn: {fr:'Montant retiré', en:'Amount withdrawn'},
+  tx_detail_amount_deposited: {fr:'Montant déposé', en:'Amount deposited'},
+  tx_detail_amount_received: {fr:'Montant reçu', en:'Amount received'},
+  invoice_country_label: {fr:'Pays', en:'Country'},
   tx_received_suffix: {fr:'reçu', en:'received'},
   tx_sent_suffix: {fr:'envoyé', en:'sent'},
   tx_empty_list: {fr:'Aucune transaction', en:'No transactions'},
@@ -10701,6 +10706,9 @@ function openTxDetail(id){
   // le seul libellé generique "Transfert" - independant du motif, qui lui
   // doit rester purement optionnel et libre.
   var _txCk = txCatKey(tx);
+  // Depot/retrait/gain via agent : mise en page dediee (voir plus bas), le
+  // reste (transferts, marchand, banque...) garde l'affichage habituel.
+  var isAgentTx = (_txCk==='agent_cash_in' || _txCk==='agent_cash_out' || _txCk==='agent_earnings_received');
   var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
   var titleEl=document.getElementById('sh-title');
   var b=document.getElementById('sh-body');
@@ -10708,8 +10716,9 @@ function openTxDetail(id){
   var sh=document.getElementById('sh');
   if(!titleEl||!b||!bg||!sh)return;
   titleEl.textContent=t('tx_detail_title');
-  // Fetch motif from backend if not in local tx
-  if(!tx.motif && tx.id && String(tx.id).length > 5){
+  // Fetch motif from backend if not in local tx (inutile pour une facture
+  // agent : le motif n'y est plus affiche du tout).
+  if(!isAgentTx && !tx.motif && tx.id && String(tx.id).length > 5){
     var tok=getToken();
     apiCall('/transactions?action=detail&id='+tx.id,'GET',null,tok)
       .then(function(res){
@@ -10733,12 +10742,21 @@ function openTxDetail(id){
     +'<div style="font-size:13px;color:var(--t2);margin-top:4px">'+dateStr+'</div>'
     +'</div>'
     +'<div style="background:var(--gl);border-radius:14px;padding:14px;margin-bottom:16px">';
-  if(tx.name) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'))+'</span><span style="font-weight:700;font-size:13px">'+adminEsc(tx.name)+'</span></div>';
-  html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'))+'</span><span style="font-weight:700;font-size:13px">'+(APP.name||APP.phone||t('tx_myself'))+'</span></div>';
-  if(tx.ref) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_reference_label')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.ref+'</span></div>';
-  if(tx.motif) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('label_motif_word')+'</span><span style="font-weight:600;font-size:13px">'+adminEsc(tx.motif)+'</span></div>';
-  html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_type_label')+'</span><span style="font-weight:600;font-size:13px">'+typeLabel+'</span></div>';
-  html2+='<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('tx_status_label')+'</span><span style="font-weight:700;font-size:13px;color:'+statutColor+'">'+statut+'</span></div>';
+  if(isAgentTx){
+    var amtLabelKey = _txCk==='agent_cash_out' ? 'tx_detail_amount_withdrawn' : (_txCk==='agent_cash_in' ? 'tx_detail_amount_deposited' : 'tx_detail_amount_received');
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t(amtLabelKey)+'</span><span style="font-weight:700;font-size:13px">'+fmt(tx.amt)+'</span></div>';
+    if(tx.name) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_detail_agent_name')+'</span><span style="font-weight:700;font-size:13px">'+adminEsc(tx.name)+'</span></div>';
+    if(tx.ref) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_reference_label')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.ref+'</span></div>';
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_type_label')+'</span><span style="font-weight:800;font-size:13px;color:#e53e3e">'+typeLabel+'</span></div>';
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('tx_status_label')+'</span><span style="font-weight:700;font-size:13px;color:'+statutColor+'">'+statut+'</span></div>';
+  } else {
+    if(tx.name) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'))+'</span><span style="font-weight:700;font-size:13px">'+adminEsc(tx.name)+'</span></div>';
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+(dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'))+'</span><span style="font-weight:700;font-size:13px">'+(APP.name||APP.phone||t('tx_myself'))+'</span></div>';
+    if(tx.ref) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_reference_label')+'</span><span style="font-weight:600;font-size:11px;font-family:monospace">'+tx.ref+'</span></div>';
+    if(tx.motif) html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('label_motif_word')+'</span><span style="font-weight:600;font-size:13px">'+adminEsc(tx.motif)+'</span></div>';
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--div)"><span style="color:var(--t2);font-size:13px">'+t('tx_type_label')+'</span><span style="font-weight:600;font-size:13px">'+typeLabel+'</span></div>';
+    html2+='<div style="display:flex;justify-content:space-between;padding:8px 0"><span style="color:var(--t2);font-size:13px">'+t('tx_status_label')+'</span><span style="font-weight:700;font-size:13px;color:'+statutColor+'">'+statut+'</span></div>';
+  }
   html2+='</div>';
   window._detailTxId = id;
   if(canAnn(tx)) html2+='<button onclick="askCancel(window._detailTxId)" style="width:100%;padding:12px;background:var(--rl);border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;color:var(--rd);font-family:inherit;margin-bottom:10px">'+t('tx_btn_cancel_full')+'</button>';
@@ -10758,6 +10776,7 @@ function genererFacture(id){
   var dir=tx.type==='debit'?'debit':'credit';
   var statut=tx.ann?t('tx_badge_cancelled'):(tx.frozen?'En verification':t('tx_status_complete'));
   var _txCk = txCatKey(tx);
+  var isAgentTx = (_txCk==='agent_cash_in' || _txCk==='agent_cash_out' || _txCk==='agent_earnings_received');
   var typeLabel = (_txCk==='transfer') ? (tx.channel==='africa'?t('sheet_title_transfert'):t('tx_type_national_transfer')) : (_txCk==='transfer_africa' ? t('sheet_title_transfert') : (tx.cat?txCatLabel(tx):t('stats_cat_transfer')));
   var sign=dir==='debit'?'-':'+';
   var curSuffix=(APP.currency==='XAF'||APP.currency==='XOF'||!APP.currency)?'FCFA':APP.currency;
@@ -10772,20 +10791,31 @@ function genererFacture(id){
     if(tx.ref){doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);doc.text(t('invoice_ref_prefix')+tx.ref,cx,y,{align:'center'});y+=5;}
     doc.setFont('helvetica','bold');doc.setFontSize(20);
     doc.setTextColor(dir==='debit'?220:34,dir==='debit'?50:139,dir==='debit'?50:34);
-    var amtStr=Math.round(tx.amt).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); doc.text(sign+amtStr+' '+curSuffix,cx,y+5,{align:'center'});y+=13;
-    doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
-    var rows=[[t('invoice_date_label'),dateStr],[dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'),(tx.legalName||tx.name||'N/A')],[dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'),APP.legalName||APP.name||APP.phone||t('tx_myself')],[t('tx_type_label'),typeLabel],[t('tx_status_label'),statut]];
-    if(tx.motif)rows.push([t('label_motif_word'),tx.motif]);
     // Format manuel (point comme separateur de milliers), pas fmt() : la
     // police de base jsPDF ("helvetica") ne sait pas afficher l'espace fine
     // insecable qu'utilise Intl.NumberFormat('fr-FR'), ce qui produisait un
     // "/" errone a la place (ex: "3/000 F" au lieu de "3 000 F").
-    if(tx.fee>0)rows.push([t('invoice_fee_label'),Math.round(tx.fee).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' '+curSuffix]);
-    if(tx.senderCountry)rows.push([t('invoice_sender_country_label'),tx.senderCountry]);
-    if(tx.receiverCountry)rows.push([t('invoice_receiver_country_label'),tx.receiverCountry]);
+    var amtStr=Math.round(tx.amt).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); doc.text(sign+amtStr+' '+curSuffix,cx,y+5,{align:'center'});y+=13;
+    doc.setDrawColor(8,80,65);doc.setLineWidth(0.3);doc.line(12,y,pw-12,y);y+=6;
+    var rows;
+    if(isAgentTx){
+      var amtLabelKey = _txCk==='agent_cash_out' ? 'tx_detail_amount_withdrawn' : (_txCk==='agent_cash_in' ? 'tx_detail_amount_deposited' : 'tx_detail_amount_received');
+      rows=[[t('invoice_date_label'),dateStr],[t(amtLabelKey),amtStr+' '+curSuffix],[t('tx_detail_agent_name'),(tx.legalName||tx.name||'N/A')]];
+      if(tx.fee>0)rows.push([t('invoice_fee_label'),Math.round(tx.fee).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' '+curSuffix]);
+      rows.push([t('tx_type_label'),typeLabel,true]);
+      rows.push([t('tx_status_label'),statut]);
+      if(tx.senderCountry||tx.receiverCountry)rows.push([t('invoice_country_label'),tx.senderCountry||tx.receiverCountry]);
+    } else {
+      rows=[[t('invoice_date_label'),dateStr],[dir==='debit'?t('tx_recipient_label'):t('tx_sender_label'),(tx.legalName||tx.name||'N/A')],[dir==='debit'?t('tx_sender_label'):t('tx_recipient_label'),APP.legalName||APP.name||APP.phone||t('tx_myself')],[t('tx_type_label'),typeLabel],[t('tx_status_label'),statut]];
+      if(tx.motif)rows.push([t('label_motif_word'),tx.motif]);
+      if(tx.fee>0)rows.push([t('invoice_fee_label'),Math.round(tx.fee).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' '+curSuffix]);
+      if(tx.senderCountry)rows.push([t('invoice_sender_country_label'),tx.senderCountry]);
+      if(tx.receiverCountry)rows.push([t('invoice_receiver_country_label'),tx.receiverCountry]);
+    }
     rows.forEach(function(row){
       doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,80);doc.text(row[0],14,y);
-      doc.setFont('helvetica','normal');doc.setTextColor(20,20,20);doc.text(String(row[1]),pw-14,y,{align:'right'});
+      if(row[2]){ doc.setFont('helvetica','bold');doc.setTextColor(220,50,50); } else { doc.setFont('helvetica','normal');doc.setTextColor(20,20,20); }
+      doc.text(String(row[1]),pw-14,y,{align:'right'});
       doc.setDrawColor(220,220,220);doc.setLineWidth(0.15);doc.line(14,y+2,pw-14,y+2);y+=8;
     });
     y+=4;
@@ -10800,7 +10830,7 @@ function genererFacture(id){
       navigator.share({title:t('invoice_share_title'),text:t('invoice_share_text'),files:[file]})
         .catch(function(e){if(e.name!=='AbortError')doc.save(fn);});
     } else if(navigator.share){
-      navigator.share({title:t('invoice_share_title'),text:t('invoice_share_fallback_amount')+sign+tx.amt.toLocaleString(APP.lang==='en'?'en-US':'fr-FR')+' '+curSuffix+'\n'+t('invoice_date_label')+': '+dateStr+(tx.motif?'\n'+t('label_motif_word')+': '+tx.motif:'')+'\n'+t('tx_status_label')+': '+statut})
+      navigator.share({title:t('invoice_share_title'),text:t('invoice_share_fallback_amount')+sign+tx.amt.toLocaleString(APP.lang==='en'?'en-US':'fr-FR')+' '+curSuffix+'\n'+t('invoice_date_label')+': '+dateStr+(!isAgentTx&&tx.motif?'\n'+t('label_motif_word')+': '+tx.motif:'')+'\n'+t('tx_status_label')+': '+statut})
         .then(function(){doc.save(fn);})
         .catch(function(){doc.save(fn);});
     } else {
