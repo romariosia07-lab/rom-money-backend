@@ -402,6 +402,13 @@ function web_push_send_to_merchant($merchantId, $title, $body, $extra = []) {
     } catch(Exception $e) {}
 }
 
+function web_push_send_to_agent($agentId, $title, $body, $extra = []) {
+    try {
+        $subs = q("SELECT * FROM agent_push_subscriptions WHERE agent_id=?", [$agentId])->fetchAll();
+        foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
+    } catch(Exception $e) {}
+}
+
 // Alerte push vers TOI (admin), pour les actions les plus sensibles - pour
 // ne pas devoir aller consulter le journal d'audit pour t'en rendre compte.
 function web_push_send_to_admin($title, $body, $extra = []) {
@@ -3257,6 +3264,7 @@ function agent_approve_recharge_request() {
         q("UPDATE agent_wallets SET balance=balance+? WHERE id=?",[$r['amount'],$reqWallet['id']]);
         db()->commit();
         $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$distWallet['id']])->fetchColumn();
+        web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete approuvee.');
         ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
     } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
 }
@@ -3270,8 +3278,10 @@ function agent_reject_recharge_request() {
     // File partagee : n'importe quel distributeur peut decliner une demande
     // en attente (etat terminal, comme avant - un agent decline devra
     // refaire une demande plutot que de "faire le tour" des distributeurs).
+    $r = q("SELECT agent_id, amount FROM agent_recharge_requests WHERE id=? AND status='pending'",[$id])->fetch();
     $n = q("UPDATE agent_recharge_requests SET status='rejected', distributor_id=?, reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$pl['sub'],$reason?:null,$id])->rowCount();
     if(!$n) fail('Demande introuvable ou deja traitee',404);
+    if($r) web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete refusee.');
     ok(null,'Demande rejetee');
 }
 
@@ -5030,6 +5040,32 @@ function route_push($action) {
                 q("DELETE FROM merchant_push_subscriptions WHERE merchant_id=? AND endpoint=?", [$pl['sub'], $endpoint]);
             } else {
                 q("DELETE FROM merchant_push_subscriptions WHERE merchant_id=?", [$pl['sub']]);
+            }
+            ok(null, 'Notifications push desactivees');
+            break;
+        }
+        // Abonnement push cote ROM_GUICHET : meme principe, avec agent_auth()
+        // et sa propre table (identite agent separee).
+        case 'agent-subscribe': {
+            $pl = agent_auth(); $b = body();
+            $endpoint = trim($b['endpoint'] ?? '');
+            $p256dh   = trim($b['p256dh'] ?? '');
+            $authKey  = trim($b['auth'] ?? '');
+            if(!$endpoint || !$p256dh || !$authKey) fail('Abonnement push invalide');
+            q("INSERT INTO agent_push_subscriptions (agent_id,endpoint,p256dh_key,auth_key)
+               VALUES (?,?,?,?)
+               ON CONFLICT (agent_id, endpoint) DO UPDATE SET p256dh_key=EXCLUDED.p256dh_key, auth_key=EXCLUDED.auth_key",
+              [$pl['sub'], $endpoint, $p256dh, $authKey]);
+            ok(null, 'Notifications push activees');
+            break;
+        }
+        case 'agent-unsubscribe': {
+            $pl = agent_auth(); $b = body();
+            $endpoint = trim($b['endpoint'] ?? '');
+            if($endpoint){
+                q("DELETE FROM agent_push_subscriptions WHERE agent_id=? AND endpoint=?", [$pl['sub'], $endpoint]);
+            } else {
+                q("DELETE FROM agent_push_subscriptions WHERE agent_id=?", [$pl['sub']]);
             }
             ok(null, 'Notifications push desactivees');
             break;
@@ -7533,6 +7569,7 @@ function admin_agent_approve_recharge() {
         db()->commit();
         admin_log('agent_recharge_approve','success',null,dk('d_ref_with_reason', ['ref'=>$reference, 'reason'=>'Recharge de '.$r['amount']]));
         $bal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+        web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete approuvee.');
         ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
     } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
 }
@@ -7545,9 +7582,11 @@ function admin_agent_reject_recharge() {
     if(!$id) fail('Demande requise');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     agent_expire_stale_recharge_requests();
+    $r = q("SELECT agent_id, amount FROM agent_recharge_requests WHERE id=? AND status='pending'",[$id])->fetch();
     $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$reason,$id])->rowCount();
     if(!$n) fail('Demande introuvable ou deja traitee',404);
     admin_log('agent_recharge_reject','success',null,$reason);
+    if($r) web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete refusee.');
     ok(null,'Demande rejetee');
 }
 
@@ -8673,6 +8712,18 @@ function route_install() {
         auth_key TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(merchant_id, endpoint)
+    )",
+    // Meme principe que merchant_push_subscriptions (identite agent separee
+    // des utilisateurs personnels) - le service worker ROM_GUICHET a deja
+    // son ecouteur 'push' pret, restait dormant faute de cette table.
+    "CREATE TABLE IF NOT EXISTS agent_push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh_key TEXT NOT NULL,
+        auth_key TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(agent_id, endpoint)
     )",
     "CREATE TABLE IF NOT EXISTS known_devices (
         id SERIAL PRIMARY KEY,
