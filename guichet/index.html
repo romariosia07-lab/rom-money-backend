@@ -170,9 +170,9 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
     <div class="reg-title" data-i18n="reg_title">Votre profil agent</div>
     <div class="reg-sub" data-i18n="reg_sub">Ces informations serviront à examiner votre demande d'agrément.</div>
     <div class="frow"><label class="flabel" data-i18n="reg_label_name">Nom complet *</label><input class="finput" id="r-name" placeholder="" autocomplete="off"></div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_ville">Ville (optionnel)</label><input class="finput" id="r-ville" autocomplete="off"></div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_commune">Commune (optionnel)</label><input class="finput" id="r-commune" autocomplete="off"></div>
-    <div class="frow"><label class="flabel" data-i18n="reg_label_quartier">Quartier (optionnel)</label><input class="finput" id="r-quartier" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_ville">Ville *</label><input class="finput" id="r-ville" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_commune">Commune *</label><input class="finput" id="r-commune" autocomplete="off"></div>
+    <div class="frow"><label class="flabel" data-i18n="reg_label_quartier">Quartier *</label><input class="finput" id="r-quartier" autocomplete="off"></div>
     <div class="frow"><label class="flabel" data-i18n="reg_label_country">Pays *</label>
       <select class="finput" id="r-country"><option value="" data-i18n="reg_country_loading">Chargement des pays...</option></select>
     </div>
@@ -353,7 +353,7 @@ html,body{height:100%;background:#4A2E00;overflow:hidden;color:var(--t1)}
 var API_URL = 'https://rom-money-backend.onrender.com';
 
 var APP = {
-  fullName:'', phone:'', address:'', city:'', country:'', currency:'XOF',
+  fullName:'', phone:'', address:'', city:'', commune:'', quartier:'', country:'', currency:'XOF',
   agentId:'', pinHash:'', token:'',
   balance:0, isDistributor:false, status:'', rejectionReason:'',
   theme:'system', lang:'fr', balanceHidden:false, pushEnabled:false
@@ -369,12 +369,15 @@ var I18N = {
   reg_title:{fr:'Votre profil agent',en:'Your agent profile'},
   reg_sub:{fr:"Ces informations serviront à examiner votre demande d'agrément.",en:'This information will be used to review your approval request.'},
   reg_label_name:{fr:'Nom complet *',en:'Full name *'},
-  reg_label_ville:{fr:'Ville (optionnel)',en:'City (optional)'},
-  reg_label_commune:{fr:'Commune (optionnel)',en:'Municipality (optional)'},
-  reg_label_quartier:{fr:'Quartier (optionnel)',en:'District (optional)'},
+  reg_label_ville:{fr:'Ville *',en:'City *'},
+  reg_label_commune:{fr:'Commune *',en:'Municipality *'},
+  reg_label_quartier:{fr:'Quartier *',en:'District *'},
   reg_label_country:{fr:'Pays *',en:'Country *'},
   reg_country_loading:{fr:'Chargement des pays...',en:'Loading countries...'},
   reg_err_country:{fr:'Le pays est requis',en:'Country is required'},
+  reg_err_ville:{fr:'La ville est requise',en:'City is required'},
+  reg_err_commune:{fr:'La commune est requise',en:'Municipality is required'},
+  reg_err_quartier:{fr:'Le quartier est requis',en:'District is required'},
   reg_label_phone:{fr:'Numéro de téléphone *',en:'Phone number *'},
   reg_ph_phone_sample:{fr:'00 00 00 00 00',en:'00 00 00 00 00'},
   reg_btn_continue:{fr:'Continuer',en:'Continue'},
@@ -541,7 +544,11 @@ var I18N = {
   rec_status_rejected:{fr:'Rejetée',en:'Rejected'},
   rec_status_expired:{fr:'Expirée',en:'Expired'},
   find_use_location:{fr:'📍 Utiliser ma position',en:'📍 Use my location'},
-  find_city_ph:{fr:'Ou entrez une ville',en:'Or enter a city'},
+  find_or_search:{fr:'— ou cherchez par zone —',en:'— or search by area —'},
+  find_ville_label:{fr:'Ville',en:'City'},
+  find_commune_label:{fr:'Commune',en:'Municipality'},
+  find_quartier_label:{fr:'Quartier',en:'District'},
+  find_err_empty:{fr:'Renseignez au moins la ville',en:'Enter at least the city'},
   find_search_btn:{fr:'Rechercher',en:'Search'},
   find_empty:{fr:'Aucun distributeur trouvé.',en:'No distributor found.'},
   find_call_btn:{fr:'📞 Appeler',en:'📞 Call'},
@@ -817,14 +824,18 @@ function regStep1(){
   var country = document.getElementById('r-country').value;
   var phone = document.getElementById('r-phone').value.trim();
   if(!name){ toast(t('reg_err_name'), true); return; }
+  if(!ville){ toast(t('reg_err_ville'), true); return; }
+  if(!commune){ toast(t('reg_err_commune'), true); return; }
+  if(!quartier){ toast(t('reg_err_quartier'), true); return; }
   if(!country){ toast(t('reg_err_country'), true); return; }
   if(!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s\-]/g,''))){ toast(t('reg_err_phone'), true); return; }
-  // L'adresse en base reste un champ texte unique (agents.address) : on
-  // combine ici les 3 champs saisis separement pour une meilleure UX, sans
-  // avoir besoin de changer le backend.
+  // L'adresse en base reste aussi un champ texte unique (agents.address,
+  // lecture libre) en plus des 3 colonnes dediees (agents.city/commune/
+  // quartier, obligatoires - voir agent_register()) qui permettent la vraie
+  // recherche structuree dans "Trouver un distributeur".
   var addr = [quartier, commune, ville].filter(function(v){ return !!v; }).join(', ');
   APP.fullName = name; APP.address = addr; APP.country = country; APP.phone = phone;
-  APP.city = ville || commune || quartier || '';
+  APP.city = ville; APP.commune = commune; APP.quartier = quartier;
   document.getElementById('reg-a').style.display='none';
   document.getElementById('reg-b').style.display='flex';
   rgBuf=''; rgPhase=1; rgPin1=''; updateRgDots();
@@ -863,7 +874,8 @@ function finishRegister(){
   toast(t('reg_creating'));
   apiCall('/agent?action=register','POST',{
     full_name:APP.fullName, phone:APP.phone, pin:PIN_MEM,
-    address:APP.address, country:APP.country, device_id:getDeviceId()
+    address:APP.address, country:APP.country, device_id:getDeviceId(),
+    city:APP.city, commune:APP.commune, quartier:APP.quartier
   }).then(function(res){
     if(res && res.success && res.data){
       APP.token=res.data.token; APP.agentId=res.data.agent_id;
@@ -2101,9 +2113,18 @@ function shRechargeHistory(b){
 }
 
 // ── TROUVER UN DISTRIBUTEUR ──
+// Recherche progressive Ville -> Commune -> Quartier (plutot qu'un seul
+// champ "ville") : ville seule renvoyable des centaines de resultats des
+// que le reseau grossit, commune/quartier permettent de vraiment restreindre.
+// Ces trois informations sont obligatoires a l'inscription (agent_register())
+// precisement pour que cette recherche reste utilisable.
 function shFindDistributors(b){
-  b.innerHTML='<button class="btn-g" style="background:var(--gold);margin-bottom:10px" onclick="findDistributorsByLocation()">'+t('find_use_location')+'</button>'
-    +'<div style="display:flex;gap:8px;margin-bottom:10px"><input class="finput" id="find-city" data-i18n-ph="find_city_ph" placeholder="'+t('find_city_ph')+'" style="margin-bottom:0"><button class="chip" style="flex-shrink:0" onclick="findDistributorsByCity()">'+t('find_search_btn')+'</button></div>'
+  b.innerHTML='<button class="btn-g" style="background:var(--gold);margin-bottom:14px" onclick="findDistributorsByLocation()">'+t('find_use_location')+'</button>'
+    +'<div style="text-align:center;font-size:11px;color:var(--t3);margin:-6px 0 10px">'+t('find_or_search')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('find_ville_label')+'</label><input class="finput" id="find-city" style="margin-bottom:0"></div>'
+    +'<div class="frow" style="margin-top:8px"><label class="flabel">'+t('find_commune_label')+'</label><input class="finput" id="find-commune" style="margin-bottom:0"></div>'
+    +'<div class="frow" style="margin-top:8px;margin-bottom:10px"><label class="flabel">'+t('find_quartier_label')+'</label><input class="finput" id="find-quartier" style="margin-bottom:0"></div>'
+    +'<button class="chip" style="width:100%;padding:12px;margin-bottom:6px" onclick="findDistributorsByCity()">'+t('find_search_btn')+'</button>'
     +'<a onclick="doFindDistributors(\'\')" style="display:block;text-align:center;margin-bottom:14px;font-size:12px;color:var(--g);font-weight:700;cursor:pointer">'+t('find_view_all_btn')+'</a>'
     +'<div id="find-results"><div class="empty-note">'+t('find_empty')+'</div></div>';
 }
@@ -2130,8 +2151,14 @@ function findDistributorsByLocation(){
 }
 function findDistributorsByCity(){
   var city=document.getElementById('find-city').value.trim();
-  if(!city) return;
-  doFindDistributors('city='+encodeURIComponent(city));
+  var commune=document.getElementById('find-commune').value.trim();
+  var quartier=document.getElementById('find-quartier').value.trim();
+  if(!city && !commune && !quartier){ toast(t('find_err_empty'), true); return; }
+  var parts=[];
+  if(city) parts.push('city='+encodeURIComponent(city));
+  if(commune) parts.push('commune='+encodeURIComponent(commune));
+  if(quartier) parts.push('quartier='+encodeURIComponent(quartier));
+  doFindDistributors(parts.join('&'));
 }
 function doFindDistributors(query){
   var results=document.getElementById('find-results');
@@ -2144,7 +2171,7 @@ function doFindDistributors(query){
       list.forEach(function(d){
         h+='<div class="card" style="margin-bottom:8px;padding:12px">'
           +'<div style="font-weight:700;font-size:14px">'+(d.full_name||'—')+'</div>'
-          +'<div style="font-size:12px;color:var(--t2);margin-top:2px">'+(d.city||d.country||'')+(d.distance_km!=null?' · '+t('find_distance').replace('{km}',d.distance_km):'')+'</div>'
+          +'<div style="font-size:12px;color:var(--t2);margin-top:2px">'+([d.quartier,d.commune,d.city].filter(function(v){return !!v;}).join(', ')||d.country||'')+(d.distance_km!=null?' · '+t('find_distance').replace('{km}',d.distance_km):'')+'</div>'
           +'<a href="tel:'+d.phone_number+'" style="display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:var(--gd)">'+t('find_call_btn')+' '+d.phone_number+'</a>'
           +'</div>';
       });
@@ -2154,8 +2181,14 @@ function doFindDistributors(query){
 }
 
 // ── MA POSITION (distributeur uniquement) ──
+// Meme 3 champs distincts qu'a l'inscription (ville/commune/quartier,
+// colonnes separees cote serveur) - sert a corriger/preciser apres coup,
+// jamais a vider (voir agent_set_location(), un champ laisse ici vide
+// garde la valeur deja enregistree).
 function shSetLocation(b){
-  b.innerHTML='<div class="frow"><label class="flabel">Ville / Commune / Quartier</label><input class="finput" id="loc-city" value="'+(APP.city?APP.city.replace(/"/g,'&quot;'):'')+'"></div>'
+  b.innerHTML='<div class="frow"><label class="flabel">'+t('find_ville_label')+'</label><input class="finput" id="loc-city" value="'+(APP.city?APP.city.replace(/"/g,'&quot;'):'')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('find_commune_label')+'</label><input class="finput" id="loc-commune" value="'+(APP.commune?APP.commune.replace(/"/g,'&quot;'):'')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('find_quartier_label')+'</label><input class="finput" id="loc-quartier" value="'+(APP.quartier?APP.quartier.replace(/"/g,'&quot;'):'')+'"></div>'
     +'<button class="chip" style="width:100%;padding:12px;margin-bottom:14px" onclick="useCurrentLocationForSet()">'+t('find_use_location')+'</button>'
     +'<input type="hidden" id="loc-lat"><input type="hidden" id="loc-lng">'
     +'<button class="btn-g" style="background:var(--g)" onclick="doSetLocation()">'+t('btn_validate')+'</button>';
@@ -2166,13 +2199,21 @@ function useCurrentLocationForSet(){
     document.getElementById('loc-lat').value=pos.coords.latitude;
     document.getElementById('loc-lng').value=pos.coords.longitude;
     toast(t('loc_captured_toast'));
-  }, function(){ toast(t('find_geoloc_denied'), true); });
+  }, function(err){
+    var key = err && err.code===1 ? 'find_geoloc_denied_permission'
+      : err && err.code===3 ? 'find_geoloc_denied_timeout'
+      : 'find_geoloc_denied_unavailable';
+    toast(t(key), true);
+  }, {timeout:20000, maximumAge:60000});
 }
 function doSetLocation(){
   var city=document.getElementById('loc-city').value.trim();
+  var commune=document.getElementById('loc-commune').value.trim();
+  var quartier=document.getElementById('loc-quartier').value.trim();
   var lat=document.getElementById('loc-lat').value;
   var lng=document.getElementById('loc-lng').value;
-  apiCall('/agent?action=set-location','POST',{city:city,latitude:lat,longitude:lng},getToken()).then(function(res){
+  APP.city=city||APP.city; APP.commune=commune||APP.commune; APP.quartier=quartier||APP.quartier; save();
+  apiCall('/agent?action=set-location','POST',{city:city,commune:commune,quartier:quartier,latitude:lat,longitude:lng},getToken()).then(function(res){
     if(res && res.success){ toast(t('btn_validate')); closeSheet(); }
     else { toast((res&&res.message)||t('err_generic'), true); }
   }).catch(function(){ toast(t('network_error'), true); });

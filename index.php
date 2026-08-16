@@ -2274,11 +2274,24 @@ function agent_register() {
     $address = trim($b['address'] ?? '');
     $deviceId = trim($b['device_id'] ?? '');
     $country = trim($b['country'] ?? '');
+    $city = trim($b['city'] ?? '');
+    $commune = trim($b['commune'] ?? '');
+    $quartier = trim($b['quartier'] ?? '');
     if(!$fullName) fail('Nom requis');
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $phone))) fail('Telephone invalide');
     if(!preg_match('/^\d{4}$/', $pin)) fail('PIN doit avoir 4 chiffres');
     if(is_weak_pin($pin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if(!$country) fail('Le pays est requis');
+    // Obligatoires (pas juste indicatif dans l'adresse libre) : c'est la
+    // seule donnee qui permet a "Trouver un distributeur" de rester
+    // utilisable a grande echelle (recherche precise ville/commune/quartier
+    // plutot qu'une liste de tous les distributeurs, invivable des que le
+    // reseau grossit). Avant ce correctif, ces champs etaient collectes a
+    // l'inscription mais jamais transmis au backend - seulement fondus dans
+    // le texte libre agents.address, illisible pour une recherche.
+    if(!$city) fail('La ville est requise');
+    if(!$commune) fail('La commune est requise');
+    if(!$quartier) fail('Le quartier est requis');
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']) fail('ROM_GUICHET n\'est pas encore disponible dans ce pays');
     try {
@@ -2297,8 +2310,8 @@ function agent_register() {
         // au statut 'active' par defaut - voir agent_auth() qui bloque deja
         // tout statut different de 'active', aucune modification necessaire
         // la-bas.
-        q("INSERT INTO agents (id,phone_number,pin_hash,full_name,address,country,status) VALUES (?,?,?,?,?,?,'pending_approval')",
-          [$aid,$phone,$pinh,$fullName,$address?:null,$country]);
+        q("INSERT INTO agents (id,phone_number,pin_hash,full_name,address,country,city,commune,quartier,status) VALUES (?,?,?,?,?,?,?,?,?,'pending_approval')",
+          [$aid,$phone,$pinh,$fullName,$address?:null,$country,$city,$commune,$quartier]);
         q("INSERT INTO agent_wallets (id,agent_id,currency) VALUES (?,?,?)",[$wid,$aid,country_to_currency($country)]);
         if($deviceId){
             $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
@@ -2439,28 +2452,43 @@ function agent_set_location() {
     $pl = agent_auth();
     $b = body();
     $city = trim($b['city'] ?? '');
+    $commune = trim($b['commune'] ?? '');
+    $quartier = trim($b['quartier'] ?? '');
     $lat = isset($b['latitude']) && $b['latitude'] !== '' ? (float)$b['latitude'] : null;
     $lng = isset($b['longitude']) && $b['longitude'] !== '' ? (float)$b['longitude'] : null;
-    if(!$city && $lat===null && $lng===null) fail('Ville ou coordonnees requises');
-    q("UPDATE agents SET city=?, latitude=?, longitude=? WHERE id=?",[$city?:null,$lat,$lng,$pl['sub']]);
+    if(!$city && !$commune && !$quartier && $lat===null && $lng===null) fail('Ville, commune, quartier ou coordonnees requis');
+    // COALESCE(NULLIF(...)) : un champ laisse vide ici ne doit pas effacer
+    // la valeur deja renseignee obligatoirement a l'inscription - ce
+    // formulaire ne sert qu'a corriger/preciser, jamais a vider.
+    q("UPDATE agents SET city=COALESCE(NULLIF(?,''),city), commune=COALESCE(NULLIF(?,''),commune), quartier=COALESCE(NULLIF(?,''),quartier), latitude=?, longitude=? WHERE id=?",
+      [$city,$commune,$quartier,$lat,$lng,$pl['sub']]);
     ok(null,'Position enregistree');
 }
 
 // Formule de Haversine (calcul pur PHP, pas d'API payante) pour trier les
 // distributeurs par distance quand l'agent partage sa position ; repli sur
-// un filtre ville/pays sinon. Toujours ouvert (aucune restriction
-// geographique forcee) - purement une aide a la decouverte.
+// une recherche ville/commune/quartier/pays sinon - le filtrage progressif
+// (ville seule = large, +commune = plus precis, +quartier = tres precis)
+// est ce qui permet a "Trouver un distributeur" de rester utilisable meme
+// avec un grand nombre de distributeurs (voir agent_register(), ces trois
+// champs sont obligatoires a l'inscription pour cette raison). Toujours
+// ouvert (aucune restriction geographique forcee) - purement une aide a la
+// decouverte.
 function agent_find_distributors() {
     $pl = agent_auth();
     $lat = isset($_GET['lat']) && $_GET['lat'] !== '' ? (float)$_GET['lat'] : null;
     $lng = isset($_GET['lng']) && $_GET['lng'] !== '' ? (float)$_GET['lng'] : null;
     $city = trim($_GET['city'] ?? '');
+    $commune = trim($_GET['commune'] ?? '');
+    $quartier = trim($_GET['quartier'] ?? '');
     $country = trim($_GET['country'] ?? '');
 
     $where = "is_distributor=1 AND status='active'"; $params = [];
     if($city){ $where .= " AND city ILIKE ?"; $params[] = '%'.$city.'%'; }
+    if($commune){ $where .= " AND commune ILIKE ?"; $params[] = '%'.$commune.'%'; }
+    if($quartier){ $where .= " AND quartier ILIKE ?"; $params[] = '%'.$quartier.'%'; }
     if($country){ $where .= " AND country=?"; $params[] = $country; }
-    $rows = q("SELECT id,full_name,phone_number,city,country,latitude,longitude FROM agents WHERE $where",$params)->fetchAll();
+    $rows = q("SELECT id,full_name,phone_number,city,commune,quartier,country,latitude,longitude FROM agents WHERE $where",$params)->fetchAll();
 
     if($lat!==null && $lng!==null){
         foreach($rows as &$r){
@@ -8454,8 +8482,12 @@ function route_install() {
     // + coordonnees GPS optionnelles posees une fois. NULL tant que non
     // renseigne (agent_set_location() cote agent).
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS city VARCHAR(150)",
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS commune VARCHAR(150)",
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS quartier VARCHAR(150)",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)",
+    "CREATE INDEX IF NOT EXISTS idx_agents_city ON agents(city)",
+    "CREATE INDEX IF NOT EXISTS idx_agents_commune ON agents(commune)",
     // Documents d'agrement (piece d'identite + photo du local) - mirror exact
     // de merchant_documents : un seul enregistrement par (agent, type de
     // document), renvoyer le meme type remplace l'ancien.
