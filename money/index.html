@@ -794,6 +794,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
     <div id="admin-panel-dashboard" class="admin-panel">
       <div class="admin-stitle" data-i18n-admin="admin_dash_title">Vue d'ensemble</div>
+      <div id="admin-dash-scope-note" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:10px;background:var(--gl);color:var(--g);font-size:11px;font-weight:600"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
         <select class="finput" id="dash-period" onchange="adminToggleDashCustomDates()">
           <option value="today" data-i18n-admin="admin_period_today">Aujourd'hui</option>
@@ -2001,6 +2002,8 @@ var I18N = {
   admin_accounts_reset_btn: {fr:'Valider le nouveau mot de passe', en:'Confirm new password'},
   admin_accounts_reset_toast: {fr:'Mot de passe réinitialisé', en:'Password reset'},
   admin_super_admin_only_note: {fr:'🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.', en:'🔒 Admin Principal only — read-only for other accounts.'},
+  admin_dash_scope_prefix: {fr:'Statistiques limitées à :', en:'Statistics limited to:'},
+  admin_dash_scope_none: {fr:'Aucun pays assigné à ce compte — aucune statistique à afficher.', en:'No country assigned to this account — no statistics to show.'},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -2964,6 +2967,7 @@ function adminEndSession(){
   window._earningsPw=null;
   window._adminName=null;
   window._isSuperAdmin=false;
+  window._adminCountries=null;
   var mainBox=document.getElementById('admin-main-box');
   var loginBox=document.getElementById('admin-login-box');
   if(mainBox) mainBox.style.display='none';
@@ -3048,11 +3052,19 @@ function adminToggleDashCustomDates(){
   document.getElementById('dash-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
 }
 function adminLoadDashboard(){
-  var box=document.getElementById('admin-dashboard-box');
-  if(!window._isSuperAdmin){
-    box.innerHTML='<div class="admin-empty">'+at('admin_super_admin_only_note')+'</div>';
-    return;
+  var scopeNote=document.getElementById('admin-dash-scope-note');
+  if(scopeNote){
+    if(window._isSuperAdmin){
+      scopeNote.style.display='none';
+    } else {
+      var countries=window._adminCountries||[];
+      scopeNote.textContent = countries.length
+        ? '🌍 '+at('admin_dash_scope_prefix')+' '+countries.map(adminCountryName).join(', ')
+        : '🌍 '+at('admin_dash_scope_none');
+      scopeNote.style.display='block';
+    }
   }
+  var box=document.getElementById('admin-dashboard-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   var period=document.getElementById('dash-period').value;
   var payload={admin_password:window._adminPw, period:period};
@@ -3819,6 +3831,7 @@ window._adminPw='';
 window._admin2faPending=false;
 window._adminName=null;
 window._isSuperAdmin=false;
+window._adminCountries=null;
 function adminToggleRecoveryMode(){
   var row=document.getElementById('admin-2fa-recovery-row');
   var codeField=document.getElementById('admin-2fa-code');
@@ -3856,6 +3869,7 @@ function adminLogin(){
       window._admin2faPending=false;
       window._adminName=(res.data&&res.data.admin_name)||null;
       window._isSuperAdmin=!!(res.data&&res.data.is_super_admin);
+      window._adminCountries=(res.data&&res.data.countries)||null;
       document.getElementById('admin-2fa-box').style.display='none';
       if(res.data&&res.data.recovery_used){
         toast(at('admin_login_recovery_used'));
@@ -3871,6 +3885,7 @@ function adminLogin(){
       window._earningsPw=null;
       window._adminName=null;
       window._isSuperAdmin=false;
+      window._adminCountries=null;
       window._admin2faPending=false;
       document.getElementById('admin-2fa-box').style.display='none';
       document.getElementById('admin-login-box').style.display='block';
@@ -3886,7 +3901,7 @@ function adminLoadRequests(){
   adminStartInactivityTimer();
   var langBtn = document.getElementById('admin-lang-toggle');
   if(langBtn) langBtn.textContent = ADMIN_LANG.toUpperCase();
-  adminTab(window._isSuperAdmin ? 'dashboard' : 'kyc');
+  adminTab('dashboard');
   adminStartKycPolling();
   adminRefreshFraudBadge();
   adminRefreshAgentsBadge();

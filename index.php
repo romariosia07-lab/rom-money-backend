@@ -4405,6 +4405,52 @@ function admin_check_country_access_any($candidateCountries) {
     fail("Vous n'etes pas autorise a agir sur cette transaction.", 403);
 }
 
+// Jointures pays (expediteur ET destinataire, personnel ou marchand) pour
+// les agregats du tableau de bord - voir admin_dash_xof_sum()/admin_dash_count().
+// Alias dedies (ds*/dr*) pour ne jamais entrer en collision avec les alias
+// deja utilises par ailleurs dans admin_dashboard_get_data() (erw/ermw/errate...).
+function admin_dash_country_join_sql() {
+    return " LEFT JOIN wallets dsw ON transactions.sender_wallet_id = dsw.id
+        LEFT JOIN merchant_wallets dsmw ON transactions.sender_merchant_wallet_id = dsmw.id
+        LEFT JOIN users dsu ON dsw.user_id = dsu.id
+        LEFT JOIN merchants dsm ON dsmw.merchant_id = dsm.id
+        LEFT JOIN wallets drw2 ON transactions.receiver_wallet_id = drw2.id
+        LEFT JOIN merchant_wallets drmw2 ON transactions.receiver_merchant_wallet_id = drmw2.id
+        LEFT JOIN users dru ON drw2.user_id = dru.id
+        LEFT JOIN merchants drm ON drmw2.merchant_id = drm.id";
+}
+function admin_dash_country_scope_where() {
+    return admin_country_scope_clause_either('dsu.country,dsm.country', 'dru.country,drm.country');
+}
+// Remplace admin_dash_xof_sum_sql() : execute directement (au lieu de
+// renvoyer juste le texte SQL) pour pouvoir fusionner proprement les
+// parametres du filtre de perimetre pays avec ceux du $where appelant -
+// tous les appelants faisaient de toute facon q(...)->fetchColumn() aussitot.
+function admin_dash_xof_sum($where, $params = []) {
+    list($scopeSql, $scopeParams) = admin_dash_country_scope_where();
+    $sql = "SELECT COALESCE(SUM(
+            COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
+            * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+            / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+        ),0)
+        FROM transactions
+        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
+        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
+        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
+        .admin_dash_country_join_sql()."
+        WHERE $where".$scopeSql;
+    return (float)q($sql, array_merge($params, $scopeParams))->fetchColumn();
+}
+// Meme principe que admin_dash_xof_sum() mais pour un simple COUNT(*),
+// utilise partout ou le tableau de bord compte des transactions plutot que
+// d'en sommer le montant.
+function admin_dash_count($where, $params = []) {
+    list($scopeSql, $scopeParams) = admin_dash_country_scope_where();
+    $sql = "SELECT COUNT(*) FROM transactions".admin_dash_country_join_sql()." WHERE $where".$scopeSql;
+    return (int)q($sql, array_merge($params, $scopeParams))->fetchColumn();
+}
+
 // Le journal d'audit (audit_logs.target_phone) ne stocke qu'un numero de
 // telephone brut, potentiellement personnel/marchand/agent OU absent (actions
 // systeme : connexion admin, reglages, activation pays...). Pour un compte
@@ -5635,12 +5681,12 @@ function admin_login_check() {
         }
         if ($usedRecovery) {
             admin_log('admin_login','success',null,dk('d_login_success_recovery'));
-            ok(['recovery_used'=>true,'admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal'],'Connexion reussie');
+            ok(['recovery_used'=>true,'admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal','countries'=>$GLOBALS['_current_admin_countries']??null],'Connexion reussie');
             return;
         }
     }
     admin_log('admin_login','success',null,dk('d_login_success'));
-    ok(['admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal'],'Connexion reussie');
+    ok(['admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal','countries'=>$GLOBALS['_current_admin_countries']??null],'Connexion reussie');
 }
 
 function admin_2fa_status() {
@@ -6966,31 +7012,12 @@ function admin_audit_export_pdf() {
     exit;
 }
 
-// Construit une requete SOMME(montant converti en XOF) pour les agregats du
-// tableau de bord admin. Sans cette conversion, un virement de 100 GHS et un
-// de 100 XOF comptaient tous deux pour "100" alors qu'ils ne representent pas
-// la meme valeur (100 GHS vaut environ 12x plus) - meme en sommant la bonne
-// colonne (receiver_amount, deja corrige), additionner des devises
-// differentes brutes ne donne jamais un total qui veut dire quelque chose.
-// Convertit via un JOIN direct sur exchange_rates (tenu a jour par
-// refresh_exchange_rates_if_stale(), appele une fois au debut de
-// admin_dashboard_get_data()) plutot qu'un appel PHP par ligne - la somme
-// reste entierement calculee cote base de donnees, meme sur un historique de
-// plusieurs annees. NULLIF(...,0) evite une division par zero si jamais un
-// taux etait enregistre a 0.
-function admin_dash_xof_sum_sql($where){
-    return "SELECT COALESCE(SUM(
-            COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
-            * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
-            / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
-        ),0)
-        FROM transactions
-        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
-        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
-        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
-        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
-        WHERE $where";
-}
+// admin_dash_xof_sum()/admin_dash_count() (voir plus haut, pres de
+// admin_dash_country_join_sql()) font desormais la conversion XOF ET
+// l'execution en un seul appel - remplace l'ancien admin_dash_xof_sum_sql()
+// qui ne renvoyait que le texte SQL. Sans conversion, un virement de 100 GHS
+// et un de 100 XOF comptaient tous deux pour "100" alors qu'ils ne
+// representent pas la meme valeur (100 GHS vaut environ 12x plus).
 
 function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Rafraichit les taux si besoin AVANT les JOIN sur exchange_rates
@@ -6999,21 +7026,22 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // tous les COALESCE(...,1) ci-dessous traiteraient tout comme du XOF).
     refresh_exchange_rates_if_stale();
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
-    $todayCount  = q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type NOT IN ('fee','manual_withdrawal') AND created_at >= CURRENT_DATE")->fetchColumn();
-    // Converti en XOF (voir admin_dash_xof_sum_sql) : additionner des
+    $todayCount  = admin_dash_count("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE");
+    // Converti en XOF (voir admin_dash_xof_sum()) : additionner des
     // montants dans des devises differentes brutes ne donne jamais un total
     // qui veut dire quelque chose.
-    $todayVolume = q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
+    $todayVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE");
     $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
-    $kycPending  = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
+    list($kycScopeSql, $kycScopeParams) = admin_country_scope_clause('u.country');
+    $kycPending  = q("SELECT COUNT(*) FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.status='pending'".$kycScopeSql, $kycScopeParams)->fetchColumn();
 
     // Bloc "Periode selectionnee"
     // Prefixe avec "transactions." (valide meme sans alias explicite dans le
     // FROM, puisque c'est le nom de la table elle-meme) : reutilise aussi
     // bien dans des requetes simples (FROM transactions seul) que dans
-    // admin_dash_xof_sum_sql() (qui joint wallets/merchant_wallets, toutes
-    // deux avec leur PROPRE colonne created_at - une reference non prefixee
-    // y est ambigue pour PostgreSQL, provoquant une erreur SQL silencieuse
+    // admin_dash_xof_sum() (qui joint wallets/merchant_wallets, toutes deux
+    // avec leur PROPRE colonne created_at - une reference non prefixee y est
+    // ambigue pour PostgreSQL, provoquant une erreur SQL silencieuse
     // remontee comme "Erreur de chargement").
     $where = "transactions.status='completed'";
     $params = [];
@@ -7032,26 +7060,30 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $where .= " AND transactions.created_at >= CURRENT_DATE";
     }
 
-    $periodVolume = q(admin_dash_xof_sum_sql("$where AND transactions.type NOT IN ('fee','manual_withdrawal')"), $params)->fetchColumn();
+    $periodVolume = admin_dash_xof_sum("$where AND transactions.type NOT IN ('fee','manual_withdrawal')", $params);
     $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
 
-    $totalVolume = q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')"))->fetchColumn();
+    $totalVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')");
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
     // dashboard partage (mot de passe admin seul), les actions Gains ROM ne
-    // doivent y laisser aucune trace, meme juste le nom de l'action.
-    $recentLogs  = q("SELECT * FROM audit_logs WHERE action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel') ORDER BY created_at DESC LIMIT 5")->fetchAll();
+    // doivent y laisser aucune trace, meme juste le nom de l'action. Meme
+    // perimetre pays que le vrai journal d'audit (admin_audit_scope_sql()).
+    list($alJoinSql, $alScopeSql, $alScopeParams) = admin_audit_scope_sql();
+    $recentLogs  = q("SELECT audit_logs.* FROM audit_logs".$alJoinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')".$alScopeSql." ORDER BY audit_logs.created_at DESC LIMIT 5", $alScopeParams)->fetchAll();
+    list($opScopeSql, $opScopeParams) = admin_country_scope_clause('country');
     $operatorBreakdown = q("SELECT COALESCE(NULLIF(operator,''),'Non renseigné') AS operator, COUNT(*) AS total
-        FROM users GROUP BY operator
+        FROM users WHERE 1=1".$opScopeSql." GROUP BY operator
         ORDER BY CASE COALESCE(NULLIF(operator,''),'Non renseigné')
             WHEN 'Orange CI' THEN 1
             WHEN 'MTN CI' THEN 2
             WHEN 'Moov Africa CI' THEN 3
             ELSE 4
-        END")->fetchAll();
+        END", $opScopeParams)->fetchAll();
 
     // Evolution quotidienne (14 derniers jours), independante du filtre de
     // periode ci-dessus : sert a visualiser une tendance recente, pas a
     // cumuler sur une longue duree.
+    list($dailyScopeSql, $dailyScopeParams) = admin_dash_country_scope_where();
     $dailyRows = q("SELECT DATE(transactions.created_at) AS day, COUNT(*) AS count,
             COALESCE(SUM(
                 COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
@@ -7062,9 +7094,10 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
         LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
         LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
-        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
-        WHERE transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= NOW() - INTERVAL '14 days'
-        GROUP BY DATE(transactions.created_at) ORDER BY day")->fetchAll();
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
+        .admin_dash_country_join_sql()."
+        WHERE transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= NOW() - INTERVAL '14 days'".$dailyScopeSql."
+        GROUP BY DATE(transactions.created_at) ORDER BY day", $dailyScopeParams)->fetchAll();
     // Comble les jours sans transaction (absents du GROUP BY) avec des zeros,
     // pour un graphique continu sur 14 jours consecutifs.
     $dailyByDate = [];
@@ -7084,6 +7117,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // bonne devise dans les deux cas - un seul JOIN de taux suffit ici,
     // contrairement aux agregats globaux ci-dessus qui melangent plusieurs
     // portefeuilles differents.
+    list($tuScopeSql, $tuScopeParams) = admin_country_scope_clause('u.country');
     $topUsers = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
             SUM(
                 (CASE WHEN t.sender_wallet_id = w.id THEN t.amount ELSE COALESCE(t.receiver_amount,t.net_amount,t.amount) END)
@@ -7095,38 +7129,39 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         JOIN transactions t ON (t.sender_wallet_id = w.id OR t.receiver_wallet_id = w.id)
         LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(w.currency)
         LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
-        WHERE t.status='completed' AND t.type NOT IN ('fee','manual_withdrawal')
+        WHERE t.status='completed' AND t.type NOT IN ('fee','manual_withdrawal')".$tuScopeSql."
         GROUP BY u.id, name, u.phone_number
         ORDER BY total_volume DESC
-        LIMIT 10")->fetchAll();
+        LIMIT 10", $tuScopeParams)->fetchAll();
 
     // Bloc marchands ROM_BUSINESS - protege par try/catch au cas ou les
     // tables merchants/merchant_wallets ne seraient pas encore creees sur
     // cette base (meme precaution que merchant_register()/merchant_login()).
     try {
-        $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants")->fetchColumn();
-        $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1")->fetchColumn();
+        list($mScopeSql, $mScopeParams) = admin_country_scope_clause('country');
+        $merchantsTotal    = (int)q("SELECT COUNT(*) FROM merchants WHERE 1=1".$mScopeSql, $mScopeParams)->fetchColumn();
+        $merchantsVerified = (int)q("SELECT COUNT(*) FROM merchants WHERE verified=1".$mScopeSql, $mScopeParams)->fetchColumn();
         // "Aujourd'hui" - toujours fixe, meme principe que todayVolume/todayFees.
-        // Converti en XOF (voir admin_dash_xof_sum_sql) : un paiement de
+        // Converti en XOF (voir admin_dash_xof_sum()) : un paiement de
         // 100 GHS et un de 100 XOF ne representent pas la meme valeur.
-        $merchantVolumeToday = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
-        $merchantCountToday  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantVolumeToday = admin_dash_xof_sum("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.created_at >= CURRENT_DATE");
+        $merchantCountToday  = admin_dash_count("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.created_at >= CURRENT_DATE");
         // Part recue d'un AUTRE MARCHAND (et non d'un client) - reconnaissable
         // a sender_merchant_wallet_id non nul sur une transaction de type
         // 'merchant_payment'. Affichee separement du volume total ci-dessus
         // pour qu'un admin puisse reperer un marchand dont l'essentiel du
         // volume vient d'autres marchands plutot que de vraies ventes clients
         // (signal a surveiller, pas bloque automatiquement).
-        $merchantVolumeTodayFromMerchants = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL AND transactions.created_at >= CURRENT_DATE"))->fetchColumn();
-        $merchantCountTodayFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE status='completed' AND type='merchant_payment' AND sender_merchant_wallet_id IS NOT NULL AND created_at >= CURRENT_DATE")->fetchColumn();
+        $merchantVolumeTodayFromMerchants = admin_dash_xof_sum("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL AND transactions.created_at >= CURRENT_DATE");
+        $merchantCountTodayFromMerchants  = admin_dash_count("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL AND transactions.created_at >= CURRENT_DATE");
         // Periode selectionnee (meme $where/$params que le bloc personnel juste au-dessus).
-        $merchantVolumePeriod = (float)q(admin_dash_xof_sum_sql("$where AND transactions.type='merchant_payment'"), $params)->fetchColumn();
-        $merchantCountPeriod  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND transactions.type='merchant_payment'", $params)->fetchColumn();
-        $merchantVolumePeriodFromMerchants = (float)q(admin_dash_xof_sum_sql("$where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL"), $params)->fetchColumn();
-        $merchantCountPeriodFromMerchants  = (int)q("SELECT COUNT(*) FROM transactions WHERE $where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL", $params)->fetchColumn();
+        $merchantVolumePeriod = admin_dash_xof_sum("$where AND transactions.type='merchant_payment'", $params);
+        $merchantCountPeriod  = admin_dash_count("$where AND transactions.type='merchant_payment'", $params);
+        $merchantVolumePeriodFromMerchants = admin_dash_xof_sum("$where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL", $params);
+        $merchantCountPeriodFromMerchants  = admin_dash_count("$where AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL", $params);
         // Cumule (depuis toujours), independant du filtre de periode.
-        $merchantVolume    = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment'"))->fetchColumn();
-        $merchantVolumeFromMerchants = (float)q(admin_dash_xof_sum_sql("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL"))->fetchColumn();
+        $merchantVolume    = admin_dash_xof_sum("transactions.status='completed' AND transactions.type='merchant_payment'");
+        $merchantVolumeFromMerchants = admin_dash_xof_sum("transactions.status='completed' AND transactions.type='merchant_payment' AND transactions.sender_merchant_wallet_id IS NOT NULL");
         // Classement des marchands recevant le plus d'un AUTRE marchand
         // (et non de clients) - meme logique que topMerchants ci-dessous mais
         // filtree sur les paiements inter-marchands uniquement. mw.currency
@@ -7143,6 +7178,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment' AND t.sender_merchant_wallet_id IS NOT NULL
             LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(mw.currency)
             LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
+            WHERE 1=1".$mScopeSql."
             GROUP BY m.id, m.business_name, m.phone_number, m.verified
             HAVING COALESCE(SUM(
                     COALESCE(t.receiver_amount,t.net_amount,t.amount)
@@ -7150,7 +7186,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
                     / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
                 ),0) > 0
             ORDER BY total_volume DESC
-            LIMIT 10")->fetchAll();
+            LIMIT 10", $mScopeParams)->fetchAll();
         $topMerchants = q("SELECT m.id, m.business_name, m.phone_number, m.verified,
                 COALESCE(SUM(
                     COALESCE(t.receiver_amount,t.net_amount,t.amount)
@@ -7162,9 +7198,10 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
             LEFT JOIN transactions t ON t.receiver_merchant_wallet_id = mw.id AND t.status='completed' AND t.type='merchant_payment'
             LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(mw.currency)
             LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'
+            WHERE 1=1".$mScopeSql."
             GROUP BY m.id, m.business_name, m.phone_number, m.verified
             ORDER BY total_volume DESC
-            LIMIT 10")->fetchAll();
+            LIMIT 10", $mScopeParams)->fetchAll();
     } catch(Exception $e) {
         $merchantsTotal = 0; $merchantsVerified = 0; $merchantVolume = 0; $topMerchants = [];
         $merchantVolumeToday = 0; $merchantCountToday = 0;
@@ -7207,7 +7244,6 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
 function admin_dashboard_stats() {
     $b = body();
     check_admin_password($b);
-    check_super_admin_only();
     $period   = trim($b['period'] ?? 'today');
     $dateFrom = trim($b['date_from'] ?? '');
     $dateTo   = trim($b['date_to'] ?? '');
@@ -7352,7 +7388,6 @@ function xlsx_build($sheetXml) {
 
 function admin_dashboard_export_xlsx() {
     check_admin_password_str((string)bg('admin_password',''));
-    check_super_admin_only();
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
@@ -7467,7 +7502,6 @@ function admin_update_settings() {
 
 function admin_dashboard_export_pdf() {
     check_admin_password_str((string)bg('admin_password',''));
-    check_super_admin_only();
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
