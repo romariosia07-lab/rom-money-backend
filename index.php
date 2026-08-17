@@ -7085,7 +7085,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
         .admin_dash_country_join_sql()."
         WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
-        GROUP BY country
+        GROUP BY COALESCE(dru.country, drm.country, dsu.country, dsm.country)
         ORDER BY volume DESC", array_merge($params, $cbScopeParams))->fetchAll();
 
     $totalVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')");
