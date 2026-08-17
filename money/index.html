@@ -2007,6 +2007,7 @@ var I18N = {
   admin_dash_scope_none: {fr:'Aucun pays assigné à ce compte — aucune statistique à afficher.', en:'No country assigned to this account — no statistics to show.'},
   admin_dash_country_breakdown: {fr:'Répartition par pays', en:'Breakdown by country'},
   admin_dash_country_unknown: {fr:'Pays inconnu', en:'Unknown country'},
+  admin_dash_overlap_note: {fr:"Une transaction impliquant aussi un autre pays peut apparaître également chez l'admin de ce pays — ne pas additionner ces chiffres entre comptes admin.", en:"A transaction that also involves another country may appear in that country's admin dashboard too — don't add these figures together across admin accounts."},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -3061,9 +3062,10 @@ function adminLoadDashboard(){
       scopeNote.style.display='none';
     } else {
       var countries=window._adminCountries||[];
-      scopeNote.textContent = countries.length
-        ? '🌍 '+at('admin_dash_scope_prefix')+' '+countries.map(adminCountryName).join(', ')
-        : '🌍 '+at('admin_dash_scope_none');
+      scopeNote.innerHTML = countries.length
+        ? '🌍 '+adminEsc(at('admin_dash_scope_prefix'))+' '+adminEsc(countries.map(adminCountryName).join(', '))
+          +'<div style="font-weight:400;font-size:10px;opacity:.85;margin-top:4px">'+adminEsc(at('admin_dash_overlap_note'))+'</div>'
+        : '🌍 '+adminEsc(at('admin_dash_scope_none'));
       scopeNote.style.display='block';
     }
   }
