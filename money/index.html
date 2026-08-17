@@ -1043,6 +1043,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_to">au</label>
         <input class="finput" id="usr-date-to" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
       </div>
+      <div class="frow" id="usr-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="usr-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadUsers(1)"></div>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('xlsx')">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('pdf')">⬇ Exporter PDF</button>
@@ -1134,6 +1137,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="blocked">Statut : Bloqués</option>
         </select>
       </div>
+      <div class="frow" id="mrclist-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="mrclist-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadMerchants(1)"></div>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('xlsx')">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('pdf')">⬇ Exporter PDF</button>
@@ -1185,6 +1191,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div id="agt-tiers-box"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
 
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_agents_list_title">Liste des agents</div>
+      <div class="frow" id="agtlist-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="agtlist-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadAgents(1)"></div>
+      </div>
       <div id="agtlist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="agtlist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
@@ -1337,6 +1346,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="display:flex;gap:10px">
         <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_from">Date de début</label><input class="finput" type="date" id="audit-f-from"></div>
         <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_to">Date de fin</label><input class="finput" type="date" id="audit-f-to"></div>
+      </div>
+      <div class="frow" id="audit-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="audit-country-box" style="display:flex;flex-wrap:wrap;gap:4px"></div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button class="btn-g" style="margin-top:0" onclick="adminLoadAuditLog()" data-i18n-admin="admin_audit_filter_btn">Filtrer</button>
@@ -3066,9 +3078,12 @@ function adminToggleDashCustomDates(){
 // A cocher plusieurs (pas un select classique) : voir admin_dash_country_filter_label
 // ("aucun coche = tous") - permet de combiner un sous-ensemble precis de
 // pays, pas seulement "un seul" ou "tous".
-function adminRenderDashCountryOptions(countries, currentFilter){
-  var row=document.getElementById('dash-country-row');
-  var box=document.getElementById('dash-country-box');
+// Version generique (boxId/rowId parametrables) reutilisee par le tableau
+// de bord ET les onglets Utilisateurs/Marchands/Agents/Journal d'audit -
+// meme mecanique de case a cocher partout, juste des ids d'element differents.
+function adminRenderCountryFilterOptions(boxId, rowId, countries, currentFilter){
+  var row=document.getElementById(rowId);
+  var box=document.getElementById(boxId);
   if(!row||!box) return;
   if(countries.length<2){ row.style.display='none'; return; }
   var checkedSet={};
@@ -3081,18 +3096,25 @@ function adminRenderDashCountryOptions(countries, currentFilter){
   }).join('');
   row.style.display='block';
 }
-// Lit les pays actuellement coches - null (pas de filtre du tout) si
-// aucune case n'est cochee, jamais un tableau vide : cote serveur, un
-// tableau vide signifie explicitement "zero pays" (tout a zero), ce qui
-// serait un contresens si l'utilisateur n'a simplement encore rien coche.
-function adminReadDashCountryFilter(){
-  var box=document.getElementById('dash-country-box');
+// Lit les pays actuellement coches dans boxId - null (pas de filtre du
+// tout) si aucune case n'est cochee, jamais un tableau vide : cote
+// serveur, un tableau vide signifie explicitement "zero pays" (tout a
+// zero), ce qui serait un contresens si l'utilisateur n'a simplement
+// encore rien coche.
+function adminReadCountryFilter(boxId){
+  var box=document.getElementById(boxId);
   if(!box) return null;
   var selected=[];
   box.querySelectorAll('input[type=checkbox]').forEach(function(el){
     if(el.checked) selected.push(el.getAttribute('data-country'));
   });
   return selected.length ? selected : null;
+}
+function adminRenderDashCountryOptions(countries, currentFilter){
+  adminRenderCountryFilterOptions('dash-country-box', 'dash-country-row', countries, currentFilter);
+}
+function adminReadDashCountryFilter(){
+  return adminReadCountryFilter('dash-country-box');
 }
 function adminLoadDashboard(){
   var scopeNote=document.getElementById('admin-dash-scope-note');
@@ -3389,6 +3411,8 @@ function adminExportMerchants(format){
     verified:document.getElementById('mrclist-verified').value,
     status:document.getElementById('mrclist-status').value
   };
+  var mrcCountryVal=adminReadCountryFilter('mrclist-country-box');
+  if(mrcCountryVal) payload.country=mrcCountryVal;
   adminDownloadExport('merchants-export-'+format, payload, 'rom_business_marchands.'+format);
 }
 function adminExportUsers(format){
@@ -3400,6 +3424,8 @@ function adminExportUsers(format){
     date_from:document.getElementById('usr-date-from').value,
     date_to:document.getElementById('usr-date-to').value
   };
+  var usrCountryVal=adminReadCountryFilter('usr-country-box');
+  if(usrCountryVal) payload.country=usrCountryVal;
   adminDownloadExport('users-export-'+format, payload, 'rom_money_utilisateurs.'+format);
 }
 function adminExportDashboard(format){
@@ -3422,6 +3448,8 @@ function adminExportAudit(format){
     date_from:document.getElementById('audit-f-from').value,
     date_to:document.getElementById('audit-f-to').value
   };
+  var auditCountryVal=adminReadCountryFilter('audit-country-box');
+  if(auditCountryVal) payload.country=auditCountryVal;
   adminDownloadExport('audit-export-'+format, payload, 'rom_money_journal_audit.'+format);
 }
 
@@ -5187,8 +5215,12 @@ function adminUpdateAgentTier(id){
 function adminLoadAgents(page){
   var box=document.getElementById('agtlist-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
-  apiCall('/admin?action=agent-list','POST',{admin_password:window._adminPw,page:page||1},'').then(function(res){
+  var payload={admin_password:window._adminPw,page:page||1};
+  var agtCountryVal=adminReadCountryFilter('agtlist-country-box');
+  if(agtCountryVal) payload.country=agtCountryVal;
+  apiCall('/admin?action=agent-list','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
+      adminRenderCountryFilterOptions('agtlist-country-box', 'agtlist-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var list=res.data.agents||[];
       if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_no_agent_found')+'</div>'; document.getElementById('agtlist-pagination').innerHTML=''; return; }
       var statusLabels = {active:at('admin_status_active'), blocked:at('admin_status_blocked'), pending_approval:at('admin_status_pending'), rejected:at('admin_status_rejected')};
@@ -5200,7 +5232,7 @@ function adminLoadAgents(page){
         var cur = a.currency || 'XOF';
         html+='<div style="border-top:1px solid var(--bord);padding:10px 0;font-size:12px;cursor:pointer" onclick="document.getElementById(\'agt-phone\').value=\''+a.phone_number+'\';adminSearchAgent();adminTab(\'agents\')">'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
-          +'<span>'+adminEsc(a.full_name)+(a.is_distributor?' <span style="color:var(--gold)" title="Distributeur">🏢</span>':'')+'<br><span style="color:var(--t3);font-size:10px">'+a.phone_number+'</span></span>'
+          +'<span>'+adminEsc(a.full_name)+(a.is_distributor?' <span style="color:var(--gold)" title="Distributeur">🏢</span>':'')+'<br><span style="color:var(--t3);font-size:10px">'+a.phone_number+(a.country?' · '+adminEsc(adminCountryName(a.country)):'')+'</span></span>'
           +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+stLabel+'</span>'
           +'</div>'
           +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:10px;color:var(--t3)">'
@@ -5758,8 +5790,11 @@ function adminLoadAuditLog(){
     date_from:document.getElementById('audit-f-from').value,
     date_to:document.getElementById('audit-f-to').value
   };
+  var auditCountryVal=adminReadCountryFilter('audit-country-box');
+  if(auditCountryVal) payload.country=auditCountryVal;
   apiCall('/admin?action=audit-list','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data&&res.data.logs){
+      adminRenderCountryFilterOptions('audit-country-box', 'audit-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var logs=res.data.logs;
       if(logs.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_audit_no_match')+'</div>'; return; }
       box.innerHTML=logs.map(function(l){
@@ -5783,6 +5818,8 @@ function adminResetAuditFilters(){
   document.getElementById('audit-f-phone').value='';
   document.getElementById('audit-f-from').value='';
   document.getElementById('audit-f-to').value='';
+  var countryBox=document.getElementById('audit-country-box');
+  if(countryBox) countryBox.querySelectorAll('input[type=checkbox]').forEach(function(el){ el.checked=false; });
   adminLoadAuditLog();
 }
 
@@ -5798,7 +5835,7 @@ function adminLoadUsers(page){
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
-  apiCall('/admin?action=list-users','POST',{
+  var payload={
     admin_password: window._adminPw,
     search: document.getElementById('usr-search').value.trim(),
     kyc: document.getElementById('usr-kyc').value,
@@ -5806,8 +5843,12 @@ function adminLoadUsers(page){
     date_from: document.getElementById('usr-date-from').value,
     date_to: document.getElementById('usr-date-to').value,
     page: window._usrPage
-  },'').then(function(res){
+  };
+  var usrCountryVal=adminReadCountryFilter('usr-country-box');
+  if(usrCountryVal) payload.country=usrCountryVal;
+  apiCall('/admin?action=list-users','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
+      adminRenderCountryFilterOptions('usr-country-box', 'usr-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var users = res.data.users||[];
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
@@ -5821,7 +5862,7 @@ function adminLoadUsers(page){
         var statusLabel = u.status==='blocked' ? at('admin_users_blocked') : at('admin_users_active');
         html+='<div class="admin-tx-card" onclick="adminOpenUserFromList(\''+u.phone_number+'\')">'
           +'<div style="display:flex;justify-content:space-between"><b>'+adminEsc(u.verified_name||u.full_name)+(u.verified_name?' <span style="color:var(--g)" title="'+at('admin_kyc_verified_title')+'">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
-          +'<div style="color:var(--t3);margin-top:2px">'+u.phone_number+(u.operator?' · '+u.operator:'')+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+u.phone_number+(u.operator?' · '+u.operator:'')+(u.country?' · '+adminEsc(adminCountryName(u.country)):'')+'</div>'
           +'<div style="color:var(--t3);margin-top:4px">'+at('admin_users_registered_line').replace('{date}',new Date(u.created_at).toLocaleDateString()).replace('{kyc}',u.is_kyc?at('admin_users_kyc_verified_short'):at('admin_users_kyc_unverified_short'))+'</div>'
           +'</div>';
       });
@@ -5848,14 +5889,18 @@ function adminLoadMerchants(page){
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
-  apiCall('/admin?action=merchant-list','POST',{
+  var payload={
     admin_password: window._adminPw,
     search: document.getElementById('mrclist-search').value.trim(),
     verified: document.getElementById('mrclist-verified').value,
     status: document.getElementById('mrclist-status').value,
     page: window._mrcListPage
-  },'').then(function(res){
+  };
+  var mrcCountryVal=adminReadCountryFilter('mrclist-country-box');
+  if(mrcCountryVal) payload.country=mrcCountryVal;
+  apiCall('/admin?action=merchant-list','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
+      adminRenderCountryFilterOptions('mrclist-country-box', 'mrclist-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var merchants = res.data.merchants||[];
       var total = res.data.total||0;
       var perPage = res.data.per_page||25;
@@ -5869,7 +5914,7 @@ function adminLoadMerchants(page){
         var statusLabel = m.status==='blocked' ? 'Bloqué' : 'Actif';
         html+='<div class="admin-tx-card" onclick="adminOpenMerchantFromList(\''+m.phone_number+'\')">'
           +'<div style="display:flex;justify-content:space-between"><b>'+adminEsc(m.business_name)+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</b><span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusLabel+'</span></div>'
-          +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+(m.location_type==='physical'?'Local commercial':'En ligne')+'</div>'
+          +'<div style="color:var(--t3);margin-top:2px">'+m.phone_number+' · '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.country?' · '+adminEsc(adminCountryName(m.country)):'')+'</div>'
           +'<div style="color:var(--t3);margin-top:4px">Inscrit le '+new Date(m.created_at).toLocaleDateString()+'</div>'
           +'</div>';
       });

@@ -4407,6 +4407,31 @@ function admin_check_country_access_any($candidateCountries) {
     fail("Vous n'etes pas autorise a agir sur cette transaction.", 403);
 }
 
+// Helper generique extrait du meme principe que admin_dashboard_get_data() :
+// retrecit temporairement $GLOBALS['_current_admin_countries'] a un
+// sous-ensemble valide de $countryFilter (tableau ou null = pas de filtre,
+// perimetre par defaut inchange), en validant chaque pays demande contre le
+// perimetre reel de l'admin connecte (ou tous les pays actifs pour Admin
+// Principal). Retourne [$availableCountries, $restoreCallback] - appeler
+// $restoreCallback() avant tout retour de la fonction appelante (y compris
+// les chemins d'erreur) pour retablir l'etat original.
+function admin_apply_country_filter($countryFilter) {
+    $adminCountries = $GLOBALS['_current_admin_countries'] ?? null;
+    $availableCountries = $adminCountries !== null
+        ? $adminCountries
+        : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
+    $saved = $GLOBALS['_current_admin_countries'] ?? null;
+    if ($countryFilter !== null) {
+        foreach ($countryFilter as $c) {
+            if (!in_array($c, $availableCountries, true)) {
+                fail("Vous n'etes pas autorise a filtrer sur ce pays.", 403);
+            }
+        }
+        $GLOBALS['_current_admin_countries'] = array_values(array_unique($countryFilter));
+    }
+    return [$availableCountries, function() use ($saved) { $GLOBALS['_current_admin_countries'] = $saved; }];
+}
+
 // Jointures pays (expediteur ET destinataire, personnel ou marchand) pour
 // les agregats du tableau de bord - voir admin_dash_xof_sum()/admin_dash_count().
 // Alias dedies (ds*/dr*) pour ne jamais entrer en collision avec les alias
@@ -6415,44 +6440,54 @@ function admin_merchant_list() {
     $perPage = 25;
     $offset = ($page - 1) * $perPage;
 
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
     list($where, $params) = admin_merchants_build_where($b);
 
     try {
         $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
-        $rows = q("SELECT id,business_name,phone_number,location_type,status,verified,created_at
+        $rows = q("SELECT id,business_name,phone_number,location_type,country,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
     } catch(Exception $e) {
+        $restore();
         log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
-    ok(['merchants'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+    $restore();
+    ok(['merchants'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
 }
 
 // Export de la liste de marchands filtree (memes criteres que
 // admin_merchant_list()), meme mecanique que admin_users_export_xlsx/pdf().
 function admin_merchants_export_xlsx() {
     check_admin_password_str((string)bg('admin_password',''));
+    $countryRaw = bg('country', null);
+    $countryFilter = is_array($countryRaw) ? $countryRaw : null;
+    list(, $restore) = admin_apply_country_filter($countryFilter);
     $filters = ['search'=>(string)bg('search',''), 'verified'=>(string)bg('verified',''), 'status'=>(string)bg('status','')];
     list($where, $params) = admin_merchants_build_where($filters);
     $LIMIT = 5000;
     try {
         $total = (int)q("SELECT COUNT(*) FROM merchants WHERE $where", $params)->fetchColumn();
-        $rows = q("SELECT business_name,phone_number,location_type,address,status,verified,created_at
+        $rows = q("SELECT business_name,phone_number,location_type,address,country,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
     } catch(Exception $e) {
+        $restore();
         log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
+    $restore();
 
     $sheetRows = [];
     $sheetRows[] = [[ 'ROM_BUSINESS - Liste des marchands', 4, 's' ]];
     $sheetRows[] = [[ 'Genere le '.date('d/m/Y').' a '.date('H:i').' - '.$total.' marchand(s)'.($total>$LIMIT?' (limite aux '.$LIMIT.' premiers)':''), 0, 's' ]];
     $sheetRows[] = [];
-    $sheetRows[] = [[ 'Boutique',1,'s' ],[ 'Telephone',1,'s' ],[ 'Type',1,'s' ],[ 'Adresse',1,'s' ],[ 'Statut',1,'s' ],[ 'Verifie',1,'s' ],[ 'Inscrit le',1,'s' ]];
+    $sheetRows[] = [[ 'Boutique',1,'s' ],[ 'Telephone',1,'s' ],[ 'Type',1,'s' ],[ 'Adresse',1,'s' ],[ 'Pays',1,'s' ],[ 'Statut',1,'s' ],[ 'Verifie',1,'s' ],[ 'Inscrit le',1,'s' ]];
     foreach($rows as $m){
         $sheetRows[] = [
             [ $m['business_name'], 2, 's' ],
             [ $m['phone_number'], 2, 's' ],
             [ $m['location_type']==='physical'?'Local commercial':'En ligne', 2, 's' ],
             [ $m['address']?:'-', 2, 's' ],
+            [ $m['country']?:'-', 2, 's' ],
             [ $m['status']==='blocked'?'Bloque':'Actif', 2, 's' ],
             [ $m['verified']?'Oui':'Non', 2, 's' ],
             [ date('d/m/Y',strtotime($m['created_at'])), 2, 's' ]
@@ -6470,6 +6505,9 @@ function admin_merchants_export_xlsx() {
 }
 function admin_merchants_export_pdf() {
     check_admin_password_str((string)bg('admin_password',''));
+    $countryRaw = bg('country', null);
+    $countryFilter = is_array($countryRaw) ? $countryRaw : null;
+    list(, $restore) = admin_apply_country_filter($countryFilter);
     $filters = ['search'=>(string)bg('search',''), 'verified'=>(string)bg('verified',''), 'status'=>(string)bg('status','')];
     list($where, $params) = admin_merchants_build_where($filters);
     $LIMIT = 3000;
@@ -6478,8 +6516,10 @@ function admin_merchants_export_pdf() {
         $rows = q("SELECT business_name,phone_number,location_type,status,verified,created_at
                    FROM merchants WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
     } catch(Exception $e) {
+        $restore();
         log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
+    $restore();
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
@@ -6899,6 +6939,8 @@ function admin_audit_list() {
     $phoneFilter  = trim($b['phone_filter'] ?? '');
     $dateFrom     = trim($b['date_from'] ?? '');
     $dateTo       = trim($b['date_to'] ?? '');
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
 
     // Exclut les actions Gains ROM : ce journal general est accessible avec
     // le seul mot de passe admin partage, alors que ces actions doivent
@@ -6917,7 +6959,8 @@ function admin_audit_list() {
     $sql .= " ORDER BY audit_logs.created_at DESC LIMIT 100";
 
     $rows = q($sql, array_merge($params, $scopeParams))->fetchAll();
-    ok(['logs'=>$rows]);
+    $restore();
+    ok(['logs'=>$rows,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
 }
 
 function admin_audit_get_rows() {
@@ -6926,6 +6969,9 @@ function admin_audit_get_rows() {
     $phoneFilter  = trim((string)bg('phone_filter',''));
     $dateFrom     = trim((string)bg('date_from',''));
     $dateTo       = trim((string)bg('date_to',''));
+    $countryRaw = bg('country', null);
+    $countryFilter = is_array($countryRaw) ? $countryRaw : null;
+    list(, $restore) = admin_apply_country_filter($countryFilter);
 
     list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql();
     $sql = "SELECT audit_logs.* FROM audit_logs".$joinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
@@ -6936,7 +6982,9 @@ function admin_audit_get_rows() {
     if ($dateTo !== '')       { $sql .= " AND audit_logs.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
     $sql .= $scopeSql;
     $sql .= " ORDER BY audit_logs.created_at DESC LIMIT 100";
-    return q($sql, array_merge($params, $scopeParams))->fetchAll();
+    $rows = q($sql, array_merge($params, $scopeParams))->fetchAll();
+    $restore();
+    return $rows;
 }
 
 function admin_audit_action_label($a) {
@@ -8043,10 +8091,12 @@ function admin_agent_list() {
     $page = max(1, (int)($b['page'] ?? 1));
     $perPage = 25;
     $offset = ($page - 1) * $perPage;
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
     list($scopeSql, $scopeParams) = admin_country_scope_clause('a.country');
     try {
         $total = (int)q("SELECT COUNT(*) FROM agents a WHERE 1=1".$scopeSql, $scopeParams)->fetchColumn();
-        $rows = q("SELECT a.id,a.full_name,a.phone_number,a.status,a.verified,a.is_distributor,a.max_float_cap,a.created_at,
+        $rows = q("SELECT a.id,a.full_name,a.phone_number,a.country,a.status,a.verified,a.is_distributor,a.max_float_cap,a.created_at,
                 MAX(w.balance) AS balance, MAX(w.currency) AS currency,
                 COALESCE(SUM(CASE WHEN t.type='agent_commission' THEN t.amount ELSE 0 END),0) AS total_commission,
                 COALESCE(SUM(CASE WHEN t.type IN ('agent_cash_in','agent_cash_out') THEN t.amount ELSE 0 END),0) AS total_volume,
@@ -8058,9 +8108,11 @@ function admin_agent_list() {
             GROUP BY a.id
             ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset", $scopeParams)->fetchAll();
     } catch(Exception $e) {
+        $restore();
         log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
     }
-    ok(['agents'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+    $restore();
+    ok(['agents'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
 }
 
 function admin_agent_test_credit_wallet() {
@@ -8667,19 +8719,25 @@ function admin_list_users() {
     $perPage = 25;
     $offset = ($page - 1) * $perPage;
 
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
     list($where, $params) = admin_users_build_where($b);
 
     $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
-    $rows = q("SELECT id,full_name,verified_name,phone_number,operator,status,is_kyc,created_at
+    $rows = q("SELECT id,full_name,verified_name,phone_number,operator,country,status,is_kyc,created_at
                FROM users WHERE $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+    $restore();
 
-    ok(['users'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
+    ok(['users'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
 }
 
 // Export de la liste filtree (memes criteres que admin_list_users(), sans
 // pagination - plafonnee a un nombre raisonnable de lignes par securite).
 function admin_users_export_xlsx() {
     check_admin_password_str((string)bg('admin_password',''));
+    $countryRaw = bg('country', null);
+    $countryFilter = is_array($countryRaw) ? $countryRaw : null;
+    list(, $restore) = admin_apply_country_filter($countryFilter);
     $filters = ['search'=>(string)bg('search',''), 'kyc'=>(string)bg('kyc',''), 'status'=>(string)bg('status',''),
         'date_from'=>(string)bg('date_from',''), 'date_to'=>(string)bg('date_to','')];
     list($where, $params) = admin_users_build_where($filters);
@@ -8687,6 +8745,7 @@ function admin_users_export_xlsx() {
     $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT full_name,verified_name,phone_number,operator,country,status,is_kyc,created_at
                FROM users WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+    $restore();
 
     $sheetRows = [];
     $sheetRows[] = [[ 'ROM_MONEY - Liste des utilisateurs', 4, 's' ]];
@@ -8716,6 +8775,9 @@ function admin_users_export_xlsx() {
 }
 function admin_users_export_pdf() {
     check_admin_password_str((string)bg('admin_password',''));
+    $countryRaw = bg('country', null);
+    $countryFilter = is_array($countryRaw) ? $countryRaw : null;
+    list(, $restore) = admin_apply_country_filter($countryFilter);
     $filters = ['search'=>(string)bg('search',''), 'kyc'=>(string)bg('kyc',''), 'status'=>(string)bg('status',''),
         'date_from'=>(string)bg('date_from',''), 'date_to'=>(string)bg('date_to','')];
     list($where, $params) = admin_users_build_where($filters);
@@ -8723,6 +8785,7 @@ function admin_users_export_pdf() {
     $total = (int)q("SELECT COUNT(*) FROM users WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT full_name,verified_name,phone_number,operator,status,is_kyc,created_at
                FROM users WHERE $where ORDER BY created_at DESC LIMIT $LIMIT", $params)->fetchAll();
+    $restore();
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
