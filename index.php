@@ -7067,10 +7067,6 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // compte admin nomme a plusieurs pays assignes (sinon un seul total
     // combine en XOF ne permet pas de distinguer ce qui vient de chaque
     // pays), ou pour Admin Principal qui veut comparer les pays entre eux.
-    // Attribue chaque transaction au pays du DESTINATAIRE (coherent avec
-    // admin_dash_xof_sum(), deja base sur la devise du destinataire), avec
-    // repli sur celui de l'expediteur si le destinataire n'a pas de pays
-    // connu (ex: compte systeme).
     // Liste TOUJOURS un pays par pays pertinent, meme sans la moindre
     // transaction (volume/count a 0) - jamais juste les pays qui ont deja
     // des donnees, sinon un pays assigne mais encore inactif disparaitrait
@@ -7079,30 +7075,48 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     $cbCountriesToShow = $scopeCountries !== null
         ? $scopeCountries
         : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
-    list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
-    $cbRows = q("SELECT COALESCE(dru.country, drm.country, dsu.country, dsm.country) AS country,
-            COUNT(*) AS count,
-            COALESCE(SUM(
-                COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
-                * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
-                / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
-            ),0) AS volume
-        FROM transactions
-        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
-        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
-        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
-        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
-        .admin_dash_country_join_sql()."
-        WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
-        GROUP BY COALESCE(dru.country, drm.country, dsu.country, dsm.country)", array_merge($params, $cbScopeParams))->fetchAll();
-    $cbByCountry = [];
-    foreach ($cbRows as $r) { if ($r['country']) $cbByCountry[$r['country']] = $r; }
     $countryBreakdown = [];
-    foreach ($cbCountriesToShow as $c) {
-        $row = $cbByCountry[$c] ?? null;
-        $countryBreakdown[] = ['country'=>$c, 'count'=>(int)($row['count']??0), 'volume'=>(float)($row['volume']??0)];
+    if (!empty($cbCountriesToShow)) {
+        list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
+        // Attribue chaque transaction au pays de l'UNE des deux parties qui
+        // figure dans la liste a afficher - jamais juste "celui du
+        // destinataire" sans condition, sinon une transaction comptee dans
+        // period_volume parce que SEUL l'expediteur est dans le perimetre
+        // (le destinataire etant dans un pays non affiche) disparaissait
+        // silencieusement de cette repartition tout en restant dans le
+        // total ci-dessus - deux chiffres incoherents entre eux.
+        $cbPh = implode(',', array_fill(0, count($cbCountriesToShow), '?'));
+        $cbAttribution = "CASE
+            WHEN dru.country IN ($cbPh) THEN dru.country
+            WHEN drm.country IN ($cbPh) THEN drm.country
+            WHEN dsu.country IN ($cbPh) THEN dsu.country
+            WHEN dsm.country IN ($cbPh) THEN dsm.country
+            ELSE COALESCE(dru.country, drm.country, dsu.country, dsm.country)
+        END";
+        $cbAttrParams = array_merge($cbCountriesToShow, $cbCountriesToShow, $cbCountriesToShow, $cbCountriesToShow);
+        $cbRows = q("SELECT $cbAttribution AS country,
+                COUNT(*) AS count,
+                COALESCE(SUM(
+                    COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
+                    * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                    / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+                ),0) AS volume
+            FROM transactions
+            LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
+            LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
+            LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
+            LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
+            .admin_dash_country_join_sql()."
+            WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
+            GROUP BY $cbAttribution", array_merge($cbAttrParams, $params, $cbScopeParams, $cbAttrParams))->fetchAll();
+        $cbByCountry = [];
+        foreach ($cbRows as $r) { if ($r['country']) $cbByCountry[$r['country']] = $r; }
+        foreach ($cbCountriesToShow as $c) {
+            $row = $cbByCountry[$c] ?? null;
+            $countryBreakdown[] = ['country'=>$c, 'count'=>(int)($row['count']??0), 'volume'=>(float)($row['volume']??0)];
+        }
+        usort($countryBreakdown, function($a,$b){ return $b['volume'] <=> $a['volume']; });
     }
-    usort($countryBreakdown, function($a,$b){ return $b['volume'] <=> $a['volume']; });
 
     $totalVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')");
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le

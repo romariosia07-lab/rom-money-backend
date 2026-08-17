@@ -3103,7 +3103,7 @@ function adminLoadDashboard(){
             +countries.map(function(c){
               return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:9px 12px">'
                 +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'))+'</span>'
-                +'<span style="font-size:12px;font-weight:800;color:var(--accent-text)">'+fmt(c.volume)+' · '+c.count+'</span>'
+                +'<span style="font-size:12px;font-weight:800;color:var(--accent-text)">'+fmt(c.volume)+' · '+c.count+' '+at('admin_dash_tx_count_suffix')+'</span>'
                 +'</div>';
             }).join('')
             +'</div>';
