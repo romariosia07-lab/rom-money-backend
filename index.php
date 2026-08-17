@@ -4405,6 +4405,24 @@ function admin_check_country_access_any($candidateCountries) {
     fail("Vous n'etes pas autorise a agir sur cette transaction.", 403);
 }
 
+// Le journal d'audit (audit_logs.target_phone) ne stocke qu'un numero de
+// telephone brut, potentiellement personnel/marchand/agent OU absent (actions
+// systeme : connexion admin, reglages, activation pays...). Pour un compte
+// admin nomme, une ligne SANS numero (action non liee a un compte precis)
+// reste visible (utile pour sa propre accountabilite - ex: ses propres
+// tentatives d'acces refusees), mais une ligne AVEC numero n'est visible que
+// si ce compte est dans son perimetre pays.
+function admin_audit_scope_sql() {
+    $joinSql = " LEFT JOIN users au ON au.phone_number = audit_logs.target_phone
+        LEFT JOIN merchants am ON am.phone_number = audit_logs.target_phone
+        LEFT JOIN agents aa ON aa.phone_number = audit_logs.target_phone";
+    $countries = $GLOBALS['_current_admin_countries'] ?? null;
+    if ($countries === null) return [$joinSql, '', []];
+    if (empty($countries)) return [$joinSql, " AND audit_logs.target_phone IS NULL", []];
+    $placeholders = implode(',', array_fill(0, count($countries), '?'));
+    return [$joinSql, " AND (audit_logs.target_phone IS NULL OR COALESCE(au.country,am.country,aa.country) IN ($placeholders))", $countries];
+}
+
 // Resout les pays des deux parties d'une transaction (personnel OU
 // marchand des deux cotes) - utilise par admin_freeze_transaction()/
 // admin_unfreeze_transaction()/admin_confirm_cancel_frozen(), qui ne
@@ -4813,8 +4831,9 @@ function kyc_ocr_extract() {
 function kyc_admin_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,ocr_error,photo_recto,photo_verso,status,created_at
-        FROM kyc_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
+    $rows = q("SELECT k.id,k.user_id,k.phone_number,k.full_name,k.legal_name,k.legal_prenom,k.legal_nom,k.legal_birthdate,k.ocr_name,k.ocr_prenom,k.ocr_nom,k.ocr_birthdate,k.ocr_error,k.photo_recto,k.photo_verso,k.status,k.created_at
+        FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.status='pending'".$scopeSql." ORDER BY k.created_at ASC", $scopeParams)->fetchAll();
     foreach($rows as &$r){ $r['photo_recto']=kyc_decrypt($r['photo_recto']); $r['photo_verso']=kyc_decrypt($r['photo_verso']); }
     unset($r);
     ok(['requests'=>$rows]);
@@ -4825,7 +4844,8 @@ function kyc_admin_list() {
 function kyc_pending_count() {
     $b = body();
     check_admin_password($b);
-    $count = q("SELECT COUNT(*) FROM kyc_requests WHERE status='pending'")->fetchColumn();
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
+    $count = q("SELECT COUNT(*) FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.status='pending'".$scopeSql, $scopeParams)->fetchColumn();
     ok(['count'=>(int)$count]);
 }
 
@@ -4834,8 +4854,9 @@ function kyc_admin_approve() {
     check_admin_password($b);
     $id = trim($b['id']??'');
     if(!$id) fail('ID requis');
-    $r = q("SELECT user_id,phone_number,legal_prenom,legal_nom,legal_birthdate FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    $r = q("SELECT k.user_id,k.phone_number,k.legal_prenom,k.legal_nom,k.legal_birthdate,u.country FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.id=? AND k.status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
+    admin_check_country_access($r['country']);
 
     // L'admin peut corriger le prenom/nom/date de naissance juste avant de
     // valider (ex: faute de frappe de l'utilisateur a la soumission, ou
@@ -4866,8 +4887,9 @@ function kyc_admin_reject() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('ID requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $r = q("SELECT id, user_id, phone_number FROM kyc_requests WHERE id=? AND status='pending'",[$id])->fetch();
+    $r = q("SELECT k.id, k.user_id, k.phone_number, u.country FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.id=? AND k.status='pending'",[$id])->fetch();
     if(!$r) fail('Demande introuvable ou deja traitee',404);
+    admin_check_country_access($r['country']);
     // Refuse = aucune trace dans le systeme = suppression automatique et
     // immediate, pas de statut 'rejected' persistant. La raison reste
     // consultable en permanence dans le Journal d'audit (admin_log), pour
@@ -5269,6 +5291,7 @@ function announce_list() {
 function announce_admin_create() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $title = trim($b['title']??'');
     $message = trim($b['message']??'');
     $titleEn = trim($b['title_en']??'');
@@ -5390,6 +5413,7 @@ function route_admin($action) {
 function admin_earnings_summary() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     check_earnings_password($b);
     $w = q("SELECT w.id,w.balance FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",['0160629502'])->fetch();
     if(!$w) fail('Compte systeme introuvable (0160629502)',404);
@@ -5401,6 +5425,7 @@ function admin_earnings_summary() {
 function admin_earnings_withdraw() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     check_earnings_password($b);
     $amount = (float)($b['amount']??0);
     $recipientType = trim($b['recipient_type']??'');
@@ -5442,6 +5467,7 @@ function admin_earnings_withdraw() {
 function admin_earnings_cancel_withdrawal() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     check_earnings_password($b);
     $txid = trim($b['transaction_id']??'');
     $reason = trim($b['reason']??'');
@@ -5491,6 +5517,7 @@ function admin_earnings_fees_breakdown($period, $dateFrom, $dateTo) {
 function admin_earnings_fees_stats() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     check_earnings_password($b);
     $period = trim($b['period'] ?? 'today');
     $dateFrom = trim($b['date_from'] ?? '');
@@ -5630,6 +5657,7 @@ function admin_2fa_status() {
 function admin_2fa_setup() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $secret = totp_generate_secret();
     $recoveryCodesPlain = totp_generate_recovery_codes(10);
     $recoveryCodesHashed = array_map(fn($c) => password_hash($c, PASSWORD_BCRYPT), $recoveryCodesPlain);
@@ -5647,6 +5675,7 @@ function admin_2fa_setup() {
 function admin_2fa_confirm() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $code = trim((string)($b['totp_code'] ?? ''));
     $secret = get_setting('admin_2fa_secret_pending', '');
     if ($secret === '') fail('Aucune configuration 2FA en attente. Relancez la generation du QR code.');
@@ -5666,6 +5695,7 @@ function admin_2fa_confirm() {
 function admin_2fa_disable() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     if (admin_2fa_enabled()) {
         $code = trim((string)($b['totp_code'] ?? ''));
         $secret = get_setting('admin_2fa_secret', '');
@@ -5690,6 +5720,7 @@ function admin_2fa_disable() {
 function admin_2fa_regenerate_codes() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     if (!admin_2fa_enabled()) fail('La double authentification n\'est pas activee');
     $code = trim((string)($b['totp_code'] ?? ''));
     $secret = get_setting('admin_2fa_secret', '');
@@ -5712,6 +5743,7 @@ function admin_2fa_regenerate_codes() {
 function admin_kyc_migrate_encrypt() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $rows = q("SELECT id, photo_recto, photo_verso FROM kyc_requests")->fetchAll();
     $migrated = 0;
     foreach ($rows as $r) {
@@ -5737,6 +5769,7 @@ function admin_kyc_migrate_encrypt() {
 function admin_backfill_verified_names() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $users = q("SELECT id, full_name FROM users WHERE is_kyc=1 AND (verified_name IS NULL OR verified_name='')")->fetchAll();
     $fixed = 0;
     foreach ($users as $u) {
@@ -6444,6 +6477,7 @@ function admin_late_cancel() {
         admin_log('late_cancel','failed',null,dk('d_ref_not_found', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Transaction introuvable',404);
     }
+    admin_check_country_access_any(admin_tx_involved_countries($tx));
     $senderPhone = null;
     if($tx['sender_wallet_id']){
         $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn() ?: null;
@@ -6819,15 +6853,17 @@ function admin_audit_list() {
     // exclusion, n'importe quel admin pouvait lire le detail des retraits
     // (destinataire, raison) via ce journal, contournant completement le
     // verrou de l'onglet Gains ROM.
-    $sql = "SELECT * FROM audit_logs WHERE action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
+    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql();
+    $sql = "SELECT audit_logs.* FROM audit_logs".$joinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
     $params = [];
-    if ($actionFilter !== '') { $sql .= " AND action = ?"; $params[] = $actionFilter; }
-    if ($phoneFilter !== '')  { $sql .= " AND target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
-    if ($dateFrom !== '')     { $sql .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
-    if ($dateTo !== '')       { $sql .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
-    $sql .= " ORDER BY created_at DESC LIMIT 100";
+    if ($actionFilter !== '') { $sql .= " AND audit_logs.action = ?"; $params[] = $actionFilter; }
+    if ($phoneFilter !== '')  { $sql .= " AND audit_logs.target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
+    if ($dateFrom !== '')     { $sql .= " AND audit_logs.created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if ($dateTo !== '')       { $sql .= " AND audit_logs.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    $sql .= $scopeSql;
+    $sql .= " ORDER BY audit_logs.created_at DESC LIMIT 100";
 
-    $rows = q($sql, $params)->fetchAll();
+    $rows = q($sql, array_merge($params, $scopeParams))->fetchAll();
     ok(['logs'=>$rows]);
 }
 
@@ -6838,14 +6874,16 @@ function admin_audit_get_rows() {
     $dateFrom     = trim((string)bg('date_from',''));
     $dateTo       = trim((string)bg('date_to',''));
 
-    $sql = "SELECT * FROM audit_logs WHERE action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
+    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql();
+    $sql = "SELECT audit_logs.* FROM audit_logs".$joinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
     $params = [];
-    if ($actionFilter !== '') { $sql .= " AND action = ?"; $params[] = $actionFilter; }
-    if ($phoneFilter !== '')  { $sql .= " AND target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
-    if ($dateFrom !== '')     { $sql .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
-    if ($dateTo !== '')       { $sql .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
-    $sql .= " ORDER BY created_at DESC LIMIT 100";
-    return q($sql, $params)->fetchAll();
+    if ($actionFilter !== '') { $sql .= " AND audit_logs.action = ?"; $params[] = $actionFilter; }
+    if ($phoneFilter !== '')  { $sql .= " AND audit_logs.target_phone LIKE ?"; $params[] = '%'.$phoneFilter.'%'; }
+    if ($dateFrom !== '')     { $sql .= " AND audit_logs.created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
+    if ($dateTo !== '')       { $sql .= " AND audit_logs.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    $sql .= $scopeSql;
+    $sql .= " ORDER BY audit_logs.created_at DESC LIMIT 100";
+    return q($sql, array_merge($params, $scopeParams))->fetchAll();
 }
 
 function admin_audit_action_label($a) {
@@ -7169,6 +7207,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
 function admin_dashboard_stats() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $period   = trim($b['period'] ?? 'today');
     $dateFrom = trim($b['date_from'] ?? '');
     $dateTo   = trim($b['date_to'] ?? '');
@@ -7313,6 +7352,7 @@ function xlsx_build($sheetXml) {
 
 function admin_dashboard_export_xlsx() {
     check_admin_password_str((string)bg('admin_password',''));
+    check_super_admin_only();
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
@@ -7427,6 +7467,7 @@ function admin_update_settings() {
 
 function admin_dashboard_export_pdf() {
     check_admin_password_str((string)bg('admin_password',''));
+    check_super_admin_only();
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
@@ -7821,14 +7862,15 @@ function admin_agent_list_recharge_requests() {
     // retrouver (voir agent_recharge_history()), sinon le code ne prouve
     // plus un contact reel entre les deux parties.
     $cols = "r.id,r.agent_id,r.amount,r.note,r.status,r.created_at,r.reviewed_at,r.reject_reason,r.distributor_id";
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('a.country');
     if($status !== ''){
         $rows = q("SELECT $cols, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
             JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
-            WHERE r.status=? ORDER BY r.created_at ASC",[$status])->fetchAll();
+            WHERE r.status=?".$scopeSql." ORDER BY r.created_at ASC", array_merge([$status], $scopeParams))->fetchAll();
     } else {
         $rows = q("SELECT $cols, a.full_name, a.phone_number, d.full_name dist_name, d.phone_number dist_phone FROM agent_recharge_requests r
             JOIN agents a ON a.id=r.agent_id LEFT JOIN agents d ON d.id=r.distributor_id
-            ORDER BY r.created_at DESC LIMIT 100")->fetchAll();
+            WHERE 1=1".$scopeSql." ORDER BY r.created_at DESC LIMIT 100", $scopeParams)->fetchAll();
     }
     ok(['requests'=>$rows]);
 }
@@ -7844,6 +7886,8 @@ function admin_agent_approve_recharge() {
     agent_expire_stale_recharge_requests();
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
+    $rAgent = q("SELECT country FROM agents WHERE id=?",[$r['agent_id']])->fetch();
+    admin_check_country_access($rAgent['country'] ?? null);
     if($r['status'] === 'expired') fail('Cette demande a expire (plus de 3h sans traitement), le demandeur doit en refaire une', 410);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
@@ -7909,6 +7953,7 @@ function admin_agent_recharge_movements() {
     if($source === 'admin'){ $where[] = "t.sender_agent_wallet_id IS NULL"; }
     if($source === 'distributor'){ $where[] = "t.sender_agent_wallet_id IS NOT NULL"; }
 
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('ra.country');
     $sql = "SELECT t.id,t.amount,t.reference,t.description,t.created_at,
         ra.full_name receiver_name, ra.phone_number receiver_phone,
         rd.full_name sender_name, rd.phone_number sender_phone
@@ -7917,9 +7962,9 @@ function admin_agent_recharge_movements() {
         JOIN agents ra ON ra.id = raw.agent_id
         LEFT JOIN agent_wallets rdw ON rdw.id = t.sender_agent_wallet_id
         LEFT JOIN agents rd ON rd.id = rdw.agent_id
-        WHERE ".implode(' AND ', $where)."
+        WHERE ".implode(' AND ', $where).$scopeSql."
         ORDER BY t.created_at DESC LIMIT 300";
-    $rows = q($sql, $params)->fetchAll();
+    $rows = q($sql, array_merge($params, $scopeParams))->fetchAll();
     ok(['movements'=>$rows]);
 }
 

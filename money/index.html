@@ -816,6 +816,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-announce" class="admin-panel" style="display:none">
+      <div id="admin-announce-super-note" style="display:none;margin-bottom:16px;padding:10px 12px;border-radius:10px;background:var(--rl);color:var(--rd);font-size:11px;font-weight:600" data-i18n-admin="admin_super_admin_only_note">🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.</div>
       <div class="admin-stitle">Envoyer une annonce</div>
       <div class="frow"><label class="flabel">Titre</label><input class="finput" id="ann-title" placeholder="Ex: Nouvelle fonctionnalite" onblur="autoTranslateAnnounceField('ann-title','ann-title-en','fr','en')"></div>
       <div class="frow"><label class="flabel">Message</label><input class="finput" id="ann-msg" placeholder="Votre message" onblur="autoTranslateAnnounceField('ann-msg','ann-msg-en','fr','en')"></div>
@@ -827,7 +828,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="promo">Promotion (selon preference utilisateur)</option>
         </select>
       </div>
-      <button class="btn-g" onclick="adminSendAnnouncement()">Envoyer l'annonce</button>
+      <button class="btn-g" id="admin-announce-btn" onclick="adminSendAnnouncement()">Envoyer l'annonce</button>
     </div>
 
     <div id="admin-panel-kyc" class="admin-panel" style="display:none">
@@ -873,7 +874,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_2fa_settings_desc">Protege l'acces admin avec un second code, en plus du mot de passe, genere par une application comme Google Authenticator ou Authy.</div>
         <div id="admin-2fa-status-box" style="margin-bottom:12px;font-size:13px;color:var(--t2)" data-i18n-admin="admin_loading">Chargement...</div>
         <div id="admin-2fa-off-box" style="display:none">
-          <button class="btn-g" onclick="admin2faStartSetup()" data-i18n-admin="admin_2fa_enable_btn">Activer la double authentification</button>
+          <button class="btn-g" id="admin-2fa-enable-btn" onclick="admin2faStartSetup()" data-i18n-admin="admin_2fa_enable_btn">Activer la double authentification</button>
         </div>
         <div id="admin-2fa-setup-box" style="display:none">
           <div style="text-align:center;margin:14px 0">
@@ -882,7 +883,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <div style="font-size:11px;color:var(--t3);margin-bottom:10px;text-align:center" data-i18n-admin="admin_2fa_scan_qr_desc">Scannez ce QR code avec Google Authenticator ou Authy, puis entrez le code affiché pour confirmer.</div>
           <div class="frow"><label class="flabel" data-i18n-admin="admin_2fa_app_code_label">Code affiché dans l'application</label>
           <input class="finput" id="admin-2fa-confirm-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
-          <button class="btn-g" onclick="admin2faConfirmSetup()" data-i18n-admin="admin_2fa_confirm_activate_btn">Confirmer et activer</button>
+          <button class="btn-g" id="admin-2fa-confirm-btn" onclick="admin2faConfirmSetup()" data-i18n-admin="admin_2fa_confirm_activate_btn">Confirmer et activer</button>
           <div id="admin-2fa-recovery-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
             <div style="font-weight:700;color:var(--t1);margin-bottom:6px" data-i18n-admin="admin_2fa_recovery_title">⚠ Codes de récupération — à noter maintenant</div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:8px" data-i18n-admin="admin_2fa_recovery_desc">Chacun ne fonctionne qu'une seule fois. Conservez-les en lieu sûr (ils ne seront plus jamais affichés en entier).</div>
@@ -893,8 +894,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <div style="color:var(--su,#1a8);font-size:13px;margin-bottom:10px" data-i18n-admin="admin_2fa_active_label">✓ Double authentification active</div>
           <div class="frow"><label class="flabel" data-i18n-admin="admin_2fa_your_app_code">Code de votre application</label>
           <input class="finput" id="admin-2fa-disable-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:4px;font-size:18px;text-align:center"></div>
-          <button class="btn-g" onclick="admin2faRegenerateCodes()" style="margin-bottom:10px" data-i18n-admin="admin_2fa_regenerate_btn">Régénérer mes codes de récupération</button>
-          <button style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()" data-i18n-admin="admin_2fa_disable_btn">Désactiver la double authentification</button>
+          <button class="btn-g" id="admin-2fa-regen-btn" onclick="admin2faRegenerateCodes()" style="margin-bottom:10px" data-i18n-admin="admin_2fa_regenerate_btn">Régénérer mes codes de récupération</button>
+          <button id="admin-2fa-disable-btn" style="background:var(--re);color:#fff;border:none;border-radius:12px;padding:12px;width:100%;font-weight:700;cursor:pointer" onclick="admin2faDisable()" data-i18n-admin="admin_2fa_disable_btn">Désactiver la double authentification</button>
           <div id="admin-2fa-regen-display" style="display:none;margin-top:16px;padding:12px;background:var(--card2,rgba(0,0,0,.03));border-radius:10px">
             <div style="font-weight:700;color:var(--t1);margin-bottom:6px" data-i18n-admin="admin_2fa_regen_title">⚠ Nouveaux codes de récupération — à noter maintenant</div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:8px" data-i18n-admin="admin_2fa_regen_desc">Les anciens codes ne fonctionnent plus. Ceux-ci ne seront plus jamais affichés en entier.</div>
@@ -913,7 +914,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
         <div class="admin-stitle" data-i18n-admin="admin_kyc_encrypt_title">🔒 Chiffrement des photos KYC</div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_kyc_encrypt_desc">Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.</div>
-        <button class="btn-g" onclick="adminMigrateKycEncrypt()" data-i18n-admin="admin_kyc_encrypt_btn">Chiffrer les anciennes photos KYC</button>
+        <button class="btn-g" id="admin-kyc-encrypt-btn" onclick="adminMigrateKycEncrypt()" data-i18n-admin="admin_kyc_encrypt_btn">Chiffrer les anciennes photos KYC</button>
         <div id="admin-kyc-migrate-status" style="margin-top:10px;font-size:12px;color:var(--t2)"></div>
       </div>
 
@@ -933,7 +934,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
         <div class="admin-stitle" data-i18n-admin="admin_backfill_title">✓ Comptes vérifiés — noms manquants</div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_backfill_desc">Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n'a pas été enregistré (typiquement des comptes approuvés avant l'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.</div>
-        <button class="btn-g" onclick="adminBackfillVerifiedNames()" data-i18n-admin="admin_backfill_btn">Corriger les comptes déjà vérifiés</button>
+        <button class="btn-g" id="admin-backfill-btn" onclick="adminBackfillVerifiedNames()" data-i18n-admin="admin_backfill_btn">Corriger les comptes déjà vérifiés</button>
         <div id="admin-backfill-status" style="margin-top:10px;font-size:12px;color:var(--t2)"></div>
       </div>
 
@@ -3048,6 +3049,10 @@ function adminToggleDashCustomDates(){
 }
 function adminLoadDashboard(){
   var box=document.getElementById('admin-dashboard-box');
+  if(!window._isSuperAdmin){
+    box.innerHTML='<div class="admin-empty">'+at('admin_super_admin_only_note')+'</div>';
+    return;
+  }
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   var period=document.getElementById('dash-period').value;
   var payload={admin_password:window._adminPw, period:period};
@@ -3881,7 +3886,7 @@ function adminLoadRequests(){
   adminStartInactivityTimer();
   var langBtn = document.getElementById('admin-lang-toggle');
   if(langBtn) langBtn.textContent = ADMIN_LANG.toUpperCase();
-  adminTab('dashboard');
+  adminTab(window._isSuperAdmin ? 'dashboard' : 'kyc');
   adminStartKycPolling();
   adminRefreshFraudBadge();
   adminRefreshAgentsBadge();
@@ -6330,7 +6335,13 @@ function adminApplySuperAdminGate(){
   var isSuper = !!window._isSuperAdmin;
   [
     document.getElementById('admin-settings-save-btn'),
-    document.getElementById('admacc-create-btn')
+    document.getElementById('admacc-create-btn'),
+    document.getElementById('admin-announce-btn'),
+    document.getElementById('admin-kyc-encrypt-btn'),
+    document.getElementById('admin-backfill-btn'),
+    document.getElementById('admin-2fa-enable-btn'),
+    document.getElementById('admin-2fa-regen-btn'),
+    document.getElementById('admin-2fa-disable-btn')
   ].forEach(function(btn){
     if(!btn) return;
     btn.disabled = !isSuper;
@@ -6341,6 +6352,8 @@ function adminApplySuperAdminGate(){
   if(settingsNote) settingsNote.style.display = isSuper ? 'none' : 'block';
   var acctNote = document.getElementById('admin-accounts-super-note');
   if(acctNote) acctNote.style.display = isSuper ? 'none' : 'block';
+  var announceNote = document.getElementById('admin-announce-super-note');
+  if(announceNote) announceNote.style.display = isSuper ? 'none' : 'block';
   document.querySelectorAll('#admacc-list-box button, #admin-countries-box button').forEach(function(btn){
     btn.disabled = !isSuper;
     btn.style.opacity = isSuper ? '1' : '0.45';
