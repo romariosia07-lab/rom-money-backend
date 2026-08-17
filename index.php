@@ -7019,12 +7019,37 @@ function admin_audit_export_pdf() {
 // et un de 100 XOF comptaient tous deux pour "100" alors qu'ils ne
 // representent pas la meme valeur (100 GHS vaut environ 12x plus).
 
-function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
+function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = null) {
     // Rafraichit les taux si besoin AVANT les JOIN sur exchange_rates
     // ci-dessous (sinon une base fraichement installee, sans jamais avoir
     // affiche l'ecran "Taux de change" de Reglages, n'aurait aucun taux et
     // tous les COALESCE(...,1) ci-dessous traiteraient tout comme du XOF).
     refresh_exchange_rates_if_stale();
+
+    // Liste des pays que cet admin peut choisir dans le selecteur "Pays" du
+    // tableau de bord - calculee AVANT tout retrecissement eventuel, pour
+    // servir a la fois a peupler ce selecteur cote frontend et a valider
+    // qu'un filtre demande est legitime (jamais un pays hors du perimetre
+    // de l'admin, ni un pays inconnu pour Admin Principal).
+    $adminCountries = $GLOBALS['_current_admin_countries'] ?? null; // null = Admin Principal
+    $availableCountries = $adminCountries !== null
+        ? $adminCountries
+        : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
+    if ($countryFilter !== null && $countryFilter !== '' && !in_array($countryFilter, $availableCountries, true)) {
+        fail("Vous n'etes pas autorise a filtrer sur ce pays.", 403);
+    }
+    // Retrecit temporairement le perimetre pays lu par admin_dash_xof_sum()/
+    // admin_dash_count()/admin_country_scope_clause()/admin_dash_country_scope_where()
+    // (qui lisent toutes $GLOBALS['_current_admin_countries']) a un seul pays
+    // si un filtre est demande, sinon perimetre normal inchange. Remis en
+    // l'etat original en toute fin de fonction - chaque requete HTTP a son
+    // propre processus PHP donc aucune fuite possible entre deux requetes,
+    // mais plus rigoureux de restaurer plutot que de compter dessus.
+    $savedGlobalCountries = $GLOBALS['_current_admin_countries'] ?? null;
+    if ($countryFilter) {
+        $GLOBALS['_current_admin_countries'] = [$countryFilter];
+    }
+
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
     $todayCount  = admin_dash_count("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE");
     // Converti en XOF (voir admin_dash_xof_sum()) : additionner des
@@ -7071,10 +7096,11 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // transaction (volume/count a 0) - jamais juste les pays qui ont deja
     // des donnees, sinon un pays assigne mais encore inactif disparaitrait
     // silencieusement de l'ecran au lieu de confirmer "rien a signaler ici".
-    $scopeCountries = $GLOBALS['_current_admin_countries'] ?? null;
-    $cbCountriesToShow = $scopeCountries !== null
-        ? $scopeCountries
-        : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
+    // Aucun interet quand un filtre pays precis est deja actif (le reste du
+    // tableau de bord EST deja ce pays) - reste vide dans ce cas, plutot que
+    // de recalculer sur le perimetre retreci ci-dessus (qui ne contiendrait
+    // de toute facon que ce seul pays).
+    $cbCountriesToShow = $countryFilter ? [] : $availableCountries;
     $countryBreakdown = [];
     if (!empty($cbCountriesToShow)) {
         list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
@@ -7266,6 +7292,11 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         $merchantVolumeFromMerchants = 0; $topMerchantsFromMerchants = [];
     }
 
+    // Retabli avant de retourner : voir la note plus haut sur pourquoi ce
+    // retrecissement temporaire n'est en pratique jamais partage entre deux
+    // requetes, mais rigueur avant tout.
+    $GLOBALS['_current_admin_countries'] = $savedGlobalCountries;
+
     return [
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
@@ -7274,6 +7305,8 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         'period_volume'  => (float)$periodVolume,
         'operator_breakdown' => $operatorBreakdown,
         'country_breakdown' => $countryBreakdown,
+        'country_filter' => $countryFilter,
+        'available_countries' => $availableCountries,
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs,
         'daily_volume'   => $dailyVolume,
@@ -7303,7 +7336,8 @@ function admin_dashboard_stats() {
     $period   = trim($b['period'] ?? 'today');
     $dateFrom = trim($b['date_from'] ?? '');
     $dateTo   = trim($b['date_to'] ?? '');
-    ok(admin_dashboard_get_data($period, $dateFrom, $dateTo));
+    $country  = trim($b['country'] ?? '');
+    ok(admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null));
 }
 
 // ============================================================
@@ -7447,7 +7481,8 @@ function admin_dashboard_export_xlsx() {
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
-    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
+    $country  = trim((string)bg('country',''));
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null);
 
     // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde,
     // 3=nombre borde (separateur de milliers), 4=titre, 5=sous-titre section
@@ -7561,7 +7596,8 @@ function admin_dashboard_export_pdf() {
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
-    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo);
+    $country  = trim((string)bg('country',''));
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null);
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();

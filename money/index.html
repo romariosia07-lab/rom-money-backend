@@ -805,6 +805,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="custom" data-i18n-admin="admin_period_custom">Personnalisé</option>
         </select>
       </div>
+      <div class="frow" id="dash-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays</label>
+        <select class="finput" id="dash-country"></select>
+      </div>
       <div id="dash-custom-dates" style="display:none;gap:10px;margin-bottom:14px">
         <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_from">Date de début</label><input class="finput" type="date" id="dash-date-from"></div>
         <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_to">Date de fin</label><input class="finput" type="date" id="dash-date-to"></div>
@@ -2006,6 +2009,8 @@ var I18N = {
   admin_dash_scope_prefix: {fr:'Statistiques limitées à :', en:'Statistics limited to:'},
   admin_dash_scope_none: {fr:'Aucun pays assigné à ce compte — aucune statistique à afficher.', en:'No country assigned to this account — no statistics to show.'},
   admin_dash_country_breakdown: {fr:'Répartition par pays', en:'Breakdown by country'},
+  admin_dash_country_filter_label: {fr:'Pays', en:'Country'},
+  admin_dash_country_filter_all: {fr:'Tous les pays', en:'All countries'},
   admin_dash_country_unknown: {fr:'Pays inconnu', en:'Unknown country'},
   admin_dash_overlap_note: {fr:"Une transaction impliquant aussi un autre pays peut apparaître également chez l'admin de ce pays — ne pas additionner ces chiffres entre comptes admin.", en:"A transaction that also involves another country may appear in that country's admin dashboard too — don't add these figures together across admin accounts."},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
@@ -3055,6 +3060,26 @@ function adminToggleDashCustomDates(){
   var sel=document.getElementById('dash-period').value;
   document.getElementById('dash-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
 }
+// Peuple/rafraichit le selecteur "Pays" du tableau de bord a partir de la
+// reponse serveur (available_countries) - fait ici plutot qu'au chargement
+// initial de la page car la liste depend du compte connecte (pays assignes
+// pour un compte nomme, tous les pays actifs pour Admin Principal), connue
+// seulement une fois la premiere reponse de dashboard-stats arrivee.
+// Cache le selecteur entier si un seul pays (ou aucun) est pertinent - un
+// filtre a une seule option ne sert a rien.
+function adminRenderDashCountryOptions(countries, currentFilter){
+  var row=document.getElementById('dash-country-row');
+  var sel=document.getElementById('dash-country');
+  if(!row||!sel) return;
+  if(countries.length<2){ row.style.display='none'; return; }
+  var html='<option value="">'+at('admin_dash_country_filter_all')+'</option>';
+  html+=countries.map(function(c){
+    var esc=adminEsc(c);
+    return '<option value="'+esc+'"'+(c===currentFilter?' selected':'')+'>'+adminEsc(adminCountryName(c))+'</option>';
+  }).join('');
+  sel.innerHTML=html;
+  row.style.display='block';
+}
 function adminLoadDashboard(){
   var scopeNote=document.getElementById('admin-dash-scope-note');
   if(scopeNote){
@@ -3072,15 +3097,18 @@ function adminLoadDashboard(){
   var box=document.getElementById('admin-dashboard-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   var period=document.getElementById('dash-period').value;
+  var countrySel=document.getElementById('dash-country');
   var payload={admin_password:window._adminPw, period:period};
   if(period==='custom'){
     var df=document.getElementById('dash-date-from').value, dt=document.getElementById('dash-date-to').value;
     if(!df||!dt){ toast(at('admin_dash_select_dates'), true); box.innerHTML=''; return; }
     payload.date_from=df; payload.date_to=dt;
   }
+  if(countrySel&&countrySel.value) payload.country=countrySel.value;
   apiCall('/admin?action=dashboard-stats','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
       var d=res.data;
+      adminRenderDashCountryOptions(d.available_countries||[], d.country_filter||'');
       var cardsHtml='<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:8px">'
         +'<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_today')+'</div>'
         +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
@@ -3378,6 +3406,8 @@ function adminExportDashboard(format){
     payload.date_from=document.getElementById('dash-date-from').value;
     payload.date_to=document.getElementById('dash-date-to').value;
   }
+  var countrySel=document.getElementById('dash-country');
+  if(countrySel&&countrySel.value) payload.country=countrySel.value;
   adminDownloadExport('dashboard-export-'+format, payload, 'rom_money_dashboard.'+format);
 }
 
