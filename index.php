@@ -5083,10 +5083,10 @@ function export_xlsx() {
         ];
     }
 
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
     $sheetXml = xlsx_build_sheet($data, $logoData !== null);
-    $xlsxData = xlsx_build($sheetXml, $logoData);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_historique.xlsx"');
@@ -5132,7 +5132,7 @@ function export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str(export_t('title',$lang)),0,1);
     $infoTopY = $pdf->GetY();
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
@@ -6458,10 +6458,10 @@ function admin_merchants_export_xlsx() {
             [ date('d/m/Y',strtotime($m['created_at'])), 2, 's' ]
         ];
     }
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
     $sheetXml = xlsx_build_sheet($sheetRows, $logoData !== null);
-    $xlsxData = xlsx_build($sheetXml, $logoData);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_business_marchands.xlsx"');
     header('Content-Length: '.strlen($xlsxData));
@@ -6964,10 +6964,10 @@ function admin_audit_export_xlsx() {
         ];
     }
 
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
     $sheetXml = xlsx_build_sheet($data, $logoData !== null);
-    $xlsxData = xlsx_build($sheetXml, $logoData);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_journal_audit.xlsx"');
@@ -6985,7 +6985,7 @@ function admin_audit_export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Journal d\'audit admin'),0,1);
     $infoTopY = $pdf->GetY();
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
@@ -7490,9 +7490,9 @@ function xlsx_styles_xml() {
 // $logoData : contenu binaire brut d'une image (PNG ou JPEG) a inserer en
 // haut de la feuille (coin superieur droit) si fournie - null = aucun logo
 // (fichier introuvable ou non demande), fonctionne exactement comme avant.
-// $logoExt : 'png' ou 'jpg' - business/logo.jpg (ROM_BUSINESS) n'est pas au
-// meme format que money/logo.png (ROM_MONEY), d'ou ce parametre plutot
-// qu'un PNG fige en dur.
+// $logoExt : 'png' ou 'jpg' - accepte les deux formats selon ce qui existe
+// reellement sur le disque (actuellement business/logo.jpg et money/logo.jpg
+// sont tous deux des JPEG), plutot qu'un format fige en dur.
 function xlsx_build($sheetXml, $logoData = null, $logoExt = 'png') {
     $logoMime = ($logoExt === 'jpg' || $logoExt === 'jpeg') ? 'image/jpeg' : 'image/png';
     $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -7635,10 +7635,10 @@ function admin_dashboard_export_xlsx() {
     // Le vrai logo (pas une icone d'app) vit dans money/, pas a la racine
     // ou se trouve index.php - independant du frontend PWA, reutilise ici
     // tel quel plutot que dupliquer le fichier.
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
     $sheetXml = xlsx_build_sheet($rows, $logoData !== null);
-    $xlsxData = xlsx_build($sheetXml, $logoData);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_dashboard.xlsx"');
@@ -7727,7 +7727,7 @@ function admin_dashboard_export_pdf() {
     $infoTopY = $pdf->GetY();
     // Le vrai logo (pas une icone d'app) vit dans money/, pas a la racine
     // ou se trouve index.php - meme note que dans admin_dashboard_export_xlsx().
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
@@ -8704,10 +8704,10 @@ function admin_users_export_xlsx() {
             [ date('d/m/Y',strtotime($u['created_at'])), 2, 's' ]
         ];
     }
-    $logoPath = __DIR__.'/money/logo.png';
+    $logoPath = __DIR__.'/money/logo.jpg';
     $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
     $sheetXml = xlsx_build_sheet($sheetRows, $logoData !== null);
-    $xlsxData = xlsx_build($sheetXml, $logoData);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_utilisateurs.xlsx"');
     header('Content-Length: '.strlen($xlsxData));
