@@ -794,6 +794,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
     <div id="admin-panel-dashboard" class="admin-panel">
       <div class="admin-stitle" data-i18n-admin="admin_dash_title">Vue d'ensemble</div>
+      <div id="admin-dash-country-box" style="display:none;margin-bottom:14px"></div>
       <div id="admin-dash-scope-note" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:10px;background:var(--gl);color:var(--g);font-size:11px;font-weight:600"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
         <select class="finput" id="dash-period" onchange="adminToggleDashCustomDates()">
@@ -3093,18 +3094,24 @@ function adminLoadDashboard(){
         +'</div>'
         +'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">'+at('admin_dash_total_volume_note').replace('{amt}',fmt(d.total_volume))+'</div>';
-      var countryHtml='';
+      var countryBox=document.getElementById('admin-dash-country-box');
       var countries=d.country_breakdown||[];
-      if(countries.length>1){
-        countryHtml='<div class="admin-stitle">'+at('admin_dash_country_breakdown')+'</div>'
-          +'<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
-          +countries.map(function(c){
-            return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:9px 12px">'
-              +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'))+'</span>'
-              +'<span style="font-size:12px;font-weight:800;color:var(--accent-text)">'+fmt(c.volume)+' · '+c.count+'</span>'
-              +'</div>';
-          }).join('')
-          +'</div>';
+      if(countryBox){
+        if(countries.length>1){
+          countryBox.innerHTML='<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_country_breakdown')+'</div>'
+            +'<div style="display:flex;flex-direction:column;gap:6px">'
+            +countries.map(function(c){
+              return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:9px 12px">'
+                +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'))+'</span>'
+                +'<span style="font-size:12px;font-weight:800;color:var(--accent-text)">'+fmt(c.volume)+' · '+c.count+'</span>'
+                +'</div>';
+            }).join('')
+            +'</div>';
+          countryBox.style.display='block';
+        } else {
+          countryBox.innerHTML='';
+          countryBox.style.display='none';
+        }
       }
       var opHtml='<div class="admin-stitle">'+at('admin_dash_operator_breakdown')+'</div>';
       var ops=d.operator_breakdown||[];
@@ -3231,11 +3238,16 @@ function adminLoadDashboard(){
           +'</div>';
       }
 
-      box.innerHTML=cardsHtml+chartHtml+countryHtml+topHtml+mrcHtml+opHtml+logsHtml;
+      box.innerHTML=cardsHtml+chartHtml+topHtml+mrcHtml+opHtml+logsHtml;
     } else {
+      if(countryBox){ countryBox.innerHTML=''; countryBox.style.display='none'; }
       box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
-  }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+  }).catch(function(){
+    var cb=document.getElementById('admin-dash-country-box');
+    if(cb){ cb.innerHTML=''; cb.style.display='none'; }
+    box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>';
+  });
 }
 // Degrade de couleur du gold clair (jour a faible volume) au gold plein
 // (jour au volume le plus eleve), pour differencier visuellement les

@@ -7066,12 +7066,21 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     // Repartition par pays sur la periode selectionnee - utile des qu'un
     // compte admin nomme a plusieurs pays assignes (sinon un seul total
     // combine en XOF ne permet pas de distinguer ce qui vient de chaque
-    // pays). Attribue chaque transaction au pays du DESTINATAIRE (coherent
-    // avec admin_dash_xof_sum(), deja base sur la devise du destinataire),
-    // avec repli sur celui de l'expediteur si le destinataire n'a pas de
-    // pays connu (ex: compte systeme).
+    // pays), ou pour Admin Principal qui veut comparer les pays entre eux.
+    // Attribue chaque transaction au pays du DESTINATAIRE (coherent avec
+    // admin_dash_xof_sum(), deja base sur la devise du destinataire), avec
+    // repli sur celui de l'expediteur si le destinataire n'a pas de pays
+    // connu (ex: compte systeme).
+    // Liste TOUJOURS un pays par pays pertinent, meme sans la moindre
+    // transaction (volume/count a 0) - jamais juste les pays qui ont deja
+    // des donnees, sinon un pays assigne mais encore inactif disparaitrait
+    // silencieusement de l'ecran au lieu de confirmer "rien a signaler ici".
+    $scopeCountries = $GLOBALS['_current_admin_countries'] ?? null;
+    $cbCountriesToShow = $scopeCountries !== null
+        ? $scopeCountries
+        : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
     list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
-    $countryBreakdown = q("SELECT COALESCE(dru.country, drm.country, dsu.country, dsm.country) AS country,
+    $cbRows = q("SELECT COALESCE(dru.country, drm.country, dsu.country, dsm.country) AS country,
             COUNT(*) AS count,
             COALESCE(SUM(
                 COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
@@ -7085,8 +7094,15 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
         .admin_dash_country_join_sql()."
         WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
-        GROUP BY COALESCE(dru.country, drm.country, dsu.country, dsm.country)
-        ORDER BY volume DESC", array_merge($params, $cbScopeParams))->fetchAll();
+        GROUP BY COALESCE(dru.country, drm.country, dsu.country, dsm.country)", array_merge($params, $cbScopeParams))->fetchAll();
+    $cbByCountry = [];
+    foreach ($cbRows as $r) { if ($r['country']) $cbByCountry[$r['country']] = $r; }
+    $countryBreakdown = [];
+    foreach ($cbCountriesToShow as $c) {
+        $row = $cbByCountry[$c] ?? null;
+        $countryBreakdown[] = ['country'=>$c, 'count'=>(int)($row['count']??0), 'volume'=>(float)($row['volume']??0)];
+    }
+    usort($countryBreakdown, function($a,$b){ return $b['volume'] <=> $a['volume']; });
 
     $totalVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')");
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
