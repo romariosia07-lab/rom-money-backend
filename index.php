@@ -4481,11 +4481,18 @@ function admin_dash_count($where, $params = []) {
 // Le journal d'audit (audit_logs.target_phone) ne stocke qu'un numero de
 // telephone brut, potentiellement personnel/marchand/agent OU absent (actions
 // systeme : connexion admin, reglages, activation pays...). Pour un compte
-// admin nomme, une ligne SANS numero (action non liee a un compte precis)
-// reste visible (utile pour sa propre accountabilite - ex: ses propres
-// tentatives d'acces refusees), mais une ligne AVEC numero n'est visible que
-// si ce compte est dans son perimetre pays.
-function admin_audit_scope_sql() {
+// admin nomme (perimetre par defaut, $countryFilterActive=false), une ligne
+// SANS numero (action non liee a un compte precis) reste visible (utile pour
+// sa propre accountabilite - ex: ses propres tentatives d'acces refusees),
+// mais une ligne AVEC numero n'est visible que si ce compte est dans son
+// perimetre pays. $countryFilterActive=true (un filtre pays explicite a ete
+// demande via le nouveau selecteur a cocher, admin_apply_country_filter()) :
+// desactive ce passe-droit - sinon un filtre "Erythree" affichait quand meme
+// toutes les connexions admin/actions systeme non liees a un pays, ce qui ne
+// correspond pas a l'intention "je veux voir seulement ce qui concerne ce
+// pays" (contrairement au perimetre de securite par defaut, qui lui doit
+// rester permissif pour l'auto-accountabilite).
+function admin_audit_scope_sql($countryFilterActive = false) {
     $joinSql = " LEFT JOIN users au ON au.phone_number = audit_logs.target_phone
         LEFT JOIN merchants am ON am.phone_number = audit_logs.target_phone
         LEFT JOIN agents aa ON aa.phone_number = audit_logs.target_phone";
@@ -4493,6 +4500,9 @@ function admin_audit_scope_sql() {
     if ($countries === null) return [$joinSql, '', []];
     if (empty($countries)) return [$joinSql, " AND audit_logs.target_phone IS NULL", []];
     $placeholders = implode(',', array_fill(0, count($countries), '?'));
+    if ($countryFilterActive) {
+        return [$joinSql, " AND COALESCE(au.country,am.country,aa.country) IN ($placeholders)", $countries];
+    }
     return [$joinSql, " AND (audit_logs.target_phone IS NULL OR COALESCE(au.country,am.country,aa.country) IN ($placeholders))", $countries];
 }
 
@@ -6948,7 +6958,7 @@ function admin_audit_list() {
     // exclusion, n'importe quel admin pouvait lire le detail des retraits
     // (destinataire, raison) via ce journal, contournant completement le
     // verrou de l'onglet Gains ROM.
-    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql();
+    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql($countryFilter !== null);
     $sql = "SELECT audit_logs.* FROM audit_logs".$joinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
     $params = [];
     if ($actionFilter !== '') { $sql .= " AND audit_logs.action = ?"; $params[] = $actionFilter; }
@@ -6973,7 +6983,7 @@ function admin_audit_get_rows() {
     $countryFilter = is_array($countryRaw) ? $countryRaw : null;
     list(, $restore) = admin_apply_country_filter($countryFilter);
 
-    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql();
+    list($joinSql, $scopeSql, $scopeParams) = admin_audit_scope_sql($countryFilter !== null);
     $sql = "SELECT audit_logs.* FROM audit_logs".$joinSql." WHERE audit_logs.action NOT IN ('earnings_login','earnings_withdraw','earnings_withdraw_cancel')";
     $params = [];
     if ($actionFilter !== '') { $sql .= " AND audit_logs.action = ?"; $params[] = $actionFilter; }
