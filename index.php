@@ -4364,6 +4364,21 @@ function check_super_admin_only() {
     }
 }
 
+// Equivalent de admin_check_country_access() pour une LISTE (recherche/export
+// paginee) plutot qu'un compte unique : renvoie un fragment SQL (deja prefixe
+// de " AND ") + les parametres a fusionner dans une clause WHERE existante,
+// pour qu'un compte admin nomme ne voie jamais dans ses listes des comptes
+// hors de son perimetre pays. No-op (fragment vide) pour Admin Principal.
+// Un compte nomme sans aucun pays assigne ne doit rien voir du tout (1=0),
+// jamais tout par defaut - meme filet de securite que admin_check_country_access().
+function admin_country_scope_clause($countryCol) {
+    $countries = $GLOBALS['_current_admin_countries'] ?? null;
+    if($countries === null) return ['', []];
+    if(empty($countries)) return [' AND 1=0', []];
+    $placeholders = implode(',', array_fill(0, count($countries), '?'));
+    return [" AND $countryCol IN ($placeholders)", $countries];
+}
+
 // Meme logique anti-devinette que admin_bruteforce_check(), mais comptee
 // separement (action='earnings_login') pour ne pas partager son compteur
 // avec le mot de passe admin partage.
@@ -5704,11 +5719,12 @@ function admin_reset_pin() {
         admin_log('pin_reset','failed',$phone,'Tentative de reinitialisation du PIN du compte systeme via l\'outil generique (bloquee)');
         fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
     }
-    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('pin_reset','failed',$phone,dk('d_account_not_found_with_reason', ['reason'=>$reason]));
         fail('Compte introuvable',404);
     }
+    admin_check_country_access($u['country']);
     q("UPDATE users SET pin_hash=?, pin_attempts=0, pin_locked_until=NULL WHERE id=?",
       [password_hash($newPin,PASSWORD_BCRYPT), $u['id']]);
     admin_log('pin_reset','success',$phone,$reason);
@@ -5940,8 +5956,9 @@ function admin_test_credit_wallet() {
     // systeme (Gains ROM) - ce credit doit toujours refleter de vrais frais
     // collectes, jamais un credit de test.
     if($phone === '0160629502') fail('Le compte systeme ne peut pas etre credite via cet outil.',403);
-    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
+    admin_check_country_access($u['country']);
     $w = q("SELECT id FROM wallets WHERE user_id=?",[$u['id']])->fetch();
     if(!$w) fail('Portefeuille introuvable',404);
     db()->beginTransaction();
@@ -5971,8 +5988,9 @@ function admin_merchant_test_credit_wallet() {
     if($amount<=0) fail('Montant invalide');
     if($amount>1000000) fail('Montant trop eleve pour un credit de test (max 1 000 000)');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $m = q("SELECT id FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    $m = q("SELECT id,country FROM merchants WHERE phone_number=?",[$phone])->fetch();
     if(!$m) fail('Compte marchand introuvable',404);
+    admin_check_country_access($m['country']);
     $mw = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
     if(!$mw) fail('Portefeuille marchand introuvable',404);
     db()->beginTransaction();
@@ -5998,8 +6016,9 @@ function admin_add_note() {
     $note = trim($b['note'] ?? '');
     if(!$phone) fail('Numero requis');
     if(!$note) fail('Note vide');
-    $u = q("SELECT id FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
+    admin_check_country_access($u['country']);
     try {
         q("INSERT INTO admin_notes (user_id,note) VALUES (?,?)",[$u['id'],$note]);
     } catch(Exception $e) {
@@ -6079,8 +6098,9 @@ function admin_merchant_add_note() {
     $note = trim($b['note'] ?? '');
     if(!$merchantId) fail('Marchand requis');
     if(!$note) fail('Note vide');
-    $m = q("SELECT id,phone_number FROM merchants WHERE id=?",[$merchantId])->fetch();
+    $m = q("SELECT id,phone_number,country FROM merchants WHERE id=?",[$merchantId])->fetch();
     if(!$m) fail('Marchand introuvable',404);
+    admin_check_country_access($m['country']);
     try {
         q("INSERT INTO merchant_notes (merchant_id,note) VALUES (?,?)",[$m['id'],$note]);
     } catch(Exception $e) {
@@ -6100,6 +6120,9 @@ function admin_merchant_documents() {
     check_admin_password($b);
     $merchantId = trim($b['merchant_id'] ?? '');
     if(!$merchantId) fail('Marchand requis');
+    $mc = q("SELECT country FROM merchants WHERE id=?",[$merchantId])->fetch();
+    if(!$mc) fail('Marchand introuvable',404);
+    admin_check_country_access($mc['country']);
     try {
         $rows = q("SELECT id, doc_type, status, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY uploaded_at DESC",[$merchantId])->fetchAll();
     } catch(Exception $e) {
@@ -6131,8 +6154,9 @@ function admin_merchant_delete_document() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('Document requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $d = q("SELECT md.doc_type, md.merchant_id, m.phone_number FROM merchant_documents md JOIN merchants m ON m.id=md.merchant_id WHERE md.id=?",[$id])->fetch();
+    $d = q("SELECT md.doc_type, md.merchant_id, m.phone_number, m.country FROM merchant_documents md JOIN merchants m ON m.id=md.merchant_id WHERE md.id=?",[$id])->fetch();
     if(!$d) fail('Document introuvable',404);
+    admin_check_country_access($d['country']);
     q("DELETE FROM merchant_documents WHERE id=?",[$id]);
     admin_log('merchant_delete_document','success',$d['phone_number'],$reason.' ('.$d['doc_type'].')');
     web_push_send_to_merchant($d['merchant_id'], 'ROM_BUSINESS', 'Votre document ('.$d['doc_type'].') a ete retire : '.$reason.' Cela ne bloque pas votre compte, vous pouvez en renvoyer un nouveau a tout moment.');
@@ -6147,8 +6171,9 @@ function admin_merchant_toggle_verified() {
     check_admin_password($b);
     $id = trim($b['merchant_id']??'');
     if(!$id) fail('Marchand requis');
-    $m = q("SELECT id,business_name,verified FROM merchants WHERE id=?",[$id])->fetch();
+    $m = q("SELECT id,business_name,verified,country FROM merchants WHERE id=?",[$id])->fetch();
     if(!$m) fail('Marchand introuvable',404);
+    admin_check_country_access($m['country']);
     $newVal = $m['verified'] ? 0 : 1;
     q("UPDATE merchants SET verified=? WHERE id=?",[$newVal,$id]);
     admin_log('merchant_toggle_verified','success',null,'Marchand '.$m['business_name'].' -> '.($newVal?'verifie':'non verifie'));
@@ -6165,8 +6190,9 @@ function admin_merchant_block() {
     $id = trim($b['merchant_id'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$id || !$reason) fail('Marchand et raison requis');
-    $m = q("SELECT id,business_name,phone_number,status FROM merchants WHERE id=?",[$id])->fetch();
+    $m = q("SELECT id,business_name,phone_number,status,country FROM merchants WHERE id=?",[$id])->fetch();
     if(!$m){ admin_log('merchant_block','failed',null,dk('d_account_not_found')); fail('Marchand introuvable',404); }
+    admin_check_country_access($m['country']);
     if($m['status']==='blocked'){ admin_log('merchant_block','failed',$m['phone_number'],'Marchand '.$m['business_name'].' deja bloque'); fail('Ce marchand est deja bloque'); }
     q("UPDATE merchants SET status='blocked' WHERE id=?",[$id]);
     admin_log('merchant_block','success',$m['phone_number'],'Marchand '.$m['business_name'].' bloque : '.$reason);
@@ -6178,8 +6204,9 @@ function admin_merchant_unblock() {
     $id = trim($b['merchant_id'] ?? '');
     $reason = trim($b['reason'] ?? '');
     if(!$id || !$reason) fail('Marchand et raison requis');
-    $m = q("SELECT id,business_name,phone_number,status FROM merchants WHERE id=?",[$id])->fetch();
+    $m = q("SELECT id,business_name,phone_number,status,country FROM merchants WHERE id=?",[$id])->fetch();
     if(!$m){ admin_log('merchant_unblock','failed',null,dk('d_account_not_found')); fail('Marchand introuvable',404); }
+    admin_check_country_access($m['country']);
     if($m['status']==='active'){ admin_log('merchant_unblock','failed',$m['phone_number'],'Marchand '.$m['business_name'].' deja actif'); fail('Ce marchand est deja actif'); }
     q("UPDATE merchants SET status='active' WHERE id=?",[$id]);
     admin_log('merchant_unblock','success',$m['phone_number'],'Marchand '.$m['business_name'].' debloque : '.$reason);
@@ -6197,11 +6224,12 @@ function admin_merchant_reset_pin() {
     if(!preg_match('/^\d{4}$/',$newPin)) fail('Le nouveau PIN doit contenir exactement 4 chiffres');
     if(is_weak_pin($newPin)) fail('Ce code est trop simple, choisissez une autre combinaison');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $m = q("SELECT id,business_name,phone_number FROM merchants WHERE id=?",[$id])->fetch();
+    $m = q("SELECT id,business_name,phone_number,country FROM merchants WHERE id=?",[$id])->fetch();
     if(!$m){
         admin_log('merchant_pin_reset','failed',null,dk('d_account_not_found_with_reason', ['reason'=>$reason]));
         fail('Marchand introuvable',404);
     }
+    admin_check_country_access($m['country']);
     q("UPDATE merchants SET pin_hash=?, pin_attempts=0, pin_locked_until=NULL WHERE id=?",
       [password_hash($newPin,PASSWORD_BCRYPT), $m['id']]);
     admin_log('merchant_pin_reset','success',$m['phone_number'],'Marchand '.$m['business_name'].' : '.$reason);
@@ -6227,6 +6255,8 @@ function admin_merchants_build_where($f) {
     elseif($verifiedFilter==='unverified'){ $where .= " AND (verified=0 OR verified IS NULL)"; }
     if($statusFilter==='active'){ $where .= " AND status='active'"; }
     elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('country');
+    $where .= $scopeSql; $params = array_merge($params, $scopeParams);
     return [$where, $params];
 }
 
@@ -7436,8 +7466,9 @@ function admin_account_status() {
     check_admin_password($b);
     $phone = trim($b['phone'] ?? '');
     if(!$phone) fail('Telephone requis');
-    $u = q("SELECT status FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT status,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
+    admin_check_country_access($u['country']);
     ok(['phone'=>$phone,'status'=>$u['status']]);
 }
 
@@ -7451,11 +7482,12 @@ function admin_block_account() {
         admin_log('account_block','failed',$phone,'Tentative de blocage du compte systeme via l\'outil generique (bloquee)');
         fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
     }
-    $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,status,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('account_block','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
+    admin_check_country_access($u['country']);
     if($u['status']==='blocked'){
         admin_log('account_block','failed',$phone,dk('d_already_blocked', ['reason'=>$reason]));
         fail('Ce compte est deja bloque');
@@ -7475,11 +7507,12 @@ function admin_unblock_account() {
         admin_log('account_unblock','failed',$phone,'Tentative de deblocage du compte systeme via l\'outil generique (bloquee)');
         fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
     }
-    $u = q("SELECT id,status FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,status,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('account_unblock','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
+    admin_check_country_access($u['country']);
     if($u['status']==='active'){
         admin_log('account_unblock','failed',$phone,dk('d_already_active', ['reason'=>$reason]));
         fail('Ce compte est deja actif');
@@ -7514,11 +7547,12 @@ function admin_delete_account() {
         fail('Ce compte est reserve a l\'onglet Gains ROM.',403);
     }
 
-    $u = q("SELECT id,full_name FROM users WHERE phone_number=?",[$phone])->fetch();
+    $u = q("SELECT id,full_name,country FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u){
         admin_log('account_delete','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
+    admin_check_country_access($u['country']);
     $uid = $u['id'];
 
     q("DELETE FROM kyc_requests WHERE user_id=?",[$uid]);
@@ -7550,11 +7584,12 @@ function admin_merchant_delete_account() {
     if(!$phone || !$reason) fail('Telephone et raison requis');
     if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
 
-    $m = q("SELECT id,business_name FROM merchants WHERE phone_number=?",[$phone])->fetch();
+    $m = q("SELECT id,business_name,country FROM merchants WHERE phone_number=?",[$phone])->fetch();
     if(!$m){
         admin_log('merchant_delete','failed',$phone,'Compte marchand introuvable');
         fail('Compte marchand introuvable',404);
     }
+    admin_check_country_access($m['country']);
     $mid = $m['id'];
     $mw = q("SELECT id FROM merchant_wallets WHERE merchant_id=?",[$mid])->fetch();
 
@@ -7626,8 +7661,9 @@ function admin_agent_list() {
     $page = max(1, (int)($b['page'] ?? 1));
     $perPage = 25;
     $offset = ($page - 1) * $perPage;
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('a.country');
     try {
-        $total = (int)q("SELECT COUNT(*) FROM agents")->fetchColumn();
+        $total = (int)q("SELECT COUNT(*) FROM agents a WHERE 1=1".$scopeSql, $scopeParams)->fetchColumn();
         $rows = q("SELECT a.id,a.full_name,a.phone_number,a.status,a.verified,a.is_distributor,a.max_float_cap,a.created_at,
                 MAX(w.balance) AS balance, MAX(w.currency) AS currency,
                 COALESCE(SUM(CASE WHEN t.type='agent_commission' THEN t.amount ELSE 0 END),0) AS total_commission,
@@ -7636,8 +7672,9 @@ function admin_agent_list() {
             FROM agents a
             LEFT JOIN agent_wallets w ON w.agent_id = a.id
             LEFT JOIN transactions t ON (t.sender_agent_wallet_id = w.id OR t.receiver_agent_wallet_id = w.id) AND t.status='completed'
+            WHERE 1=1".$scopeSql."
             GROUP BY a.id
-            ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset")->fetchAll();
+            ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset", $scopeParams)->fetchAll();
     } catch(Exception $e) {
         log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
     }
@@ -7655,8 +7692,9 @@ function admin_agent_test_credit_wallet() {
     if($amount<=0) fail('Montant invalide');
     if($amount>1000000) fail('Montant trop eleve pour un credit de test (max 1 000 000)');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $a = q("SELECT id FROM agents WHERE phone_number=?",[$phone])->fetch();
+    $a = q("SELECT id,country FROM agents WHERE phone_number=?",[$phone])->fetch();
     if(!$a) fail('Compte agent introuvable',404);
+    admin_check_country_access($a['country']);
     $aw = q("SELECT id FROM agent_wallets WHERE agent_id=?",[$a['id']])->fetch();
     if(!$aw) fail('Portefeuille agent introuvable',404);
     db()->beginTransaction();
@@ -7681,11 +7719,12 @@ function admin_agent_delete_account() {
     if(!$phone || !$reason) fail('Telephone et raison requis');
     if($phone !== $confirmPhone) fail('La confirmation ne correspond pas au numero saisi');
 
-    $a = q("SELECT id,full_name FROM agents WHERE phone_number=?",[$phone])->fetch();
+    $a = q("SELECT id,full_name,country FROM agents WHERE phone_number=?",[$phone])->fetch();
     if(!$a){
         admin_log('agent_delete','failed',$phone,'Compte agent introuvable');
         fail('Compte agent introuvable',404);
     }
+    admin_check_country_access($a['country']);
     $aid = $a['id'];
 
     q("DELETE FROM agent_known_devices WHERE agent_id=?",[$aid]);
@@ -7824,8 +7863,9 @@ function admin_agent_toggle_distributor() {
     check_admin_password($b);
     $id = trim($b['agent_id']??'');
     if(!$id) fail('Agent requis');
-    $a = q("SELECT id,full_name,is_distributor,max_float_cap FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,is_distributor,max_float_cap,country FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
+    admin_check_country_access($a['country']);
     $newVal = $a['is_distributor'] ? 0 : 1;
     // A la toute premiere promotion (pas de plafond deja fixe), demarre bas -
     // montee en confiance progressive, jamais un gros plafond d'entree de jeu.
@@ -7851,8 +7891,9 @@ function admin_agent_set_float_cap() {
     $capRaw = $b['max_float_cap'] ?? null;
     $cap = ($capRaw===null || $capRaw==='') ? null : (float)$capRaw;
     if($cap !== null && $cap < 0) fail('Plafond invalide');
-    $a = q("SELECT id,full_name,is_distributor FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,is_distributor,country FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
+    admin_check_country_access($a['country']);
     if(!$a['is_distributor']) fail('Ce plafond ne concerne que les distributeurs');
     q("UPDATE agents SET max_float_cap=? WHERE id=?",[$cap,$id]);
     admin_log('agent_set_float_cap','success',null,'Plafond de '.$a['full_name'].' -> '.($cap===null?'illimite':$cap));
@@ -7866,7 +7907,8 @@ function admin_agent_set_float_cap() {
 function admin_agent_list_pending() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,full_name,phone_number,country,created_at FROM agents WHERE status='pending_approval' ORDER BY created_at ASC")->fetchAll();
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('country');
+    $rows = q("SELECT id,full_name,phone_number,country,created_at FROM agents WHERE status='pending_approval'".$scopeSql." ORDER BY created_at ASC", $scopeParams)->fetchAll();
     ok(['agents'=>$rows]);
 }
 
@@ -7875,6 +7917,9 @@ function admin_agent_documents() {
     check_admin_password($b);
     $agentId = trim($b['agent_id'] ?? '');
     if(!$agentId) fail('Agent requis');
+    $ac = q("SELECT country FROM agents WHERE id=?",[$agentId])->fetch();
+    if(!$ac) fail('Agent introuvable',404);
+    admin_check_country_access($ac['country']);
     try {
         $rows = q("SELECT id, doc_type, photo, uploaded_at FROM agent_documents WHERE agent_id=? ORDER BY uploaded_at DESC",[$agentId])->fetchAll();
     } catch(Exception $e) {
@@ -7907,8 +7952,9 @@ function admin_agent_delete_document() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('Document requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $d = q("SELECT ad.agent_id, ad.doc_type, a.phone_number FROM agent_documents ad JOIN agents a ON a.id=ad.agent_id WHERE ad.id=?",[$id])->fetch();
+    $d = q("SELECT ad.agent_id, ad.doc_type, a.phone_number, a.country FROM agent_documents ad JOIN agents a ON a.id=ad.agent_id WHERE ad.id=?",[$id])->fetch();
     if(!$d) fail('Document introuvable',404);
+    admin_check_country_access($d['country']);
     q("DELETE FROM agent_documents WHERE id=?",[$id]);
     // Contrairement au refus de toute la demande (qui a deja sa propre
     // rejection_reason globale), retirer UN SEUL document pour en demander un
@@ -7925,8 +7971,9 @@ function admin_agent_approve_registration() {
     check_admin_password($b);
     $id = trim($b['agent_id']??'');
     if(!$id) fail('Agent requis');
-    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,phone_number,status,country FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
+    admin_check_country_access($a['country']);
     if($a['status'] !== 'pending_approval') fail('Cette demande a deja ete traitee');
     q("UPDATE agents SET status='active', rejection_reason=NULL WHERE id=?",[$id]);
     admin_log('agent_approve_registration','success',$a['phone_number'],'Agent '.$a['full_name'].' agree et active');
@@ -7940,8 +7987,9 @@ function admin_agent_reject_registration() {
     $reason = trim($b['reason']??'');
     if(!$id) fail('Agent requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,phone_number,status,country FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
+    admin_check_country_access($a['country']);
     if($a['status'] !== 'pending_approval') fail('Cette demande a deja ete traitee');
     q("UPDATE agents SET status='rejected', rejection_reason=? WHERE id=?",[$reason,$id]);
     // Refuse = aucune trace dans le systeme = suppression automatique et
@@ -7963,8 +8011,9 @@ function admin_agent_reopen_registration() {
     check_admin_password($b);
     $id = trim($b['agent_id']??'');
     if(!$id) fail('Agent requis');
-    $a = q("SELECT id,full_name,phone_number,status FROM agents WHERE id=?",[$id])->fetch();
+    $a = q("SELECT id,full_name,phone_number,status,country FROM agents WHERE id=?",[$id])->fetch();
     if(!$a) fail('Agent introuvable',404);
+    admin_check_country_access($a['country']);
     if($a['status'] !== 'rejected') fail('Seule une demande refusee peut etre rouverte');
     q("UPDATE agents SET status='pending_approval', rejection_reason=NULL WHERE id=?",[$id]);
     admin_log('agent_reopen_registration','success',$a['phone_number'],'Demande rouverte pour '.$a['full_name']);
@@ -7985,6 +8034,7 @@ function admin_agent_commission_tiers_list() {
 function admin_agent_commission_tiers_update() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $id = (int)($b['id'] ?? 0);
     $commission = (float)($b['commission_xof'] ?? -1);
     if(!$id) fail('Palier requis');
@@ -8040,6 +8090,7 @@ function admin_update_country() {
         admin_log('update_country','failed',$phone,dk('d_account_not_found'));
         fail('Compte introuvable',404);
     }
+    admin_check_country_access($u['country']);
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']){
         admin_log('update_country','failed',$phone,dk('d_country_not_active', ['country'=>$country, 'reason'=>$reason]));
@@ -8107,6 +8158,7 @@ function admin_merchant_update_country() {
         admin_log('merchant_update_country','failed',$phone,'Compte marchand introuvable');
         fail('Compte marchand introuvable',404);
     }
+    admin_check_country_access($m['country']);
     $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
     if(!$countryRow || !$countryRow['is_active']){
         admin_log('merchant_update_country','failed',$phone,'Pays non actif : '.$country.' ('.$reason.')');
@@ -8169,13 +8221,14 @@ function admin_delete_kyc() {
     $reason = trim($b['reason'] ?? '');
     if(!$id) fail('Identifiant de la demande requis');
     if(!$reason) fail('La raison est obligatoire (journalisee)');
-    $where = "id=?"; $params = [$id];
-    if($createdAt){ $where .= " AND created_at=?"; $params[] = $createdAt; }
-    $k = q("SELECT ctid, phone_number, user_id, status FROM kyc_requests WHERE $where LIMIT 1", $params)->fetch();
+    $where = "k.id=?"; $params = [$id];
+    if($createdAt){ $where .= " AND k.created_at=?"; $params[] = $createdAt; }
+    $k = q("SELECT k.ctid, k.phone_number, k.user_id, k.status, u.country FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE $where LIMIT 1", $params)->fetch();
     if(!$k){
         admin_log('delete_kyc','failed',null,dk('d_request_not_found', ['id'=>$id]));
         fail('Demande introuvable',404);
     }
+    admin_check_country_access($k['country']);
     q("DELETE FROM kyc_requests WHERE ctid = ?::tid", [$k['ctid']]);
     // Si la demande supprimee etait approuvee, le compte doit redevenir
     // non-verifie pour liberer reellement le creneau (sinon users.is_kyc
@@ -8216,6 +8269,8 @@ function admin_users_build_where($f) {
     elseif($statusFilter==='blocked'){ $where .= " AND status='blocked'"; }
     if($dateFrom){ $where .= " AND created_at >= ?"; $params[] = $dateFrom.' 00:00:00'; }
     if($dateTo){ $where .= " AND created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('country');
+    $where .= $scopeSql; $params = array_merge($params, $scopeParams);
     return [$where, $params];
 }
 
