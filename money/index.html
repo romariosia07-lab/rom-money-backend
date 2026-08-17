@@ -1749,7 +1749,7 @@ var I18N = {
   admin_approve_btn: {fr:'Approuver', en:'Approve'},
   admin_reject_btn: {fr:'Rejeter', en:'Reject'},
   admin_agent_recharge_approved: {fr:'Recharge approuvée et créditée', en:'Recharge approved and credited'},
-  admin_agent_recharge_rejected: {fr:'Demande rejetée', en:'Request rejected'},
+  admin_recharge_auto_expire_note: {fr:'Non traitée, cette demande expire automatiquement après 3h.', en:'If left unprocessed, this request expires automatically after 3h.'},
   admin_reject_reason_prompt: {fr:'Raison du rejet ?', en:'Reason for rejection?'},
   admin_tier_unlimited: {fr:'illimité', en:'unlimited'},
   admin_save_btn: {fr:'Sauver', en:'Save'},
@@ -1773,10 +1773,6 @@ var I18N = {
   admin_agent_reject_reason_identity: {fr:'Identité non vérifiable', en:'Identity cannot be verified'},
   admin_agent_reject_reason_letter: {fr:'Lettre de demande manquante ou non signée', en:'Missing or unsigned request letter'},
   admin_agent_reject_confirm_msg: {fr:"Cette demande d'agrément sera refusée. L'agent restera bloqué tant qu'une nouvelle demande n'est pas soumise.", en:'This approval request will be rejected. The agent will remain blocked until a new request is submitted.'},
-  admin_agent_recharge_reject_reason_unpaid: {fr:'Paiement hors-app non reçu', en:'Off-app payment not received'},
-  admin_agent_recharge_reject_reason_amount: {fr:'Montant incorrect', en:'Incorrect amount'},
-  admin_agent_recharge_reject_reason_duplicate: {fr:'Demande en double', en:'Duplicate request'},
-  admin_agent_recharge_reject_confirm_msg: {fr:'Cette demande de recharge sera refusée.', en:'This recharge request will be rejected.'},
   admin_status_rejected: {fr:'Refusée', en:'Rejected'},
   admin_agent_rejection_reason_label: {fr:'Raison du refus :', en:'Rejection reason:'},
   admin_reopen_registration_btn: {fr:'Reconsidérer cette demande', en:'Reconsider this request'},
@@ -4990,22 +4986,14 @@ function adminLoadAgentRecharges(){
           // File partagee entre l'admin et tous les distributeurs (plus de
           // ciblage a la demande - voir agent_request_recharge()) : toute
           // demande en attente est actionnable ici, qui que ce soit qui
-          // finisse par la servir en premier (distributeur ou admin).
+          // finisse par la servir en premier (distributeur ou admin). Plus
+          // de rejet manuel (retire) : une demande non traitee expire deja
+          // automatiquement au bout de 3h, jugee suffisante comme protection.
           +(window._earningsPw
               ? ('<div class="frow" style="margin-top:-6px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_confirmation_code_label">Code de confirmation (communiqué par l\'agent)</label>'
                  +'<input class="finput" id="agtrchcode-'+r.id+'" maxlength="6" inputmode="numeric" placeholder="000000" style="margin-bottom:0"></div>'
-                 +'<button class="btn-w" style="margin-top:0;margin-bottom:8px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
-                 +'<div class="frow" style="margin-top:8px;margin-bottom:6px"><label class="flabel" data-i18n-admin="admin_acc_reason_label">Raison (obligatoire, journalisée)</label>'
-                 +'<select class="finput" id="agtrchrej-'+r.id+'-reason-sel" onchange="toggleReasonCustom(\'agtrchrej-'+r.id+'\')">'
-                 +'<option value="" data-i18n-admin="admin_reason_choose">— Choisir une raison —</option>'
-                 +'<option value="Paiement hors-app non reçu" data-i18n-admin="admin_agent_recharge_reject_reason_unpaid">Paiement hors-app non reçu</option>'
-                 +'<option value="Montant incorrect" data-i18n-admin="admin_agent_recharge_reject_reason_amount">Montant incorrect</option>'
-                 +'<option value="Demande en double" data-i18n-admin="admin_agent_recharge_reject_reason_duplicate">Demande en double</option>'
-                 +'<option value="__other__" data-i18n-admin="admin_reason_other">Autre raison (préciser)</option>'
-                 +'</select>'
-                 +'<input class="finput" id="agtrchrej-'+r.id+'-reason-custom" placeholder="Précisez la raison" data-i18n-admin-ph="admin_reason_specify" style="display:none;margin-top:8px">'
-                 +'</div>'
-                 +'<button style="width:100%;padding:13px;margin-bottom:14px;background:var(--rl);color:var(--re);border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminRejectAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_reject_btn">Rejeter</button>')
+                 +'<button class="btn-w" style="margin-top:0;margin-bottom:6px;background:var(--gl);color:var(--g)" onclick="adminApproveAgentRecharge(\''+r.id+'\')" data-i18n-admin="admin_approve_btn">Approuver</button>'
+                 +'<div style="font-size:10px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_recharge_auto_expire_note">Non traitée, cette demande expire automatiquement après 3h.</div>')
               : ('<div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_test_credit_locked">Réservé à l\'Admin Principal — déverrouillez d\'abord l\'onglet Gains ROM.</div>'));
       });
       box.innerHTML=html;
@@ -5023,22 +5011,6 @@ function adminApproveAgentRecharge(id){
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
-function adminRejectAgentRecharge(id){
-  var prefix='agtrchrej-'+id;
-  var reason = getReasonValue(prefix);
-  if(!reason){ toast(at('admin_reason_required'), true); return; }
-  adminOpenConfirmModal({
-    icon:'⚠', title:at('admin_final_confirmation'), message:at('admin_agent_recharge_reject_confirm_msg'),
-    needsReason:false, confirmLabel:at('admin_reject_btn'), confirmColor:'var(--re)',
-    onConfirm:function(){
-      apiCall('/admin?action=agent-recharge-reject','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
-        if(res&&res.success){ toast(at('admin_agent_recharge_rejected')); adminLoadAgentRecharges(); adminRefreshAgentsBadge(); }
-        else { toast((res&&res.message)||at('admin_error_generic'), true); }
-      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
-    }
-  });
-}
-
 // Registre complet de tous les mouvements de recharge de float (credit
 // direct admin OU redirige depuis un distributeur) - la file de demandes
 // ci-dessus n'est que la queue "en attente" ; ceci est la tracabilite reelle

@@ -580,12 +580,9 @@ var I18N = {
   dist_hist_empty:{fr:"Vous n'avez encore traité aucune demande.",en:"You haven't processed any request yet."},
   inc_code_ph:{fr:'Code à 6 chiffres',en:'6-digit code'},
   inc_approve_btn:{fr:'Approuver',en:'Approve'},
-  inc_reject_btn:{fr:'Rejeter',en:'Reject'},
   inc_err_code:{fr:'Code à 6 chiffres requis',en:'6-digit code required'},
   inc_approved:{fr:'Recharge approuvée',en:'Recharge approved'},
-  inc_rejected:{fr:'Demande rejetée',en:'Request rejected'},
-  inc_reject_confirm_title:{fr:'Rejeter cette demande ?',en:'Reject this request?'},
-  inc_reject_confirm_msg:{fr:'Cette demande de recharge sera rejetée.',en:'This recharge request will be rejected.'},
+  inc_auto_expire_note:{fr:'Non traitée, cette demande expire automatiquement après 3h.',en:'If left unprocessed, this request expires automatically after 3h.'},
   cp_current:{fr:'PIN actuel',en:'Current PIN'},
   cp_new:{fr:'Nouveau PIN',en:'New PIN'},
   cp_confirm_new:{fr:'Confirmer le nouveau PIN',en:'Confirm new PIN'},
@@ -2267,10 +2264,9 @@ function shIncomingRecharges(b){
           +'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+r.phone_number+' · '+new Date(r.created_at).toLocaleString(loc)+'</div>'
           +(r.note?'<div style="font-size:12px;color:var(--t2);margin-top:4px">'+r.note+'</div>':'')
           +'<input class="finput" id="inc-code-'+r.id+'" maxlength="6" inputmode="numeric" placeholder="'+t('inc_code_ph')+'" style="margin-top:10px;margin-bottom:8px">'
-          +'<div style="display:flex;gap:8px">'
-          +'<button class="chip" style="flex:1;background:var(--gl);color:var(--gd)" onclick="doApproveIncoming(\''+r.id+'\')">'+t('inc_approve_btn')+'</button>'
-          +'<button class="chip" style="flex:1;background:var(--rl);color:var(--rd)" onclick="doRejectIncoming(\''+r.id+'\')">'+t('inc_reject_btn')+'</button>'
-          +'</div></div>';
+          +'<button class="chip" style="width:100%;background:var(--gl);color:var(--gd)" onclick="doApproveIncoming(\''+r.id+'\')">'+t('inc_approve_btn')+'</button>'
+          +'<div style="font-size:10px;color:var(--t3);margin-top:6px;text-align:center">'+t('inc_auto_expire_note')+'</div>'
+          +'</div>';
       });
       b.innerHTML=h+histLink;
     } else { b.innerHTML='<div class="empty-note" style="color:var(--rd)">'+t('network_error')+'</div>'; }
@@ -2322,23 +2318,6 @@ function doApproveIncoming(id){
     }).catch(function(){ _moneyActionInFlight=false; toast(t('network_error'), true); });
   });
 }
-function doRejectIncoming(id){
-  userOpenConfirmModal({
-    icon:'✗', title:t('inc_reject_confirm_title'), message:t('inc_reject_confirm_msg'),
-    confirmLabel:t('inc_reject_btn'), confirmColor:'var(--re)',
-    onConfirm:function(){
-      apiCall('/agent?action=reject-recharge-request','POST',{id:id},getToken()).then(function(res){
-        if(res && res.success){
-          toast(t('inc_rejected'));
-          refreshIncomingRequestsBadge();
-          var b=document.getElementById('sh-body');
-          if(b && document.getElementById('sh').classList.contains('on')) shIncomingRecharges(b);
-        } else { toast((res&&res.message)||t('err_generic'), true); }
-      }).catch(function(){ toast(t('network_error'), true); });
-    }
-  });
-}
-
 // ── CHANGER LE PIN ──
 function shChangePin(b){
   b.innerHTML='<div class="frow"><label class="flabel">'+t('cp_current')+'</label><input class="finput" id="cp-cur" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>'

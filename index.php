@@ -2253,7 +2253,6 @@ function route_agent($action) {
         'recharge-history'  => agent_recharge_history(),
         'list-incoming-recharges' => agent_list_incoming_recharge_requests(),
         'approve-recharge-request' => agent_approve_recharge_request(),
-        'reject-recharge-request'  => agent_reject_recharge_request(),
         'distributor-history'      => agent_distributor_history(),
         'doc-upload'        => agent_document_upload(),
         'doc-list'          => agent_document_list(),
@@ -3183,10 +3182,20 @@ function agent_request_recharge() {
 // projet - meme principe "verifie a l'usage" que agent_confirm_cash_out()
 // pour agent_cashout_requests (expires_at, 10 min), applique ici a chaque
 // point d'entree qui lit ou agit sur ces demandes.
+// Le rejet manuel a ete retire (voir agent_reject_recharge_request() /
+// admin_agent_reject_recharge(), supprimees) : cette expiration a 3h est
+// desormais la SEULE facon dont une demande non traitee se termine, donc
+// elle doit notifier l'agent (comme le faisait avant le rejet manuel) -
+// sinon un agent ne saurait jamais que sa demande n'a pas abouti.
 function agent_expire_stale_recharge_requests() {
+    $stale = q("SELECT agent_id, amount FROM agent_recharge_requests WHERE status='pending' AND created_at < NOW() - INTERVAL '3 hours'")->fetchAll();
+    if(!$stale) return;
     q("UPDATE agent_recharge_requests SET status='expired', reject_reason=?, reviewed_at=NOW()
        WHERE status='pending' AND created_at < NOW() - INTERVAL '3 hours'",
       ['Demande expiree automatiquement apres 3h sans traitement']);
+    foreach($stale as $r){
+        web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a expire (non traitee dans les 3h).');
+    }
 }
 
 function agent_recharge_history() {
@@ -3295,22 +3304,6 @@ function agent_approve_recharge_request() {
         web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete approuvee.');
         ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
     } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
-}
-
-function agent_reject_recharge_request() {
-    $pl = agent_auth(); $b = body();
-    $id = trim($b['id'] ?? '');
-    $reason = trim($b['reason'] ?? '');
-    if(!$id) fail('Demande requise');
-    agent_expire_stale_recharge_requests();
-    // File partagee : n'importe quel distributeur peut decliner une demande
-    // en attente (etat terminal, comme avant - un agent decline devra
-    // refaire une demande plutot que de "faire le tour" des distributeurs).
-    $r = q("SELECT agent_id, amount FROM agent_recharge_requests WHERE id=? AND status='pending'",[$id])->fetch();
-    $n = q("UPDATE agent_recharge_requests SET status='rejected', distributor_id=?, reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$pl['sub'],$reason?:null,$id])->rowCount();
-    if(!$n) fail('Demande introuvable ou deja traitee',404);
-    if($r) web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete refusee.');
-    ok(null,'Demande rejetee');
 }
 
 // ============================================================
@@ -5247,7 +5240,6 @@ function route_admin($action) {
         'agent-delete-account'     => admin_agent_delete_account(),
         'agent-recharge-list'      => admin_agent_list_recharge_requests(),
         'agent-recharge-approve'   => admin_agent_approve_recharge(),
-        'agent-recharge-reject'    => admin_agent_reject_recharge(),
         'agent-recharge-movements' => admin_agent_recharge_movements(),
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
@@ -7705,22 +7697,6 @@ function admin_agent_approve_recharge() {
         web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete approuvee.');
         ok(['new_balance'=>$bal],'Recharge approuvee et creditee');
     } catch(Exception $e) { db()->rollBack(); log_and_fail($e, 'Echec de la recharge', 500); }
-}
-
-function admin_agent_reject_recharge() {
-    $b = body();
-    check_admin_password($b);
-    $id = trim($b['id'] ?? '');
-    $reason = trim($b['reason'] ?? '');
-    if(!$id) fail('Demande requise');
-    if(!$reason) fail('La raison est obligatoire (journalisee)');
-    agent_expire_stale_recharge_requests();
-    $r = q("SELECT agent_id, amount FROM agent_recharge_requests WHERE id=? AND status='pending'",[$id])->fetch();
-    $n = q("UPDATE agent_recharge_requests SET status='rejected', reviewed_at=NOW(), reject_reason=? WHERE id=? AND status='pending'",[$reason,$id])->rowCount();
-    if(!$n) fail('Demande introuvable ou deja traitee',404);
-    admin_log('agent_recharge_reject','success',null,$reason);
-    if($r) web_push_send_to_agent($r['agent_id'], 'ROM_GUICHET', 'Votre demande de recharge de '.number_format($r['amount'],0,',',' ').' a ete refusee.');
-    ok(null,'Demande rejetee');
 }
 
 // Registre complet de tous les mouvements de recharge de float agent
