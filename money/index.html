@@ -931,7 +931,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_countries_label">Pays autorisés (aucun = aucun accès)</label><div id="admacc-create-countries-box" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
         <button class="btn-g" id="admacc-create-btn" onclick="adminCreateAccount()" data-i18n-admin="admin_accounts_create_btn">Créer ce compte</button>
         <div id="admacc-create-status" style="margin:10px 0;font-size:12px"></div>
-        <button class="btn-w" style="margin-top:14px" onclick="adminLoadAccounts()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
+        <button class="btn-w" id="admacc-refresh-btn" style="margin-top:14px" onclick="adminLoadAccounts()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
         <div id="admacc-list-box" style="margin-top:10px"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
       </div>
 
@@ -3134,9 +3134,18 @@ function adminLoadDashboard(){
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-left:10px">'
         +adminStatBox(at('admin_dash_volume'), fmt(d.period_volume), true)
-        +(d.country_breakdown||[]).map(function(c){
-            return adminStatBox(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'), fmt(c.volume), true);
-          }).join('')
+        +(function(){
+            var tiles=(d.country_breakdown||[]).map(function(c){
+              return adminStatBox(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'), fmt(c.volume), true);
+            });
+            // Zone defilante des que la liste s'allonge (beaucoup de pays
+            // actifs) - garde la mise en page compacte au lieu de laisser
+            // la colonne grandir sans limite, tout en gardant le meme
+            // format "case" que le reste du tableau de bord.
+            return tiles.length>4
+              ? '<div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:2px">'+tiles.join('')+'</div>'
+              : tiles.join('');
+          })()
         +'</div>'
         +'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">'+at('admin_dash_total_volume_note').replace('{amt}',fmt(d.total_volume))+'</div>';
@@ -6332,6 +6341,10 @@ function adminCreateAccount(){
 }
 function adminLoadAccounts(){
   var box=document.getElementById('admacc-list-box');
+  if(!window._isSuperAdmin){
+    box.innerHTML='<div class="admin-empty">'+at('admin_super_admin_only_note')+'</div>';
+    return;
+  }
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   adminAccountsFetchCountries(function(){
   apiCall('/admin?action=accounts-list','POST',{admin_password:window._adminPw},'').then(function(res){
@@ -6405,6 +6418,7 @@ function adminApplySuperAdminGate(){
   [
     document.getElementById('admin-settings-save-btn'),
     document.getElementById('admacc-create-btn'),
+    document.getElementById('admacc-refresh-btn'),
     document.getElementById('admin-announce-btn'),
     document.getElementById('admin-kyc-encrypt-btn'),
     document.getElementById('admin-backfill-btn'),

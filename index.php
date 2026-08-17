@@ -1842,8 +1842,10 @@ function merchant_export_xlsx() {
             [ $t['status'], 2, 's' ]
         ];
     }
-    $sheetXml = xlsx_build_sheet($data);
-    $xlsxData = xlsx_build($sheetXml);
+    $logoPath = __DIR__.'/business/logo.jpg';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($data, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData, 'jpg');
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_business_historique.xlsx"');
     header('Content-Length: '.strlen($xlsxData));
@@ -1876,14 +1878,14 @@ function merchant_export_pdf() {
     $infoTopY = $pdf->GetY();
     $logoPath = __DIR__.'/business/logo.jpg';
     if(file_exists($logoPath)){
-        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+        $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(150,6,pdf_str('Boutique : '.($m['business_name']?:'').' ('.$m['phone_number'].')'),0,1);
     $pdf->Cell(150,6,pdf_str('Periode : '.$periodeLabel),0,1);
     $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
     if(file_exists($logoPath)){
-        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+32));
     }
     if($res['truncated']){
         $pdf->SetTextColor(200,0,0);
@@ -5081,8 +5083,10 @@ function export_xlsx() {
         ];
     }
 
-    $sheetXml = xlsx_build_sheet($data);
-    $xlsxData = xlsx_build($sheetXml);
+    $logoPath = __DIR__.'/money/logo.png';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($data, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData);
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_historique.xlsx"');
@@ -5130,14 +5134,14 @@ function export_pdf() {
     $infoTopY = $pdf->GetY();
     $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
-        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+        $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(150,6,pdf_str(export_t('holder',$lang).($u['verified_name']?:$u['full_name']?:'').' ('.$u['phone_number'].')'),0,1);
     $pdf->Cell(150,6,pdf_str(export_t('period',$lang).$periodeLabel),0,1);
     $pdf->Cell(150,6,pdf_str(export_t('generated',$lang).date('d/m/Y').export_t('generated_at',$lang).date('H:i')),0,1);
     if(file_exists($logoPath)){
-        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+32));
     }
     if($res['truncated']){
         $pdf->SetTextColor(200,0,0);
@@ -6454,8 +6458,10 @@ function admin_merchants_export_xlsx() {
             [ date('d/m/Y',strtotime($m['created_at'])), 2, 's' ]
         ];
     }
-    $sheetXml = xlsx_build_sheet($sheetRows);
-    $xlsxData = xlsx_build($sheetXml);
+    $logoPath = __DIR__.'/money/logo.png';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($sheetRows, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData);
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_business_marchands.xlsx"');
     header('Content-Length: '.strlen($xlsxData));
@@ -6804,6 +6810,7 @@ function admin_list_frozen() {
 function admin_accounts_list() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $rows = q("SELECT id,name,active,countries,created_at FROM admin_accounts ORDER BY created_at ASC")->fetchAll();
     foreach($rows as &$r){ $r['countries'] = $r['countries'] ? (json_decode($r['countries'], true) ?: []) : []; }
     unset($r);
@@ -6957,8 +6964,10 @@ function admin_audit_export_xlsx() {
         ];
     }
 
-    $sheetXml = xlsx_build_sheet($data);
-    $xlsxData = xlsx_build($sheetXml);
+    $logoPath = __DIR__.'/money/logo.png';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($data, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData);
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_journal_audit.xlsx"');
@@ -6978,13 +6987,13 @@ function admin_audit_export_pdf() {
     $infoTopY = $pdf->GetY();
     $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
-        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+        $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
     $pdf->Cell(150,6,pdf_str($rows ? count($rows).' action(s) journalisee(s)' : 'Aucune action'),0,1);
     if(file_exists($logoPath)){
-        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+32));
     }
     $pdf->Ln(4);
 
@@ -7142,10 +7151,32 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = 
             WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
             GROUP BY $cbAttribution", array_merge($cbAttrParams, $params, $cbScopeParams, $cbAttrParams))->fetchAll();
         $cbByCountry = [];
-        foreach ($cbRows as $r) { if ($r['country']) $cbByCountry[$r['country']] = $r; }
+        $cbTotalRowsVolume = 0.0; $cbTotalRowsCount = 0;
+        foreach ($cbRows as $r) {
+            $cbTotalRowsVolume += (float)$r['volume'];
+            $cbTotalRowsCount += (int)$r['count'];
+            if ($r['country']) $cbByCountry[$r['country']] = $r;
+        }
+        $cbMatchedVolume = 0.0; $cbMatchedCount = 0;
         foreach ($cbCountriesToShow as $c) {
             $row = $cbByCountry[$c] ?? null;
-            $countryBreakdown[] = ['country'=>$c, 'count'=>(int)($row['count']??0), 'volume'=>(float)($row['volume']??0)];
+            $vol = (float)($row['volume']??0); $cnt = (int)($row['count']??0);
+            $cbMatchedVolume += $vol; $cbMatchedCount += $cnt;
+            $countryBreakdown[] = ['country'=>$c, 'count'=>$cnt, 'volume'=>$vol];
+        }
+        // Part non attribuee a un pays affiche (pays desactive depuis, ou
+        // compte sans pays renseigne) - possible uniquement pour Admin
+        // Principal en vue non filtree (pour un compte nomme ou une
+        // selection explicite, la clause WHERE ci-dessus garantit deja que
+        // chaque ligne correspond a un pays affiche, ce reste est donc
+        // toujours 0 dans ces cas). Sans cette ligne, total_volume
+        // (sans restriction) pouvait legerement depasser la somme de cette
+        // repartition - meme incoherence que celle deja corrigee pour les
+        // comptes limites, ici pour le cas Admin Principal.
+        $cbLeftoverVolume = $cbTotalRowsVolume - $cbMatchedVolume;
+        $cbLeftoverCount = $cbTotalRowsCount - $cbMatchedCount;
+        if ($cbLeftoverCount > 0) {
+            $countryBreakdown[] = ['country'=>null, 'count'=>$cbLeftoverCount, 'volume'=>$cbLeftoverVolume];
         }
         usort($countryBreakdown, function($a,$b){ return $b['volume'] <=> $a['volume']; });
     }
@@ -7456,15 +7487,19 @@ function xlsx_styles_xml() {
     . '</styleSheet>';
 }
 
-// $logoPngData : contenu binaire brut d'un PNG a inserer en haut de la
-// feuille (coin superieur droit) si fourni - null = aucun logo (fichier
-// introuvable ou non demande), fonctionne exactement comme avant.
-function xlsx_build($sheetXml, $logoPngData = null) {
+// $logoData : contenu binaire brut d'une image (PNG ou JPEG) a inserer en
+// haut de la feuille (coin superieur droit) si fournie - null = aucun logo
+// (fichier introuvable ou non demande), fonctionne exactement comme avant.
+// $logoExt : 'png' ou 'jpg' - business/logo.jpg (ROM_BUSINESS) n'est pas au
+// meme format que money/logo.png (ROM_MONEY), d'ou ce parametre plutot
+// qu'un PNG fige en dur.
+function xlsx_build($sheetXml, $logoData = null, $logoExt = 'png') {
+    $logoMime = ($logoExt === 'jpg' || $logoExt === 'jpeg') ? 'image/jpeg' : 'image/png';
     $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         . '<Default Extension="xml" ContentType="application/xml"/>'
-        . ($logoPngData !== null ? '<Default Extension="png" ContentType="image/png"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : '')
+        . ($logoData !== null ? '<Default Extension="'.$logoExt.'" ContentType="'.$logoMime.'"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : '')
         . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
         . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
         . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
@@ -7490,10 +7525,11 @@ function xlsx_build($sheetXml, $logoPngData = null) {
         'xl/styles.xml' => xlsx_styles_xml(),
         'xl/worksheets/sheet1.xml' => $sheetXml,
     ];
-    if ($logoPngData !== null) {
+    if ($logoData !== null) {
         // Ancre le logo dans le coin de la cellule F1 (colonne index 5, ligne
-        // index 0), taille fixe ~80x80px (762000 EMU, 1px=9525 EMU) - assez
-        // discret pour ne pas gener la lecture du "Resume" juste en dessous.
+        // index 0), taille fixe ~32x32mm (1152000 EMU, 36000 EMU/mm) - meme
+        // taille visuelle que sur les exports PDF (voir $pdf->Image() plus
+        // bas, 32x32mm egalement).
         $files['xl/worksheets/_rels/sheet1.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>'
@@ -7502,20 +7538,20 @@ function xlsx_build($sheetXml, $logoPngData = null) {
             . '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
             . '<xdr:oneCellAnchor>'
             . '<xdr:from><xdr:col>5</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
-            . '<xdr:ext cx="762000" cy="762000"/>'
+            . '<xdr:ext cx="1152000" cy="1152000"/>'
             . '<xdr:pic>'
             . '<xdr:nvPicPr><xdr:cNvPr id="1" name="Logo"/><xdr:cNvPicPr/></xdr:nvPicPr>'
             . '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
-            . '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="762000" cy="762000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+            . '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1152000" cy="1152000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
             . '</xdr:pic>'
             . '<xdr:clientData/>'
             . '</xdr:oneCellAnchor>'
             . '</xdr:wsDr>';
         $files['xl/drawings/_rels/drawing1.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.'.$logoExt.'"/>'
             . '</Relationships>';
-        $files['xl/media/image1.png'] = $logoPngData;
+        $files['xl/media/image1.'.$logoExt] = $logoData;
     }
     return zip_create($files);
 }
@@ -7527,7 +7563,8 @@ function xlsx_build($sheetXml, $logoPngData = null) {
 function admin_dash_period_label($period, $dateFrom, $dateTo) {
     $labels = ['today'=>"Aujourd'hui", '7d'=>'7 derniers jours', 'month'=>'Ce mois-ci', 'all'=>'Tout'];
     if ($period === 'custom') {
-        return 'Du '.($dateFrom ?: '?').' au '.($dateTo ?: '?');
+        $fmt = function($d) { $t = strtotime((string)$d); return ($d && $t) ? date('d/m/Y', $t) : '?'; };
+        return 'Du '.$fmt($dateFrom).' au '.$fmt($dateTo);
     }
     return $labels[$period] ?? $period;
 }
@@ -7692,7 +7729,7 @@ function admin_dashboard_export_pdf() {
     // ou se trouve index.php - meme note que dans admin_dashboard_export_xlsx().
     $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
-        $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
+        $pdf->Image($logoPath, 168, $infoTopY, 32, 32);
     }
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
@@ -7701,7 +7738,7 @@ function admin_dashboard_export_pdf() {
     $pdf->Cell(150,6,pdf_str('Pays : '.implode(', ', $d['effective_countries'])),0,1);
     $pdf->Cell(150,6,pdf_str('Periode : '.$periodLabel),0,1);
     if(file_exists($logoPath)){
-        $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
+        $pdf->SetY(max($pdf->GetY(), $infoTopY+32));
     }
     $pdf->Ln(4);
 
@@ -8667,8 +8704,10 @@ function admin_users_export_xlsx() {
             [ date('d/m/Y',strtotime($u['created_at'])), 2, 's' ]
         ];
     }
-    $sheetXml = xlsx_build_sheet($sheetRows);
-    $xlsxData = xlsx_build($sheetXml);
+    $logoPath = __DIR__.'/money/logo.png';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($sheetRows, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData);
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_utilisateurs.xlsx"');
     header('Content-Length: '.strlen($xlsxData));
