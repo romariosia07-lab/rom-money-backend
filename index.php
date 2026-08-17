@@ -4379,6 +4379,55 @@ function admin_country_scope_clause($countryCol) {
     return [" AND $countryCol IN ($placeholders)", $countries];
 }
 
+// Variante pour une transaction (ou une alerte liee a une transaction) qui
+// implique deux parties, parfois de pays differents (Transfert Afrique) :
+// autorise si AU MOINS l'une des deux colonnes pays correspond, pour ne pas
+// bloquer un admin qui doit justement aider un compte de son pays ayant
+// envoye/recu de l'etranger.
+function admin_country_scope_clause_either($col1, $col2) {
+    $countries = $GLOBALS['_current_admin_countries'] ?? null;
+    if($countries === null) return ['', []];
+    if(empty($countries)) return [' AND 1=0', []];
+    $placeholders = implode(',', array_fill(0, count($countries), '?'));
+    return [" AND (COALESCE($col1,'') IN ($placeholders) OR COALESCE($col2,'') IN ($placeholders))", array_merge($countries, $countries)];
+}
+
+// Equivalent de admin_check_country_access() mais accepte plusieurs pays
+// candidats (transaction a deux parties) - autorise si AU MOINS l'un des
+// pays candidats est dans le perimetre de l'admin.
+function admin_check_country_access_any($candidateCountries) {
+    $countries = $GLOBALS['_current_admin_countries'] ?? null;
+    if($countries === null) return;
+    foreach($candidateCountries as $c){
+        if($c && in_array($c, $countries, true)) return;
+    }
+    admin_log('country_access_denied','failed',null,dk('d_ref_with_reason',['ref'=>(implode('/',array_filter($candidateCountries))?:'-'),'reason'=>'Aucune des parties impliquees n\'est dans le perimetre de ce compte admin']));
+    fail("Vous n'etes pas autorise a agir sur cette transaction.", 403);
+}
+
+// Resout les pays des deux parties d'une transaction (personnel OU
+// marchand des deux cotes) - utilise par admin_freeze_transaction()/
+// admin_unfreeze_transaction()/admin_confirm_cancel_frozen(), qui ne
+// joignent pas deja users/merchants dans leur requete initiale.
+function admin_tx_involved_countries($tx) {
+    $countries = [];
+    if(!empty($tx['sender_wallet_id'])){
+        $c = q("SELECT u.country FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn();
+        if($c) $countries[] = $c;
+    } elseif(!empty($tx['sender_merchant_wallet_id'])){
+        $c = q("SELECT m.country FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$tx['sender_merchant_wallet_id']])->fetchColumn();
+        if($c) $countries[] = $c;
+    }
+    if(!empty($tx['receiver_wallet_id'])){
+        $c = q("SELECT u.country FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['receiver_wallet_id']])->fetchColumn();
+        if($c) $countries[] = $c;
+    } elseif(!empty($tx['receiver_merchant_wallet_id'])){
+        $c = q("SELECT m.country FROM merchant_wallets mw JOIN merchants m ON mw.merchant_id=m.id WHERE mw.id=?",[$tx['receiver_merchant_wallet_id']])->fetchColumn();
+        if($c) $countries[] = $c;
+    }
+    return $countries;
+}
+
 // Meme logique anti-devinette que admin_bruteforce_check(), mais comptee
 // separement (action='earnings_login') pour ne pas partager son compteur
 // avec le mot de passe admin partage.
@@ -5748,6 +5797,7 @@ function admin_search_tx() {
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
         WHERE t.reference=? AND t.type!='manual_withdrawal'",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
+    admin_check_country_access_any(admin_tx_involved_countries($tx));
     ok(['transaction'=>$tx]);
 }
 
@@ -5778,7 +5828,15 @@ function admin_search_tx_advanced() {
     if($dateTo){ $where .= " AND t.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
     if($status){ $where .= " AND t.status = ?"; $params[] = $status; }
 
-    $total = (int)q("SELECT COUNT(*) FROM transactions t WHERE $where", $params)->fetchColumn();
+    $countWhere = $where; $countParams = $params;
+    list($scopeSql, $scopeParams) = admin_country_scope_clause_either('su.country,sm.country', 'ru.country,rm.country');
+    $countSql = "SELECT COUNT(*) FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
+        WHERE $countWhere".$scopeSql;
+    $total = (int)q($countSql, array_merge($countParams, $scopeParams))->fetchColumn();
     $rows = q("SELECT t.*,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
         ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
@@ -5789,7 +5847,7 @@ function admin_search_tx_advanced() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
-        WHERE $where ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+        WHERE $where".$scopeSql." ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", array_merge($params, $scopeParams))->fetchAll();
 
     ok(['transactions'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
@@ -5822,7 +5880,14 @@ function admin_merchant_search_tx_advanced() {
     if($dateTo){ $where .= " AND t.created_at <= ?"; $params[] = $dateTo.' 23:59:59'; }
     if($status){ $where .= " AND t.status = ?"; $params[] = $status; }
 
-    $total = (int)q("SELECT COUNT(*) FROM transactions t WHERE $where", $params)->fetchColumn();
+    list($scopeSql, $scopeParams) = admin_country_scope_clause_either('su.country,sm.country', 'ru.country,rm.country');
+    $countSql = "SELECT COUNT(*) FROM transactions t
+        LEFT JOIN wallets sw ON t.sender_wallet_id=sw.id LEFT JOIN users su ON sw.user_id=su.id
+        LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
+        LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
+        LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
+        WHERE $where".$scopeSql;
+    $total = (int)q($countSql, array_merge($params, $scopeParams))->fetchColumn();
     $rows = q("SELECT t.*,
         su.full_name sender_name, su.phone_number sender_phone, su.verified_name sender_verified_name,
         ru.full_name receiver_name, ru.phone_number receiver_phone, ru.verified_name receiver_verified_name,
@@ -5833,7 +5898,7 @@ function admin_merchant_search_tx_advanced() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
-        WHERE $where ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+        WHERE $where".$scopeSql." ORDER BY t.created_at DESC LIMIT $perPage OFFSET $offset", array_merge($params, $scopeParams))->fetchAll();
 
     ok(['transactions'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage]);
 }
@@ -6469,6 +6534,7 @@ function admin_freeze_transaction() {
         admin_log('tx_freeze','failed',null,dk('d_ref_not_found', ['ref'=>$ref, 'reason'=>$reason]));
         fail('Transaction introuvable',404);
     }
+    admin_check_country_access_any(admin_tx_involved_countries($tx));
     $senderPhone = null;
     if($tx['sender_wallet_id']){
         $senderPhone = q("SELECT u.phone_number FROM wallets w JOIN users u ON w.user_id=u.id WHERE w.id=?",[$tx['sender_wallet_id']])->fetchColumn();
@@ -6537,6 +6603,7 @@ function admin_unfreeze_transaction() {
     if(!$ref) fail('Reference requise');
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
+    admin_check_country_access_any(admin_tx_involved_countries($tx));
     if($tx['status']!=='frozen') fail('Cette transaction n\'est pas geleee (statut actuel : '.$tx['status'].')');
     $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
     $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
@@ -6596,6 +6663,7 @@ function admin_confirm_cancel_frozen() {
     if(!$reason) fail('La raison est obligatoire (journalisee)');
     $tx = q("SELECT * FROM transactions WHERE reference=?",[$ref])->fetch();
     if(!$tx) fail('Transaction introuvable',404);
+    admin_check_country_access_any(admin_tx_involved_countries($tx));
     if($tx['status']!=='frozen') fail('Cette transaction n\'est pas gelee (statut actuel : '.$tx['status'].')');
     $senderIsMerchant = !empty($tx['sender_merchant_wallet_id']);
     $receiverIsMerchant = !empty($tx['receiver_merchant_wallet_id']);
@@ -6631,6 +6699,7 @@ function admin_confirm_cancel_frozen() {
 function admin_list_frozen() {
     $b = body();
     check_admin_password($b);
+    list($scopeSql, $scopeParams) = admin_country_scope_clause_either('su.country,sm.country', 'ru.country,rm.country');
     $rows = q("SELECT t.*,
         COALESCE(su.phone_number, sm.phone_number) sender_phone,
         COALESCE(su.full_name, sm.business_name) sender_name,
@@ -6643,7 +6712,7 @@ function admin_list_frozen() {
         LEFT JOIN wallets rw ON t.receiver_wallet_id=rw.id LEFT JOIN users ru ON rw.user_id=ru.id
         LEFT JOIN merchant_wallets smw ON t.sender_merchant_wallet_id=smw.id LEFT JOIN merchants sm ON smw.merchant_id=sm.id
         LEFT JOIN merchant_wallets rmw ON t.receiver_merchant_wallet_id=rmw.id LEFT JOIN merchants rm ON rmw.merchant_id=rm.id
-        WHERE t.status='frozen' ORDER BY t.frozen_at ASC")->fetchAll();
+        WHERE t.status='frozen'".$scopeSql." ORDER BY t.frozen_at ASC", $scopeParams)->fetchAll();
     ok(['frozen'=>$rows]);
 }
 
@@ -8385,6 +8454,7 @@ function admin_list_near_limit() {
     $threshold = (float)($b['threshold'] ?? 70) / 100;
     $limitUnverified = (float)get_setting('limit_unverified', 2000000);
 
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
     $rows = q("SELECT u.id, COALESCE(NULLIF(u.verified_name,''), u.full_name) AS name, u.phone_number,
             w.currency,
             COALESCE(SUM(COALESCE(t.receiver_amount, t.net_amount, t.amount)),0) AS received_this_month
@@ -8393,8 +8463,8 @@ function admin_list_near_limit() {
         LEFT JOIN transactions t ON t.receiver_wallet_id = w.id AND t.status='completed' AND t.type!='fee'
             AND EXTRACT(MONTH FROM t.created_at)=EXTRACT(MONTH FROM NOW())
             AND EXTRACT(YEAR FROM t.created_at)=EXTRACT(YEAR FROM NOW())
-        WHERE u.is_kyc=0 AND u.status='active'
-        GROUP BY u.id, name, u.phone_number, w.currency")->fetchAll();
+        WHERE u.is_kyc=0 AND u.status='active'".$scopeSql."
+        GROUP BY u.id, name, u.phone_number, w.currency", $scopeParams)->fetchAll();
 
     $result = [];
     foreach($rows as $r){
@@ -8422,6 +8492,7 @@ function admin_list_near_limit() {
 function admin_list_alerts() {
     $b = body();
     check_admin_password($b);
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
     $rows = q("SELECT kd.device_id, kd.user_agent, kd.first_seen,
                       u.id AS user_id, u.full_name, u.verified_name, u.phone_number
                FROM known_devices kd
@@ -8429,20 +8500,32 @@ function admin_list_alerts() {
                WHERE kd.first_seen >= NOW() - INTERVAL '30 days'
                  AND kd.first_seen > (
                      SELECT MIN(kd2.first_seen) FROM known_devices kd2 WHERE kd2.user_id = kd.user_id
-                 )
+                 )".$scopeSql."
                ORDER BY kd.first_seen DESC
-               LIMIT 50")->fetchAll();
+               LIMIT 50", $scopeParams)->fetchAll();
     ok(['alerts'=>$rows]);
 }
 
 // Transactions signalees par fraud_check_transaction() (velocite, montant
 // inhabituel, nouveau destinataire + montant eleve). Non-reviewees d'abord,
 // puis les plus recentes. Plafonne a 100 entrees.
+// fraud_alerts n'a pas de colonne pays propre (sender_phone/receiver_phone
+// seulement) - jointure par numero vers users ET merchants (une transaction
+// signalee peut impliquer l'un ou l'autre de chaque cote), meme logique
+// "au moins une des deux parties dans le perimetre" que pour les transactions.
+function admin_fraud_alerts_join_sql() {
+    return " LEFT JOIN users su ON su.phone_number = fa.sender_phone
+        LEFT JOIN merchants sm ON sm.phone_number = fa.sender_phone
+        LEFT JOIN users ru ON ru.phone_number = fa.receiver_phone
+        LEFT JOIN merchants rm ON rm.phone_number = fa.receiver_phone";
+}
 function admin_list_fraud_alerts() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT * FROM fraud_alerts ORDER BY reviewed ASC, created_at DESC LIMIT 100")->fetchAll();
-    $unreviewed = (int)q("SELECT COUNT(*) FROM fraud_alerts WHERE reviewed=false")->fetchColumn();
+    list($scopeSql, $scopeParams) = admin_country_scope_clause_either('su.country,sm.country', 'ru.country,rm.country');
+    $joinSql = admin_fraud_alerts_join_sql();
+    $rows = q("SELECT fa.* FROM fraud_alerts fa".$joinSql." WHERE 1=1".$scopeSql." ORDER BY fa.reviewed ASC, fa.created_at DESC LIMIT 100", $scopeParams)->fetchAll();
+    $unreviewed = (int)q("SELECT COUNT(*) FROM fraud_alerts fa".$joinSql." WHERE fa.reviewed=false".$scopeSql, $scopeParams)->fetchColumn();
     ok(['alerts'=>$rows, 'unreviewed_count'=>$unreviewed]);
 }
 
@@ -8451,6 +8534,11 @@ function admin_mark_fraud_reviewed() {
     check_admin_password($b);
     $id = (int)($b['id'] ?? 0);
     if(!$id) fail('Alerte introuvable');
+    $joinSql = admin_fraud_alerts_join_sql();
+    $fa = q("SELECT su.country su_country, sm.country sm_country, ru.country ru_country, rm.country rm_country
+        FROM fraud_alerts fa".$joinSql." WHERE fa.id=?",[$id])->fetch();
+    if(!$fa) fail('Alerte introuvable',404);
+    admin_check_country_access_any([$fa['su_country'], $fa['sm_country'], $fa['ru_country'], $fa['rm_country']]);
     q("UPDATE fraud_alerts SET reviewed=true WHERE id=?",[$id]);
     ok(null,'Alerte marquee comme verifiee');
 }
