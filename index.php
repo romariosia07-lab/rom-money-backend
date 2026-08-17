@@ -3185,8 +3185,8 @@ function agent_request_recharge() {
 // point d'entree qui lit ou agit sur ces demandes.
 function agent_expire_stale_recharge_requests() {
     q("UPDATE agent_recharge_requests SET status='expired', reject_reason=?, reviewed_at=NOW()
-       WHERE status='pending' AND created_at < NOW() - INTERVAL '24 hours'",
-      ['Demande expiree automatiquement apres 24h sans traitement']);
+       WHERE status='pending' AND created_at < NOW() - INTERVAL '3 hours'",
+      ['Demande expiree automatiquement apres 3h sans traitement']);
 }
 
 function agent_recharge_history() {
@@ -3251,7 +3251,7 @@ function agent_approve_recharge_request() {
     agent_expire_stale_recharge_requests();
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
-    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 24h sans traitement), le demandeur doit en refaire une', 410);
+    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 3h sans traitement), le demandeur doit en refaire une', 410);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if($r['agent_id'] === $pl['sub']) fail('Vous ne pouvez pas approuver votre propre demande', 422);
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
@@ -7671,7 +7671,7 @@ function admin_agent_approve_recharge() {
     agent_expire_stale_recharge_requests();
     $r = q("SELECT * FROM agent_recharge_requests WHERE id=?",[$id])->fetch();
     if(!$r) fail('Demande introuvable',404);
-    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 24h sans traitement), le demandeur doit en refaire une', 410);
+    if($r['status'] === 'expired') fail('Cette demande a expire (plus de 3h sans traitement), le demandeur doit en refaire une', 410);
     if($r['status'] !== 'pending') fail('Cette demande a deja ete traitee');
     if(!hash_equals((string)$r['confirmation_code'], $code)) fail('Code de confirmation incorrect', 401);
     $aw = q("SELECT id,balance FROM agent_wallets WHERE agent_id=?",[$r['agent_id']])->fetch();
