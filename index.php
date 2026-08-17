@@ -7063,6 +7063,31 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
     $periodVolume = admin_dash_xof_sum("$where AND transactions.type NOT IN ('fee','manual_withdrawal')", $params);
     $periodFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE $where AND type='fee'", $params)->fetchColumn();
 
+    // Repartition par pays sur la periode selectionnee - utile des qu'un
+    // compte admin nomme a plusieurs pays assignes (sinon un seul total
+    // combine en XOF ne permet pas de distinguer ce qui vient de chaque
+    // pays). Attribue chaque transaction au pays du DESTINATAIRE (coherent
+    // avec admin_dash_xof_sum(), deja base sur la devise du destinataire),
+    // avec repli sur celui de l'expediteur si le destinataire n'a pas de
+    // pays connu (ex: compte systeme).
+    list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
+    $countryBreakdown = q("SELECT COALESCE(dru.country, drm.country, dsu.country, dsm.country) AS country,
+            COUNT(*) AS count,
+            COALESCE(SUM(
+                COALESCE(transactions.receiver_amount,transactions.net_amount,transactions.amount)
+                * COALESCE(NULLIF(erxof.rate_to_usd,0),1)
+                / COALESCE(NULLIF(errate.rate_to_usd,0), NULLIF(erxof.rate_to_usd,0), 1)
+            ),0) AS volume
+        FROM transactions
+        LEFT JOIN wallets erw ON transactions.receiver_wallet_id = erw.id
+        LEFT JOIN merchant_wallets ermw ON transactions.receiver_merchant_wallet_id = ermw.id
+        LEFT JOIN exchange_rates errate ON errate.currency_code = UPPER(COALESCE(erw.currency, ermw.currency, 'XOF'))
+        LEFT JOIN exchange_rates erxof ON erxof.currency_code = 'XOF'"
+        .admin_dash_country_join_sql()."
+        WHERE $where AND transactions.type NOT IN ('fee','manual_withdrawal')".$cbScopeSql."
+        GROUP BY country
+        ORDER BY volume DESC", array_merge($params, $cbScopeParams))->fetchAll();
+
     $totalVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal')");
     // Meme exclusion que admin_audit_list() : ce widget est visible sur le
     // dashboard partage (mot de passe admin seul), les actions Gains ROM ne
@@ -7218,6 +7243,7 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo) {
         'period'         => $period,
         'period_volume'  => (float)$periodVolume,
         'operator_breakdown' => $operatorBreakdown,
+        'country_breakdown' => $countryBreakdown,
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs,
         'daily_volume'   => $dailyVolume,

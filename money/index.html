@@ -2004,6 +2004,8 @@ var I18N = {
   admin_super_admin_only_note: {fr:'🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.', en:'🔒 Admin Principal only — read-only for other accounts.'},
   admin_dash_scope_prefix: {fr:'Statistiques limitées à :', en:'Statistics limited to:'},
   admin_dash_scope_none: {fr:'Aucun pays assigné à ce compte — aucune statistique à afficher.', en:'No country assigned to this account — no statistics to show.'},
+  admin_dash_country_breakdown: {fr:'Répartition par pays', en:'Breakdown by country'},
+  admin_dash_country_unknown: {fr:'Pays inconnu', en:'Unknown country'},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -3091,6 +3093,19 @@ function adminLoadDashboard(){
         +'</div>'
         +'</div>'
         +'<div style="font-size:11px;color:var(--t3);margin:-10px 0 18px">'+at('admin_dash_total_volume_note').replace('{amt}',fmt(d.total_volume))+'</div>';
+      var countryHtml='';
+      var countries=d.country_breakdown||[];
+      if(countries.length>1){
+        countryHtml='<div class="admin-stitle">'+at('admin_dash_country_breakdown')+'</div>'
+          +'<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">'
+          +countries.map(function(c){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:9px 12px">'
+              +'<span style="font-size:12px;font-weight:600;color:var(--t1)">'+(c.country?adminCountryName(c.country):at('admin_dash_country_unknown'))+'</span>'
+              +'<span style="font-size:12px;font-weight:800;color:var(--accent-text)">'+fmt(c.volume)+' · '+c.count+'</span>'
+              +'</div>';
+          }).join('')
+          +'</div>';
+      }
       var opHtml='<div class="admin-stitle">'+at('admin_dash_operator_breakdown')+'</div>';
       var ops=d.operator_breakdown||[];
       if(ops.length===0){
@@ -3113,6 +3128,7 @@ function adminLoadDashboard(){
         logsHtml+=logs.map(function(l){
           return '<div class="admin-audit-row">'
             +'<div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--t1)">'+(ACTION_FR_GET(l.action)||l.action)+'</b>'+resultPill(l.result)+'</div>'
+            +'<div style="color:var(--gd);font-weight:700;margin-top:3px">👤 '+(l.admin_name?adminEsc(l.admin_name):at('admin_accounts_unknown'))+'</div>'
             +(l.target_phone?'<div style="color:var(--t3);margin-top:3px">'+at('admin_dash_account_label').replace('{phone}',l.target_phone)+'</div>':'')
             +'<div style="color:var(--t3);font-size:10px;margin-top:3px">'+new Date(l.created_at).toLocaleString()+'</div>'
             +'</div>';
@@ -3215,7 +3231,7 @@ function adminLoadDashboard(){
           +'</div>';
       }
 
-      box.innerHTML=cardsHtml+chartHtml+topHtml+mrcHtml+opHtml+logsHtml;
+      box.innerHTML=cardsHtml+chartHtml+countryHtml+topHtml+mrcHtml+opHtml+logsHtml;
     } else {
       box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
