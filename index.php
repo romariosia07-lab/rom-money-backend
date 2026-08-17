@@ -5128,7 +5128,7 @@ function export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str(export_t('title',$lang)),0,1);
     $infoTopY = $pdf->GetY();
-    $logoPath = __DIR__.'/logo.png';
+    $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
     }
@@ -6976,7 +6976,7 @@ function admin_audit_export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Journal d\'audit admin'),0,1);
     $infoTopY = $pdf->GetY();
-    $logoPath = __DIR__.'/logo.png';
+    $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
     }
@@ -7393,9 +7393,14 @@ function xlsx_esc($s) { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_XML
 
 // $rows = [ [ [valeur, styleIdx, type] | null, ... ], ... ]  type: 'n' (nombre) ou 's' (texte inline)
 // Une cellule null est simplement omise (case vide).
-function xlsx_build_sheet($rows) {
+// $withLogo : ajoute la reference <drawing> vers le logo insere par
+// xlsx_build() (voir plus bas) - separe car le sheet ET le drawing doivent
+// se referencer mutuellement (le sheet pointe vers le drawing via
+// worksheets/_rels/sheet1.xml.rels, le drawing pointe vers l'image via
+// drawings/_rels/drawing1.xml.rels).
+function xlsx_build_sheet($rows, $withLogo = false) {
     $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
         . '<cols><col min="1" max="1" width="6"/><col min="2" max="2" width="26"/><col min="3" max="3" width="18"/><col min="4" max="4" width="16"/><col min="5" max="5" width="16"/></cols>'
         . '<sheetData>';
     foreach ($rows as $r => $cells) {
@@ -7413,7 +7418,9 @@ function xlsx_build_sheet($rows) {
         }
         $xml .= '</row>';
     }
-    $xml .= '</sheetData></worksheet>';
+    $xml .= '</sheetData>';
+    if ($withLogo) $xml .= '<drawing r:id="rId1"/>';
+    $xml .= '</worksheet>';
     return $xml;
 }
 
@@ -7449,11 +7456,15 @@ function xlsx_styles_xml() {
     . '</styleSheet>';
 }
 
-function xlsx_build($sheetXml) {
+// $logoPngData : contenu binaire brut d'un PNG a inserer en haut de la
+// feuille (coin superieur droit) si fourni - null = aucun logo (fichier
+// introuvable ou non demande), fonctionne exactement comme avant.
+function xlsx_build($sheetXml, $logoPngData = null) {
     $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         . '<Default Extension="xml" ContentType="application/xml"/>'
+        . ($logoPngData !== null ? '<Default Extension="png" ContentType="image/png"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : '')
         . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
         . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
         . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
@@ -7479,7 +7490,46 @@ function xlsx_build($sheetXml) {
         'xl/styles.xml' => xlsx_styles_xml(),
         'xl/worksheets/sheet1.xml' => $sheetXml,
     ];
+    if ($logoPngData !== null) {
+        // Ancre le logo dans le coin de la cellule F1 (colonne index 5, ligne
+        // index 0), taille fixe ~80x80px (762000 EMU, 1px=9525 EMU) - assez
+        // discret pour ne pas gener la lecture du "Resume" juste en dessous.
+        $files['xl/worksheets/_rels/sheet1.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>'
+            . '</Relationships>';
+        $files['xl/drawings/drawing1.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            . '<xdr:oneCellAnchor>'
+            . '<xdr:from><xdr:col>5</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
+            . '<xdr:ext cx="762000" cy="762000"/>'
+            . '<xdr:pic>'
+            . '<xdr:nvPicPr><xdr:cNvPr id="1" name="Logo"/><xdr:cNvPicPr/></xdr:nvPicPr>'
+            . '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
+            . '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="762000" cy="762000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+            . '</xdr:pic>'
+            . '<xdr:clientData/>'
+            . '</xdr:oneCellAnchor>'
+            . '</xdr:wsDr>';
+        $files['xl/drawings/_rels/drawing1.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>'
+            . '</Relationships>';
+        $files['xl/media/image1.png'] = $logoPngData;
+    }
     return zip_create($files);
+}
+
+// Traduit le code interne de periode ('today','7d','month','all','custom')
+// en libelle lisible pour les exports - sans ca, un export affichait
+// litteralement "Periode (all)", incomprehensible pour qui ne connait pas
+// le code technique.
+function admin_dash_period_label($period, $dateFrom, $dateTo) {
+    $labels = ['today'=>"Aujourd'hui", '7d'=>'7 derniers jours', 'month'=>'Ce mois-ci', 'all'=>'Tout'];
+    if ($period === 'custom') {
+        return 'Du '.($dateFrom ?: '?').' au '.($dateTo ?: '?');
+    }
+    return $labels[$period] ?? $period;
 }
 
 function admin_dashboard_export_xlsx() {
@@ -7490,6 +7540,7 @@ function admin_dashboard_export_xlsx() {
     $countryRaw = bg('country', null);
     $country  = is_array($countryRaw) ? $countryRaw : null;
     $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country);
+    $periodLabel = admin_dash_period_label($d['period'], $dateFrom, $dateTo);
 
     // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde,
     // 3=nombre borde (separateur de milliers), 4=titre, 5=sous-titre section
@@ -7500,12 +7551,13 @@ function admin_dashboard_export_xlsx() {
     // impossible de savoir plus tard a quel(s) pays correspondent les
     // chiffres d'une fiche imprimee/exportee.
     $rows[] = [[ 'Pays : '.implode(', ', $d['effective_countries']), 0, 's' ]];
+    $rows[] = [[ 'Periode : '.$periodLabel, 0, 's' ]];
     $rows[] = [];
 
     $rows[] = [[ 'Resume', 5, 's' ]];
     $rows[] = [[ 'Transactions aujourd\'hui', 2, 's' ], [ $d['today_count'], 3, 'n' ]];
     $rows[] = [[ 'Volume aujourd\'hui', 2, 's' ], [ $d['today_volume'], 3, 'n' ]];
-    $rows[] = [[ 'Volume periode ('.$d['period'].')', 2, 's' ], [ $d['period_volume'], 3, 'n' ]];
+    $rows[] = [[ 'Volume periode ('.$periodLabel.')', 2, 's' ], [ $d['period_volume'], 3, 'n' ]];
     $rows[] = [[ 'Volume total cumule', 2, 's' ], [ $d['total_volume'], 3, 'n' ]];
     $rows[] = [];
 
@@ -7536,15 +7588,20 @@ function admin_dashboard_export_xlsx() {
     // qu'une seule ligne, deja couverte par le Resume ci-dessus).
     if(!$d['country_filter'] && !empty($d['country_breakdown'])){
         $rows[] = [];
-        $rows[] = [[ 'Repartition par pays ('.$d['period'].')', 5, 's' ]];
+        $rows[] = [[ 'Repartition par pays ('.$periodLabel.')', 5, 's' ]];
         $rows[] = [[ 'Pays',1,'s' ], [ 'Volume',1,'s' ], [ 'Transactions',1,'s' ]];
         foreach($d['country_breakdown'] as $c){
             $rows[] = [[ $c['country'] ?: '-', 2, 's' ], [ $c['volume'], 3, 'n' ], [ $c['count'], 3, 'n' ]];
         }
     }
 
-    $sheetXml = xlsx_build_sheet($rows);
-    $xlsxData = xlsx_build($sheetXml);
+    // Le vrai logo (pas une icone d'app) vit dans money/, pas a la racine
+    // ou se trouve index.php - independant du frontend PWA, reutilise ici
+    // tel quel plutot que dupliquer le fichier.
+    $logoPath = __DIR__.'/money/logo.png';
+    $logoData = file_exists($logoPath) ? file_get_contents($logoPath) : null;
+    $sheetXml = xlsx_build_sheet($rows, $logoData !== null);
+    $xlsxData = xlsx_build($sheetXml, $logoData);
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="rom_money_dashboard.xlsx"');
@@ -7623,6 +7680,7 @@ function admin_dashboard_export_pdf() {
     $countryRaw = bg('country', null);
     $country  = is_array($countryRaw) ? $countryRaw : null;
     $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country);
+    $periodLabel = admin_dash_period_label($d['period'], $dateFrom, $dateTo);
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
@@ -7630,7 +7688,9 @@ function admin_dashboard_export_pdf() {
     $pdf->SetFont('Arial','B',14);
     $pdf->Cell(0,10,pdf_str('ROM_MONEY - Tableau de bord'),0,1);
     $infoTopY = $pdf->GetY();
-    $logoPath = __DIR__.'/logo.png';
+    // Le vrai logo (pas une icone d'app) vit dans money/, pas a la racine
+    // ou se trouve index.php - meme note que dans admin_dashboard_export_xlsx().
+    $logoPath = __DIR__.'/money/logo.png';
     if(file_exists($logoPath)){
         $pdf->Image($logoPath, 182, $infoTopY, 18, 18);
     }
@@ -7639,6 +7699,7 @@ function admin_dashboard_export_pdf() {
     // Precise TOUJOURS le perimetre pays couvert - voir meme note que dans
     // admin_dashboard_export_xlsx().
     $pdf->Cell(150,6,pdf_str('Pays : '.implode(', ', $d['effective_countries'])),0,1);
+    $pdf->Cell(150,6,pdf_str('Periode : '.$periodLabel),0,1);
     if(file_exists($logoPath)){
         $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
     }
@@ -7648,7 +7709,7 @@ function admin_dashboard_export_pdf() {
     $pdf->Cell(0,8,pdf_str('Resume'),0,1);
     $pdf->SetFont('Arial','',9);
     $pdf->Cell(0,6,pdf_str('Transactions aujourd\'hui : '.$d['today_count'].'  -  Volume : '.number_format($d['today_volume'],0,',',' ').' F'),0,1);
-    $pdf->Cell(0,6,pdf_str('Periode ('.$d['period'].') : Volume '.number_format($d['period_volume'],0,',',' ').' F'),0,1);
+    $pdf->Cell(0,6,pdf_str('Periode ('.$periodLabel.') : Volume '.number_format($d['period_volume'],0,',',' ').' F'),0,1);
     $pdf->Cell(0,6,pdf_str('Volume total cumule : '.number_format($d['total_volume'],0,',',' ').' F'),0,1);
     $pdf->Ln(4);
 
@@ -7704,7 +7765,7 @@ function admin_dashboard_export_pdf() {
     if(!$d['country_filter'] && !empty($d['country_breakdown'])){
         $pdf->Ln(4);
         $pdf->SetFont('Arial','B',11);
-        $pdf->Cell(0,8,pdf_str('Repartition par pays ('.$d['period'].')'),0,1);
+        $pdf->Cell(0,8,pdf_str('Repartition par pays ('.$periodLabel.')'),0,1);
         $pdf->SetFont('Arial','B',9);
         $pdf->SetFillColor(230,241,251);
         $pdf->Cell(90,7,pdf_str('Pays'),1,0,'C',true);
