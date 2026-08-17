@@ -7035,19 +7035,26 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = 
     $availableCountries = $adminCountries !== null
         ? $adminCountries
         : array_column(q("SELECT name FROM active_countries WHERE is_active=1 ORDER BY name ASC")->fetchAll(), 'name');
-    if ($countryFilter !== null && $countryFilter !== '' && !in_array($countryFilter, $availableCountries, true)) {
-        fail("Vous n'etes pas autorise a filtrer sur ce pays.", 403);
-    }
-    // Retrecit temporairement le perimetre pays lu par admin_dash_xof_sum()/
-    // admin_dash_count()/admin_country_scope_clause()/admin_dash_country_scope_where()
-    // (qui lisent toutes $GLOBALS['_current_admin_countries']) a un seul pays
-    // si un filtre est demande, sinon perimetre normal inchange. Remis en
-    // l'etat original en toute fin de fonction - chaque requete HTTP a son
-    // propre processus PHP donc aucune fuite possible entre deux requetes,
-    // mais plus rigoureux de restaurer plutot que de compter dessus.
+    // $countryFilter : null = aucun filtre demande par le client (perimetre
+    // par defaut inchange - IMPORTANT de ne PAS toucher $GLOBALS dans ce cas,
+    // sinon Admin Principal (normalement illimite, $adminCountries===null)
+    // se retrouverait retreci aux seuls pays actifs meme sans avoir rien
+    // demande, excluant a tort tout compte sans pays renseigne). Tableau
+    // (a cocher plusieurs, meme vide) = selection explicite d'un
+    // sous-ensemble precis parmi les pays disponibles - fonctionne pour
+    // n'importe quel type de compte, y compris Admin Principal. Toujours un
+    // tableau concret (jamais null) pour servir tel quel a l'affichage du
+    // perimetre reellement couvert (ex: en-tete des exports).
+    $effectiveCountries = $availableCountries;
     $savedGlobalCountries = $GLOBALS['_current_admin_countries'] ?? null;
-    if ($countryFilter) {
-        $GLOBALS['_current_admin_countries'] = [$countryFilter];
+    if ($countryFilter !== null) {
+        foreach ($countryFilter as $c) {
+            if (!in_array($c, $availableCountries, true)) {
+                fail("Vous n'etes pas autorise a filtrer sur ce pays.", 403);
+            }
+        }
+        $effectiveCountries = array_values(array_unique($countryFilter));
+        $GLOBALS['_current_admin_countries'] = $effectiveCountries;
     }
 
     // Bloc "Aujourd'hui" - toujours fixe, independant du filtre de periode
@@ -7057,8 +7064,6 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = 
     // qui veut dire quelque chose.
     $todayVolume = admin_dash_xof_sum("transactions.status='completed' AND transactions.type NOT IN ('fee','manual_withdrawal') AND transactions.created_at >= CURRENT_DATE");
     $todayFees   = q("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE status='completed' AND type='fee' AND created_at >= CURRENT_DATE")->fetchColumn();
-    list($kycScopeSql, $kycScopeParams) = admin_country_scope_clause('u.country');
-    $kycPending  = q("SELECT COUNT(*) FROM kyc_requests k LEFT JOIN users u ON u.id=k.user_id WHERE k.status='pending'".$kycScopeSql, $kycScopeParams)->fetchColumn();
 
     // Bloc "Periode selectionnee"
     // Prefixe avec "transactions." (valide meme sans alias explicite dans le
@@ -7096,11 +7101,12 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = 
     // transaction (volume/count a 0) - jamais juste les pays qui ont deja
     // des donnees, sinon un pays assigne mais encore inactif disparaitrait
     // silencieusement de l'ecran au lieu de confirmer "rien a signaler ici".
-    // Aucun interet quand un filtre pays precis est deja actif (le reste du
-    // tableau de bord EST deja ce pays) - reste vide dans ce cas, plutot que
-    // de recalculer sur le perimetre retreci ci-dessus (qui ne contiendrait
-    // de toute facon que ce seul pays).
-    $cbCountriesToShow = $countryFilter ? [] : $availableCountries;
+    // N'a de sens que si la vue courante (filtree ou non) porte sur 2 pays
+    // ou plus - avec un seul, les cases "Aujourd'hui"/"Periode" au-dessus
+    // suffisent deja, une "repartition" d'un seul element n'apporte rien.
+    $cbCountriesToShow = $countryFilter === null
+        ? (count($availableCountries) > 1 ? $availableCountries : [])
+        : (count($effectiveCountries) > 1 ? $effectiveCountries : []);
     $countryBreakdown = [];
     if (!empty($cbCountriesToShow)) {
         list($cbScopeSql, $cbScopeParams) = admin_dash_country_scope_where();
@@ -7300,12 +7306,12 @@ function admin_dashboard_get_data($period, $dateFrom, $dateTo, $countryFilter = 
     return [
         'today_count'    => (int)$todayCount,
         'today_volume'   => (float)$todayVolume,
-        'kyc_pending'    => (int)$kycPending,
         'period'         => $period,
         'period_volume'  => (float)$periodVolume,
         'operator_breakdown' => $operatorBreakdown,
         'country_breakdown' => $countryBreakdown,
         'country_filter' => $countryFilter,
+        'effective_countries' => $effectiveCountries,
         'available_countries' => $availableCountries,
         'total_volume'   => (float)$totalVolume,
         'recent_logs'    => $recentLogs,
@@ -7336,8 +7342,8 @@ function admin_dashboard_stats() {
     $period   = trim($b['period'] ?? 'today');
     $dateFrom = trim($b['date_from'] ?? '');
     $dateTo   = trim($b['date_to'] ?? '');
-    $country  = trim($b['country'] ?? '');
-    ok(admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null));
+    $country  = is_array($b['country'] ?? null) ? $b['country'] : null;
+    ok(admin_dashboard_get_data($period, $dateFrom, $dateTo, $country));
 }
 
 // ============================================================
@@ -7481,20 +7487,24 @@ function admin_dashboard_export_xlsx() {
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
-    $country  = trim((string)bg('country',''));
-    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null);
+    $countryRaw = bg('country', null);
+    $country  = is_array($countryRaw) ? $countryRaw : null;
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country);
 
     // Styles : 0=normal, 1=en-tete (gras+fond+bordure), 2=texte borde,
     // 3=nombre borde (separateur de milliers), 4=titre, 5=sous-titre section
     $rows = [];
     $rows[] = [[ 'ROM_MONEY - Tableau de bord', 4, 's' ]];
     $rows[] = [[ 'Genere le '.date('d/m/Y').' a '.date('H:i'), 0, 's' ]];
+    // Precise TOUJOURS le perimetre pays couvert par cet export - sans ca,
+    // impossible de savoir plus tard a quel(s) pays correspondent les
+    // chiffres d'une fiche imprimee/exportee.
+    $rows[] = [[ 'Pays : '.implode(', ', $d['effective_countries']), 0, 's' ]];
     $rows[] = [];
 
     $rows[] = [[ 'Resume', 5, 's' ]];
     $rows[] = [[ 'Transactions aujourd\'hui', 2, 's' ], [ $d['today_count'], 3, 'n' ]];
     $rows[] = [[ 'Volume aujourd\'hui', 2, 's' ], [ $d['today_volume'], 3, 'n' ]];
-    $rows[] = [[ 'KYC en attente', 2, 's' ], [ $d['kyc_pending'], 3, 'n' ]];
     $rows[] = [[ 'Volume periode ('.$d['period'].')', 2, 's' ], [ $d['period_volume'], 3, 'n' ]];
     $rows[] = [[ 'Volume total cumule', 2, 's' ], [ $d['total_volume'], 3, 'n' ]];
     $rows[] = [];
@@ -7610,8 +7620,9 @@ function admin_dashboard_export_pdf() {
     $period   = trim((string)bg('period','today'));
     $dateFrom = trim((string)bg('date_from',''));
     $dateTo   = trim((string)bg('date_to',''));
-    $country  = trim((string)bg('country',''));
-    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country ?: null);
+    $countryRaw = bg('country', null);
+    $country  = is_array($countryRaw) ? $countryRaw : null;
+    $d = admin_dashboard_get_data($period, $dateFrom, $dateTo, $country);
 
     require_once __DIR__.'/fpdf.php';
     $pdf = new FPDF();
@@ -7625,6 +7636,9 @@ function admin_dashboard_export_pdf() {
     }
     $pdf->SetFont('Arial','',10);
     $pdf->Cell(150,6,pdf_str('Genere le '.date('d/m/Y').' a '.date('H:i')),0,1);
+    // Precise TOUJOURS le perimetre pays couvert - voir meme note que dans
+    // admin_dashboard_export_xlsx().
+    $pdf->Cell(150,6,pdf_str('Pays : '.implode(', ', $d['effective_countries'])),0,1);
     if(file_exists($logoPath)){
         $pdf->SetY(max($pdf->GetY(), $infoTopY+18));
     }
@@ -7635,7 +7649,7 @@ function admin_dashboard_export_pdf() {
     $pdf->SetFont('Arial','',9);
     $pdf->Cell(0,6,pdf_str('Transactions aujourd\'hui : '.$d['today_count'].'  -  Volume : '.number_format($d['today_volume'],0,',',' ').' F'),0,1);
     $pdf->Cell(0,6,pdf_str('Periode ('.$d['period'].') : Volume '.number_format($d['period_volume'],0,',',' ').' F'),0,1);
-    $pdf->Cell(0,6,pdf_str('Volume total cumule : '.number_format($d['total_volume'],0,',',' ').' F  -  KYC en attente : '.$d['kyc_pending']),0,1);
+    $pdf->Cell(0,6,pdf_str('Volume total cumule : '.number_format($d['total_volume'],0,',',' ').' F'),0,1);
     $pdf->Ln(4);
 
     $pdf->SetFont('Arial','B',11);
