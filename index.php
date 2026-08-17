@@ -4296,13 +4296,27 @@ function check_admin_password($b) {
 // quoi). Tous les comptes ont exactement les memes acces - aucune
 // restriction par compte, uniquement une identification. Retourne null si
 // aucune correspondance.
-function resolve_admin_name($pw) {
-    if($pw !== '' && hash_equals(ADMIN_PASSWORD, $pw)) return 'Admin Principal';
-    $accounts = q("SELECT name, password_hash FROM admin_accounts WHERE active=1")->fetchAll();
+// Renvoie ['name'=>..., 'countries'=>...] : countries=null signifie "aucune
+// restriction" (Admin Principal, ou un compte nomme sans pays assigne n'est
+// PAS traite comme illimite ici - voir plus bas, le null "illimite" est
+// reserve a Admin Principal uniquement). Retourne null si aucune
+// correspondance.
+function resolve_admin_identity($pw) {
+    if($pw !== '' && hash_equals(ADMIN_PASSWORD, $pw)) return ['name'=>'Admin Principal','countries'=>null];
+    $accounts = q("SELECT name, password_hash, countries FROM admin_accounts WHERE active=1")->fetchAll();
     foreach($accounts as $a){
-        if(password_verify($pw, $a['password_hash'])) return $a['name'];
+        if(password_verify($pw, $a['password_hash'])){
+            $countries = $a['countries'] ? (json_decode($a['countries'], true) ?: []) : [];
+            return ['name'=>$a['name'],'countries'=>$countries];
+        }
     }
     return null;
+}
+// Conserve pour compatibilite (utilise ailleurs pour l'attribution du
+// journal d'audit) - mirror de resolve_admin_identity() cote nom seul.
+function resolve_admin_name($pw) {
+    $id = resolve_admin_identity($pw);
+    return $id ? $id['name'] : null;
 }
 // Verifie le mot de passe admin ET applique le meme verrou anti-devinette
 // que l'ecran de connexion (partage le meme compteur audit_logs) : avant,
@@ -4312,15 +4326,42 @@ function resolve_admin_name($pw) {
 // verrou.
 function check_admin_password_str($pw) {
     admin_bruteforce_check();
-    $name = resolve_admin_name($pw);
-    if($name === null) {
+    $id = resolve_admin_identity($pw);
+    if($id === null) {
         admin_log('admin_login','failed',null,dk('d_wrong_password'));
         fail('Mot de passe admin incorrect',401);
     }
-    // Ramasse par admin_log() ci-dessous pour attribuer chaque entree du
-    // journal a la bonne personne, sans devoir modifier la signature de
-    // check_admin_password() dans ses ~80 points d'appel.
-    $GLOBALS['_current_admin_name'] = $name;
+    // Ramasse par admin_log() / admin_check_country_access() /
+    // check_super_admin_only() ci-dessous pour attribuer chaque entree du
+    // journal et appliquer les restrictions de la bonne personne, sans
+    // devoir modifier la signature de check_admin_password() dans ses
+    // ~80 points d'appel.
+    $GLOBALS['_current_admin_name'] = $id['name'];
+    $GLOBALS['_current_admin_countries'] = $id['countries'];
+}
+// A appeler juste apres avoir resolu le pays ($targetCountry) d'un
+// utilisateur/agent/marchand precis, avant de renvoyer ou modifier ses
+// donnees. Admin Principal (countries===null) n'est jamais restreint. Un
+// compte nomme sans aucun pays assigne (tableau vide) ne peut rien
+// consulter tant qu'un pays ne lui a pas ete assigne explicitement -
+// filet de securite pour ne jamais laisser un compte fraichement cree
+// tout voir par defaut.
+function admin_check_country_access($targetCountry) {
+    $countries = $GLOBALS['_current_admin_countries'] ?? null;
+    if($countries === null) return; // Admin Principal : acces total
+    if(!$targetCountry || !in_array($targetCountry, $countries, true)) {
+        admin_log('country_access_denied','failed',null,dk('d_ref_with_reason',['ref'=>(string)$targetCountry,'reason'=>'Pays hors du perimetre de ce compte admin']));
+        fail("Vous n'etes pas autorise a agir sur ce pays.", 403);
+    }
+}
+// Reserve certaines actions sensibles (reglages globaux, activation d'un
+// pays, gestion des comptes admin) au seul mot de passe partage
+// ADMIN_PASSWORD - jamais a un compte nomme, quel que soit son perimetre
+// pays. A appeler apres check_admin_password($b).
+function check_super_admin_only() {
+    if(($GLOBALS['_current_admin_name'] ?? null) !== 'Admin Principal') {
+        fail('Cette action est reservee a Admin Principal.', 403);
+    }
 }
 
 // Meme logique anti-devinette que admin_bruteforce_check(), mais comptee
@@ -5194,6 +5235,7 @@ function route_admin($action) {
         'accounts-create'   => admin_accounts_create(),
         'accounts-set-active' => admin_accounts_set_active(),
         'accounts-reset-password' => admin_accounts_reset_password(),
+        'accounts-set-countries' => admin_accounts_set_countries(),
         'dashboard-stats'   => admin_dashboard_stats(),
         'audit-export-xlsx' => admin_audit_export_xlsx(),
         'audit-export-pdf'  => admin_audit_export_pdf(),
@@ -5502,12 +5544,12 @@ function admin_login_check() {
         }
         if ($usedRecovery) {
             admin_log('admin_login','success',null,dk('d_login_success_recovery'));
-            ok(['recovery_used'=>true],'Connexion reussie');
+            ok(['recovery_used'=>true,'admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal'],'Connexion reussie');
             return;
         }
     }
     admin_log('admin_login','success',null,dk('d_login_success'));
-    ok(null,'Connexion reussie');
+    ok(['admin_name'=>$GLOBALS['_current_admin_name']??null,'is_super_admin'=>($GLOBALS['_current_admin_name']??null)==='Admin Principal'],'Connexion reussie');
 }
 
 function admin_2fa_status() {
@@ -5801,6 +5843,7 @@ function admin_search_by_phone() {
     $u = q("SELECT id,full_name,verified_name,verified_birthdate,phone_number,email,operator,status,is_kyc,country,created_at,referral_code
             FROM users WHERE phone_number=?",[$phone])->fetch();
     if(!$u) fail('Compte introuvable',404);
+    admin_check_country_access($u['country']);
 
     $w = q("SELECT id,balance,vault_balance,vault_locked,vault_lock_date,currency FROM wallets WHERE user_id=?",[$u['id']])->fetch();
     $wid = $w['id'] ?? null;
@@ -5980,6 +6023,7 @@ function admin_merchant_search() {
         log_and_fail($e, 'Service marchand indisponible (base non initialisee).', 503);
     }
     if(!$m) fail('Aucun compte marchand pour ce numero',404);
+    admin_check_country_access($m['country']);
     $w = q("SELECT id,balance,vault_balance,currency FROM merchant_wallets WHERE merchant_id=?",[$m['id']])->fetch();
     try {
         $notes = q("SELECT id,note,created_at FROM merchant_notes WHERE merchant_id=? ORDER BY created_at DESC",[$m['id']])->fetchAll();
@@ -6581,12 +6625,15 @@ function admin_list_frozen() {
 function admin_accounts_list() {
     $b = body();
     check_admin_password($b);
-    $rows = q("SELECT id,name,active,created_at FROM admin_accounts ORDER BY created_at ASC")->fetchAll();
+    $rows = q("SELECT id,name,active,countries,created_at FROM admin_accounts ORDER BY created_at ASC")->fetchAll();
+    foreach($rows as &$r){ $r['countries'] = $r['countries'] ? (json_decode($r['countries'], true) ?: []) : []; }
+    unset($r);
     ok(['accounts'=>$rows]);
 }
 function admin_accounts_create() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $name = trim($b['name'] ?? '');
     // trim() ici pour rester coherent avec check_admin_password_str() /
     // le champ de connexion frontend qui trim deja - sinon un espace de
@@ -6598,7 +6645,11 @@ function admin_accounts_create() {
     if($name === 'Admin Principal') fail('Ce nom est reserve');
     $exists = q("SELECT id FROM admin_accounts WHERE name=?",[$name])->fetch();
     if($exists) fail('Un compte avec ce nom existe deja');
-    q("INSERT INTO admin_accounts (name,password_hash) VALUES (?,?)",[$name,password_hash($pw,PASSWORD_BCRYPT)]);
+    // Tableau de noms de pays (peut etre vide - un compte fraichement cree
+    // sans pays assigne ne peut alors rien consulter, voir
+    // admin_check_country_access()).
+    $countries = is_array($b['countries'] ?? null) ? array_values(array_filter(array_map('trim', $b['countries']))) : [];
+    q("INSERT INTO admin_accounts (name,password_hash,countries) VALUES (?,?,?)",[$name,password_hash($pw,PASSWORD_BCRYPT),json_encode($countries,JSON_UNESCAPED_UNICODE)]);
     admin_log('admin_account_create','success',null,dk('d_ref_with_reason',['ref'=>$name,'reason'=>'Nouveau compte admin']));
     ok(null,'Compte cree');
 }
@@ -6609,6 +6660,7 @@ function admin_accounts_create() {
 function admin_accounts_set_active() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $id = (int)($b['id'] ?? 0);
     $active = !empty($b['active']) ? 1 : 0;
     if(!$id) fail('Compte requis');
@@ -6625,6 +6677,7 @@ function admin_accounts_set_active() {
 function admin_accounts_reset_password() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $id = (int)($b['id'] ?? 0);
     $pw = trim((string)($b['password'] ?? ''));
     if(!$id) fail('Compte requis');
@@ -6634,6 +6687,23 @@ function admin_accounts_reset_password() {
     q("UPDATE admin_accounts SET password_hash=? WHERE id=?",[password_hash($pw,PASSWORD_BCRYPT),$id]);
     admin_log('admin_account_reset_password','success',null,dk('d_ref_with_reason',['ref'=>$acc['name'],'reason'=>'Mot de passe reinitialise']));
     ok(null,'Mot de passe mis a jour');
+}
+// Change les pays assignes SANS toucher au mot de passe - separe de la
+// creation pour pouvoir corriger/etendre le perimetre d'un compte deja en
+// service (ex: Kofi couvrait juste la Cote d'Ivoire, on lui ajoute le
+// Ghana) sans devoir le recreer.
+function admin_accounts_set_countries() {
+    $b = body();
+    check_admin_password($b);
+    check_super_admin_only();
+    $id = (int)($b['id'] ?? 0);
+    if(!$id) fail('Compte requis');
+    $acc = q("SELECT name FROM admin_accounts WHERE id=?",[$id])->fetch();
+    if(!$acc) fail('Compte introuvable',404);
+    $countries = is_array($b['countries'] ?? null) ? array_values(array_filter(array_map('trim', $b['countries']))) : [];
+    q("UPDATE admin_accounts SET countries=? WHERE id=?",[json_encode($countries,JSON_UNESCAPED_UNICODE),$id]);
+    admin_log('admin_account_set_countries','success',null,dk('d_ref_with_reason',['ref'=>$acc['name'],'reason'=>'Pays assignes : '.($countries?implode(', ',$countries):'aucun')]));
+    ok(null,'Pays mis a jour');
 }
 
 function admin_audit_list() {
@@ -7233,6 +7303,7 @@ function admin_get_settings() {
 function admin_update_settings() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $changes = [];
     foreach(app_settings_defs() as $key => $def){
         if(!isset($b[$key])) continue;
@@ -7349,6 +7420,7 @@ function admin_countries_list() {
 function admin_country_toggle() {
     $b = body();
     check_admin_password($b);
+    check_super_admin_only();
     $name = trim($b['name'] ?? '');
     if(!$name) fail('Pays requis');
     $row = q("SELECT is_active FROM active_countries WHERE name=?",[$name])->fetch();
@@ -7516,6 +7588,7 @@ function admin_agent_search() {
         log_and_fail($e, 'Service agent indisponible (base non initialisee).', 503);
     }
     if(!$a) fail('Aucun compte agent pour ce numero',404);
+    admin_check_country_access($a['country']);
     $w = q("SELECT id,balance,currency FROM agent_wallets WHERE agent_id=?",[$a['id']])->fetch();
     try {
         $devices = q("SELECT device_id,user_agent,first_seen,last_seen FROM agent_known_devices WHERE agent_id=? ORDER BY last_seen DESC",[$a['id']])->fetchAll();
@@ -8787,6 +8860,12 @@ function route_install() {
         active SMALLINT DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
+    // Tableau JSON de noms de pays (ex: ["Ghana"]) - NULL ou vide = aucun
+    // pays assigne, donc aucun acces aux donnees d'un utilisateur/agent/
+    // marchand precis tant qu'un pays n'a pas ete assigne explicitement
+    // (voir admin_check_country_access()). Sans lien avec Admin Principal
+    // (ADMIN_PASSWORD), qui reste toujours sans restriction de pays.
+    "ALTER TABLE admin_accounts ADD COLUMN IF NOT EXISTS countries TEXT",
     "CREATE TABLE IF NOT EXISTS waitlist (
         id SERIAL PRIMARY KEY,
         phone VARCHAR(20) NOT NULL,

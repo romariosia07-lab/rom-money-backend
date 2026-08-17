@@ -836,6 +836,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
     </div>
 
     <div id="admin-panel-settings" class="admin-panel" style="display:none">
+      <div id="admin-settings-super-note" style="display:none;margin-bottom:16px;padding:10px 12px;border-radius:10px;background:var(--rl);color:var(--rd);font-size:11px;font-weight:600" data-i18n-admin="admin_super_admin_only_note">🔒 Reserve a Admin Principal — lecture seule pour les autres comptes.</div>
       <div class="admin-stitle" data-i18n-admin="admin_settings_fees_title">⚙ Frais et plafonds</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_settings_fees_desc">Modifie le fonctionnement de l'app en temps reel, sans deploiement. Chaque changement est journalise dans l'audit.</div>
 
@@ -864,7 +865,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div class="frow"><label class="flabel" data-i18n-admin="admin_settings_fx_margin">Marge de change (0 = aucune, 0.01 = 1%)</label><input class="finput" id="set-fx-margin" type="number" step="0.001" min="0" max="1"></div>
       </div>
 
-      <button class="btn-g" onclick="adminSaveSettings()" data-i18n-admin="admin_settings_save_btn">Enregistrer les réglages</button>
+      <button class="btn-g" id="admin-settings-save-btn" onclick="adminSaveSettings()" data-i18n-admin="admin_settings_save_btn">Enregistrer les réglages</button>
       <div id="settings-status-box" style="margin-top:12px"></div>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
@@ -918,10 +919,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--bord)">
         <div class="admin-stitle" data-i18n-admin="admin_accounts_title">👥 Comptes admin</div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_accounts_desc">Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Tous les comptes ont exactement les mêmes accès complets, aucune restriction.</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_accounts_desc">Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Un compte nommé ne voit et n'agit que sur les pays qui lui sont assignés ci-dessous (aucun pays coché = aucun accès). Seul Admin Principal peut créer/modifier des comptes et voit tous les pays sans restriction.</div>
+        <div id="admin-accounts-super-note" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:var(--rl);color:var(--rd);font-size:11px;font-weight:600" data-i18n-admin="admin_super_admin_only_note">🔒 Reserve a Admin Principal — lecture seule pour les autres comptes.</div>
         <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_name_label">Nom</label><input class="finput" id="admacc-name" placeholder="Ex: Kofi"></div>
         <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_password_label">Mot de passe (6 caractères minimum)</label><input class="finput" id="admacc-password" type="password"></div>
-        <button class="btn-g" onclick="adminCreateAccount()" data-i18n-admin="admin_accounts_create_btn">Créer ce compte</button>
+        <div class="frow"><label class="flabel" data-i18n-admin="admin_accounts_countries_label">Pays autorisés (aucun = aucun accès)</label><div id="admacc-create-countries-box" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
+        <button class="btn-g" id="admacc-create-btn" onclick="adminCreateAccount()" data-i18n-admin="admin_accounts_create_btn">Créer ce compte</button>
         <div id="admacc-create-status" style="margin:10px 0;font-size:12px"></div>
         <button class="btn-w" style="margin-top:14px" onclick="adminLoadAccounts()" data-i18n-admin="admin_refresh_list_btn">Actualiser la liste</button>
         <div id="admacc-list-box" style="margin-top:10px"><div class="admin-empty" data-i18n-admin="admin_click_refresh">Clique sur "Actualiser la liste" pour charger</div></div>
@@ -1976,9 +1979,13 @@ var I18N = {
   admin_kyc_encrypt_desc: {fr:'Les nouvelles demandes KYC sont chiffrées automatiquement. Ce bouton chiffre aussi les demandes déjà présentes en base, envoyées avant cette mise à jour. Sans effet sur celles déjà chiffrées — peut être relancé sans risque.', en:'New KYC requests are encrypted automatically. This button also encrypts requests already in the database, sent before this update. No effect on those already encrypted — can be run again safely.'},
   admin_kyc_encrypt_btn: {fr:'Chiffrer les anciennes photos KYC', en:'Encrypt old KYC photos'},
   admin_accounts_title: {fr:'👥 Comptes admin', en:'👥 Admin accounts'},
-  admin_accounts_desc: {fr:"Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Tous les comptes ont exactement les mêmes accès complets, aucune restriction.", en:"Give each person who needs admin access their own password (in addition to the shared password, which stays valid) — the audit log then shows who did what. All accounts have exactly the same full access, no restrictions."},
+  admin_accounts_desc: {fr:"Donne à chaque personne qui a besoin d'un accès admin son propre mot de passe (en plus du mot de passe partagé, qui reste valable) — le journal d'audit indique alors qui a fait quoi. Un compte nommé ne voit et n'agit que sur les pays qui lui sont assignés ci-dessous (aucun pays coché = aucun accès). Seul Admin Principal peut créer/modifier des comptes et voit tous les pays sans restriction.", en:"Give each person who needs admin access their own password (in addition to the shared password, which stays valid) — the audit log then shows who did what. A named account only sees and acts on the countries assigned to it below (no country checked = no access). Only Admin Principal can create/edit accounts and sees every country without restriction."},
   admin_accounts_name_label: {fr:'Nom', en:'Name'},
   admin_accounts_password_label: {fr:'Mot de passe (6 caractères minimum)', en:'Password (6 characters minimum)'},
+  admin_accounts_countries_label: {fr:'Pays autorisés (aucun = aucun accès)', en:'Authorized countries (none = no access)'},
+  admin_accounts_countries_save_btn: {fr:'Enregistrer les pays', en:'Save countries'},
+  admin_accounts_countries_updated_toast: {fr:'Pays mis à jour', en:'Countries updated'},
+  admin_accounts_no_countries: {fr:'aucun pays assigné', en:'no country assigned'},
   admin_accounts_create_btn: {fr:'Créer ce compte', en:'Create this account'},
   admin_accounts_err_name: {fr:'Le nom est requis', en:'Name is required'},
   admin_accounts_err_password: {fr:'Le mot de passe doit contenir au moins 6 caractères', en:'Password must be at least 6 characters'},
@@ -1992,6 +1999,7 @@ var I18N = {
   admin_accounts_unknown: {fr:'Inconnu (avant cette fonctionnalité)', en:'Unknown (before this feature)'},
   admin_accounts_reset_btn: {fr:'Valider le nouveau mot de passe', en:'Confirm new password'},
   admin_accounts_reset_toast: {fr:'Mot de passe réinitialisé', en:'Password reset'},
+  admin_super_admin_only_note: {fr:'🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.', en:'🔒 Admin Principal only — read-only for other accounts.'},
   admin_backfill_title: {fr:'✓ Comptes vérifiés — noms manquants', en:'✓ Verified accounts — missing names'},
   admin_backfill_desc: {fr:'Corrige les comptes déjà marqués "vérifié" mais dont le nom légal n\'a pas été enregistré (typiquement des comptes approuvés avant l\'ajout de cette fonctionnalité). Sans effet sur les comptes déjà corrects — peut être relancé sans risque.', en:'Fixes accounts already marked "verified" but whose legal name was not recorded (typically accounts approved before this feature was added). No effect on already-correct accounts — can be run again safely.'},
   admin_backfill_btn: {fr:'Corriger les comptes déjà vérifiés', en:'Fix already-verified accounts'},
@@ -2953,6 +2961,8 @@ function adminResetInactivityTimer(){
 function adminEndSession(){
   window._adminPw='';
   window._earningsPw=null;
+  window._adminName=null;
+  window._isSuperAdmin=false;
   var mainBox=document.getElementById('admin-main-box');
   var loginBox=document.getElementById('admin-login-box');
   if(mainBox) mainBox.style.display='none';
@@ -3802,6 +3812,8 @@ document.addEventListener('DOMContentLoaded', function(){
 // ═══════════════════════════════════════════
 window._adminPw='';
 window._admin2faPending=false;
+window._adminName=null;
+window._isSuperAdmin=false;
 function adminToggleRecoveryMode(){
   var row=document.getElementById('admin-2fa-recovery-row');
   var codeField=document.getElementById('admin-2fa-code');
@@ -3837,6 +3849,8 @@ function adminLogin(){
   apiCall('/admin?action=login','POST',payload,'').then(function(res){
     if(res&&res.success){
       window._admin2faPending=false;
+      window._adminName=(res.data&&res.data.admin_name)||null;
+      window._isSuperAdmin=!!(res.data&&res.data.is_super_admin);
       document.getElementById('admin-2fa-box').style.display='none';
       if(res.data&&res.data.recovery_used){
         toast(at('admin_login_recovery_used'));
@@ -3850,6 +3864,8 @@ function adminLogin(){
     } else {
       window._adminPw='';
       window._earningsPw=null;
+      window._adminName=null;
+      window._isSuperAdmin=false;
       window._admin2faPending=false;
       document.getElementById('admin-2fa-box').style.display='none';
       document.getElementById('admin-login-box').style.display='block';
@@ -3861,6 +3877,7 @@ function adminLogin(){
 function adminLoadRequests(){
   document.getElementById('admin-login-box').style.display='none';
   document.getElementById('admin-main-box').style.display='block';
+  adminApplySuperAdminGate();
   adminStartInactivityTimer();
   var langBtn = document.getElementById('admin-lang-toggle');
   if(langBtn) langBtn.textContent = ADMIN_LANG.toUpperCase();
@@ -5935,6 +5952,8 @@ function adminLoadSettings(){
   admin2faLoadStatus();
   adminLoadPushStatus();
   adminLoadExchangeRates();
+  adminAccountsRenderCreateCountries();
+  adminApplySuperAdminGate();
 }
 
 function adminSaveSettings(){
@@ -6177,19 +6196,59 @@ function adminRefreshExchangeRates(){
   }).catch(function(){ if(statusBox) statusBox.textContent=''; toast(at('admin_dash_error_network'), true); });
 }
 // ── COMPTES ADMIN NOMMES (identification uniquement, memes acces pour tous) ──
+// Cache des pays actifs, partagee entre le formulaire de creation de
+// compte et l'edition des pays d'un compte existant - evite un aller-retour
+// reseau distinct pour chaque case a cocher affichee.
+function adminAccountsFetchCountries(cb){
+  if(window._allCountriesCache){ cb(window._allCountriesCache); return; }
+  apiCall('/admin?action=countries-list','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.countries){
+      window._allCountriesCache = res.data.countries.map(function(c){ return c.name; });
+    } else window._allCountriesCache = [];
+    cb(window._allCountriesCache);
+  }).catch(function(){ cb([]); });
+}
+function adminAccountsCountryCheckboxesHtml(selected){
+  selected = selected||[];
+  var names = window._allCountriesCache||[];
+  if(names.length===0) return '<div style="font-size:11px;color:var(--t3)">'+at('admin_loading')+'</div>';
+  var html='';
+  names.forEach(function(n){
+    var checked = selected.indexOf(n)!==-1 ? 'checked' : '';
+    html+='<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--bord);border-radius:10px;padding:4px 8px;cursor:pointer">'
+      +'<input type="checkbox" data-country="'+adminEsc(n)+'" '+checked+' style="margin:0">'+adminCountryName(n)+'</label>';
+  });
+  return html;
+}
+function adminAccountsReadCheckedCountries(boxId){
+  var box=document.getElementById(boxId);
+  var out=[];
+  if(!box) return out;
+  box.querySelectorAll('input[type=checkbox]').forEach(function(el){
+    if(el.checked) out.push(el.getAttribute('data-country'));
+  });
+  return out;
+}
+function adminAccountsRenderCreateCountries(){
+  var box=document.getElementById('admacc-create-countries-box');
+  if(!box) return;
+  adminAccountsFetchCountries(function(){ box.innerHTML=adminAccountsCountryCheckboxesHtml([]); });
+}
 function adminCreateAccount(){
   var name=document.getElementById('admacc-name').value.trim();
   // trim() ici pour rester coherent avec adminLogin() qui trim deja le
   // mot de passe tape - sinon un espace de trop a la creation (facile a
   // taper sans le voir) rendait le compte injoignable des la connexion.
   var pw=document.getElementById('admacc-password').value.trim();
+  var countries=adminAccountsReadCheckedCountries('admacc-create-countries-box');
   var statusBox=document.getElementById('admacc-create-status');
   if(!name){ toast(at('admin_accounts_err_name'), true); return; }
   if(pw.length<6){ toast(at('admin_accounts_err_password'), true); return; }
-  apiCall('/admin?action=accounts-create','POST',{admin_password:window._adminPw,name:name,password:pw},'').then(function(res){
+  apiCall('/admin?action=accounts-create','POST',{admin_password:window._adminPw,name:name,password:pw,countries:countries},'').then(function(res){
     if(res&&res.success){
       toast(at('admin_accounts_created_toast'));
       document.getElementById('admacc-name').value=''; document.getElementById('admacc-password').value='';
+      adminAccountsRenderCreateCountries();
       if(statusBox) statusBox.textContent='';
       adminLoadAccounts();
     } else {
@@ -6200,19 +6259,27 @@ function adminCreateAccount(){
 function adminLoadAccounts(){
   var box=document.getElementById('admacc-list-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  adminAccountsFetchCountries(function(){
   apiCall('/admin?action=accounts-list','POST',{admin_password:window._adminPw},'').then(function(res){
     if(res&&res.success&&res.data&&res.data.accounts){
       var list=res.data.accounts;
       if(list.length===0){ box.innerHTML='<div class="admin-empty">'+at('admin_accounts_empty')+'</div>'; return; }
       var html='';
       list.forEach(function(a){
+        var countriesLabel = (a.countries&&a.countries.length) ? a.countries.map(adminCountryName).join(', ') : at('admin_accounts_no_countries');
         html+='<div style="border:1px solid var(--bord);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
           +'<div><b style="color:var(--t1)">'+adminEsc(a.name)+'</b><div style="font-size:10px;color:var(--t3)">'+new Date(a.created_at).toLocaleDateString()+' — '+(a.active?at('admin_accounts_status_active'):at('admin_accounts_status_inactive'))+'</div></div>'
           +'<div style="display:flex;gap:6px">'
+          +'<button style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--gl);color:var(--g)" onclick="adminAccountsToggleCountryEdit('+a.id+')">🌍</button>'
           +'<button style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--gl);color:var(--g)" onclick="adminToggleResetPw('+a.id+')">🔑</button>'
           +'<button style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;background:'+(a.active?'var(--rl)':'var(--gl)')+';color:'+(a.active?'var(--re)':'var(--g)')+'" onclick="adminSetAccountActive('+a.id+','+(a.active?0:1)+')">'+(a.active?at('admin_accounts_deactivate_btn'):at('admin_accounts_reactivate_btn'))+'</button>'
           +'</div></div>'
+          +'<div style="font-size:10px;color:var(--t3);margin-top:4px">🌍 '+countriesLabel+'</div>'
+          +'<div id="admacc-countries-row-'+a.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bord)">'
+          +'<div id="admacc-countries-box-'+a.id+'" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+adminAccountsCountryCheckboxesHtml(a.countries||[])+'</div>'
+          +'<button class="btn-w" style="margin-bottom:0" onclick="adminAccountsSaveCountries('+a.id+')">'+at('admin_accounts_countries_save_btn')+'</button>'
+          +'</div>'
           +'<div id="admacc-reset-row-'+a.id+'" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bord)">'
           +'<input class="finput" id="admacc-reset-pw-'+a.id+'" type="password" placeholder="'+at('admin_accounts_password_label')+'" style="margin-bottom:6px">'
           +'<button class="btn-w" style="margin-bottom:0" onclick="adminResetAccountPassword('+a.id+')">'+at('admin_accounts_reset_btn')+'</button>'
@@ -6220,8 +6287,10 @@ function adminLoadAccounts(){
           +'</div>';
       });
       box.innerHTML=html;
+      adminApplySuperAdminGate();
     } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
   }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+  });
 }
 function adminSetAccountActive(id, active){
   apiCall('/admin?action=accounts-set-active','POST',{admin_password:window._adminPw,id:id,active:active},'').then(function(res){
@@ -6241,6 +6310,42 @@ function adminResetAccountPassword(id){
     if(res&&res.success){ toast(at('admin_accounts_reset_toast')); adminLoadAccounts(); }
     else { toast((res&&res.message)||at('admin_error_generic'), true); }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+function adminAccountsToggleCountryEdit(id){
+  var row=document.getElementById('admacc-countries-row-'+id);
+  if(row) row.style.display = row.style.display==='none' ? 'block' : 'none';
+}
+function adminAccountsSaveCountries(id){
+  var countries=adminAccountsReadCheckedCountries('admacc-countries-box-'+id);
+  apiCall('/admin?action=accounts-set-countries','POST',{admin_password:window._adminPw,id:id,countries:countries},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_accounts_countries_updated_toast')); adminLoadAccounts(); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+// Cache/derision des actions reservees a Admin Principal (creation/desactivation
+// de comptes, pays autorises, reglages frais/plafonds, activation pays) - le
+// backend refuse deja ces actions avec un 403 pour un compte nomme, ceci evite
+// juste de laisser un bouton visiblement cliquable qui echouera a coup sur.
+function adminApplySuperAdminGate(){
+  var isSuper = !!window._isSuperAdmin;
+  [
+    document.getElementById('admin-settings-save-btn'),
+    document.getElementById('admacc-create-btn')
+  ].forEach(function(btn){
+    if(!btn) return;
+    btn.disabled = !isSuper;
+    btn.style.opacity = isSuper ? '1' : '0.45';
+    btn.style.cursor = isSuper ? 'pointer' : 'not-allowed';
+  });
+  var settingsNote = document.getElementById('admin-settings-super-note');
+  if(settingsNote) settingsNote.style.display = isSuper ? 'none' : 'block';
+  var acctNote = document.getElementById('admin-accounts-super-note');
+  if(acctNote) acctNote.style.display = isSuper ? 'none' : 'block';
+  document.querySelectorAll('#admacc-list-box button, #admin-countries-box button').forEach(function(btn){
+    btn.disabled = !isSuper;
+    btn.style.opacity = isSuper ? '1' : '0.45';
+    btn.style.cursor = isSuper ? 'pointer' : 'not-allowed';
+  });
 }
 function adminBackfillVerifiedNames(){
   var statusBox = document.getElementById('admin-backfill-status');
@@ -6452,6 +6557,7 @@ function adminLoadCountries(){
       });
       html+='</div>';
       box.innerHTML=html;
+      adminApplySuperAdminGate();
     } else {
       box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_loading')+'</div>';
     }
