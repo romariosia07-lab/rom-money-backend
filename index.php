@@ -7519,6 +7519,20 @@ function admin_dashboard_export_xlsx() {
         $rows[] = [[ $o['operator'], 2, 's' ], [ $o['total'], 3, 'n' ]];
     }
 
+    // Vue comparative entre pays - le remplacement voulu pour l'ancienne
+    // liste toujours affichee en direct sur l'ecran (invivable a 50 pays) :
+    // reservee a l'export, jamais a l'ecran. N'apparait que si aucun filtre
+    // pays precis n'etait deja actif (sinon ce tableau ne contiendrait
+    // qu'une seule ligne, deja couverte par le Resume ci-dessus).
+    if(!$d['country_filter'] && !empty($d['country_breakdown'])){
+        $rows[] = [];
+        $rows[] = [[ 'Repartition par pays ('.$d['period'].')', 5, 's' ]];
+        $rows[] = [[ 'Pays',1,'s' ], [ 'Volume',1,'s' ], [ 'Transactions',1,'s' ]];
+        foreach($d['country_breakdown'] as $c){
+            $rows[] = [[ $c['country'] ?: '-', 2, 's' ], [ $c['volume'], 3, 'n' ], [ $c['count'], 3, 'n' ]];
+        }
+    }
+
     $sheetXml = xlsx_build_sheet($rows);
     $xlsxData = xlsx_build($sheetXml);
 
@@ -7668,6 +7682,26 @@ function admin_dashboard_export_pdf() {
     foreach($d['operator_breakdown'] as $o){
         $pdf->Cell(90,6,pdf_str($o['operator']),1);
         $pdf->Cell(90,6,(string)$o['total'],1,1);
+    }
+
+    // Vue comparative entre pays - reservee a l'export (voir meme note que
+    // dans admin_dashboard_export_xlsx()), absente si un filtre pays precis
+    // etait deja actif.
+    if(!$d['country_filter'] && !empty($d['country_breakdown'])){
+        $pdf->Ln(4);
+        $pdf->SetFont('Arial','B',11);
+        $pdf->Cell(0,8,pdf_str('Repartition par pays ('.$d['period'].')'),0,1);
+        $pdf->SetFont('Arial','B',9);
+        $pdf->SetFillColor(230,241,251);
+        $pdf->Cell(90,7,pdf_str('Pays'),1,0,'C',true);
+        $pdf->Cell(50,7,pdf_str('Volume'),1,0,'C',true);
+        $pdf->Cell(40,7,pdf_str('Transactions'),1,1,'C',true);
+        $pdf->SetFont('Arial','',9);
+        foreach($d['country_breakdown'] as $c){
+            $pdf->Cell(90,6,pdf_str($c['country'] ?: '-'),1);
+            $pdf->Cell(50,6,number_format($c['volume'],0,',',' ').' F',1);
+            $pdf->Cell(40,6,(string)$c['count'],1,1);
+        }
     }
 
     header('Content-Type: application/pdf');
