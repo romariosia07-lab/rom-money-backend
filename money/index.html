@@ -11660,17 +11660,18 @@ function calcFrais(amt){
   return Math.round(amt * APP.feeConfig.fee_rate_national);
 }
 
-// Le reliquat gratuit s'applique toujours au montant BRUT (ce que calcFrais()
-// fait deja). Quand l'utilisateur tape directement le montant NET souhaite, il
-// faut donc estimer le brut correspondant AVANT de decider si le seuil est
-// franchi - sinon, taper un net proche du seuil pouvait donner un resultat
-// different que taper le brut equivalent : une faille qui permettait d'eviter
-// les frais pres du seuil.
+// Le frais est toujours 1% du montant que l'utilisateur a directement tape
+// (brut cote calcFrais(), net ici) - jamais un "gonflage" du brut pour que
+// le frais retombe sur un pourcentage du brut recalcule, ce qui donnait des
+// montants a priori surprenants (ex: 101 F au lieu de 100 F sur un net de
+// 10 000 F). Le seuil de gratuite reste verifie sur le montant tape lui-meme :
+// des que ce montant atteint ou depasse le reliquat du jour, tout le
+// montant est facture (voir calcFrais() / tx_send() cote serveur).
 function feeFromNet(net, rate, remainingFree){
   if(net<=0) return {frais:0, brut:net};
   if(net < remainingFree) return {frais:0, brut:net};
-  var brut = Math.round(net / (1-rate));
-  var frais = Math.round(brut * rate);
+  var frais = Math.round(net * rate);
+  var brut = net + frais;
   return {frais:frais, brut:brut};
 }
 

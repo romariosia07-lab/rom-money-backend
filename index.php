@@ -2881,14 +2881,15 @@ function agent_transfer_amounts($senderWalletId, $senderCurrency, $amount, $mode
     // l'operation tient ENTIEREMENT dans le reliquat gratuit du jour, elle
     // est 100% gratuite ; des que le montant atteint ou depasse ce reliquat,
     // c'est 100% du montant qui est facture, pas seulement le depassement.
+    // Le frais est toujours 1% du montant tape directement (brut ou net
+    // selon le mode), jamais un gonflage circulaire de l'autre montant.
     if($mode === 'net'){
         $net = $amount;
         if($net < $remainingFree){
             $brut = $net; $fee = 0;
         } else {
-            $brut = round($net / (1-$rateNational));
-            $fee = round($brut * $rateNational);
-            $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
+            $fee = round($net * $rateNational);
+            $brut = $net + $fee;
         }
     } else {
         $brut = $amount;
@@ -3580,6 +3581,10 @@ function tx_send() {
                 $remainingFree = $rf;
             }
         }
+        // Le frais est toujours 1% du montant tape directement par
+        // l'utilisateur (brut ou net selon le mode) - jamais un "gonflage"
+        // circulaire de l'autre montant, qui donnait des chiffres a priori
+        // surprenants (ex: 101 F au lieu de 100 F sur un net de 10 000 F).
         if($mode==='brut'){
             $brut = $amount;
             $fee  = ($brut >= $remainingFree) ? round($brut * $rateNational) : 0;
@@ -3589,12 +3594,8 @@ function tx_send() {
             if($net < $remainingFree){
                 $brut = $net; $fee = 0;
             } else {
-                // Au moins une partie du reliquat est depassee : TOUT le
-                // montant devient taxable (pas de palier). Resout le brut
-                // tel que brut*(1-taux) = net demande.
-                $brut = round($net / (1-$rateNational));
-                $fee = round($brut * $rateNational);
-                $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
+                $fee = round($net * $rateNational);
+                $brut = $net + $fee;
             }
         }
     }
@@ -3762,7 +3763,9 @@ function tx_collect() {
     // REGLE (seuil, pas palier/marginal) : identique a tx_send() - tant que
     // ce montant tient ENTIEREMENT dans le reliquat gratuit du jour, c'est
     // 100% gratuit ; des qu'il atteint ou depasse ce reliquat, c'est 100% du
-    // montant qui est facture, pas seulement le depassement.
+    // montant qui est facture, pas seulement le depassement. Le frais est
+    // toujours 1% du montant tape directement (brut ou net selon le mode),
+    // jamais un gonflage circulaire de l'autre montant.
     if($mode==='brut'){
         $brut = $amount;
         $fee  = ($brut >= $remainingFree) ? round($brut * $rateNational) : 0;
@@ -3772,9 +3775,8 @@ function tx_collect() {
         if($net < $remainingFree){
             $brut = $net; $fee = 0;
         } else {
-            $brut = round($net / (1-$rateNational));
-            $fee = round($brut * $rateNational);
-            $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
+            $fee = round($net * $rateNational);
+            $brut = $net + $fee;
         }
     }
     if($net<=0) fail('Montant invalide');
