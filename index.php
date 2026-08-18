@@ -4170,8 +4170,26 @@ function route_profile($action) {
         'referral-status'=> profile_referral_status(),
         'devices'        => profile_devices(),
         'revoke-device'  => profile_revoke_device(),
+        'submit-review'  => profile_submit_review(),
         default          => fail('Action inconnue',404)
     };
+}
+
+// Avis client (note 1-5 + commentaire libre) envoye depuis le profil,
+// visible par l'admin dans l'onglet "Avis clients" (voir admin_list_reviews()).
+// Plusieurs avis possibles dans le temps - throttle simple (1 par 5 min par
+// compte) pour empecher le spam sans bloquer un usage normal (ex: un avis
+// apres chaque mise a jour de l'app).
+function profile_submit_review() {
+    $pl = auth(); $b = body();
+    $rating = (int)($b['rating'] ?? 0);
+    $comment = trim($b['comment'] ?? '');
+    if($rating < 1 || $rating > 5) fail('Note invalide (1 a 5 etoiles)');
+    if(mb_strlen($comment) > 1000) fail('Commentaire trop long (1000 caracteres max)');
+    $recent = (int)q("SELECT COUNT(*) FROM user_reviews WHERE user_id=? AND created_at > NOW() - INTERVAL '5 minutes'",[$pl['sub']])->fetchColumn();
+    if($recent > 0) fail('Vous venez deja d\'envoyer un avis, merci de patienter quelques minutes.', 429);
+    q("INSERT INTO user_reviews (id,user_id,rating,comment) VALUES (?,?,?,?)",[uid(),$pl['sub'],$rating,$comment?:null]);
+    ok(null,'Merci pour votre avis !');
 }
 
 // "Mes appareils" : liste les appareils connus, indique si chacun est deja
@@ -5495,6 +5513,8 @@ function route_admin($action) {
         'agent-reopen-registration'  => admin_agent_reopen_registration(),
         'agent-delete-document'    => admin_agent_delete_document(),
         'add-note'                 => admin_add_note(),
+        'reviews-list'             => admin_list_reviews(),
+        'review-delete'            => admin_delete_review(),
         'search-tx-advanced'       => admin_search_tx_advanced(),
         'users-export-xlsx'        => admin_users_export_xlsx(),
         'users-export-pdf'         => admin_users_export_pdf(),
@@ -6238,6 +6258,72 @@ function admin_add_note() {
     }
     admin_log('account_note_added','success',$phone,mb_substr($note,0,120));
     ok(null,'Note ajoutee');
+}
+
+// Liste des avis client (user_reviews) - filtrable par note, scope pays
+// standard (via admin_country_scope_clause('u.country') + filtre explicite
+// admin_apply_country_filter(), meme mecanique que Utilisateurs/Marchands/
+// Agents/Journal d'audit cette session). Renvoie aussi des statistiques
+// (note moyenne + repartition 1-5) calculees sur le MEME perimetre pays mais
+// SANS le filtre de note (pour que l'admin voie toujours la repartition
+// complete, meme en filtrant la liste sur une seule note).
+function admin_list_reviews() {
+    $b = body();
+    check_admin_password($b);
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+    $ratingFilter = (int)($b['rating'] ?? 0);
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
+
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
+    $baseWhere = "1=1".$scopeSql;
+
+    $where = $baseWhere; $params = $scopeParams;
+    if($ratingFilter >= 1 && $ratingFilter <= 5){ $where .= " AND r.rating=?"; $params[] = $ratingFilter; }
+
+    try {
+        $total = (int)q("SELECT COUNT(*) FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE $where", $params)->fetchColumn();
+        $rows = q("SELECT r.id,r.rating,r.comment,r.created_at,u.full_name,u.verified_name,u.phone_number,u.country
+                   FROM user_reviews r JOIN users u ON u.id=r.user_id
+                   WHERE $where ORDER BY r.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+        $stats = q("SELECT COUNT(*) AS total, COALESCE(AVG(r.rating),0) AS avg_rating,
+            SUM(CASE WHEN r.rating=1 THEN 1 ELSE 0 END) AS r1,
+            SUM(CASE WHEN r.rating=2 THEN 1 ELSE 0 END) AS r2,
+            SUM(CASE WHEN r.rating=3 THEN 1 ELSE 0 END) AS r3,
+            SUM(CASE WHEN r.rating=4 THEN 1 ELSE 0 END) AS r4,
+            SUM(CASE WHEN r.rating=5 THEN 1 ELSE 0 END) AS r5
+            FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE $baseWhere", $scopeParams)->fetch();
+    } catch(Exception $e) {
+        $restore();
+        log_and_fail($e, 'Service avis indisponible (base non initialisee).', 503);
+    }
+    $restore();
+    ok([
+        'reviews'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,
+        'available_countries'=>$availableCountries,'country_filter'=>$countryFilter,
+        'stats'=>['total'=>(int)$stats['total'],'average'=>round((float)$stats['avg_rating'],2),
+            'distribution'=>['1'=>(int)$stats['r1'],'2'=>(int)$stats['r2'],'3'=>(int)$stats['r3'],'4'=>(int)$stats['r4'],'5'=>(int)$stats['r5']]]
+    ]);
+}
+
+// Suppression d'un avis (moderation - spam/contenu inapproprie), raison
+// obligatoire journalisee, meme discipline que les autres suppressions de
+// contenu utilisateur (documents, KYC) dans ce projet.
+function admin_delete_review() {
+    $b = body();
+    check_admin_password($b);
+    $id = trim($b['id'] ?? '');
+    $reason = trim($b['reason'] ?? '');
+    if(!$id) fail('Avis requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $row = q("SELECT r.id, u.phone_number, u.country FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE r.id=?",[$id])->fetch();
+    if(!$row) fail('Avis introuvable',404);
+    admin_check_country_access($row['country']);
+    q("DELETE FROM user_reviews WHERE id=?",[$id]);
+    admin_log('review_delete','success',$row['phone_number'],dk('d_ref_with_reason',['ref'=>$id,'reason'=>$reason]));
+    ok(null,'Avis supprime');
 }
 
 // Recherche un compte marchand ROM_BUSINESS par numero (independant de la
@@ -9040,6 +9126,20 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_admin_notes_user ON admin_notes(user_id)",
+    // Avis client (note 1-5 + commentaire libre) envoyes par l'utilisateur
+    // depuis son profil, visibles par l'admin (onglet "Avis clients") pour
+    // ameliorer l'app - direction inverse de admin_notes (ici l'utilisateur
+    // ecrit, l'admin lit). Plusieurs avis possibles par compte au fil du
+    // temps (pas un profil unique modifiable, comme un fil d'avis).
+    "CREATE TABLE IF NOT EXISTS user_reviews (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        rating SMALLINT NOT NULL,
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_user_reviews_user ON user_reviews(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_reviews_created ON user_reviews(created_at DESC)",
     // Equivalent de admin_notes mais pour un compte marchand ROM_BUSINESS -
     // table separee (comme merchant_known_devices vs known_devices) plutot
     // que reutiliser admin_notes.user_id pour un ID marchand.

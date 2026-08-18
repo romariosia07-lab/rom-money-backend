@@ -789,6 +789,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
       <button class="admin-tab-btn" onclick="adminTab('countries')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_countries">Pays</span></button>
+      <button class="admin-tab-btn" onclick="adminTab('reviews')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_reviews">Avis clients</span></button>
       <button onclick="adminManualLogout()" style="padding:8px 14px;border:1px solid var(--re);border-radius:20px;background:none;color:var(--re);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⏻ Déconnexion</button>
     </div>
 
@@ -1366,6 +1367,27 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_countries_desc">Seuls les pays "Actif" apparaissent comme disponibles pour le transfert instantané côté utilisateur. Les autres restent en liste d'attente.</div>
       <div id="admin-countries-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
+
+    <div id="admin-panel-reviews" class="admin-panel" style="display:none">
+      <div class="admin-stitle" data-i18n-admin="admin_reviews_title">Avis clients</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_reviews_desc">Avis envoyés par les utilisateurs depuis leur profil, pour aider à améliorer l'application.</div>
+      <div id="admin-reviews-stats" style="display:flex;gap:10px;margin-bottom:14px"></div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_reviews_filter_rating_label">Note</label>
+        <select class="finput" id="rev-rating" onchange="adminLoadReviews(1)">
+          <option value="0" data-i18n-admin="admin_reviews_filter_rating_all">Toutes</option>
+          <option value="5">★★★★★</option>
+          <option value="4">★★★★</option>
+          <option value="3">★★★</option>
+          <option value="2">★★</option>
+          <option value="1">★</option>
+        </select>
+      </div>
+      <div class="frow" id="rev-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="rev-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadReviews(1)"></div>
+      </div>
+      <div id="rev-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
+      <div id="rev-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+    </div>
   </div>
 </div>
 
@@ -1533,6 +1555,22 @@ var I18N = {
   admin_tab_tx: {fr:'Transaction', en:'Transaction'},
   admin_tab_audit: {fr:'Journal', en:'Log'},
   admin_tab_countries: {fr:'Pays', en:'Countries'},
+  admin_tab_reviews: {fr:'Avis clients', en:'Feedback'},
+
+  admin_reviews_title: {fr:'Avis clients', en:'Customer feedback'},
+  admin_reviews_desc: {fr:"Avis envoyés par les utilisateurs depuis leur profil, pour aider à améliorer l'application.", en:'Feedback sent by users from their profile, to help improve the app.'},
+  admin_reviews_avg_label: {fr:'Note moyenne', en:'Average rating'},
+  admin_reviews_total_suffix: {fr:'avis', en:'reviews'},
+  admin_reviews_filter_rating_label: {fr:'Note', en:'Rating'},
+  admin_reviews_filter_rating_all: {fr:'Toutes', en:'All'},
+  admin_reviews_none_found: {fr:'Aucun avis pour le moment', en:'No feedback yet'},
+  admin_reviews_no_comment: {fr:'(pas de commentaire)', en:'(no comment)'},
+  admin_reviews_delete_btn: {fr:'Supprimer', en:'Delete'},
+  admin_reviews_delete_confirm_msg: {fr:'Cette action est définitive.', en:'This action is permanent.'},
+  admin_reviews_deleted_toast: {fr:'Avis supprimé', en:'Feedback deleted'},
+  admin_reviews_reason_spam: {fr:'Contenu indésirable (spam)', en:'Unwanted content (spam)'},
+  admin_reviews_reason_inappropriate: {fr:'Contenu inapproprié', en:'Inappropriate content'},
+  admin_reviews_reason_test: {fr:'Avis de test', en:'Test feedback'},
   // ── ADMIN : connexion ──
   admin_login_pw_label: {fr:'Mot de passe admin', en:'Admin password'},
   admin_login_pw_ph: {fr:'Mot de passe', en:'Password'},
@@ -2365,7 +2403,17 @@ var I18N = {
   profile_export_history: {fr:'Exporter mon historique', en:'Export my history'},
   profile_appearance: {fr:'Apparence', en:'Appearance'},
   profile_add_account: {fr:'Ajouter un compte', en:'Add an account'},
+  profile_give_review: {fr:'Donner mon avis', en:'Give feedback'},
   profile_logout: {fr:'Déconnexion', en:'Log out'},
+
+  sheet_title_review: {fr:'Avis client', en:'Customer feedback'},
+  review_intro: {fr:"Votre avis nous aide à améliorer l'application.", en:'Your feedback helps us improve the app.'},
+  review_comment_label: {fr:'Commentaire (optionnel)', en:'Comment (optional)'},
+  review_comment_ph: {fr:"Dites-nous ce qui vous plaît ou ce qu'on peut améliorer...", en:'Tell us what you like or what we could improve...'},
+  review_submit_btn: {fr:'Envoyer mon avis', en:'Send feedback'},
+  review_rating_required: {fr:'Merci de choisir une note (1 à 5 étoiles)', en:'Please choose a rating (1 to 5 stars)'},
+  review_submitted_toast: {fr:'Merci pour votre avis !', en:'Thank you for your feedback!'},
+  review_submit_error_toast: {fr:"Échec de l'envoi, réessayez plus tard", en:'Failed to send, try again later'},
   profile_logout_confirm: {fr:'Se déconnecter ? Vous devrez ressaisir votre numéro et votre PIN.', en:'Log out? You will need to re-enter your phone number and PIN.'},
 
   copyid_success_toast: {fr:'ID copié !', en:'ID copied!'},
@@ -4131,7 +4179,7 @@ function adminReject(id){
 }
 
 function adminTab(name){
-  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','agents','alerts','settings','earnings'].forEach(function(t){
+  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','agents','alerts','settings','earnings','reviews'].forEach(function(t){
     var panel=document.getElementById('admin-panel-'+t);
     if(panel) panel.style.display=(t===name)?'block':'none';
   });
@@ -4152,6 +4200,7 @@ function adminTab(name){
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
   if(name==='earnings') adminShowEarnings();
+  if(name==='reviews') adminLoadReviews(1);
 }
 
 function adminResetPin(){
@@ -5253,6 +5302,76 @@ function adminLoadAgents(page){
     } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
   }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
 }
+
+// ═══════════════════════════════════════════
+// ADMIN - Avis clients
+// ═══════════════════════════════════════════
+function adminStarsHtml(rating){
+  return '<span style="color:var(--gold);letter-spacing:1px">'+'★'.repeat(rating)+'</span>'
+    +'<span style="color:var(--bord);letter-spacing:1px">'+'★'.repeat(5-rating)+'</span>';
+}
+function adminLoadReviews(page){
+  var box=document.getElementById('rev-list-box');
+  var pag=document.getElementById('rev-pagination');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  if(pag) pag.innerHTML='';
+  var payload={admin_password:window._adminPw, page:page||1, rating:document.getElementById('rev-rating').value};
+  var revCountryVal=adminReadCountryFilter('rev-country-box');
+  if(revCountryVal) payload.country=revCountryVal;
+  apiCall('/admin?action=reviews-list','POST',payload,'').then(function(res){
+    if(res&&res.success&&res.data){
+      adminRenderCountryFilterOptions('rev-country-box', 'rev-country-row', res.data.available_countries||[], res.data.country_filter||null);
+      var stats=res.data.stats||{total:0,average:0,distribution:{}};
+      var statsBox=document.getElementById('admin-reviews-stats');
+      if(statsBox){
+        statsBox.innerHTML='<div style="flex:1">'+adminStatBox(at('admin_reviews_avg_label'), (stats.total?stats.average.toFixed(2):'-')+' / 5', true)+'</div>'
+          +'<div style="flex:1">'+adminStatBox(at('admin_reviews_total_suffix'), stats.total, false)+'</div>';
+      }
+      var reviews=res.data.reviews||[];
+      var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
+      if(reviews.length===0){
+        box.innerHTML='<div class="admin-empty">'+at('admin_reviews_none_found')+'</div>';
+        return;
+      }
+      var html='';
+      reviews.forEach(function(r){
+        html+='<div class="admin-tx-card">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
+          +'<b style="font-size:14px">'+adminStarsHtml(r.rating)+'</b>'
+          +'<span style="color:var(--t3);font-size:10px">'+new Date(r.created_at).toLocaleString()+'</span>'
+          +'</div>'
+          +'<div style="color:var(--t2);margin-top:6px;white-space:pre-wrap">'+(r.comment?adminEsc(r.comment):'<span style="color:var(--t3);font-style:italic">'+at('admin_reviews_no_comment')+'</span>')+'</div>'
+          +'<div style="color:var(--t3);margin-top:6px;font-size:11px">'+adminEsc(r.verified_name||r.full_name)+' · '+r.phone_number+(r.country?' · '+adminEsc(adminCountryName(r.country)):'')+'</div>'
+          +'<button style="margin-top:8px;padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminDeleteReview(\''+r.id+'\')">'+at('admin_reviews_delete_btn')+'</button>'
+          +'</div>';
+      });
+      box.innerHTML=html;
+      var totalPages=Math.max(1, Math.ceil(total/perPage));
+      if(pag){
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(curPage<=1?'disabled':'')+' onclick="adminLoadReviews('+(curPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',curPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(curPage>=totalPages?'disabled':'')+' onclick="adminLoadReviews('+(curPage+1)+')">'+at('admin_users_next_page')+'</button>';
+      }
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminDeleteReview(id){
+  adminOpenConfirmModal({
+    icon:'🗑', title:at('admin_final_confirmation'), message:at('admin_reviews_delete_confirm_msg'),
+    needsReason:true, reasonOptions:[at('admin_reviews_reason_spam'),at('admin_reviews_reason_inappropriate'),at('admin_reviews_reason_test')],
+    confirmLabel:at('admin_reviews_delete_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=review-delete','POST',{admin_password:window._adminPw,id:id,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_reviews_deleted_toast')); adminLoadReviews(1); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
+
 // Ajoute une note admin en texte libre sur le compte actuellement affiche
 // (window._adminNotePhone, defini par adminSearchByPhone()). Append-only,
 // pas d'edition/suppression - meme principe que le journal d'audit.
@@ -8055,7 +8174,8 @@ function renderProfile(){
     logout:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     addacc:'<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
     lang:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg>',
-    devices:'<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg>'
+    devices:'<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg>',
+    star:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
   };
 
   function buildProfileRows(){
@@ -8092,6 +8212,7 @@ function renderProfile(){
       {ico:'download',lbl:t('profile_export_history'),col:'var(--gd)',fn:function(){ openSheet('export-history'); }},
       {ico:'theme',lbl:t('profile_appearance'),col:'var(--am)',fn:function(){ openSheet('appearance-settings'); }},
       {ico:'lang',lbl:t('lang_settings_title'),col:'var(--bl)',fn:function(){ openSheet('language-settings'); }},
+      {ico:'star',lbl:t('profile_give_review'),col:'var(--gold)',fn:function(){ openSheet('review'); }},
       {ico:'addacc',lbl:t('profile_add_account'),col:'var(--bl)',fn:function(){ startAddAccount(); }},
       {ico:'logout',lbl:t('profile_logout'),col:'var(--re)',fn:function(){
         userOpenConfirmModal({
@@ -8638,7 +8759,8 @@ function openSheet(type, titleAlreadySet, extra){
     parrainage:t('sheet_title_parrainage'),
     cartes:t('sheet_title_cartes'),
     aide:t('sheet_title_aide'),
-    'account-switch':t('sheet_title_account_switch')
+    'account-switch':t('sheet_title_account_switch'),
+    review:t('sheet_title_review')
   };
   
   if(!titleAlreadySet){
@@ -8724,6 +8846,7 @@ function buildSheet(type, b, extra){
   else if(type==='cartes') shCartes(b);
   else if(type==='aide') shAide(b);
   else if(type==='account-switch') shAccountSwitch(b);
+  else if(type==='review') shReview(b);
 }
 
 // ── QR HELPER ──
@@ -11587,6 +11710,49 @@ function toggleFaq(i){
   var isOpen = ans.style.display !== 'none';
   ans.style.display = isOpen ? 'none' : 'block';
   ico.textContent = isOpen ? '+' : '−';
+}
+
+// ── AVIS CLIENT (note 1-5 + commentaire, envoye a l'admin) ──
+var _reviewRating = 0;
+function shReview(b){
+  _reviewRating = 0;
+  b.innerHTML = '<div style="text-align:center;font-size:13px;color:var(--t2);margin-bottom:18px">'+t('review_intro')+'</div>'
+    +'<div id="review-stars" style="display:flex;justify-content:center;gap:10px;margin-bottom:22px"></div>'
+    +'<div class="frow"><label class="flabel">'+t('review_comment_label')+'</label>'
+    +'<textarea id="review-comment" placeholder="'+t('review_comment_ph')+'" maxlength="1000" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--bord);border-radius:9px;font-size:13px;color:var(--t1);font-family:inherit;resize:vertical;min-height:90px;box-sizing:border-box"></textarea></div>'
+    +'<button class="btn-g" id="review-submit-btn" onclick="submitReview()">'+t('review_submit_btn')+'</button>';
+  renderReviewStars();
+}
+function renderReviewStars(){
+  var box=document.getElementById('review-stars');
+  if(!box) return;
+  var html='';
+  for(var i=1;i<=5;i++){
+    var filled = i<=_reviewRating;
+    html+='<span onclick="setReviewRating('+i+')" style="font-size:34px;line-height:1;cursor:pointer;color:'+(filled?'var(--gold)':'var(--bord)')+'">★</span>';
+  }
+  box.innerHTML=html;
+}
+function setReviewRating(n){ _reviewRating=n; renderReviewStars(); }
+function submitReview(){
+  if(_reviewRating<1){ toast(t('review_rating_required'), true); return; }
+  var commentEl=document.getElementById('review-comment');
+  var comment=commentEl?commentEl.value.trim():'';
+  var btn=document.getElementById('review-submit-btn');
+  if(btn) btn.disabled=true;
+  var tok=getToken();
+  apiCall('/profile?action=submit-review','POST',{rating:_reviewRating,comment:comment},tok).then(function(res){
+    if(btn) btn.disabled=false;
+    if(res&&res.success){
+      closeSheet();
+      toast(t('review_submitted_toast'));
+    } else {
+      toast((res&&res.message)||t('review_submit_error_toast'), true);
+    }
+  }).catch(function(){
+    if(btn) btn.disabled=false;
+    toast(t('review_submit_error_toast'), true);
+  });
 }
 
 function startEncaisserScan(){
