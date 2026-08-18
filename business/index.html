@@ -500,6 +500,9 @@ var I18N = {
   profil_notifications:{fr:'Notifications',en:'Notifications'},
   sheet_title_notif:{fr:'Notifications',en:'Notifications'},
   notif_empty:{fr:'Aucune notification pour le moment',en:'No notifications yet'},
+  notif_listen_title:{fr:'Ecouter',en:'Listen'},
+  notif_listen_aria:{fr:'Ecouter cette notification',en:'Listen to this notification'},
+  notif_speech_unavailable:{fr:'Lecture vocale non disponible sur cet appareil',en:'Voice playback unavailable on this device'},
   reldate_now:{fr:"À l'instant",en:'Just now'},
   reldate_min_ago:{fr:'Il y a {n} min',en:'{n} min ago'},
   reldate_hours_ago:{fr:'Il y a {n}h',en:'{n}h ago'},
@@ -2827,6 +2830,7 @@ function relTime(ts){
   return t('reldate_days_ago').replace('{n}',Math.round(m/1440));
 }
 function doOpenNotif(){ openSheet('notif'); }
+var _notifRenderList = [];
 function shNotif(b){
   pruneOldNotifications();
   APP.notifications = APP.notifications || [];
@@ -2838,14 +2842,47 @@ function shNotif(b){
     b.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--t3)"><div style="font-size:40px;margin-bottom:10px">🔔</div>'+t('notif_empty')+'</div>';
     return;
   }
-  var sorted = APP.notifications.slice().sort(function(a,b){ return b.ts-a.ts; });
-  b.innerHTML = sorted.map(function(n){
-    return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div)">'
+  _notifRenderList = APP.notifications.slice().sort(function(a,b){ return b.ts-a.ts; });
+  b.innerHTML = _notifRenderList.map(function(n, idx){
+    return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:.5px solid var(--div);align-items:center">'
       +'<div style="font-size:22px;flex-shrink:0">'+n.ico+'</div>'
       +'<div style="flex:1"><div style="font-size:13px;color:var(--t1)">'+adminEscBiz(n.msg)+'</div>'
       +'<div style="font-size:11px;color:var(--t3);margin-top:3px">'+relTime(n.ts)+'</div></div>'
+      +'<button onclick="speakNotif('+idx+')" title="'+t('notif_listen_title')+'" aria-label="'+t('notif_listen_aria')+'" style="background:var(--gl);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gdd);flex-shrink:0">'
+      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/></svg>'
+      +'</button>'
       +'</div>';
   }).join('');
+}
+
+// Lecture vocale des notifications (synthese vocale native du navigateur,
+// gratuite, sans service externe) - meme mecanique que money/index.html.
+function cleanForSpeech(text){
+  var cleaned = String(text);
+  var prev;
+  do{
+    prev = cleaned;
+    cleaned = cleaned.replace(/(\d)[  ](\d{3})/g, '$1$2');
+  }while(cleaned !== prev);
+  cleaned = cleaned.replace(/\bF\b/g, 'francs');
+  cleaned = cleaned.replace(/^\+/, '');
+  cleaned = cleaned.replace(/\b[A-ZÀ-Ý]{2,}\b/g, function(word){ return word.toLowerCase(); });
+  return cleaned;
+}
+function speakText(text, silent){
+  if(!('speechSynthesis' in window)){
+    if(!silent) toast(t('notif_speech_unavailable'), true);
+    return;
+  }
+  window.speechSynthesis.cancel();
+  var utter = new SpeechSynthesisUtterance(cleanForSpeech(text));
+  utter.lang = (APP.lang==='en') ? 'en-US' : 'fr-FR';
+  utter.rate = 0.95;
+  window.speechSynthesis.speak(utter);
+}
+function speakNotif(idx){
+  var n = _notifRenderList[idx];
+  if(n) speakText(n.msg);
 }
 
 function toggleMerchantPush(){
