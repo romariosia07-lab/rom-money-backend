@@ -833,6 +833,14 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="promo">Promotion (selon preference utilisateur)</option>
         </select>
       </div>
+      <div class="frow"><label class="flabel">Public cible</label>
+        <select class="finput" id="ann-target">
+          <option value="all">Tous les comptes</option>
+          <option value="personal">Comptes personnels (ROM_MONEY)</option>
+          <option value="merchants">Marchands (ROM_BUSINESS)</option>
+          <option value="agents">Agents (ROM_GUICHET)</option>
+        </select>
+      </div>
       <button class="btn-g" id="admin-announce-btn" onclick="adminSendAnnouncement()">Envoyer l'annonce</button>
     </div>
 
@@ -4125,12 +4133,14 @@ function adminSendAnnouncement(){
   var titleEn=document.getElementById('ann-title-en').value.trim();
   var msgEn=document.getElementById('ann-msg-en').value.trim();
   var type=document.getElementById('ann-type').value;
+  var target=document.getElementById('ann-target').value;
   if(!title||!msg){ toast(at('admin_title_msg_required'), true); return; }
+  var targetLabels={all:'tous les comptes',personal:'les comptes personnels (ROM_MONEY)',merchants:'les marchands (ROM_BUSINESS)',agents:'les agents (ROM_GUICHET)'};
   adminOpenConfirmModal({
-    icon:'📢', title:'Envoyer cette annonce ?', message:'Elle sera visible par tous les utilisateurs concernés.',
+    icon:'📢', title:'Envoyer cette annonce ?', message:'Elle sera visible par '+(targetLabels[target]||'tous les comptes')+'.',
     needsReason:false, confirmLabel:'Envoyer', confirmColor:'var(--g)',
     onConfirm:function(){
-      apiCall('/announce?action=admin-create','POST',{admin_password:window._adminPw,title:title,message:msg,title_en:titleEn,message_en:msgEn,type:type},'').then(function(res){
+      apiCall('/announce?action=admin-create','POST',{admin_password:window._adminPw,title:title,message:msg,title_en:titleEn,message_en:msgEn,type:type,target:target},'').then(function(res){
         if(res&&res.success){
           toast(at('admin_ad_sent'));
           document.getElementById('ann-title').value='';

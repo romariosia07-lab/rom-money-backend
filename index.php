@@ -394,15 +394,25 @@ function web_push_send_to_user($userId, $title, $body, $extra = [], $category = 
 
 // Equivalent de web_push_send_to_user() pour un compte ROM_BUSINESS - table
 // dediee (merchant_push_subscriptions) puisque l'identite marchand est
-// separee de celle des utilisateurs personnels.
-function web_push_send_to_merchant($merchantId, $title, $body, $extra = []) {
+// separee de celle des utilisateurs personnels. Persiste aussi dans
+// merchant_notifications (lue par la cloche ROM_BUSINESS), meme principe que
+// web_push_send_to_user() - avant ce correctif, ROM_BUSINESS n'avait aucune
+// cloche/liste in-app malgre des push deja envoyes depuis longtemps.
+function web_push_send_to_merchant($merchantId, $title, $body, $extra = [], $category = 'general') {
+    try {
+        q("INSERT INTO merchant_notifications (merchant_id,title,body,category) VALUES (?,?,?,?)",[$merchantId,$title,$body,$category]);
+    } catch(Exception $e) {}
     try {
         $subs = q("SELECT * FROM merchant_push_subscriptions WHERE merchant_id=?", [$merchantId])->fetchAll();
         foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
     } catch(Exception $e) {}
 }
 
-function web_push_send_to_agent($agentId, $title, $body, $extra = []) {
+// Equivalent pour ROM_GUICHET (agent_notifications).
+function web_push_send_to_agent($agentId, $title, $body, $extra = [], $category = 'general') {
+    try {
+        q("INSERT INTO agent_notifications (agent_id,title,body,category) VALUES (?,?,?,?)",[$agentId,$title,$body,$category]);
+    } catch(Exception $e) {}
     try {
         $subs = q("SELECT * FROM agent_push_subscriptions WHERE agent_id=?", [$agentId])->fetchAll();
         foreach($subs as $sub){ web_push_send($sub, $title, $body, $extra); }
@@ -1301,8 +1311,19 @@ function route_merchant($action) {
         'revoke-device'      => merchant_revoke_device(),
         'doc-upload'         => merchant_document_upload(),
         'doc-list'           => merchant_document_list(),
+        'notifications'      => merchant_notifications(),
         default              => fail('Action inconnue',404)
     };
+}
+
+// Equivalent de profile_notif() pour ROM_BUSINESS - lit merchant_notifications
+// (peuplee par web_push_send_to_merchant()), meme forme de reponse pour que
+// le frontend reutilise directement le meme rendu que money/index.html.
+function merchant_notifications() {
+    $pl = merchant_auth();
+    $notifs = q("SELECT * FROM merchant_notifications WHERE merchant_id=? ORDER BY sent_at DESC LIMIT 20",[$pl['sub']])->fetchAll();
+    $unread = (int)q("SELECT COUNT(*) FROM merchant_notifications WHERE merchant_id=? AND is_read=0",[$pl['sub']])->fetchColumn();
+    ok(['notifications'=>$notifs,'unread'=>$unread]);
 }
 
 function merchant_register() {
@@ -2262,8 +2283,18 @@ function route_agent($action) {
         'application-status' => agent_application_status(),
         'set-location'      => agent_set_location(),
         'find-distributors' => agent_find_distributors(),
+        'notifications'     => agent_notifications(),
         default             => fail('Action inconnue',404)
     };
+}
+
+// Equivalent de profile_notif()/merchant_notifications() pour ROM_GUICHET -
+// lit agent_notifications (peuplee par web_push_send_to_agent()).
+function agent_notifications() {
+    $pl = agent_auth();
+    $notifs = q("SELECT * FROM agent_notifications WHERE agent_id=? ORDER BY sent_at DESC LIMIT 20",[$pl['sub']])->fetchAll();
+    $unread = (int)q("SELECT COUNT(*) FROM agent_notifications WHERE agent_id=? AND is_read=0",[$pl['sub']])->fetchColumn();
+    ok(['notifications'=>$notifs,'unread'=>$unread]);
 }
 
 function agent_register() {
@@ -5387,10 +5418,27 @@ function route_push($action) {
 
 function route_announce($action) {
     match($action) {
-        'list'         => announce_list(),
-        'admin-create' => announce_admin_create(),
-        default        => fail('Action inconnue',404)
+        'list'          => announce_list(),
+        'merchant-list' => announce_merchant_list(),
+        'agent-list'    => announce_agent_list(),
+        'admin-create'  => announce_admin_create(),
+        default         => fail('Action inconnue',404)
     };
+}
+
+// Resout la bonne langue cote serveur (si une traduction EN existe et que le
+// client la demande, on la sert ; sinon on retombe sur le francais) -
+// factorise entre les 3 variantes (personnel/marchand/agent) ci-dessous.
+function announce_resolve_lang($rows, $lang) {
+    return array_map(function($r) use ($lang){
+        return [
+            'id' => $r['id'],
+            'title' => ($lang==='en' && !empty($r['title_en'])) ? $r['title_en'] : $r['title'],
+            'message' => ($lang==='en' && !empty($r['message_en'])) ? $r['message_en'] : $r['message'],
+            'type' => $r['type'],
+            'created_at' => $r['created_at']
+        ];
+    }, $rows);
 }
 
 function announce_list() {
@@ -5400,24 +5448,32 @@ function announce_list() {
     $allowPromo = (bool)($u['notif_promo'] ?? true);
     if($allowPromo){
         $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
-            WHERE created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+            WHERE target IN ('all','personal') AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
     } else {
         $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
-            WHERE type='update' AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+            WHERE target IN ('all','personal') AND type='update' AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
     }
-    // Resout la bonne langue cote serveur : si une traduction EN existe et que le
-    // client la demande, on la sert ; sinon on retombe sur le francais (langue
-    // de saisie par defaut de l'admin).
-    $resolved = array_map(function($r) use ($lang){
-        return [
-            'id' => $r['id'],
-            'title' => ($lang==='en' && !empty($r['title_en'])) ? $r['title_en'] : $r['title'],
-            'message' => ($lang==='en' && !empty($r['message_en'])) ? $r['message_en'] : $r['message'],
-            'type' => $r['type'],
-            'created_at' => $r['created_at']
-        ];
-    }, $rows);
-    ok(['announcements'=>$resolved]);
+    ok(['announcements'=>announce_resolve_lang($rows, $lang)]);
+}
+
+// Equivalent pour ROM_BUSINESS - aucune preference "notif_promo" n'existe
+// cote marchand dans ce projet, toutes les annonces ciblees 'all'/'merchants'
+// sont renvoyees sans distinction de type (update/promo).
+function announce_merchant_list() {
+    merchant_auth();
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
+    $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
+        WHERE target IN ('all','merchants') AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+    ok(['announcements'=>announce_resolve_lang($rows, $lang)]);
+}
+
+// Equivalent pour ROM_GUICHET.
+function announce_agent_list() {
+    agent_auth();
+    $lang = ($_GET['lang']??'fr')==='en' ? 'en' : 'fr';
+    $rows = q("SELECT id,title,message,title_en,message_en,type,created_at FROM announcements
+        WHERE target IN ('all','agents') AND created_at >= NOW() - INTERVAL '30 days' ORDER BY created_at ASC")->fetchAll();
+    ok(['announcements'=>announce_resolve_lang($rows, $lang)]);
 }
 
 function announce_admin_create() {
@@ -5429,10 +5485,11 @@ function announce_admin_create() {
     $titleEn = trim($b['title_en']??'');
     $messageEn = trim($b['message_en']??'');
     $type = ($b['type']??'update')==='promo' ? 'promo' : 'update';
+    $target = in_array($b['target']??'all', ['all','personal','merchants','agents'], true) ? $b['target'] : 'all';
     if(!$title || !$message) fail('Titre et message requis');
     $id = uid();
-    q("INSERT INTO announcements (id,title,message,title_en,message_en,type) VALUES (?,?,?,?,?,?)",
-        [$id,$title,$message,$titleEn?:null,$messageEn?:null,$type]);
+    q("INSERT INTO announcements (id,title,message,title_en,message_en,type,target) VALUES (?,?,?,?,?,?,?)",
+        [$id,$title,$message,$titleEn?:null,$messageEn?:null,$type,$target]);
     ok(['id'=>$id],'Annonce envoyee');
 }
 
@@ -9481,6 +9538,11 @@ function route_install() {
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS title_en VARCHAR(150)",
     "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS message_en TEXT",
     "CREATE INDEX IF NOT EXISTS idx_announce_created ON announcements(created_at)",
+    // Audience ciblee - 'all' (defaut, comportement historique inchange) ou
+    // un seul type de compte (jamais de combinaison multiple, une annonce =
+    // un public). Voir announce_admin_create()/announce_list()/
+    // announce_merchant_list()/announce_agent_list().
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target VARCHAR(20) DEFAULT 'all'",
     "CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
@@ -9495,6 +9557,30 @@ function route_install() {
     // gel/degel...) : evite d'afficher "argent recu" deux fois une fois que
     // le frontend recupere aussi cette table.
     "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR(30) DEFAULT 'general'",
+    // Equivalents de la table notifications, pour ROM_BUSINESS et ROM_GUICHET
+    // (cloche in-app - n'existait pas du tout avant, seul le push existait
+    // deja pour ces deux types de compte via web_push_send_to_merchant()/
+    // web_push_send_to_agent()).
+    "CREATE TABLE IF NOT EXISTS merchant_notifications (
+        id SERIAL PRIMARY KEY,
+        merchant_id VARCHAR(36) NOT NULL,
+        title VARCHAR(150) NOT NULL,
+        body TEXT NOT NULL,
+        is_read SMALLINT DEFAULT 0,
+        category VARCHAR(30) DEFAULT 'general',
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_merchant_notifications_merchant ON merchant_notifications(merchant_id)",
+    "CREATE TABLE IF NOT EXISTS agent_notifications (
+        id SERIAL PRIMARY KEY,
+        agent_id VARCHAR(36) NOT NULL,
+        title VARCHAR(150) NOT NULL,
+        body TEXT NOT NULL,
+        is_read SMALLINT DEFAULT 0,
+        category VARCHAR(30) DEFAULT 'general',
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_agent_notifications_agent ON agent_notifications(agent_id)",
     "CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36),
