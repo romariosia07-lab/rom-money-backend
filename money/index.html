@@ -5342,7 +5342,7 @@ function adminLoadReviews(page){
       var stats=res.data.stats||{total:0,average:0,distribution:{}};
       var statsBox=document.getElementById('admin-reviews-stats');
       if(statsBox){
-        statsBox.innerHTML='<div style="flex:1">'+adminStatBox(at('admin_reviews_avg_label'), (stats.total?stats.average.toFixed(1):'-')+' / 5', true)+'</div>'
+        statsBox.innerHTML='<div style="flex:1">'+adminStatBox(at('admin_reviews_avg_label'), (stats.total?stats.average.toFixed(2):'-')+' / 5', true)+'</div>'
           +'<div style="flex:1">'+adminStatBox(at('admin_reviews_total_suffix'), stats.total, true)+'</div>';
       }
       var distBox=document.getElementById('admin-reviews-distribution');
@@ -5356,13 +5356,17 @@ function adminLoadReviews(page){
       var html='';
       reviews.forEach(function(r){
         html+='<div class="admin-tx-card">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+          +'<div style="flex:1;min-width:0">'
           +'<b style="font-size:14px">'+adminStarsHtml(r.rating)+'</b>'
-          +'<span style="color:var(--t3);font-size:10px">'+new Date(r.created_at).toLocaleString()+'</span>'
-          +'</div>'
           +'<div style="color:var(--t2);margin-top:6px;white-space:pre-wrap">'+(r.comment?adminEsc(r.comment):'<span style="color:var(--t3);font-style:italic">'+at('admin_reviews_no_comment')+'</span>')+'</div>'
           +'<div style="color:var(--t3);margin-top:6px;font-size:11px">'+adminEsc(r.verified_name||r.full_name)+' · '+r.phone_number+(r.country?' · '+adminEsc(adminCountryName(r.country)):'')+'</div>'
-          +'<button style="margin-top:8px;padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminDeleteReview(\''+r.id+'\')">'+at('admin_reviews_delete_btn')+'</button>'
+          +'</div>'
+          +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:6px">'
+          +'<span style="color:var(--t3);font-size:10px;white-space:nowrap">'+new Date(r.created_at).toLocaleString()+'</span>'
+          +'<button style="padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px;white-space:nowrap" onclick="adminDeleteReview(\''+r.id+'\')">'+at('admin_reviews_delete_btn')+'</button>'
+          +'</div>'
+          +'</div>'
           +'</div>';
       });
       box.innerHTML=html;
