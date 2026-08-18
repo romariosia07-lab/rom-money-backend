@@ -1372,6 +1372,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="admin-stitle" data-i18n-admin="admin_reviews_title">Avis clients</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_reviews_desc">Avis envoyés par les utilisateurs depuis leur profil, pour aider à améliorer l'application.</div>
       <div id="admin-reviews-stats" style="display:flex;gap:10px;margin-bottom:14px"></div>
+      <div id="admin-reviews-distribution" style="margin-bottom:18px"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_reviews_filter_rating_label">Note</label>
         <select class="finput" id="rev-rating" onchange="adminLoadReviews(1)">
           <option value="0" data-i18n-admin="admin_reviews_filter_rating_all">Toutes</option>
@@ -1560,7 +1561,7 @@ var I18N = {
   admin_reviews_title: {fr:'Avis clients', en:'Customer feedback'},
   admin_reviews_desc: {fr:"Avis envoyés par les utilisateurs depuis leur profil, pour aider à améliorer l'application.", en:'Feedback sent by users from their profile, to help improve the app.'},
   admin_reviews_avg_label: {fr:'Note moyenne', en:'Average rating'},
-  admin_reviews_total_suffix: {fr:'avis', en:'reviews'},
+  admin_reviews_total_suffix: {fr:'Total des avis', en:'Total reviews'},
   admin_reviews_filter_rating_label: {fr:'Note', en:'Rating'},
   admin_reviews_filter_rating_all: {fr:'Toutes', en:'All'},
   admin_reviews_none_found: {fr:'Aucun avis pour le moment', en:'No feedback yet'},
@@ -5310,6 +5311,22 @@ function adminStarsHtml(rating){
   return '<span style="color:var(--gold);letter-spacing:1px">'+'★'.repeat(rating)+'</span>'
     +'<span style="color:var(--bord);letter-spacing:1px">'+'★'.repeat(5-rating)+'</span>';
 }
+// Repartition 5 -> 1 etoiles (barres proportionnelles au nombre total
+// d'avis) - donne du sens a la note moyenne (ex: 3,0/5 ne veut pas dire la
+// meme chose si c'est 10 avis a 3 etoiles ou un melange de 1 et 5 etoiles).
+function adminReviewDistributionHtml(dist, total){
+  var rows='';
+  for(var i=5;i>=1;i--){
+    var count=dist[i]||0;
+    var pct=total>0 ? Math.round(count/total*100) : 0;
+    rows+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+      +'<span style="width:26px;font-size:11px;color:var(--t3);flex-shrink:0">'+i+'★</span>'
+      +'<div style="flex:1;height:8px;background:var(--bord);border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:var(--gold)"></div></div>'
+      +'<span style="width:22px;text-align:right;font-size:11px;color:var(--t3);flex-shrink:0">'+count+'</span>'
+      +'</div>';
+  }
+  return rows;
+}
 function adminLoadReviews(page){
   var box=document.getElementById('rev-list-box');
   var pag=document.getElementById('rev-pagination');
@@ -5325,9 +5342,11 @@ function adminLoadReviews(page){
       var stats=res.data.stats||{total:0,average:0,distribution:{}};
       var statsBox=document.getElementById('admin-reviews-stats');
       if(statsBox){
-        statsBox.innerHTML='<div style="flex:1">'+adminStatBox(at('admin_reviews_avg_label'), (stats.total?stats.average.toFixed(2):'-')+' / 5', true)+'</div>'
-          +'<div style="flex:1">'+adminStatBox(at('admin_reviews_total_suffix'), stats.total, false)+'</div>';
+        statsBox.innerHTML='<div style="flex:1">'+adminStatBox(at('admin_reviews_avg_label'), (stats.total?stats.average.toFixed(1):'-')+' / 5', true)+'</div>'
+          +'<div style="flex:1">'+adminStatBox(at('admin_reviews_total_suffix'), stats.total, true)+'</div>';
       }
+      var distBox=document.getElementById('admin-reviews-distribution');
+      if(distBox) distBox.innerHTML = adminReviewDistributionHtml(stats.distribution||{}, stats.total||0);
       var reviews=res.data.reviews||[];
       var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
       if(reviews.length===0){
