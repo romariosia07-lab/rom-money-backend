@@ -3732,30 +3732,50 @@ function tx_collect() {
 
     $rateNational = (float)get_setting('fee_rate_national', 0.01);
     $freeThreshold = (float)get_setting('fee_free_threshold_national', 4000);
+    // La gratuite sous le seuil est CUMULEE par jour et par payeur, pas par
+    // transaction - meme regle et meme requete que tx_send() (qui ecrit
+    // aussi type='transfer'/channel='national' par defaut, y compris pour un
+    // encaissement : les deux flux partagent donc le meme cumul). Sans ca,
+    // un payeur pouvait se faire encaisser plusieurs petits montants dans la
+    // meme journee et ne jamais depasser le seuil par transaction, evitant
+    // indefiniment les frais - la meme faille que tx_send() empeche deja.
+    $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
+        WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
+        AND created_at::date=CURRENT_DATE",[$payer['wid']])->fetch()['t']??0);
     // Seuil global exprime en XOF - convertir le montant du payeur en XOF le
     // temps de la comparaison si sa devise n'est pas XOF (meme principe que
     // tx_send()/merchant_receive_fee()).
     $payerCurrencyForThreshold = $payer['currency'] ?: 'XOF';
+    if($payerCurrencyForThreshold === 'XOF'){
+        $remainingFree = max(0, $freeThreshold - $sentTodayNational);
+    } else {
+        $sentTodayXof = convert_currency($sentTodayNational, $payerCurrencyForThreshold, 'XOF');
+        if($sentTodayXof === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+        $remainingFreeXof = max(0, $freeThreshold - $sentTodayXof);
+        $remainingFree = $remainingFreeXof;
+        if($remainingFreeXof > 0){
+            $rf = convert_currency($remainingFreeXof, 'XOF', $payerCurrencyForThreshold);
+            if($rf === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
+            $remainingFree = $rf;
+        }
+    }
+    // REGLE (seuil, pas palier/marginal) : identique a tx_send() - tant que
+    // ce montant tient ENTIEREMENT dans le reliquat gratuit du jour, c'est
+    // 100% gratuit ; des qu'il atteint ou depasse ce reliquat, c'est 100% du
+    // montant qui est facture, pas seulement le depassement.
     if($mode==='brut'){
         $brut = $amount;
-        $brutXof = $brut;
-        if($payerCurrencyForThreshold !== 'XOF'){
-            $bx = convert_currency($brut, $payerCurrencyForThreshold, 'XOF');
-            if($bx === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-            $brutXof = $bx;
-        }
-        $fee  = ($brutXof >= $freeThreshold) ? round($brut * $rateNational) : 0;
+        $fee  = ($brut >= $remainingFree) ? round($brut * $rateNational) : 0;
         $net  = $brut - $fee;
     } else {
-        $net  = $amount;
-        $netXof = $net;
-        if($payerCurrencyForThreshold !== 'XOF'){
-            $nx = convert_currency($net, $payerCurrencyForThreshold, 'XOF');
-            if($nx === null) fail('Conversion de devise momentanement indisponible. Reessayez dans quelques instants.', 503);
-            $netXof = $nx;
+        $net = $amount;
+        if($net < $remainingFree){
+            $brut = $net; $fee = 0;
+        } else {
+            $brut = round($net / (1-$rateNational));
+            $fee = round($brut * $rateNational);
+            $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
         }
-        $fee  = ($netXof >= $freeThreshold) ? round($net * $rateNational) : 0;
-        $brut = $net + $fee;
     }
     if($net<=0) fail('Montant invalide');
     if((float)$payer['balance'] < $brut) fail('Solde du payeur insuffisant');
