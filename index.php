@@ -2877,20 +2877,22 @@ function agent_transfer_amounts($senderWalletId, $senderCurrency, $amount, $mode
             $remainingFree = $rf;
         }
     }
+    // REGLE (seuil, pas palier/marginal) : identique a tx_send() - tant que
+    // l'operation tient ENTIEREMENT dans le reliquat gratuit du jour, elle
+    // est 100% gratuite ; des que le montant atteint ou depasse ce reliquat,
+    // c'est 100% du montant qui est facture, pas seulement le depassement.
     if($mode === 'net'){
         $net = $amount;
-        if($net <= $remainingFree){
+        if($net < $remainingFree){
             $brut = $net; $fee = 0;
         } else {
-            $brut = round(($net - $rateNational*$remainingFree) / (1-$rateNational));
-            $feeable = max(0, $brut - $remainingFree);
-            $fee = round($feeable * $rateNational);
+            $brut = round($net / (1-$rateNational));
+            $fee = round($brut * $rateNational);
             $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
         }
     } else {
         $brut = $amount;
-        $feeable = max(0, $brut - $remainingFree);
-        $fee = round($feeable * $rateNational);
+        $fee = ($brut >= $remainingFree) ? round($brut * $rateNational) : 0;
         $net = $brut - $fee;
     }
     return ['brut'=>$brut,'net'=>$net,'fee'=>$fee];
@@ -3547,8 +3549,14 @@ function tx_send() {
         // virement en plusieurs petits (ex: 10x 2000 F au lieu de 20000 F
         // d'un coup) pour ne jamais payer de frais, ce qui cree une perte de
         // revenu pour ROM_MONEY. On calcule donc d'abord ce qu'il reste de
-        // "gratuit" aujourd'hui, puis seule la partie qui depasse ce reliquat
-        // est facturee au taux normal.
+        // "gratuit" aujourd'hui.
+        //
+        // REGLE (seuil, pas palier/marginal) : tant que cette operation tient
+        // ENTIEREMENT dans le reliquat gratuit du jour, elle est 100% gratuite.
+        // Des que le cumul du jour ATTEINT OU DEPASSE le seuil (montant >=
+        // reliquat), la remise ne s'applique plus DU TOUT sur cette operation :
+        // c'est 100% du montant qui est facture au taux normal, pas seulement
+        // la partie qui depasse le seuil.
         $sentTodayNational = (float)(q("SELECT COALESCE(SUM(amount),0) t FROM transactions
             WHERE sender_wallet_id=? AND type='transfer' AND channel='national' AND status='completed'
             AND created_at::date=CURRENT_DATE",[$sw['id']])->fetch()['t']??0);
@@ -3574,19 +3582,18 @@ function tx_send() {
         }
         if($mode==='brut'){
             $brut = $amount;
-            $feeable = max(0, $brut - $remainingFree);
-            $fee  = round($feeable * $rateNational);
+            $fee  = ($brut >= $remainingFree) ? round($brut * $rateNational) : 0;
             $net  = $brut - $fee;
         } else {
             $net = $amount;
-            if($net <= $remainingFree){
+            if($net < $remainingFree){
                 $brut = $net; $fee = 0;
             } else {
-                // Au-dela du reliquat gratuit, resout le brut necessaire pour
-                // que (brut - frais_sur_la_partie_taxable) = net demande.
-                $brut = round(($net - $rateNational*$remainingFree) / (1-$rateNational));
-                $feeable = max(0, $brut - $remainingFree);
-                $fee = round($feeable * $rateNational);
+                // Au moins une partie du reliquat est depassee : TOUT le
+                // montant devient taxable (pas de palier). Resout le brut
+                // tel que brut*(1-taux) = net demande.
+                $brut = round($net / (1-$rateNational));
+                $fee = round($brut * $rateNational);
                 $net = $brut - $fee; // recalcule depuis le brut/frais arrondis, pour rester coherent au franc pres
             }
         }

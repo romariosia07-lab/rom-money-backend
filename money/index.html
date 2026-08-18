@@ -2506,7 +2506,6 @@ var I18N = {
   fee_free_note: {fr:"✅ Gratuit (dans votre plafond gratuit du jour)", en:"✅ Free (within today's free allowance)"},
   fee_gross_label: {fr:'Montant brut', en:'Gross amount'},
   fee_domestic_label: {fr:'Frais ({pct}%)', en:'Fee ({pct}%)'},
-  fee_partial_free_note: {fr:"Dont {amount} encore gratuits aujourd'hui", en:'Includes {amount} still free today'},
   fee_net_received_label: {fr:'Net reçu', en:'Net received'},
   fee_international_label: {fr:'Frais internationaux ({pct}%)', en:'International fee ({pct}%)'},
 
@@ -10306,7 +10305,6 @@ function processEncaisserQR(text){
           +(frais>0
             ? '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:3px"><span>'+t('fee_gross_label')+'</span><span>'+fmt(amt)+'</span></div>'
              +'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--rd);margin-bottom:3px"><span>'+t('fee_domestic_label').replace('{pct}',feePctLabel(APP.feeConfig.fee_rate_national))+'</span><span>-'+fmt(frais)+'</span></div>'
-             +feePartialFreeNoteHtml(amt)
              +'<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('enc_you_receive')+'</span><span>'+fmt(net)+'</span></div>'
             : '<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--g)"><span>'+t('enc_amount_label')+'</span><span>'+fmt(amt)+' '+t('badge_free_short')+'</span></div>'
           )
@@ -11652,36 +11650,27 @@ function remainingFreeToday(){
     ? APP.feeConfig.remaining_free_today
     : (APP.feeConfig ? APP.feeConfig.fee_free_threshold_national : 0);
 }
+// Seuil (pas de palier/marginal) : tant que le montant tient ENTIEREMENT
+// dans le reliquat gratuit du jour, c'est 100% gratuit ; des que ce montant
+// atteint ou depasse ce reliquat, la remise ne s'applique plus DU TOUT et
+// c'est 100% du montant qui est facture au taux normal (pas seulement la
+// partie qui depasse). Voir tx_send() cote serveur, meme regle exacte.
 function calcFrais(amt){
-  var feeable = Math.max(0, amt - remainingFreeToday());
-  return Math.round(feeable * APP.feeConfig.fee_rate_national);
-}
-
-// Repartition transparente : precise combien du montant brut est encore
-// couvert par la franchise quotidienne (remainingFreeToday()) quand une
-// partie seulement du montant est facturee - sans ca, le pourcentage
-// affiche a cote de "Frais" ne correspond a aucun calcul evident pour
-// l'utilisateur (ex: 61 F de frais sur un montant de 10 061 F n'a
-// visiblement rien a voir avec "1%", alors que c'est bien 1% des 6 100 F
-// reellement taxes, le reste etant deja couvert par la gratuite du jour).
-function feePartialFreeNoteHtml(brut){
-  var freeUsed = Math.min(brut, remainingFreeToday());
-  if(freeUsed <= 0) return '';
-  return '<div style="font-size:10px;color:var(--t3);margin-top:2px">'+t('fee_partial_free_note').replace('{amount}', fmt(freeUsed))+'</div>';
+  if(amt < remainingFreeToday()) return 0;
+  return Math.round(amt * APP.feeConfig.fee_rate_national);
 }
 
 // Le reliquat gratuit s'applique toujours au montant BRUT (ce que calcFrais()
 // fait deja). Quand l'utilisateur tape directement le montant NET souhaite, il
-// faut donc estimer le brut correspondant AVANT de decider quelle part est
-// taxable - sinon, taper un net proche du seuil pouvait donner un resultat
+// faut donc estimer le brut correspondant AVANT de decider si le seuil est
+// franchi - sinon, taper un net proche du seuil pouvait donner un resultat
 // different que taper le brut equivalent : une faille qui permettait d'eviter
 // les frais pres du seuil.
 function feeFromNet(net, rate, remainingFree){
   if(net<=0) return {frais:0, brut:net};
-  if(net <= remainingFree) return {frais:0, brut:net};
-  var brut = Math.round((net - rate*remainingFree) / (1-rate));
-  var feeable = Math.max(0, brut - remainingFree);
-  var frais = Math.round(feeable * rate);
+  if(net < remainingFree) return {frais:0, brut:net};
+  var brut = Math.round(net / (1-rate));
+  var frais = Math.round(brut * rate);
   return {frais:frais, brut:brut};
 }
 
@@ -11820,7 +11809,6 @@ function updateFraisDisplay(inputId, displayId, mode){
     disp.innerHTML='<div style="background:var(--gl);border-radius:8px;padding:8px 10px;margin-top:6px;font-size:11px">'
       +'<div style="display:flex;justify-content:space-between;color:var(--t2);margin-bottom:3px"><span>'+t('fee_gross_label')+'</span><span style="font-weight:700">'+fmt(brut)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;color:var(--rd);margin-bottom:3px"><span>'+t('fee_domestic_label').replace('{pct}',feePctLabel(APP.feeConfig.fee_rate_national))+'</span><span style="font-weight:700">-'+fmt(frais)+'</span></div>'
-      +feePartialFreeNoteHtml(brut)
       +'<div style="display:flex;justify-content:space-between;color:var(--g);border-top:.5px solid var(--div);padding-top:4px"><span style="font-weight:700">'+t('fee_net_received_label')+'</span><span style="font-weight:900;font-size:13px">'+fmt(net)+'</span></div>'
       +'</div>';
   }
