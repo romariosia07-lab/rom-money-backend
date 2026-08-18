@@ -2669,6 +2669,22 @@ function send_sms_africastalking($phone, $message) {
     }
 }
 
+// Point d'entree unique pour l'envoi de SMS transactionnels (codes de
+// confirmation retrait/envoi via ROM_GUICHET) - les appelants (agent_request_cash_out_code(),
+// agent_request_send_to_third_party_code()) ne connaissent que ce point
+// d'entree, jamais le fournisseur precis. Africa's Talking ne couvre qu'une
+// liste limitee de pays (Kenya, Ouganda, Tanzanie, Rwanda, Malawi, Zambie,
+// Nigeria, Cote d'Ivoire, Ethiopie, Ghana, Afrique du Sud - PAS le Congo-
+// Brazzaville par exemple) : le jour ou un pays hors de cette liste a besoin
+// d'un fournisseur different, il suffit d'ajouter une branche ici (par
+// exemple sur $country) - aucun appelant n'a besoin d'etre modifie.
+// $country est optionnel et non utilise pour l'instant (un seul fournisseur
+// branche a ce jour), mais deja transmis par les appelants pour que cette
+// evolution future n'exige pas de toucher a leurs requetes SQL.
+function send_sms($phone, $message, $country = null) {
+    return send_sms_africastalking($phone, $message);
+}
+
 // Resout un QR personnel ROM_MONEY (userId|qrSeed|phone, meme format que
 // money/index.html shQr()/shReceive()/openQRMenu() - unifie sur ce seul
 // format depuis la correction du bug "QR invalide" cote agent) en identite
@@ -2827,7 +2843,7 @@ function agent_request_cash_out_code() {
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
     if($amount<=0) fail('Montant invalide');
 
-    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.country,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
     if(!$customer) fail('Client introuvable',404);
 
     $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
@@ -2839,7 +2855,7 @@ function agent_request_cash_out_code() {
     $expiresAt = date('Y-m-d H:i:s', time()+600);
     $message = 'ROM_MONEY: code de confirmation pour un retrait de '.number_format($amount,0,',',' ').' '.$customer['currency']
         .' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
-    if(!send_sms_africastalking($customer['phone_number'] ?? $customerPhone, $message)) {
+    if(!send_sms($customer['phone_number'] ?? $customerPhone, $message, $customer['country'] ?? null)) {
         fail('Envoi du SMS impossible, reessayez');
     }
     q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at) VALUES (?,?,?,?,?,?,?)",
@@ -3017,7 +3033,7 @@ function agent_request_send_to_third_party_code() {
     if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $recipientPhone))) fail('Numero du destinataire invalide');
     if($amount<=0) fail('Montant invalide');
 
-    $customer = q("SELECT u.id,u.full_name,u.verified_name,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.country,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
     if(!$customer) fail('Client introuvable',404);
     $recipient = q("SELECT u.id,u.full_name,u.verified_name,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$recipientPhone])->fetch();
     if(!$recipient) fail('Destinataire introuvable',404);
@@ -3040,7 +3056,7 @@ function agent_request_send_to_third_party_code() {
     $message = 'ROM_MONEY: code de confirmation pour un envoi de '.number_format($brut,0,',',' ').' '.$cur
         .' ('.number_format($net,0,',',' ').' '.$cur.' recus par le destinataire, '.number_format($fee,0,',',' ').' '.$cur.' de frais) vers '.$recipientPhone
         .' chez un agent : '.$code.'. Ne le partagez qu\'avec l\'agent en face de vous.';
-    if(!send_sms_africastalking($customer['phone_number'] ?? $customerPhone, $message)) {
+    if(!send_sms($customer['phone_number'] ?? $customerPhone, $message, $customer['country'] ?? null)) {
         fail('Envoi du SMS impossible, reessayez');
     }
     q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at,request_type,recipient_phone) VALUES (?,?,?,?,?,?,?,'transfer',?)",
