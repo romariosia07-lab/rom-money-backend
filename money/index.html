@@ -9666,6 +9666,13 @@ function cleanForSpeech(text){
   }while(cleaned !== prev);
   cleaned = cleaned.replace(/\bF\b/g, 'francs');
   cleaned = cleaned.replace(/^\+/, '');
+  // Le trait bas ("_") est un caractere de mot pour \b (aucune coupure entre
+  // "M" et "_"), donc "ROM_GUICHET" restait colle en un seul token que la
+  // regle ci-dessous ne reconnaissait plus comme "tout en majuscules" - la
+  // synthese vocale l'epelait lettre par lettre au lieu de lire "rom guichet".
+  // Remplace par un espace AVANT cette regle pour que "ROM"/"GUICHET"
+  // redeviennent deux mots distincts.
+  cleaned = cleaned.replace(/_/g, ' ');
   // Les mots tout en MAJUSCULES (surtout sans accent) sont souvent lus comme
   // des sigles (lettre par lettre) par la synthese vocale. On les repasse en
   // minuscules pour qu'ils soient prononces comme de vrais mots.

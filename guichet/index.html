@@ -2713,6 +2713,11 @@ function cleanForSpeech(text){
   }while(cleaned !== prev);
   cleaned = cleaned.replace(/\bF\b/g, 'francs');
   cleaned = cleaned.replace(/^\+/, '');
+  // Le trait bas ("_") est un caractere de mot pour \b, donc "ROM_GUICHET"
+  // restait colle en un seul token que la regle ci-dessous ne reconnaissait
+  // plus comme "tout en majuscules" - epele lettre par lettre au lieu de
+  // lire "rom guichet". Remplace par un espace AVANT cette regle.
+  cleaned = cleaned.replace(/_/g, ' ');
   cleaned = cleaned.replace(/\b[A-ZÀ-Ý]{2,}\b/g, function(word){ return word.toLowerCase(); });
   return cleaned;
 }
