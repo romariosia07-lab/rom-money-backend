@@ -9,6 +9,12 @@ define('DB_USER',    getenv('DB_USER')    ?: 'root');
 define('DB_PASS',    getenv('DB_PASS')    ?: '');
 define('DB_PORT',    getenv('DB_PORT')    ?: '5432');
 define('JWT_SECRET', getenv('JWT_SECRET') ?: null);
+// Cle dediee pour route_install() (creation/mise a jour des tables), separee
+// de JWT_SECRET (qui sert a signer les sessions - trop sensible pour etre
+// partagee/utilisee comme simple mot de passe d'URL). Si INSTALL_KEY n'est
+// pas configuree sur Render, on retombe sur JWT_SECRET pour ne jamais casser
+// une installation existante qui n'aurait pas encore cette variable.
+define('INSTALL_KEY', getenv('INSTALL_KEY') ?: JWT_SECRET);
 define('ADMIN_PASSWORD', getenv('ADMIN_PASSWORD') ?: null);
 // Code distinct de ADMIN_PASSWORD, connu uniquement du proprietaire : plusieurs
 // personnes peuvent se connecter avec le mot de passe admin partage sans pour
@@ -28,7 +34,14 @@ if (!JWT_SECRET || !ADMIN_PASSWORD) {
     exit;
 }
 define('JWT_EXPIRY', 43200); // 12h (etait 24h/86400s)
-define('APP_ENV',    getenv('APP_ENV')    ?: 'development');
+// IMPORTANT : par defaut (variable Render absente ou non definie) on
+// retombe sur 'production' (sur, ferme), jamais 'development' (permissif,
+// ouvre le CORS a tout le web ligne ~80 ET affiche les erreurs BDD brutes
+// aux utilisateurs finaux - voir db(), incident reel constate en prod ou
+// APP_ENV n'avait jamais ete positionne sur Render). 'development' ne doit
+// s'activer que par un choix EXPLICITE (APP_ENV=development), jamais par
+// defaut faute de configuration.
+define('APP_ENV',    getenv('APP_ENV')    ?: 'production');
 define('APP_DEBUG',  APP_ENV === 'development');
 define('CANCEL_MINS', 5);
 // Types de documents "entreprise" (KYB) acceptes - meme liste des deux
@@ -9126,7 +9139,7 @@ function admin_mark_fraud_reviewed() {
 // INSTALL
 function route_install() {
     $key = $_GET['key']??'';
-    if(APP_ENV!=='development' && $key!==JWT_SECRET) fail('Non autorise',403);
+    if(APP_ENV!=='development' && $key!==INSTALL_KEY) fail('Non autorise',403);
 
     $sqls = [
     "CREATE TABLE IF NOT EXISTS users (
