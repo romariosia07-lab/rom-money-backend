@@ -850,6 +850,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('xlsx')" data-i18n-admin="admin_dash_export_xlsx">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-top:0" onclick="adminExportDashboard('pdf')" data-i18n-admin="admin_dash_export_pdf">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminPrintDashboard()" data-i18n-admin="admin_print_btn">🖨 Imprimer</button>
       </div>
       <div id="admin-dashboard-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
     </div>
@@ -1092,6 +1093,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('xlsx')">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportUsers('pdf')">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-bottom:0" onclick="adminPrintUsers()" data-i18n-admin="admin_print_btn">🖨 Imprimer</button>
       </div>
       <div id="usr-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="usr-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
@@ -1186,6 +1188,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('xlsx')">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-bottom:0" onclick="adminExportMerchants('pdf')">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-bottom:0" onclick="adminPrintMerchants()" data-i18n-admin="admin_print_btn">🖨 Imprimer</button>
       </div>
       <div id="mrclist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="mrclist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
@@ -1422,6 +1425,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('xlsx')" data-i18n-admin="admin_audit_export_xlsx">⬇ Exporter Excel</button>
         <button class="btn-w" style="margin-top:0" onclick="adminExportAudit('pdf')" data-i18n-admin="admin_audit_export_pdf">⬇ Exporter PDF</button>
+        <button class="btn-w" style="margin-top:0" onclick="adminPrintAudit()" data-i18n-admin="admin_print_btn">🖨 Imprimer</button>
       </div>
       <div id="admin-audit-box"></div>
     </div>
@@ -1684,6 +1688,8 @@ var I18N = {
   admin_btn_apply: {fr:'Appliquer', en:'Apply'},
   admin_dash_export_xlsx: {fr:'⬇ Exporter Excel', en:'⬇ Export Excel'},
   admin_dash_export_pdf: {fr:'⬇ Exporter PDF', en:'⬇ Export PDF'},
+  admin_print_btn: {fr:'🖨 Imprimer', en:'🖨 Print'},
+  admin_print_popup_blocked: {fr:'Fenêtre bloquée par le navigateur — autorisez les popups pour imprimer', en:'Popup blocked by browser — allow popups to print'},
   admin_reason_choose: {fr:'— Choisir une raison —', en:'— Choose a reason —'},
   admin_reason_specify: {fr:'Précisez la raison', en:'Specify the reason'},
   admin_reason_other: {fr:'Autre raison (préciser)', en:'Other reason (specify)'},
@@ -3507,6 +3513,23 @@ function adminDownloadExport(action, payload, filename){
   }).catch(function(){ toast(at('admin_error_generic'), true); });
 }
 
+function adminPrintExport(action, payload){
+  var url=API_URL+'/admin?action='+action;
+  fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).then(function(r){
+    if(!r.ok) throw new Error('Erreur serveur');
+    return r.blob();
+  }).then(function(blob){
+    var url2=URL.createObjectURL(blob);
+    var w=window.open(url2, '_blank');
+    if(!w){ toast(at('admin_print_popup_blocked'), true); }
+    setTimeout(function(){ URL.revokeObjectURL(url2); }, 60000);
+  }).catch(function(){ toast(at('admin_error_generic'), true); });
+}
+
 function adminLoadNearLimit(){
   var box=document.getElementById('nlimit-box');
   if(!box) return;
@@ -3547,6 +3570,17 @@ function adminExportMerchants(format){
   if(mrcCountryVal) payload.country=mrcCountryVal;
   adminDownloadExport('merchants-export-'+format, payload, 'rom_business_marchands.'+format);
 }
+function adminPrintMerchants(){
+  var payload={
+    admin_password:window._adminPw,
+    search:document.getElementById('mrclist-search').value.trim(),
+    verified:document.getElementById('mrclist-verified').value,
+    status:document.getElementById('mrclist-status').value
+  };
+  var mrcCountryVal=adminReadCountryFilter('mrclist-country-box');
+  if(mrcCountryVal) payload.country=mrcCountryVal;
+  adminPrintExport('merchants-export-pdf', payload);
+}
 function adminExportUsers(format){
   var payload={
     admin_password:window._adminPw,
@@ -3560,6 +3594,19 @@ function adminExportUsers(format){
   if(usrCountryVal) payload.country=usrCountryVal;
   adminDownloadExport('users-export-'+format, payload, 'rom_money_utilisateurs.'+format);
 }
+function adminPrintUsers(){
+  var payload={
+    admin_password:window._adminPw,
+    search:document.getElementById('usr-search').value.trim(),
+    kyc:document.getElementById('usr-kyc').value,
+    status:document.getElementById('usr-status').value,
+    date_from:document.getElementById('usr-date-from').value,
+    date_to:document.getElementById('usr-date-to').value
+  };
+  var usrCountryVal2=adminReadCountryFilter('usr-country-box');
+  if(usrCountryVal2) payload.country=usrCountryVal2;
+  adminPrintExport('users-export-pdf', payload);
+}
 function adminExportDashboard(format){
   var period=document.getElementById('dash-period').value;
   var payload={admin_password:window._adminPw, period:period};
@@ -3570,6 +3617,17 @@ function adminExportDashboard(format){
   var countryFilterVal=adminReadDashCountryFilter();
   if(countryFilterVal) payload.country=countryFilterVal;
   adminDownloadExport('dashboard-export-'+format, payload, 'rom_money_dashboard.'+format);
+}
+function adminPrintDashboard(){
+  var period=document.getElementById('dash-period').value;
+  var payload={admin_password:window._adminPw, period:period};
+  if(period==='custom'){
+    payload.date_from=document.getElementById('dash-date-from').value;
+    payload.date_to=document.getElementById('dash-date-to').value;
+  }
+  var countryFilterVal2=adminReadDashCountryFilter();
+  if(countryFilterVal2) payload.country=countryFilterVal2;
+  adminPrintExport('dashboard-export-pdf', payload);
 }
 
 function adminExportAudit(format){
@@ -3583,6 +3641,18 @@ function adminExportAudit(format){
   var auditCountryVal=adminReadCountryFilter('audit-country-box');
   if(auditCountryVal) payload.country=auditCountryVal;
   adminDownloadExport('audit-export-'+format, payload, 'rom_money_journal_audit.'+format);
+}
+function adminPrintAudit(){
+  var payload={
+    admin_password:window._adminPw,
+    action_filter:document.getElementById('audit-f-action').value,
+    phone_filter:document.getElementById('audit-f-phone').value.trim(),
+    date_from:document.getElementById('audit-f-from').value,
+    date_to:document.getElementById('audit-f-to').value
+  };
+  var auditCountryVal2=adminReadCountryFilter('audit-country-box');
+  if(auditCountryVal2) payload.country=auditCountryVal2;
+  adminPrintExport('audit-export-pdf', payload);
 }
 
 function relDate(ts){
