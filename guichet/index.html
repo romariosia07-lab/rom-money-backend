@@ -593,6 +593,14 @@ var I18N = {
   verify_btn:{fr:'Vérifier',en:'Verify'},
   id_verified_badge:{fr:'✓ Identité vérifiée',en:'✓ Verified identity'},
   id_unverified_badge:{fr:'⚠ Non vérifié (nom déclaré)',en:'⚠ Unverified (self-declared name)'},
+  card_unassigned_note:{fr:"Cette carte n'est pas encore activée. Entrez le numéro du client pour l'activer.",en:'This card is not activated yet. Enter the customer\'s number to activate it.'},
+  card_customer_phone:{fr:'Numéro du client',en:'Customer number'},
+  card_new_account_note:{fr:"Ce numéro n'a pas encore de compte ROM_MONEY — un nouveau compte va être créé, avec cette carte comme seul moyen d'identification.",en:"This number doesn't have a ROM_MONEY account yet — a new account will be created, with this card as the only way to identify it."},
+  card_full_name:{fr:'Nom complet du client',en:"Customer's full name"},
+  card_activate_btn:{fr:'Activer la carte',en:'Activate card'},
+  card_activated_success:{fr:'Carte activée. Rescannez-la pour continuer.',en:'Card activated. Scan it again to continue.'},
+  card_err_name:{fr:'Le nom du client est requis',en:"Customer's name is required"},
+  card_activate_err:{fr:"Échec de l'activation de la carte",en:'Card activation failed'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   dist_hist_title:{fr:'Historique de mes recharges effectuées',en:'History of recharges I processed'},
@@ -823,8 +831,8 @@ function showRegA(){
   document.getElementById('reg-b').style.display='none';
   loadRegCountries();
 }
-function loadRegCountries(){
-  var sel=document.getElementById('r-country');
+function loadCountriesInto(selId){
+  var sel=document.getElementById(selId);
   if(!sel || sel.getAttribute('data-loaded')==='1') return;
   apiCall('/auth?action=countries','GET',null,false).then(function(res){
     if(res&&res.success&&res.data&&res.data.countries&&res.data.countries.length){
@@ -838,6 +846,7 @@ function loadRegCountries(){
     sel.innerHTML='<option value="Côte d\'Ivoire">Côte d\'Ivoire</option>';
   });
 }
+function loadRegCountries(){ loadCountriesInto('r-country'); }
 function regStep1(){
   var name = document.getElementById('r-name').value.trim();
   var ville = document.getElementById('r-ville').value.trim();
@@ -1584,7 +1593,9 @@ function startDepotQrScan(){
     var result=document.getElementById('qr-result');
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
-      if(res && res.success && res.data){
+      if(res && res.success && res.data && res.data.card_status==='unassigned'){
+        renderCardActivationForm(res.data.card_code, function(){ shDepot(document.getElementById('sh-body')); });
+      } else if(res && res.success && res.data){
         renderDepotAmountForm(res.data);
       } else {
         // Le texte scanne s'affiche ici (jamais dans un onclick/HTML injecte)
@@ -1619,6 +1630,74 @@ function identityBadgeHtml(customer){
     ? '<span style="color:var(--gold);font-size:11px;font-weight:700">'+t('id_verified_badge')+'</span>'
     : '<span style="color:var(--rd);font-size:11px;font-weight:700">'+t('id_unverified_badge')+'</span>';
 }
+
+// ── CARTE PHYSIQUE (QR imprime) — activation ──
+// Detecte automatiquement, dans les 3 flux (depot/retrait/envoyer), quand un
+// QR scanne correspond a une carte physique pas encore activee (voir
+// agent_resolve_customer_qr() cote serveur, card_status='unassigned') et
+// propose de l'activer avant de continuer. Une fois activee, l'agent
+// rescanne simplement la carte pour poursuivre l'operation d'origine -
+// separation volontaire (activation = action distincte, evite de menager
+// un etat complexe a travers 3 flux differents).
+function renderCardActivationForm(cardCode, onCancel){
+  window._pendingCardCode = cardCode;
+  window._cardActivationCancel = onCancel;
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_unassigned_note')+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('card_customer_phone')+'</label><input class="finput" id="card-phone" type="tel"></div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="checkCardCustomer()">'+t('verify_btn')+'</button>'
+    +'<button class="chip" style="width:100%;margin-top:10px" onclick="cancelCardActivation()">'+t('cancel')+'</button>';
+}
+function cancelCardActivation(){
+  var cb=window._cardActivationCancel;
+  if(cb) cb(); else closeSheet();
+}
+function checkCardCustomer(){
+  var phone=document.getElementById('card-phone').value.trim();
+  if(!phone){ toast(t('dep_err_phone'), true); return; }
+  toast(t('qr_identifying'));
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(res && res.success && res.data){ renderCardActivationConfirm(phone, res.data, false); }
+    else { renderCardActivationConfirm(phone, null, true); }
+  }).catch(function(){ toast(t('network_error'), true); });
+}
+function renderCardActivationConfirm(phone, customer, isNew){
+  window._pendingCardPhone = phone;
+  var b=document.getElementById('sh-body');
+  var html='';
+  if(isNew){
+    html+='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_new_account_note')+'</div>'
+      +'<div class="frow"><label class="flabel">'+t('card_full_name')+'</label><input class="finput" id="card-name" type="text"></div>'
+      +'<div class="frow"><label class="flabel">'+t('reg_label_country')+'</label><select class="finput" id="card-country"><option value="">'+t('reg_country_loading')+'</option></select></div>';
+  } else {
+    html+='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>';
+  }
+  html+='<button class="btn-g" style="background:var(--g)" id="card-activate-btn" onclick="doActivateCard('+(isNew?'true':'false')+')">'+t('card_activate_btn')+'</button>';
+  b.innerHTML=html;
+  if(isNew) loadCountriesInto('card-country');
+}
+function doActivateCard(isNew){
+  var payload={card_code:window._pendingCardCode, customer_phone:window._pendingCardPhone};
+  if(isNew){
+    var name=document.getElementById('card-name').value.trim();
+    var country=document.getElementById('card-country').value;
+    if(!name){ toast(t('card_err_name'), true); return; }
+    if(!country){ toast(t('reg_err_country'), true); return; }
+    payload.full_name=name; payload.country=country;
+  }
+  var btn=document.getElementById('card-activate-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/agent?action=activate-card','POST',payload,getToken()).then(function(res){
+    if(res && res.success){
+      toast(t('card_activated_success'));
+      closeSheet();
+    } else {
+      toast((res&&res.message)||t('card_activate_err'), true);
+      if(btn) btn.disabled=false;
+    }
+  }).catch(function(){ toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+
 function renderDepotAmountForm(customer){
   window._pendingDepotPhone = customer.phone_number;
   var b=document.getElementById('sh-body');
@@ -1675,7 +1754,9 @@ function startRetraitQrScan(){
     var result=document.getElementById('qr-result');
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
-      if(res && res.success && res.data){
+      if(res && res.success && res.data && res.data.card_status==='unassigned'){
+        renderCardActivationForm(res.data.card_code, function(){ shRetrait(document.getElementById('sh-body')); });
+      } else if(res && res.success && res.data){
         // Un QR "carte" (imprimable, pas l'app live) n'a pas la meme valeur
         // de preuve - meme trouve par scan, il suit le chemin code SMS,
         // jamais l'execution immediate reservee au vrai "Mon QR" live.
@@ -1815,7 +1896,9 @@ function startEnvoyerQrScan(){
     var result=document.getElementById('qr-result');
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
-      if(res && res.success && res.data){
+      if(res && res.success && res.data && res.data.card_status==='unassigned'){
+        renderCardActivationForm(res.data.card_code, function(){ shEnvoyerTiers(document.getElementById('sh-body')); });
+      } else if(res && res.success && res.data){
         renderEnvoyerRecipientForm(res.data, text, !!res.data.verified_live);
       } else {
         var r2=document.getElementById('qr-result');

@@ -1205,6 +1205,27 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div id="agtlist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="agtlist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_title">Cartes physiques</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_desc">Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.</div>
+      <div id="admin-cards-super-note" style="display:none;margin-bottom:16px;padding:10px 12px;border-radius:10px;background:var(--rl);color:var(--rd);font-size:11px;font-weight:600" data-i18n-admin="admin_super_admin_only_note">🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input class="finput" id="cards-gen-count" type="number" inputmode="numeric" placeholder="Nombre de cartes" style="margin-bottom:0" value="10">
+        <button class="btn-w" id="admin-cards-generate-btn" style="margin-bottom:0;width:auto;padding:11px 16px" onclick="adminGenerateCards()" data-i18n-admin="admin_cards_generate_btn">Générer</button>
+      </div>
+      <div id="cards-gen-result" style="margin-bottom:16px"></div>
+
+      <div class="frow" id="cards-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
+        <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
+      </div>
+      <select class="finput" id="cards-status-filter" onchange="adminLoadCards(1)" style="margin-bottom:12px">
+        <option value="" data-i18n-admin="admin_cards_status_all">Statut : Toutes</option>
+        <option value="unassigned" data-i18n-admin="admin_cards_status_unassigned">Non activées</option>
+        <option value="active" data-i18n-admin="admin_cards_status_active">Actives</option>
+        <option value="blocked" data-i18n-admin="admin_cards_status_blocked">Bloquées</option>
+      </select>
+      <div id="cards-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
+      <div id="cards-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
 
     <div id="admin-panel-account" class="admin-panel" style="display:none">
@@ -1788,6 +1809,24 @@ var I18N = {
   admin_agents_tiers_title: {fr:'Paliers de commission journalière', en:'Daily commission tiers'},
   admin_agents_tiers_desc: {fr:'Toujours exprimés en XOF (convertis automatiquement dans la devise réelle de chaque agent). La commission est un total pour la journée entière, pas par opération.', en:"Always expressed in XOF (automatically converted into each agent's real currency). The commission is a total for the whole day, not per operation."},
   admin_agents_list_title: {fr:'Liste des agents', en:'Agent list'},
+  admin_cards_title: {fr:'Cartes physiques', en:'Physical cards'},
+  admin_cards_desc: {fr:"Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.", en:'Printable QR cards, an alternative to a phone for identifying a customer at an agent. Generate a batch, print the QR codes, distribute them to agents/distributors for activation.'},
+  admin_cards_generate_btn: {fr:'Générer', en:'Generate'},
+  admin_cards_status_all: {fr:'Statut : Toutes', en:'Status: All'},
+  admin_cards_status_unassigned: {fr:'Non activées', en:'Not activated'},
+  admin_cards_status_active: {fr:'Actives', en:'Active'},
+  admin_cards_status_blocked: {fr:'Bloquées', en:'Blocked'},
+  admin_cards_err_count: {fr:'Le nombre de cartes doit être entre 1 et 500', en:'The number of cards must be between 1 and 500'},
+  admin_cards_generated_note: {fr:'{n} carte(s) générée(s) — imprime ou capture chaque QR ci-dessous.', en:'{n} card(s) generated — print or capture each QR code below.'},
+  admin_cards_none_found: {fr:'Aucune carte trouvée', en:'No cards found'},
+  admin_cards_created_label: {fr:'Générée le', en:'Generated on'},
+  admin_cards_activated_label: {fr:'activée le', en:'activated on'},
+  admin_cards_block_btn: {fr:'Bloquer', en:'Block'},
+  admin_cards_block_confirm_msg: {fr:'Cette carte ne pourra plus être utilisée ni réactivée.', en:'This card will no longer be usable or reactivatable.'},
+  admin_cards_reason_lost: {fr:'Carte perdue', en:'Lost card'},
+  admin_cards_reason_stolen: {fr:'Carte volée', en:'Stolen card'},
+  admin_cards_reason_test: {fr:'Carte de test', en:'Test card'},
+  admin_cards_blocked_toast: {fr:'Carte bloquée', en:'Card blocked'},
   admin_fiche_status: {fr:'Statut :', en:'Status:'},
   admin_fiche_phone: {fr:'Téléphone :', en:'Phone:'},
   admin_fiche_country: {fr:'Pays :', en:'Country:'},
@@ -4207,7 +4246,7 @@ function adminTab(name){
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
   if(name==='merchants') adminLoadMerchants(1);
-  if(name==='agents') adminLoadAgents(1);
+  if(name==='agents'){ adminLoadAgents(1); adminLoadCards(1); }
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
   if(name==='earnings') adminShowEarnings();
@@ -5312,6 +5351,109 @@ function adminLoadAgents(page){
         +'<button class="btn-w" style="margin-bottom:0;padding:8px 14px" '+(curPage>=totalPages?'disabled':'')+' onclick="adminLoadAgents('+(curPage+1)+')">›</button>';
     } else { box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; }
   }).catch(function(){ box.innerHTML='<div class="admin-empty" style="color:var(--re)">'+at('admin_dash_error_network')+'</div>'; });
+}
+
+// ═══════════════════════════════════════════
+// ADMIN - Cartes physiques (QR imprime)
+// ═══════════════════════════════════════════
+// Genere un lot de codes, affiche chaque QR directement dans le panneau
+// (reutilise drawQR(), deja utilise pour "Mon QR" cote personnel) pour que
+// l'admin puisse capturer/imprimer chaque carte sans outil externe.
+function adminGenerateCards(){
+  var count=parseInt(document.getElementById('cards-gen-count').value,10);
+  if(!count || count<1 || count>500){ toast(at('admin_cards_err_count'), true); return; }
+  var btn=document.getElementById('admin-cards-generate-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/admin?action=cards-generate','POST',{admin_password:window._adminPw,count:count},'').then(function(res){
+    if(btn) btn.disabled=false;
+    if(res&&res.success&&res.data&&res.data.codes){
+      var codes=res.data.codes;
+      var box=document.getElementById('cards-gen-result');
+      box.innerHTML='<div style="font-size:11px;color:var(--t3);margin-bottom:10px">'+at('admin_cards_generated_note').replace('{n}',codes.length)+'</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px" id="cards-qr-grid"></div>';
+      var grid=document.getElementById('cards-qr-grid');
+      codes.forEach(function(code, idx){
+        var cell=document.createElement('div');
+        cell.style.cssText='text-align:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:8px';
+        var qrDiv=document.createElement('div');
+        qrDiv.id='card-qr-'+idx;
+        qrDiv.style.cssText='margin:0 auto 6px';
+        cell.appendChild(qrDiv);
+        var label=document.createElement('div');
+        label.style.cssText='font-size:10px;font-family:monospace;color:var(--t2);word-break:break-all';
+        label.textContent=code;
+        cell.appendChild(label);
+        grid.appendChild(cell);
+        drawQR('card-qr-'+idx, code);
+      });
+      adminLoadCards(1);
+    } else {
+      toast((res&&res.message)||at('admin_error_generic'), true);
+    }
+  }).catch(function(){ if(btn) btn.disabled=false; toast(at('admin_dash_error_network'), true); });
+}
+function adminLoadCards(page){
+  var box=document.getElementById('cards-list-box');
+  var pag=document.getElementById('cards-pagination');
+  if(!box) return;
+  box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
+  if(pag) pag.innerHTML='';
+  var payload={admin_password:window._adminPw, page:page||1, status:document.getElementById('cards-status-filter').value};
+  var cardsCountryVal=adminReadCountryFilter('cards-country-box');
+  if(cardsCountryVal) payload.country=cardsCountryVal;
+  apiCall('/admin?action=cards-list','POST',payload,'').then(function(res){
+    if(res&&res.success&&res.data){
+      adminRenderCountryFilterOptions('cards-country-box', 'cards-country-row', res.data.available_countries||[], res.data.country_filter||null);
+      var cards=res.data.cards||[];
+      var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
+      if(cards.length===0){
+        box.innerHTML='<div class="admin-empty">'+at('admin_cards_none_found')+'</div>';
+        return;
+      }
+      var statusLabels={unassigned:at('admin_cards_status_unassigned'), active:at('admin_cards_status_active'), blocked:at('admin_cards_status_blocked')};
+      var statusColors={unassigned:'var(--t3)', active:'var(--g)', blocked:'var(--re)'};
+      var html='';
+      cards.forEach(function(c){
+        var stColor=statusColors[c.status]||'var(--t3)';
+        var stLabel=statusLabels[c.status]||c.status;
+        html+='<div class="admin-tx-card">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
+          +'<b style="font-family:monospace;font-size:13px">'+c.card_code+'</b>'
+          +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+stLabel+'</span>'
+          +'</div>';
+        if(c.status!=='unassigned'){
+          html+='<div style="color:var(--t2);margin-top:4px">'+adminEsc(c.verified_name||c.full_name||'-')+' · '+(c.phone_number||'-')+(c.country?' · '+adminEsc(adminCountryName(c.country)):'')+'</div>';
+        }
+        html+='<div style="color:var(--t3);margin-top:4px;font-size:11px">'+at('admin_cards_created_label')+' '+new Date(c.created_at).toLocaleDateString()+(c.activated_at?' · '+at('admin_cards_activated_label')+' '+new Date(c.activated_at).toLocaleDateString():'')+'</div>';
+        if(c.status!=='blocked'){
+          html+='<button style="margin-top:8px;padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
+        }
+        html+='</div>';
+      });
+      box.innerHTML=html;
+      var totalPages=Math.max(1, Math.ceil(total/perPage));
+      if(pag){
+        pag.innerHTML='<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(curPage<=1?'disabled':'')+' onclick="adminLoadCards('+(curPage-1)+')">'+at('admin_users_prev_page')+'</button>'
+          +'<span style="color:var(--t3)">'+at('admin_users_page_of').replace('{p}',curPage).replace('{total}',totalPages).replace('{count}',total)+'</span>'
+          +'<button class="btn-w" style="margin-top:0;padding:8px 14px;width:auto" '+(curPage>=totalPages?'disabled':'')+' onclick="adminLoadCards('+(curPage+1)+')">'+at('admin_users_next_page')+'</button>';
+      }
+    } else {
+      box.innerHTML='<div class="admin-empty">'+((res&&res.message)||at('admin_dash_error_loading'))+'</div>';
+    }
+  }).catch(function(){ box.innerHTML='<div class="admin-empty">'+at('admin_dash_error_network')+'</div>'; });
+}
+function adminBlockCard(cardCode){
+  adminOpenConfirmModal({
+    icon:'🗑', title:at('admin_final_confirmation'), message:at('admin_cards_block_confirm_msg'),
+    needsReason:true, reasonOptions:[at('admin_cards_reason_lost'),at('admin_cards_reason_stolen'),at('admin_cards_reason_test')],
+    confirmLabel:at('admin_cards_block_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=cards-block','POST',{admin_password:window._adminPw,card_code:cardCode,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_cards_blocked_toast')); adminLoadCards(1); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -6621,7 +6763,8 @@ function adminApplySuperAdminGate(){
     document.getElementById('admin-backfill-btn'),
     document.getElementById('admin-2fa-enable-btn'),
     document.getElementById('admin-2fa-regen-btn'),
-    document.getElementById('admin-2fa-disable-btn')
+    document.getElementById('admin-2fa-disable-btn'),
+    document.getElementById('admin-cards-generate-btn')
   ].forEach(function(btn){
     if(!btn) return;
     btn.disabled = !isSuper;
@@ -6634,6 +6777,8 @@ function adminApplySuperAdminGate(){
   if(acctNote) acctNote.style.display = isSuper ? 'none' : 'block';
   var announceNote = document.getElementById('admin-announce-super-note');
   if(announceNote) announceNote.style.display = isSuper ? 'none' : 'block';
+  var cardsNote = document.getElementById('admin-cards-super-note');
+  if(cardsNote) cardsNote.style.display = isSuper ? 'none' : 'block';
   document.querySelectorAll('#admacc-list-box button, #admin-countries-box button').forEach(function(btn){
     btn.disabled = !isSuper;
     btn.style.opacity = isSuper ? '1' : '0.45';

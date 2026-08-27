@@ -2282,6 +2282,7 @@ function route_agent($action) {
         'send-to-third-party-confirm' => agent_confirm_send_to_third_party(),
         'resolve-customer-qr' => agent_resolve_customer_qr(),
         'resolve-customer'  => agent_resolve_customer(),
+        'activate-card'     => agent_activate_card(),
         'history'           => agent_tx_history(),
         'earnings-summary'  => agent_earnings_summary(),
         'send-earnings'     => agent_send_earnings(),
@@ -2721,6 +2722,21 @@ function agent_resolve_customer_by_qr($qr) {
         $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$phone])->fetch();
         if($customer){ $customer['verified_live'] = false; return $customer; }
     }
+    // Carte physique (QR imprime, format different : 10 caracteres
+    // hexadecimaux generes par admin_generate_physical_cards()) - meme
+    // valeur de preuve qu'un numero tape (verified_live=false), jamais
+    // l'execution immediate. Une carte non encore activee ne resout PAS de
+    // client ici (elle n'est liee a personne) - c'est agent_resolve_customer_qr()
+    // (route d'apercu uniquement, jamais utilisee pour executer un
+    // mouvement d'argent direct) qui gere ce cas particulier separement.
+    $cardCode = strtoupper(trim($qr));
+    if(preg_match('/^[0-9A-F]{10}$/', $cardCode)){
+        $card = q("SELECT user_id FROM physical_cards WHERE card_code=? AND status='active'",[$cardCode])->fetch();
+        if($card && $card['user_id']){
+            $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.id wid,w.balance,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.id=?",[$card['user_id']])->fetch();
+            if($customer){ $customer['verified_live'] = false; return $customer; }
+        }
+    }
     fail('QR invalide',404);
 }
 
@@ -2728,6 +2744,22 @@ function agent_resolve_customer_qr() {
     $pl = agent_auth();
     $qr = trim($_GET['qr'] ?? '');
     if(!$qr) fail('QR requis');
+    // Cas particulier carte physique pas encore activee : signale un besoin
+    // d'activation au lieu d'un simple echec "QR invalide" - uniquement ici
+    // (route d'apercu), agent_resolve_customer_by_qr() (aussi utilisee par
+    // l'execution immediate cash-out/envoi) ignore deliberement les cartes
+    // non activees.
+    $cardCode = strtoupper(trim($qr));
+    if(preg_match('/^[0-9A-F]{10}$/', $cardCode)){
+        $card = q("SELECT status FROM physical_cards WHERE card_code=?",[$cardCode])->fetch();
+        if($card && $card['status']==='unassigned'){
+            ok(['card_status'=>'unassigned','card_code'=>$cardCode]);
+            return;
+        }
+        if($card && $card['status']==='blocked'){
+            fail('Cette carte a ete bloquee (perdue/volee)',403);
+        }
+    }
     $customer = agent_resolve_customer_by_qr($qr);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
         'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
@@ -2746,6 +2778,67 @@ function agent_resolve_customer() {
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
         'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
         'is_verified'=>!empty($customer['verified_name'])]);
+}
+
+// Active une carte physique 'unassigned' : la lie a un compte personnel
+// EXISTANT (si customer_phone correspond a un compte deja inscrit), ou en
+// CREE un nouveau (si le numero est inconnu - typiquement une personne sans
+// smartphone qui n'a jamais utilise l'app). Meme validations que
+// auth_register() pour la creation, mais sans PIN reellement utilisable par
+// le client (il n'a pas l'app pour le taper) : un PIN aleatoire est genere
+// en interne, jamais communique - meme principe deja utilise pour
+// password_hash (champ technique requis par le schema, jamais reellement
+// utilise via ce chemin).
+function agent_activate_card() {
+    $pl = agent_auth(); $b = body();
+    $cardCode = strtoupper(trim($b['card_code'] ?? ''));
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    if(!$cardCode) fail('Code carte requis');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+
+    $card = q("SELECT * FROM physical_cards WHERE card_code=?",[$cardCode])->fetch();
+    if(!$card) fail('Carte inconnue',404);
+    if($card['status']!=='unassigned') fail('Cette carte est deja active ou bloquee',422);
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.phone_number,w.currency FROM users u JOIN wallets w ON w.user_id=u.id WHERE u.phone_number=?",[$customerPhone])->fetch();
+
+    if(!$customer){
+        $name = trim($b['full_name'] ?? '');
+        $country = trim($b['country'] ?? '');
+        if(!$name) fail('Nom du client requis');
+        if(!$country) fail('Pays du client requis');
+        $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
+        if(!$countryRow || !$countryRow['is_active']) fail('ROM_MONEY n\'est pas encore disponible dans ce pays');
+
+        db()->beginTransaction();
+        try {
+            $uid = uid(); $wid = uid();
+            $qrseed = strtoupper(bin2hex(random_bytes(5)));
+            $randomPin = str_pad((string)random_int(0,9999),4,'0',STR_PAD_LEFT);
+            $pinh = password_hash($randomPin, PASSWORD_BCRYPT);
+            $passh = password_hash(bin2hex(random_bytes(12)), PASSWORD_BCRYPT);
+            $myReferralCode = generate_referral_code();
+            q("INSERT INTO users (id,full_name,phone_number,operator,password_hash,pin_hash,referral_code,country) VALUES (?,?,?,?,?,?,?,?)",
+              [$uid,$name,$customerPhone,'Carte physique',$passh,$pinh,$myReferralCode,$country]);
+            q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,?,?)",
+              [$wid,$uid,country_to_currency($country),$qrseed]);
+            q("UPDATE physical_cards SET status='active', user_id=?, activated_at=NOW(), activated_by_agent_id=? WHERE id=?",
+              [$uid,$pl['sub'],$card['id']]);
+            db()->commit();
+            admin_log('card_activate_new_account','success',$customerPhone,'Carte '.$cardCode.' - nouveau compte cree par agent');
+            ok(['card_code'=>$cardCode,'user_id'=>$uid,'full_name'=>$name,'phone_number'=>$customerPhone,'new_account'=>true],'Carte activee, nouveau compte cree');
+        } catch(Exception $e) {
+            db()->rollBack();
+            log_and_fail($e, 'Erreur activation carte', 500);
+        }
+    } else {
+        $alreadyLinked = q("SELECT id FROM physical_cards WHERE user_id=? AND status='active'",[$customer['id']])->fetch();
+        if($alreadyLinked) fail('Ce compte a deja une carte active',422);
+        q("UPDATE physical_cards SET status='active', user_id=?, activated_at=NOW(), activated_by_agent_id=? WHERE id=?",
+          [$customer['id'],$pl['sub'],$card['id']]);
+        admin_log('card_activate_existing_account','success',$customerPhone,'Carte '.$cardCode.' liee a un compte existant');
+        ok(['card_code'=>$cardCode,'user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],'phone_number'=>$customer['phone_number'],'new_account'=>false],'Carte activee et liee au compte existant');
+    }
 }
 
 // Cash-in : le client donne du cash physique a l'agent, qui le credite
@@ -5591,6 +5684,9 @@ function route_admin($action) {
         'agent-tiers-list'         => admin_agent_commission_tiers_list(),
         'agent-tiers-update'       => admin_agent_commission_tiers_update(),
         'agent-toggle-distributor' => admin_agent_toggle_distributor(),
+        'cards-generate'    => admin_generate_physical_cards(),
+        'cards-list'        => admin_list_physical_cards(),
+        'cards-block'       => admin_block_physical_card(),
         'agent-set-float-cap'      => admin_agent_set_float_cap(),
         'agent-pending-list'       => admin_agent_list_pending(),
         'agent-documents'          => admin_agent_documents(),
@@ -8529,6 +8625,81 @@ function admin_agent_toggle_distributor() {
     ok(['is_distributor'=>(bool)$newVal],$newVal?'Statut distributeur accorde':'Statut distributeur retire');
 }
 
+// ═══════════════════════════════════════════
+// ADMIN - Cartes physiques (QR imprime)
+// ═══════════════════════════════════════════
+// Genere un lot de codes de carte uniques (status='unassigned'), a graver/
+// imprimer en dehors de l'app (comme des cartes SIM) puis distribuer aux
+// agents/distributeurs pour activation. Reserve a Admin Principal : generer
+// des cartes a un cout physique reel (impression), pas une action anodine a
+// laisser a n'importe quel compte admin nomme.
+function admin_generate_physical_cards() {
+    $b = body();
+    check_admin_password($b);
+    check_super_admin_only();
+    $count = (int)($b['count'] ?? 0);
+    if($count < 1 || $count > 500) fail('Le nombre de cartes doit etre entre 1 et 500');
+    $codes = [];
+    $inserted = 0;
+    while($inserted < $count){
+        $code = strtoupper(bin2hex(random_bytes(5))); // 10 caracteres
+        $exists = q("SELECT 1 FROM physical_cards WHERE card_code=?",[$code])->fetch();
+        if($exists) continue; // collision extremement rare, on retire simplement
+        q("INSERT INTO physical_cards (id,card_code) VALUES (?,?)",[uid(),$code]);
+        $codes[] = $code;
+        $inserted++;
+    }
+    admin_log('physical_cards_generate','success',null,$count.' carte(s) generee(s)');
+    ok(['codes'=>$codes],$count.' carte(s) generee(s)');
+}
+
+// Liste paginee des cartes (filtrable par statut + pays, meme mecanique de
+// scope/filtre que Utilisateurs/Marchands/Agents cette session) - une carte
+// non encore activee n'a pas de pays (pas de compte lie), donc seul Admin
+// Principal (perimetre non restreint) les voit dans cette liste ; un compte
+// admin nomme ne voit que les cartes deja liees a un compte de son perimetre.
+function admin_list_physical_cards() {
+    $b = body();
+    check_admin_password($b);
+    $page = max(1, (int)($b['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+    $status = trim($b['status'] ?? '');
+    $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
+    list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
+
+    list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
+    $where = "1=1".$scopeSql; $params = $scopeParams;
+    if(in_array($status, ['unassigned','active','blocked'], true)){
+        $where .= " AND pc.status=?"; $params[] = $status;
+    }
+    $total = (int)q("SELECT COUNT(*) FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE $where", $params)->fetchColumn();
+    $rows = q("SELECT pc.id,pc.card_code,pc.status,pc.activated_at,pc.created_at,
+               u.full_name,u.verified_name,u.phone_number,u.country
+               FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
+               WHERE $where ORDER BY pc.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+    $restore();
+    ok(['cards'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
+}
+
+// Bloque une carte (perdue/volee) - raison obligatoire journalisee. Une
+// carte bloquee ne peut plus etre utilisee ni reactivee (voir agent_resolve_card()/
+// agent_activate_card()) - il faut en generer/imprimer une nouvelle pour le client.
+function admin_block_physical_card() {
+    $b = body();
+    check_admin_password($b);
+    $cardCode = strtoupper(trim($b['card_code'] ?? ''));
+    $reason = trim($b['reason'] ?? '');
+    if(!$cardCode) fail('Code carte requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $card = q("SELECT pc.*, u.phone_number, u.country FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE pc.card_code=?",[$cardCode])->fetch();
+    if(!$card) fail('Carte introuvable',404);
+    if($card['country']) admin_check_country_access($card['country']);
+    q("UPDATE physical_cards SET status='blocked' WHERE id=?",[$card['id']]);
+    admin_log('physical_card_block','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>$reason]));
+    ok(null,'Carte bloquee');
+}
+
 // Ajustement manuel du plafond de float d'un distributeur - permet a
 // l'admin de l'augmenter au fil de la confiance etablie (ou de le baisser
 // si besoin). $cap=null retire toute limite (a utiliser avec prudence).
@@ -9761,7 +9932,26 @@ function route_install() {
         setting_key VARCHAR(50) PRIMARY KEY,
         value TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )"
+    )",
+    // Cartes physiques (QR imprime) - alternative au telephone pour identifier
+    // un compte personnel chez un agent ROM_GUICHET. Generees en lot par
+    // Admin Principal (status='unassigned'), puis liees a un compte (existant
+    // ou nouvellement cree) au moment de l'activation par un agent. Une fois
+    // active, la carte sert uniquement a RESOUDRE le numero de telephone du
+    // client (agent_resolve_card()) - le depot/retrait/envoi lui-meme repasse
+    // ensuite par le meme mecanisme code SMS deja construit pour un numero
+    // tape manuellement, aucune nouvelle logique d'autorisation.
+    "CREATE TABLE IF NOT EXISTS physical_cards (
+        id VARCHAR(36) PRIMARY KEY,
+        card_code VARCHAR(20) UNIQUE NOT NULL,
+        status VARCHAR(20) DEFAULT 'unassigned',
+        user_id VARCHAR(36),
+        activated_at TIMESTAMP,
+        activated_by_agent_id VARCHAR(36),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_physical_cards_code ON physical_cards(card_code)",
+    "CREATE INDEX IF NOT EXISTS idx_physical_cards_user ON physical_cards(user_id)"
     ];
 
     $created = [];
