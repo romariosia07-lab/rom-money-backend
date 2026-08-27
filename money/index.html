@@ -3524,9 +3524,21 @@ function adminPrintExport(action, payload){
     return r.blob();
   }).then(function(blob){
     var url2=URL.createObjectURL(blob);
-    var w=window.open(url2, '_blank');
-    if(!w){ toast(at('admin_print_popup_blocked'), true); }
-    setTimeout(function(){ URL.revokeObjectURL(url2); }, 60000);
+    var iframe=document.createElement('iframe');
+    iframe.style.position='fixed';
+    iframe.style.right='0'; iframe.style.bottom='0';
+    iframe.style.width='0'; iframe.style.height='0';
+    iframe.style.border='0';
+    iframe.onload=function(){
+      try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+      catch(e){ toast(at('admin_print_popup_blocked'), true); }
+    };
+    iframe.src=url2;
+    document.body.appendChild(iframe);
+    setTimeout(function(){
+      document.body.removeChild(iframe);
+      URL.revokeObjectURL(url2);
+    }, 60000);
   }).catch(function(){ toast(at('admin_error_generic'), true); });
 }
 
