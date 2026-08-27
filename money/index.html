@@ -363,6 +363,18 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .admin-audit-row:last-child{border-bottom:none;}
 .admin-empty{text-align:center;padding:20px 16px;color:var(--t3);font-size:12px;}
 .use-ref-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--g);cursor:pointer;margin-top:4px;}
+
+/* Impression des cartes physiques - format carte bancaire standard
+   (85,6 x 54 mm), plusieurs par page, prete a decouper. Masque tout le
+   reste de l'app pendant l'impression (voir adminPrintCards()). */
+#cards-print-area{display:none}
+.print-card{width:85.6mm;height:54mm;border:.3mm dashed #999;border-radius:3mm;box-sizing:border-box;padding:4mm;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-inside:avoid;background:#fff;color:#000}
+.print-card .print-card-brand{font-size:9pt;font-weight:800;margin-bottom:2mm}
+.print-card .print-card-code{font-family:monospace;font-size:8pt;margin-top:2mm;letter-spacing:.5pt}
+@media print{
+  body.printing-cards > *:not(#cards-print-area){display:none!important}
+  body.printing-cards #cards-print-area{display:flex!important;flex-wrap:wrap;gap:4mm;padding:6mm}
+}
 </style>
 </head>
 <body>
@@ -1214,6 +1226,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <button class="btn-w" id="admin-cards-generate-btn" style="margin-bottom:0;width:auto;padding:11px 16px" onclick="adminGenerateCards()" data-i18n-admin="admin_cards_generate_btn">Générer</button>
       </div>
       <div id="cards-gen-result" style="margin-bottom:16px"></div>
+      <div id="cards-print-area"></div>
 
       <div class="frow" id="cards-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
@@ -1812,6 +1825,7 @@ var I18N = {
   admin_cards_title: {fr:'Cartes physiques', en:'Physical cards'},
   admin_cards_desc: {fr:"Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.", en:'Printable QR cards, an alternative to a phone for identifying a customer at an agent. Generate a batch, print the QR codes, distribute them to agents/distributors for activation.'},
   admin_cards_generate_btn: {fr:'Générer', en:'Generate'},
+  admin_cards_print_btn: {fr:'🖨 Imprimer', en:'🖨 Print'},
   admin_cards_status_all: {fr:'Statut : Toutes', en:'Status: All'},
   admin_cards_status_unassigned: {fr:'Non activées', en:'Not activated'},
   admin_cards_status_active: {fr:'Actives', en:'Active'},
@@ -5368,8 +5382,12 @@ function adminGenerateCards(){
     if(btn) btn.disabled=false;
     if(res&&res.success&&res.data&&res.data.codes){
       var codes=res.data.codes;
+      window._lastGeneratedCards=codes;
       var box=document.getElementById('cards-gen-result');
-      box.innerHTML='<div style="font-size:11px;color:var(--t3);margin-bottom:10px">'+at('admin_cards_generated_note').replace('{n}',codes.length)+'</div>'
+      box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+        +'<div style="font-size:11px;color:var(--t3)">'+at('admin_cards_generated_note').replace('{n}',codes.length)+'</div>'
+        +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminPrintCards()">'+at('admin_cards_print_btn')+'</button>'
+        +'</div>'
         +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px" id="cards-qr-grid"></div>';
       var grid=document.getElementById('cards-qr-grid');
       codes.forEach(function(code, idx){
@@ -5391,6 +5409,41 @@ function adminGenerateCards(){
       toast((res&&res.message)||at('admin_error_generic'), true);
     }
   }).catch(function(){ if(btn) btn.disabled=false; toast(at('admin_dash_error_network'), true); });
+}
+// Mise en page impression (format carte bancaire 85,6x54mm, plusieurs par
+// page) du dernier lot genere - re-rendu dans un conteneur dedie (#cards-print-area,
+// masque hors impression) plutot que de reutiliser le QR deja affiche a
+// l'ecran, pour garder une taille fixe et coherente sur papier quelle que
+// soit la resolution d'affichage. body.printing-cards (voir CSS @media print)
+// masque tout le reste de l'app le temps de l'impression.
+function adminPrintCards(){
+  var codes=window._lastGeneratedCards||[];
+  if(!codes.length){ toast(at('admin_cards_err_count'), true); return; }
+  var area=document.getElementById('cards-print-area');
+  area.innerHTML='';
+  codes.forEach(function(code, idx){
+    var card=document.createElement('div');
+    card.className='print-card';
+    var brand=document.createElement('div');
+    brand.className='print-card-brand';
+    brand.textContent='ROM_MONEY';
+    card.appendChild(brand);
+    var qrDiv=document.createElement('div');
+    qrDiv.id='print-card-qr-'+idx;
+    card.appendChild(qrDiv);
+    var codeLbl=document.createElement('div');
+    codeLbl.className='print-card-code';
+    codeLbl.textContent=code;
+    card.appendChild(codeLbl);
+    area.appendChild(card);
+  });
+  codes.forEach(function(code, idx){ drawQR('print-card-qr-'+idx, code); });
+  document.body.classList.add('printing-cards');
+  window.onafterprint=function(){
+    document.body.classList.remove('printing-cards');
+    window.onafterprint=null;
+  };
+  setTimeout(function(){ window.print(); }, 150);
 }
 function adminLoadCards(page){
   var box=document.getElementById('cards-list-box');
