@@ -8667,8 +8667,18 @@ function admin_list_physical_cards() {
     $countryFilter = is_array($b['country'] ?? null) ? $b['country'] : null;
     list($availableCountries, $restore) = admin_apply_country_filter($countryFilter);
 
+    // Une carte non assignee (pc.user_id NULL) n'a encore aucun pays -
+    // u.country est NULL via le LEFT JOIN, et "NULL IN (...)" n'est jamais
+    // vrai en SQL, donc un admin scope a des pays precis ne verrait jamais
+    // les cartes qu'il vient lui-meme de generer tant qu'elles ne sont pas
+    // activees. On laisse donc toujours passer les cartes non assignees,
+    // le filtre pays ne s'applique qu'une fois la carte liee a un client.
     list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
-    $where = "1=1".$scopeSql; $params = $scopeParams;
+    $where = "1=1"; $params = [];
+    if($scopeSql !== ''){
+        $where .= " AND (pc.user_id IS NULL OR (1=1$scopeSql))";
+        $params = $scopeParams;
+    }
     if(in_array($status, ['unassigned','active','blocked'], true)){
         $where .= " AND pc.status=?"; $params[] = $status;
     }
