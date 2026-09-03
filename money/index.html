@@ -819,6 +819,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <button class="admin-tab-btn" onclick="adminTab('users')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_users">Utilisateurs</span></button>
       <button class="admin-tab-btn" onclick="adminTab('merchants')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_merchants">Marchands</span></button>
       <button class="admin-tab-btn" onclick="adminTab('agents')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_agents">Agents</span><span id="admin-agents-badge" style="display:none;background:var(--re);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:5px;font-weight:800"></span></button>
+      <button class="admin-tab-btn" onclick="adminTab('cards')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_cards">Cartes</span></button>
       <button class="admin-tab-btn" onclick="adminTab('account')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_account">Compte</span></button>
       <button class="admin-tab-btn" onclick="adminTab('tx')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_tx">Transaction</span></button>
       <button class="admin-tab-btn" onclick="adminTab('audit')" style="padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:none;color:var(--gold-text);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0"><span data-i18n-admin="admin_tab_audit">Journal</span></button>
@@ -1242,16 +1243,22 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div id="agtlist-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="agtlist-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
+    </div>
 
-      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_title">Cartes physiques</div>
+    <div id="admin-panel-cards" class="admin-panel" style="display:none">
+      <div class="admin-stitle" data-i18n-admin="admin_cards_title">Cartes physiques</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_desc">Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <input class="finput" id="cards-gen-count" type="number" inputmode="numeric" placeholder="Nombre de cartes" style="margin-bottom:0" value="10">
         <button class="btn-w" id="admin-cards-generate-btn" style="margin-bottom:0;width:auto;padding:11px 16px" onclick="adminGenerateCards()" data-i18n-admin="admin_cards_generate_btn">Générer</button>
       </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_max_note">Maximum 500 cartes par lot.</div>
       <div id="cards-gen-result" style="margin-bottom:16px"></div>
       <div id="cards-print-area"></div>
 
+      <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_list_title">Toutes les cartes</div>
+      <div id="cards-counts-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_reissue_hint">Carte perdue/volée : bloquez-la ci-dessous, puis générez et activez une nouvelle carte avec le même numéro de téléphone pour réémettre au client (l'activation se fait depuis ROM_GUICHET, avec l'agent en face du client).</div>
       <div class="frow" id="cards-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
@@ -1858,7 +1865,7 @@ var I18N = {
   admin_cards_status_active: {fr:'Actives', en:'Active'},
   admin_cards_status_blocked: {fr:'Bloquées', en:'Blocked'},
   admin_cards_err_count: {fr:'Le nombre de cartes doit être entre 1 et 500', en:'The number of cards must be between 1 and 500'},
-  admin_cards_generated_note: {fr:'{n} carte(s) générée(s) — imprime ou capture chaque QR ci-dessous.', en:'{n} card(s) generated — print or capture each QR code below.'},
+  admin_cards_generated_note: {fr:'{n} carte(s) générée(s) — aperçu ci-dessous, prêtes à imprimer.', en:'{n} card(s) generated — preview below, ready to print.'},
   admin_cards_none_found: {fr:'Aucune carte trouvée', en:'No cards found'},
   admin_cards_created_label: {fr:'Générée le', en:'Generated on'},
   admin_cards_activated_label: {fr:'activée le', en:'activated on'},
@@ -1868,6 +1875,12 @@ var I18N = {
   admin_cards_reason_stolen: {fr:'Carte volée', en:'Stolen card'},
   admin_cards_reason_test: {fr:'Carte de test', en:'Test card'},
   admin_cards_blocked_toast: {fr:'Carte bloquée', en:'Card blocked'},
+  admin_tab_cards: {fr:'Cartes', en:'Cards'},
+  admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
+  admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
+  admin_cards_reissue_hint: {fr:"Carte perdue/volée : bloquez-la ci-dessous, puis générez et activez une nouvelle carte avec le même numéro de téléphone pour réémettre au client (l'activation se fait depuis ROM_GUICHET, avec l'agent en face du client).", en:"Lost/stolen card: block it below, then generate and activate a new card with the same phone number to reissue to the customer (activation happens from ROM_GUICHET, with the agent in front of the customer)."},
+  admin_cards_preview_btn: {fr:'👁 Aperçu', en:'👁 Preview'},
+  admin_close_btn: {fr:'Fermer', en:'Close'},
   admin_fiche_status: {fr:'Statut :', en:'Status:'},
   admin_fiche_phone: {fr:'Téléphone :', en:'Phone:'},
   admin_fiche_country: {fr:'Pays :', en:'Country:'},
@@ -4346,7 +4359,7 @@ function adminReject(id){
 }
 
 function adminTab(name){
-  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','agents','alerts','settings','earnings','reviews'].forEach(function(t){
+  ['dashboard','announce','kyc','account','tx','audit','countries','users','merchants','agents','cards','alerts','settings','earnings','reviews'].forEach(function(t){
     var panel=document.getElementById('admin-panel-'+t);
     if(panel) panel.style.display=(t===name)?'block':'none';
   });
@@ -4363,7 +4376,8 @@ function adminTab(name){
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
   if(name==='merchants') adminLoadMerchants(1);
-  if(name==='agents'){ adminLoadAgents(1); adminLoadCards(1); }
+  if(name==='agents') adminLoadAgents(1);
+  if(name==='cards') adminLoadCards(1);
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
   if(name==='earnings') adminShowEarnings();
@@ -5473,9 +5487,24 @@ function adminLoadAgents(page){
 // ═══════════════════════════════════════════
 // ADMIN - Cartes physiques (QR imprime)
 // ═══════════════════════════════════════════
-// Genere un lot de codes, affiche chaque QR directement dans le panneau
-// (reutilise drawQR(), deja utilise pour "Mon QR" cote personnel) pour que
-// l'admin puisse capturer/imprimer chaque carte sans outil externe.
+// Balisage d'une carte brandee (meme motif que .qr-real-card : degrade vert/or,
+// filigrane, boite QR blanche) - utilise a la fois pour l'apercu a l'ecran
+// (juste apres generation ou depuis la liste) et pour l'impression, afin que
+// ce que l'admin voit soit exactement ce qui sort sur papier.
+function adminCardMarkup(code, qrId){
+  return '<div class="print-card">'
+    +'<div class="print-card-brand">'
+    +'<img src="./icon-96.png" class="print-card-icon" alt="ROM_MONEY">'
+    +'<div class="print-card-brandname">ROM_<span>MONEY</span></div>'
+    +'</div>'
+    +'<div class="print-card-box" id="'+qrId+'"></div>'
+    +'<div class="print-card-code">'+code+'</div>'
+    +'<div class="print-card-slogan">'+t('wallet_slogan')+'</div>'
+    +'</div>';
+}
+// Genere un lot de codes et affiche directement l'apercu visuel brande de
+// chaque carte (pas juste un QR nu) pour que l'admin voie exactement ce qui
+// sera imprime avant de le faire.
 function adminGenerateCards(){
   var count=parseInt(document.getElementById('cards-gen-count').value,10);
   if(!count || count<1 || count>500){ toast(at('admin_cards_err_count'), true); return; }
@@ -5491,53 +5520,54 @@ function adminGenerateCards(){
         +'<div style="font-size:11px;color:var(--t3)">'+at('admin_cards_generated_note').replace('{n}',codes.length)+'</div>'
         +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminPrintCards()">'+at('admin_cards_print_btn')+'</button>'
         +'</div>'
-        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px" id="cards-qr-grid"></div>';
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90mm,1fr));gap:10px" id="cards-qr-grid"></div>';
       var grid=document.getElementById('cards-qr-grid');
-      codes.forEach(function(code, idx){
-        var cell=document.createElement('div');
-        cell.style.cssText='text-align:center;background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:8px';
-        var qrDiv=document.createElement('div');
-        qrDiv.id='card-qr-'+idx;
-        qrDiv.style.cssText='margin:0 auto 6px';
-        cell.appendChild(qrDiv);
-        var label=document.createElement('div');
-        label.style.cssText='font-size:10px;font-family:monospace;color:var(--t2);word-break:break-all';
-        label.textContent=code;
-        cell.appendChild(label);
-        grid.appendChild(cell);
-        drawQR('card-qr-'+idx, code);
-      });
+      grid.innerHTML=codes.map(function(code, idx){ return adminCardMarkup(code, 'card-qr-'+idx); }).join('');
+      codes.forEach(function(code, idx){ drawQR('card-qr-'+idx, code, 100); });
       adminLoadCards(1);
     } else {
       toast((res&&res.message)||at('admin_error_generic'), true);
     }
   }).catch(function(){ if(btn) btn.disabled=false; toast(at('admin_dash_error_network'), true); });
 }
+// Apercu d'une carte deja existante depuis la liste (pas seulement le dernier
+// lot genere) - petit visionneur qui reutilise le meme balisage brande, avec
+// un bouton pour l'imprimer directement depuis la.
+function adminShowCardPreview(code){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px';
+  overlay.onclick=function(e){ if(e.target===overlay) document.body.removeChild(overlay); };
+  var wrap=document.createElement('div');
+  wrap.innerHTML=adminCardMarkup(code, 'preview-card-qr');
+  wrap.style.cssText='transform:scale(1.6)';
+  var actions=document.createElement('div');
+  actions.style.cssText='display:flex;gap:10px;margin-top:20px';
+  var printBtn=document.createElement('button');
+  printBtn.className='btn-w'; printBtn.style.cssText='margin-bottom:0;width:auto;padding:10px 18px';
+  printBtn.textContent=at('admin_cards_print_btn');
+  printBtn.onclick=function(){ document.body.removeChild(overlay); adminPrintCards([code]); };
+  var closeBtn=document.createElement('button');
+  closeBtn.className='btn-w'; closeBtn.style.cssText='margin-bottom:0;width:auto;padding:10px 18px;background:var(--bord);color:var(--t1)';
+  closeBtn.textContent=at('admin_close_btn');
+  closeBtn.onclick=function(){ document.body.removeChild(overlay); };
+  actions.appendChild(printBtn); actions.appendChild(closeBtn);
+  overlay.appendChild(wrap); overlay.appendChild(actions);
+  document.body.appendChild(overlay);
+  drawQR('preview-card-qr', code, 100);
+}
 // Mise en page impression (format carte bancaire 85,6x54mm, plusieurs par
-// page) du dernier lot genere - re-rendu dans un conteneur dedie (#cards-print-area,
-// masque hors impression) plutot que de reutiliser le QR deja affiche a
-// l'ecran, pour garder une taille fixe et coherente sur papier quelle que
-// soit la resolution d'affichage. body.printing-cards (voir CSS @media print)
-// masque tout le reste de l'app le temps de l'impression.
-function adminPrintCards(){
-  var codes=window._lastGeneratedCards||[];
+// page) - accepte une liste explicite de codes (apercu individuel depuis la
+// liste) ou reprend par defaut le dernier lot genere. Re-rendu dans un
+// conteneur dedie (#cards-print-area, masque hors impression) plutot que de
+// reutiliser le QR deja affiche a l'ecran, pour garder une taille fixe et
+// coherente sur papier quelle que soit la resolution d'affichage.
+// body.printing-cards (voir CSS @media print) masque tout le reste de l'app
+// le temps de l'impression.
+function adminPrintCards(codes){
+  codes = codes || window._lastGeneratedCards || [];
   if(!codes.length){ toast(at('admin_cards_err_count'), true); return; }
   var area=document.getElementById('cards-print-area');
-  // Meme structure que .qr-real-card (icone + nom de marque, boite QR
-  // blanche, slogan) pour rester visuellement coherent avec "Mon QR"/
-  // "Recevoir" deja affiches dans l'app - voir le CSS .print-card* pour le
-  // degrade/motif/filigrane adaptes au format papier.
-  area.innerHTML=codes.map(function(code, idx){
-    return '<div class="print-card">'
-      +'<div class="print-card-brand">'
-      +'<img src="./icon-96.png" class="print-card-icon" alt="ROM_MONEY">'
-      +'<div class="print-card-brandname">ROM_<span>MONEY</span></div>'
-      +'</div>'
-      +'<div class="print-card-box" id="print-card-qr-'+idx+'"></div>'
-      +'<div class="print-card-code">'+code+'</div>'
-      +'<div class="print-card-slogan">'+t('wallet_slogan')+'</div>'
-      +'</div>';
-  }).join('');
+  area.innerHTML=codes.map(function(code, idx){ return adminCardMarkup(code, 'print-card-qr-'+idx); }).join('');
   codes.forEach(function(code, idx){ drawQR('print-card-qr-'+idx, code, 100); });
   document.body.classList.add('printing-cards');
   window.onafterprint=function(){
@@ -5560,6 +5590,20 @@ function adminLoadCards(page){
       adminRenderCountryFilterOptions('cards-country-box', 'cards-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var cards=res.data.cards||[];
       var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
+      var counts=res.data.counts||{unassigned:0,active:0,blocked:0};
+      var summaryEl=document.getElementById('cards-counts-summary');
+      if(summaryEl){
+        var summaryPills=[
+          ['','admin_cards_status_all',counts.unassigned+counts.active+counts.blocked,'var(--t2)'],
+          ['unassigned','admin_cards_status_unassigned',counts.unassigned,'var(--t3)'],
+          ['active','admin_cards_status_active',counts.active,'var(--g)'],
+          ['blocked','admin_cards_status_blocked',counts.blocked,'var(--re)']
+        ];
+        summaryEl.innerHTML=summaryPills.map(function(p){
+          var isActive=document.getElementById('cards-status-filter').value===p[0];
+          return '<button onclick="document.getElementById(\'cards-status-filter\').value=\''+p[0]+'\';adminLoadCards(1)" style="padding:6px 12px;border-radius:20px;border:1px solid '+p[3]+';background:'+(isActive?p[3]:'none')+';color:'+(isActive?'#fff':p[3])+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+' : '+p[2]+'</button>';
+        }).join('');
+      }
       if(cards.length===0){
         box.innerHTML='<div class="admin-empty">'+at('admin_cards_none_found')+'</div>';
         return;
@@ -5573,15 +5617,18 @@ function adminLoadCards(page){
         html+='<div class="admin-tx-card">'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
           +'<b style="font-family:monospace;font-size:13px">'+c.card_code+'</b>'
-          +'<span style="color:'+stColor+';font-weight:700;font-size:11px">'+stLabel+'</span>'
+          +'<span style="background:'+stColor+';color:#fff;font-weight:700;font-size:10px;padding:3px 9px;border-radius:10px">'+stLabel+'</span>'
           +'</div>';
         if(c.status!=='unassigned'){
           html+='<div style="color:var(--t2);margin-top:4px">'+adminEsc(c.verified_name||c.full_name||'-')+' · '+(c.phone_number||'-')+(c.country?' · '+adminEsc(adminCountryName(c.country)):'')+'</div>';
         }
         html+='<div style="color:var(--t3);margin-top:4px;font-size:11px">'+at('admin_cards_created_label')+' '+new Date(c.created_at).toLocaleDateString()+(c.activated_at?' · '+at('admin_cards_activated_label')+' '+new Date(c.activated_at).toLocaleDateString():'')+'</div>';
+        html+='<div style="display:flex;gap:8px;margin-top:8px">';
+        html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminShowCardPreview(\''+c.card_code+'\')">'+at('admin_cards_preview_btn')+'</button>';
         if(c.status!=='blocked'){
-          html+='<button style="margin-top:8px;padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
+          html+='<button style="padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
         }
+        html+='</div>';
         html+='</div>';
       });
       box.innerHTML=html;

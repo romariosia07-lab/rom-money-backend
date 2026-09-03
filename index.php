@@ -8674,11 +8674,12 @@ function admin_list_physical_cards() {
     // activees. On laisse donc toujours passer les cartes non assignees,
     // le filtre pays ne s'applique qu'une fois la carte liee a un client.
     list($scopeSql, $scopeParams) = admin_country_scope_clause('u.country');
-    $where = "1=1"; $params = [];
+    $scopeWhere = "1=1"; $scopeParamsFinal = [];
     if($scopeSql !== ''){
-        $where .= " AND (pc.user_id IS NULL OR (1=1$scopeSql))";
-        $params = $scopeParams;
+        $scopeWhere .= " AND (pc.user_id IS NULL OR (1=1$scopeSql))";
+        $scopeParamsFinal = $scopeParams;
     }
+    $where = $scopeWhere; $params = $scopeParamsFinal;
     if(in_array($status, ['unassigned','active','blocked'], true)){
         $where .= " AND pc.status=?"; $params[] = $status;
     }
@@ -8687,8 +8688,14 @@ function admin_list_physical_cards() {
                u.full_name,u.verified_name,u.phone_number,u.country
                FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
                WHERE $where ORDER BY pc.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+    // Compteurs par statut (perimetre pays, hors filtre statut) pour un
+    // resume immediat sans devoir changer le filtre 3 fois de suite.
+    $countRows = q("SELECT pc.status, COUNT(*) c FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
+               WHERE $scopeWhere GROUP BY pc.status", $scopeParamsFinal)->fetchAll();
+    $counts = ['unassigned'=>0,'active'=>0,'blocked'=>0];
+    foreach($countRows as $cr){ if(isset($counts[$cr['status']])) $counts[$cr['status']] = (int)$cr['c']; }
     $restore();
-    ok(['cards'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter]);
+    ok(['cards'=>$rows,'total'=>$total,'page'=>$page,'per_page'=>$perPage,'available_countries'=>$availableCountries,'country_filter'=>$countryFilter,'counts'=>$counts]);
 }
 
 // Bloque une carte (perdue/volee) - raison obligatoire journalisee. Une
