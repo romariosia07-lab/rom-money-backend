@@ -3079,6 +3079,16 @@ window.addEventListener('load', function(){
   }, 700);
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(function(){});
+    // Voir money/index.html pour le detail : sans ce reload, une page deja
+    // ouverte (ou reprise depuis l'ecran d'accueil sans fermeture complete)
+    // continue de tourner avec le JS deja charge en memoire meme apres
+    // qu'un nouveau Service Worker ait pris le controle.
+    var _swReloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if(_swReloading) return;
+      _swReloading = true;
+      window.location.reload();
+    });
   }
 });
 </script>
