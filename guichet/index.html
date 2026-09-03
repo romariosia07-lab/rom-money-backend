@@ -596,6 +596,7 @@ var I18N = {
   card_unassigned_note:{fr:"Cette carte n'est pas encore activée. Entrez le numéro du client pour l'activer.",en:'This card is not activated yet. Enter the customer\'s number to activate it.'},
   card_customer_phone:{fr:'Numéro du client',en:'Customer number'},
   card_new_account_note:{fr:"Ce numéro n'a pas encore de compte ROM_MONEY — un nouveau compte va être créé, avec cette carte comme seul moyen d'identification.",en:"This number doesn't have a ROM_MONEY account yet — a new account will be created, with this card as the only way to identify it."},
+  card_new_account_depot_only:{fr:"Ce numéro n'a pas encore de compte. La création d'un nouveau compte par carte se fait uniquement depuis l'écran Dépôt (le premier compte doit avoir un solde de départ). Annulez et relancez l'activation depuis Dépôt.",en:'This number has no account yet. Creating a new account by card is only done from the Deposit screen (the first account needs a starting balance). Cancel and restart activation from Deposit.'},
   card_full_name:{fr:'Nom complet du client',en:"Customer's full name"},
   card_activate_btn:{fr:'Activer la carte',en:'Activate card'},
   card_activated_success:{fr:'Carte activée. Rescannez-la pour continuer.',en:'Card activated. Scan it again to continue.'},
@@ -1602,7 +1603,7 @@ function startDepotQrScan(){
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
       if(res && res.success && res.data && res.data.card_status==='unassigned'){
-        renderCardActivationForm(res.data.card_code, function(){ shDepot(document.getElementById('sh-body')); });
+        renderCardActivationForm(res.data.card_code, function(){ shDepot(document.getElementById('sh-body')); }, 'depot');
       } else if(res && res.success && res.data){
         renderDepotAmountForm(res.data);
       } else {
@@ -1647,9 +1648,10 @@ function identityBadgeHtml(customer){
 // rescanne simplement la carte pour poursuivre l'operation d'origine -
 // separation volontaire (activation = action distincte, evite de menager
 // un etat complexe a travers 3 flux differents).
-function renderCardActivationForm(cardCode, onCancel){
+function renderCardActivationForm(cardCode, onCancel, sourceFlow){
   window._pendingCardCode = cardCode;
   window._cardActivationCancel = onCancel;
+  window._pendingCardSourceFlow = sourceFlow;
   var b=document.getElementById('sh-body');
   b.innerHTML='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_unassigned_note')+'</div>'
     +'<div class="frow"><label class="flabel">'+t('card_customer_phone')+'</label><input class="finput" id="card-phone" type="tel"></div>'
@@ -1673,6 +1675,16 @@ function renderCardActivationConfirm(phone, customer, isNew){
   window._pendingCardPhone = phone;
   var b=document.getElementById('sh-body');
   var html='';
+  // Un nouveau compte (sans solde) n'a aucune raison de retirer ou d'envoyer
+  // de l'argent des sa toute premiere activation - seul un depot est
+  // coherent comme premiere operation. Un compte deja existant (reemission
+  // incluse) garde les 3 entrees, il a deja potentiellement du solde.
+  if(isNew && window._pendingCardSourceFlow!=='depot'){
+    html+='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_new_account_depot_only')+'</div>'
+      +'<button class="chip" style="width:100%" onclick="cancelCardActivation()">'+t('cancel')+'</button>';
+    b.innerHTML=html;
+    return;
+  }
   if(isNew){
     html+='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_new_account_note')+'</div>'
       +'<div class="frow"><label class="flabel">'+t('card_full_name')+'</label><input class="finput" id="card-name" type="text"></div>'
@@ -1814,7 +1826,7 @@ function startRetraitQrScan(){
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
       if(res && res.success && res.data && res.data.card_status==='unassigned'){
-        renderCardActivationForm(res.data.card_code, function(){ shRetrait(document.getElementById('sh-body')); });
+        renderCardActivationForm(res.data.card_code, function(){ shRetrait(document.getElementById('sh-body')); }, 'retrait');
       } else if(res && res.success && res.data){
         // Un QR "carte" (imprimable, pas l'app live) n'a pas la meme valeur
         // de preuve - meme trouve par scan, il suit le chemin code SMS,
@@ -1956,7 +1968,7 @@ function startEnvoyerQrScan(){
     if(result) result.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--t2)">'+t('qr_identifying')+'</div>';
     apiCall('/agent?action=resolve-customer-qr&qr='+encodeURIComponent(text),'GET',null,getToken()).then(function(res){
       if(res && res.success && res.data && res.data.card_status==='unassigned'){
-        renderCardActivationForm(res.data.card_code, function(){ shEnvoyerTiers(document.getElementById('sh-body')); });
+        renderCardActivationForm(res.data.card_code, function(){ shEnvoyerTiers(document.getElementById('sh-body')); }, 'envoyer');
       } else if(res && res.success && res.data){
         renderEnvoyerRecipientForm(res.data, text, !!res.data.verified_live);
       } else {
