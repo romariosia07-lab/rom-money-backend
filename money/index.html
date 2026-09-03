@@ -1258,7 +1258,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_list_title">Toutes les cartes</div>
       <div id="cards-counts-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_reissue_hint">Carte perdue/volée : bloquez-la ci-dessous, puis générez et activez une nouvelle carte avec le même numéro de téléphone pour réémettre au client (l'activation se fait depuis ROM_GUICHET, avec l'agent en face du client).</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_reissue_hint">Carte perdue/volée : bloquez-la ci-dessous. Le client n'a rien de plus à faire côté admin — chez n'importe quel agent, il active une carte vierge du stock existant avec son numéro de téléphone habituel (depuis ROM_GUICHET), ce qui relie la nouvelle carte à son compte déjà existant.</div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_cards_search_label">Rechercher (numéro, nom ou code carte)</label><input class="finput" id="cards-search" placeholder="0700000000, Jean Kouassi, A1B2C3D4E5..." oninput="adminLoadCards(1)"></div>
       <div class="frow" id="cards-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
@@ -1878,9 +1879,11 @@ var I18N = {
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
-  admin_cards_reissue_hint: {fr:"Carte perdue/volée : bloquez-la ci-dessous, puis générez et activez une nouvelle carte avec le même numéro de téléphone pour réémettre au client (l'activation se fait depuis ROM_GUICHET, avec l'agent en face du client).", en:"Lost/stolen card: block it below, then generate and activate a new card with the same phone number to reissue to the customer (activation happens from ROM_GUICHET, with the agent in front of the customer)."},
+  admin_cards_reissue_hint: {fr:"Carte perdue/volée : bloquez-la ci-dessous. Le client n'a rien de plus à faire côté admin — chez n'importe quel agent, il active une carte vierge du stock existant avec son numéro de téléphone habituel (depuis ROM_GUICHET), ce qui relie la nouvelle carte à son compte déjà existant.", en:"Lost/stolen card: block it below. Nothing else is needed on the admin side — at any agent, the customer activates a blank card from existing stock with their usual phone number (from ROM_GUICHET), which links the new card to their existing account."},
   admin_cards_preview_btn: {fr:'👁 Aperçu', en:'👁 Preview'},
   admin_close_btn: {fr:'Fermer', en:'Close'},
+  admin_cards_search_label: {fr:'Rechercher (numéro, nom ou code carte)', en:'Search (phone, name or card code)'},
+  admin_cards_activated_by_label: {fr:'Activée par l\'agent', en:'Activated by agent'},
   admin_fiche_status: {fr:'Statut :', en:'Status:'},
   admin_fiche_phone: {fr:'Téléphone :', en:'Phone:'},
   admin_fiche_country: {fr:'Pays :', en:'Country:'},
@@ -5583,6 +5586,8 @@ function adminLoadCards(page){
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
   var payload={admin_password:window._adminPw, page:page||1, status:document.getElementById('cards-status-filter').value};
+  var cardsSearchVal=document.getElementById('cards-search').value.trim();
+  if(cardsSearchVal) payload.search=cardsSearchVal;
   var cardsCountryVal=adminReadCountryFilter('cards-country-box');
   if(cardsCountryVal) payload.country=cardsCountryVal;
   apiCall('/admin?action=cards-list','POST',payload,'').then(function(res){
@@ -5623,6 +5628,9 @@ function adminLoadCards(page){
           html+='<div style="color:var(--t2);margin-top:4px">'+adminEsc(c.verified_name||c.full_name||'-')+' · '+(c.phone_number||'-')+(c.country?' · '+adminEsc(adminCountryName(c.country)):'')+'</div>';
         }
         html+='<div style="color:var(--t3);margin-top:4px;font-size:11px">'+at('admin_cards_created_label')+' '+new Date(c.created_at).toLocaleDateString()+(c.activated_at?' · '+at('admin_cards_activated_label')+' '+new Date(c.activated_at).toLocaleDateString():'')+'</div>';
+        if(c.activated_by_agent_name){
+          html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">'+at('admin_cards_activated_by_label')+' '+adminEsc(c.activated_by_agent_name)+' · '+(c.activated_by_agent_phone||'-')+'</div>';
+        }
         html+='<div style="display:flex;gap:8px;margin-top:8px">';
         html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminShowCardPreview(\''+c.card_code+'\')">'+at('admin_cards_preview_btn')+'</button>';
         if(c.status!=='blocked'){
