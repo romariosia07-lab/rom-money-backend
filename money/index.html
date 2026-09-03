@@ -1245,7 +1245,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_title">Cartes physiques</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_desc">Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.</div>
-      <div id="admin-cards-super-note" style="display:none;margin-bottom:16px;padding:10px 12px;border-radius:10px;background:var(--rl);color:var(--rd);font-size:11px;font-weight:600" data-i18n-admin="admin_super_admin_only_note">🔒 Réservé à Admin Principal — lecture seule pour les autres comptes.</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
         <input class="finput" id="cards-gen-count" type="number" inputmode="numeric" placeholder="Nombre de cartes" style="margin-bottom:0" value="10">
         <button class="btn-w" id="admin-cards-generate-btn" style="margin-bottom:0;width:auto;padding:11px 16px" onclick="adminGenerateCards()" data-i18n-admin="admin_cards_generate_btn">Générer</button>
@@ -6918,8 +6917,7 @@ function adminApplySuperAdminGate(){
     document.getElementById('admin-backfill-btn'),
     document.getElementById('admin-2fa-enable-btn'),
     document.getElementById('admin-2fa-regen-btn'),
-    document.getElementById('admin-2fa-disable-btn'),
-    document.getElementById('admin-cards-generate-btn')
+    document.getElementById('admin-2fa-disable-btn')
   ].forEach(function(btn){
     if(!btn) return;
     btn.disabled = !isSuper;
@@ -6932,8 +6930,6 @@ function adminApplySuperAdminGate(){
   if(acctNote) acctNote.style.display = isSuper ? 'none' : 'block';
   var announceNote = document.getElementById('admin-announce-super-note');
   if(announceNote) announceNote.style.display = isSuper ? 'none' : 'block';
-  var cardsNote = document.getElementById('admin-cards-super-note');
-  if(cardsNote) cardsNote.style.display = isSuper ? 'none' : 'block';
   document.querySelectorAll('#admacc-list-box button, #admin-countries-box button').forEach(function(btn){
     btn.disabled = !isSuper;
     btn.style.opacity = isSuper ? '1' : '0.45';

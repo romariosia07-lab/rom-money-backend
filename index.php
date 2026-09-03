@@ -8636,7 +8636,6 @@ function admin_agent_toggle_distributor() {
 function admin_generate_physical_cards() {
     $b = body();
     check_admin_password($b);
-    check_super_admin_only();
     $count = (int)($b['count'] ?? 0);
     if($count < 1 || $count > 500) fail('Le nombre de cartes doit etre entre 1 et 500');
     $codes = [];
