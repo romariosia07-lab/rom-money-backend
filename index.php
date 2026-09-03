@@ -5765,6 +5765,7 @@ function route_admin($action) {
         'cards-generate'    => admin_generate_physical_cards(),
         'cards-list'        => admin_list_physical_cards(),
         'cards-block'       => admin_block_physical_card(),
+        'cards-reactivate'  => admin_reactivate_physical_card(),
         'agent-set-float-cap'      => admin_agent_set_float_cap(),
         'agent-pending-list'       => admin_agent_list_pending(),
         'agent-documents'          => admin_agent_documents(),
@@ -8804,6 +8805,30 @@ function admin_block_physical_card() {
     q("UPDATE physical_cards SET status='blocked' WHERE id=?",[$card['id']]);
     admin_log('physical_card_block','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>$reason]));
     ok(null,'Carte bloquee');
+}
+
+// Reactive une carte bloquee PAR PRECAUTION (client pense l'avoir juste
+// egaree, pas confirmee perdue/volee - cas distinct d'une carte deja
+// remplacee via reemission, qui elle doit rester bloquee pour toujours).
+// Garde-fou essentiel : si le client a entre-temps deja recu une nouvelle
+// carte active, impossible de reactiver celle-ci en plus - jamais deux
+// cartes actives pour le meme compte (meme invariant que
+// agent_activate_card()).
+function admin_reactivate_physical_card() {
+    $b = body();
+    check_admin_password($b);
+    $cardCode = strtoupper(trim($b['card_code'] ?? ''));
+    if(!$cardCode) fail('Code carte requis');
+    $card = q("SELECT pc.*, u.phone_number, u.country FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE pc.card_code=?",[$cardCode])->fetch();
+    if(!$card) fail('Carte introuvable',404);
+    if($card['status'] !== 'blocked') fail('Cette carte n\'est pas bloquee',422);
+    if(!$card['user_id']) fail('Cette carte n\'a jamais ete liee a un compte',422);
+    if($card['country']) admin_check_country_access($card['country']);
+    $otherActive = q("SELECT id FROM physical_cards WHERE user_id=? AND status='active'",[$card['user_id']])->fetch();
+    if($otherActive) fail('Ce client a deja recu une nouvelle carte active - impossible de reactiver aussi celle-ci.',422);
+    q("UPDATE physical_cards SET status='active' WHERE id=?",[$card['id']]);
+    admin_log('physical_card_reactivate','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte retrouvee par le client']));
+    ok(null,'Carte reactivee');
 }
 
 // Ajustement manuel du plafond de float d'un distributeur - permet a

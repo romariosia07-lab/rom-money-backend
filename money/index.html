@@ -1876,6 +1876,9 @@ var I18N = {
   admin_cards_reason_stolen: {fr:'Carte volée', en:'Stolen card'},
   admin_cards_reason_test: {fr:'Carte de test', en:'Test card'},
   admin_cards_blocked_toast: {fr:'Carte bloquée', en:'Card blocked'},
+  admin_cards_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
+  admin_cards_reactivate_confirm_msg: {fr:'Carte retrouvée par le client, pas remplacée entre-temps ? Elle redevient utilisable normalement.', en:'Card found by the customer, not replaced in the meantime? It becomes usable again.'},
+  admin_cards_reactivated_toast: {fr:'Carte réactivée', en:'Card reactivated'},
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
@@ -5649,6 +5652,8 @@ function adminLoadCards(page){
         html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminShowCardPreview(\''+c.card_code+'\')">'+at('admin_cards_preview_btn')+'</button>';
         if(c.status!=='blocked'){
           html+='<button style="padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
+        } else if(c.phone_number){
+          html+='<button style="padding:6px 10px;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminReactivateCard(\''+c.card_code+'\')">'+at('admin_cards_reactivate_btn')+'</button>';
         }
         html+='</div>';
         html+='</div>';
@@ -5673,6 +5678,24 @@ function adminBlockCard(cardCode){
     onConfirm:function(reason){
       apiCall('/admin?action=cards-block','POST',{admin_password:window._adminPw,card_code:cardCode,reason:reason},'').then(function(res){
         if(res&&res.success){ toast(at('admin_cards_blocked_toast')); adminLoadCards(1); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
+// Reactivation pour le cas "carte juste egaree" (pas confirmee perdue) -
+// distinct d'une carte deja remplacee via reemission, qui doit rester
+// bloquee pour toujours. Pas de raison obligatoire ici (contrairement au
+// blocage) : c'est une action benigne/restaurative, pas destructive. Le
+// serveur refuse de toute facon si le client a deja recu une nouvelle carte
+// active entre-temps.
+function adminReactivateCard(cardCode){
+  adminOpenConfirmModal({
+    icon:'✅', title:at('admin_final_confirmation'), message:at('admin_cards_reactivate_confirm_msg'),
+    needsReason:false, confirmLabel:at('admin_cards_reactivate_btn'), confirmColor:'var(--g)',
+    onConfirm:function(){
+      apiCall('/admin?action=cards-reactivate','POST',{admin_password:window._adminPw,card_code:cardCode},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_cards_reactivated_toast')); adminLoadCards(1); }
         else { toast((res&&res.message)||at('admin_error_generic'), true); }
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }
