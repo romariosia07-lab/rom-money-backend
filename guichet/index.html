@@ -601,6 +601,14 @@ var I18N = {
   card_activated_success:{fr:'Carte activée. Rescannez-la pour continuer.',en:'Card activated. Scan it again to continue.'},
   card_err_name:{fr:'Le nom du client est requis',en:"Customer's name is required"},
   card_activate_err:{fr:"Échec de l'activation de la carte",en:'Card activation failed'},
+  card_reissue_prompt:{fr:"Ce client a déjà une carte active. Bloquer l'ancienne et activer celle-ci à la place ? Un code de confirmation sera envoyé par SMS au client.",en:'This customer already has an active card. Block the old one and activate this one instead? A confirmation code will be sent to the customer by SMS.'},
+  card_reissue_btn:{fr:'Envoyer le code de remplacement',en:'Send replacement code'},
+  card_reissue_sending:{fr:'Envoi du code au client...',en:'Sending code to customer...'},
+  card_reissue_code_sent:{fr:'Code envoyé à {name}. Demandez-le-lui.',en:'Code sent to {name}. Ask them for it.'},
+  card_reissue_code_label:{fr:'Code reçu par le client',en:'Code received by customer'},
+  card_reissue_confirm_btn:{fr:'Confirmer le remplacement',en:'Confirm replacement'},
+  card_reissue_err_code:{fr:'Entrez le code reçu par le client',en:"Enter the code received by the customer"},
+  card_reissue_success:{fr:'Carte remplacée. Rescannez la nouvelle carte pour continuer.',en:'Card replaced. Scan the new card again to continue.'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   dist_hist_title:{fr:'Historique de mes recharges effectuées',en:'History of recharges I processed'},
@@ -1690,6 +1698,57 @@ function doActivateCard(isNew){
   apiCall('/agent?action=activate-card','POST',payload,getToken()).then(function(res){
     if(res && res.success){
       toast(t('card_activated_success'));
+      closeSheet();
+    } else if(!isNew && res && res.message && res.message.indexOf('ALREADY_HAS_ACTIVE_CARD:')===0){
+      renderCardReissuePrompt();
+    } else {
+      toast((res&&res.message)||t('card_activate_err'), true);
+      if(btn) btn.disabled=false;
+    }
+  }).catch(function(){ toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+// ── Reemission d'une carte perdue/volee (SMS de confirmation au client) ──
+// Declenche quand doActivateCard() echoue avec ALREADY_HAS_ACTIVE_CARD : au
+// lieu d'un simple toast d'erreur, propose de remplacer l'ancienne carte par
+// celle scannee, via le meme mecanisme code SMS que le retrait/l'envoi a un
+// tiers (voir agent_request_card_reissue()/agent_confirm_card_reissue()
+// cote serveur) - le code n'est jamais visible ici avant que le client ne
+// le communique lui-meme.
+function renderCardReissuePrompt(){
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_reissue_prompt')+'</div>'
+    +'<button class="btn-g" style="background:var(--g)" onclick="startCardReissue()">'+t('card_reissue_btn')+'</button>'
+    +'<button class="chip" style="width:100%;margin-top:10px" onclick="cancelCardActivation()">'+t('cancel')+'</button>';
+}
+function startCardReissue(){
+  var payload={customer_phone:window._pendingCardPhone, new_card_code:window._pendingCardCode};
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free">'+t('card_reissue_sending')+'</div>';
+  apiCall('/agent?action=card-reissue-request','POST',payload,getToken()).then(function(res){
+    if(res && res.success && res.data){
+      window._pendingReissueRequestId = res.data.request_id;
+      renderCardReissueCodeForm(res.data.customer_name);
+    } else {
+      toast((res&&res.message)||t('card_activate_err'), true);
+      renderCardReissuePrompt();
+    }
+  }).catch(function(){ toast(t('network_error'), true); renderCardReissuePrompt(); });
+}
+function renderCardReissueCodeForm(customerName){
+  var b=document.getElementById('sh-body');
+  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px">'+t('card_reissue_code_sent').replace('{name}',customerName)+'</div>'
+    +'<div class="frow"><label class="flabel">'+t('card_reissue_code_label')+'</label><input class="finput" id="card-reissue-code" type="tel" inputmode="numeric" maxlength="4"></div>'
+    +'<button class="btn-g" style="background:var(--g)" id="card-reissue-confirm-btn" onclick="confirmCardReissue()">'+t('card_reissue_confirm_btn')+'</button>'
+    +'<button class="chip" style="width:100%;margin-top:10px" onclick="cancelCardActivation()">'+t('cancel')+'</button>';
+}
+function confirmCardReissue(){
+  var code=document.getElementById('card-reissue-code').value.trim();
+  if(!code){ toast(t('card_reissue_err_code'), true); return; }
+  var btn=document.getElementById('card-reissue-confirm-btn');
+  if(btn) btn.disabled=true;
+  apiCall('/agent?action=card-reissue-confirm','POST',{request_id:window._pendingReissueRequestId, code:code},getToken()).then(function(res){
+    if(res && res.success){
+      toast(t('card_reissue_success'));
       closeSheet();
     } else {
       toast((res&&res.message)||t('card_activate_err'), true);

@@ -2283,6 +2283,8 @@ function route_agent($action) {
         'resolve-customer-qr' => agent_resolve_customer_qr(),
         'resolve-customer'  => agent_resolve_customer(),
         'activate-card'     => agent_activate_card(),
+        'card-reissue-request' => agent_request_card_reissue(),
+        'card-reissue-confirm' => agent_confirm_card_reissue(),
         'history'           => agent_tx_history(),
         'earnings-summary'  => agent_earnings_summary(),
         'send-earnings'     => agent_send_earnings(),
@@ -2833,12 +2835,88 @@ function agent_activate_card() {
         }
     } else {
         $alreadyLinked = q("SELECT id FROM physical_cards WHERE user_id=? AND status='active'",[$customer['id']])->fetch();
-        if($alreadyLinked) fail('Ce compte a deja une carte active',422);
+        if($alreadyLinked) fail('ALREADY_HAS_ACTIVE_CARD: Ce compte a deja une carte active - utilisez la reemission pour la remplacer.',422);
         q("UPDATE physical_cards SET status='active', user_id=?, activated_at=NOW(), activated_by_agent_id=? WHERE id=?",
           [$customer['id'],$pl['sub'],$card['id']]);
         admin_log('card_activate_existing_account','success',$customerPhone,'Carte '.$cardCode.' liee a un compte existant');
         ok(['card_code'=>$cardCode,'user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],'phone_number'=>$customer['phone_number'],'new_account'=>false],'Carte activee et liee au compte existant');
     }
+}
+
+// Reemission d'une carte perdue/volee en un seul passage chez l'agent, sans
+// action prealable d'un admin : au lieu du parcours "admin bloque -> client
+// revient plus tard avec une carte vierge", l'agent lance directement le
+// remplacement. Meme mecanique code SMS/expiration que
+// agent_request_cash_out_code()/agent_confirm_cash_out() (voir
+// agent_cashout_requests, request_type='card_reissue') - le code n'est
+// JAMAIS renvoye a l'agent, seul le client qui a recu le SMS peut le lui
+// communiquer. C'est cette preuve de possession du telephone (et non un PIN
+// tape sur l'appareil de l'agent, deja ecarte pour ce chantier) qui empeche
+// quelqu'un connaissant juste le numero de reemettre une carte a la place du
+// vrai proprietaire.
+function agent_request_card_reissue() {
+    $pl = agent_auth(); $b = body();
+    rate_limit_check('agent_card_reissue_request', 10, 60);
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $newCardCode = strtoupper(trim($b['new_card_code'] ?? ''));
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+    if(!preg_match('/^[0-9A-F]{10}$/', $newCardCode)) fail('Code de la nouvelle carte invalide');
+
+    $customer = q("SELECT u.id,u.full_name,u.verified_name,u.country FROM users u WHERE u.phone_number=?",[$customerPhone])->fetch();
+    if(!$customer) fail('Client introuvable',404);
+
+    $oldCard = q("SELECT id,card_code FROM physical_cards WHERE user_id=? AND status='active'",[$customer['id']])->fetch();
+    if(!$oldCard) fail('Ce compte n\'a pas de carte active a remplacer - utilisez l\'activation normale si une carte a deja ete bloquee par un admin.',422);
+
+    $newCard = q("SELECT id,status FROM physical_cards WHERE card_code=?",[$newCardCode])->fetch();
+    if(!$newCard) fail('Carte inconnue',404);
+    if($newCard['status'] !== 'unassigned') fail('Cette carte est deja active ou bloquee',422);
+
+    $code = str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+    $id = uid();
+    $expiresAt = date('Y-m-d H:i:s', time()+600);
+    $message = 'ROM_MONEY: code de confirmation pour remplacer votre carte physique perdue/volee : '.$code
+        .'. Une nouvelle carte sera activee et l\'ancienne desactivee. Ne le partagez qu\'avec l\'agent en face de vous.';
+    if(!send_sms($customerPhone, $message, $customer['country'] ?? null)) {
+        fail('Envoi du SMS impossible, reessayez');
+    }
+    q("INSERT INTO agent_cashout_requests (id,agent_id,customer_user_id,customer_phone,amount,code,expires_at,request_type,new_card_code) VALUES (?,?,?,?,0,?,?,'card_reissue',?)",
+      [$id,$pl['sub'],$customer['id'],$customerPhone,$code,$expiresAt,$newCardCode]);
+    ok(['request_id'=>$id,'customer_name'=>$customer['verified_name']?:$customer['full_name'],'old_card_code'=>$oldCard['card_code']],'Code envoye au client');
+}
+
+function agent_confirm_card_reissue() {
+    $pl = agent_auth(); $b = body();
+    $requestId = trim($b['request_id'] ?? '');
+    $code = trim($b['code'] ?? '');
+    if(!$requestId || !$code) fail('Demande et code requis');
+
+    $r = q("SELECT * FROM agent_cashout_requests WHERE id=? AND agent_id=? AND status='pending' AND request_type='card_reissue'",[$requestId,$pl['sub']])->fetch();
+    if(!$r) fail('Demande introuvable ou deja traitee',404);
+    if(strtotime($r['expires_at']) < time()){
+        q("UPDATE agent_cashout_requests SET status='expired' WHERE id=?",[$requestId]);
+        fail('Code expire, refaites une demande');
+    }
+    if(!hash_equals($r['code'], $code)) fail('Code incorrect');
+
+    $oldCard = q("SELECT id,card_code FROM physical_cards WHERE user_id=? AND status='active'",[$r['customer_user_id']])->fetch();
+    if(!$oldCard) fail('La carte active de ce compte a change depuis la demande, refaites une demande',422);
+    $newCard = q("SELECT id,card_code,status FROM physical_cards WHERE card_code=?",[$r['new_card_code']])->fetch();
+    if(!$newCard || $newCard['status'] !== 'unassigned') fail('La nouvelle carte n\'est plus disponible, refaites une demande avec une autre carte',422);
+
+    db()->beginTransaction();
+    try {
+        q("UPDATE physical_cards SET status='blocked' WHERE id=?",[$oldCard['id']]);
+        q("UPDATE physical_cards SET status='active', user_id=?, activated_at=NOW(), activated_by_agent_id=? WHERE id=?",
+          [$r['customer_user_id'],$pl['sub'],$newCard['id']]);
+        db()->commit();
+    } catch(Exception $e) {
+        db()->rollBack();
+        log_and_fail($e, 'Erreur lors du remplacement de la carte', 500);
+    }
+    q("UPDATE agent_cashout_requests SET status='completed' WHERE id=?",[$requestId]);
+    admin_log('card_reissue','success',$r['customer_phone'],'Carte '.$oldCard['card_code'].' remplacee par '.$newCard['card_code'].' via code SMS');
+    ok(['old_card_code'=>$oldCard['card_code'],'new_card_code'=>$newCard['card_code']],'Carte remplacee');
 }
 
 // Cash-in : le client donne du cash physique a l'agent, qui le credite
@@ -9687,6 +9765,12 @@ function route_install() {
     // dernier.
     "ALTER TABLE agent_cashout_requests ADD COLUMN IF NOT EXISTS request_type VARCHAR(20) DEFAULT 'cashout'",
     "ALTER TABLE agent_cashout_requests ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(20)",
+    // Reutilise egalement pour la reemission de carte physique
+    // (request_type='card_reissue') - new_card_code est le code de la carte
+    // vierge que l'agent a en stock, saisi des la demande (comme le montant
+    // pour un retrait) pour qu'il ne puisse pas changer entre la demande et
+    // la confirmation.
+    "ALTER TABLE agent_cashout_requests ADD COLUMN IF NOT EXISTS new_card_code VARCHAR(20)",
     "CREATE TABLE IF NOT EXISTS exchange_rates (
         id SERIAL PRIMARY KEY,
         currency_code VARCHAR(10) NOT NULL UNIQUE,
