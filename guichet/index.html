@@ -599,7 +599,7 @@ var I18N = {
   card_new_account_depot_only:{fr:"Ce numéro n'a pas encore de compte. La création d'un nouveau compte par carte se fait uniquement depuis l'écran Dépôt (le premier compte doit avoir un solde de départ). Annulez et relancez l'activation depuis Dépôt.",en:'This number has no account yet. Creating a new account by card is only done from the Deposit screen (the first account needs a starting balance). Cancel and restart activation from Deposit.'},
   card_full_name:{fr:'Nom complet du client',en:"Customer's full name"},
   card_activate_btn:{fr:'Activer la carte',en:'Activate card'},
-  card_activated_success:{fr:'Carte activée. Rescannez-la pour continuer.',en:'Card activated. Scan it again to continue.'},
+  card_activated_success:{fr:'Carte activée.',en:'Card activated.'},
   card_err_name:{fr:'Le nom du client est requis',en:"Customer's name is required"},
   card_activate_err:{fr:"Échec de l'activation de la carte",en:'Card activation failed'},
   card_reissue_prompt:{fr:"Ce client a déjà une carte active. Bloquer l'ancienne et activer celle-ci à la place ? Un code de confirmation sera envoyé par SMS au client.",en:'This customer already has an active card. Block the old one and activate this one instead? A confirmation code will be sent to the customer by SMS.'},
@@ -609,7 +609,7 @@ var I18N = {
   card_reissue_code_label:{fr:'Code reçu par le client',en:'Code received by customer'},
   card_reissue_confirm_btn:{fr:'Confirmer le remplacement',en:'Confirm replacement'},
   card_reissue_err_code:{fr:'Entrez le code reçu par le client',en:"Enter the code received by the customer"},
-  card_reissue_success:{fr:'Carte remplacée. Rescannez la nouvelle carte pour continuer.',en:'Card replaced. Scan the new card again to continue.'},
+  card_reissue_success:{fr:'Carte remplacée.',en:'Card replaced.'},
   loc_captured_toast:{fr:'Position enregistrée',en:'Location captured'},
   inc_empty:{fr:'Aucune demande entrante.',en:'No incoming request.'},
   dist_hist_title:{fr:'Historique de mes recharges effectuées',en:'History of recharges I processed'},
@@ -1644,10 +1644,11 @@ function identityBadgeHtml(customer){
 // Detecte automatiquement, dans les 3 flux (depot/retrait/envoyer), quand un
 // QR scanne correspond a une carte physique pas encore activee (voir
 // agent_resolve_customer_qr() cote serveur, card_status='unassigned') et
-// propose de l'activer avant de continuer. Une fois activee, l'agent
-// rescanne simplement la carte pour poursuivre l'operation d'origine -
-// separation volontaire (activation = action distincte, evite de menager
-// un etat complexe a travers 3 flux differents).
+// propose de l'activer avant de continuer. Une fois activee (ou reemise),
+// enchaine automatiquement sur l'operation d'origine via
+// continueOriginalCardFlow() - un rescan manuel de la meme carte etait
+// initialement demande ici, mais s'est revele une friction reelle en usage
+// (l'agent ne voyait jamais l'ecran de montant ensuite).
 function renderCardActivationForm(cardCode, onCancel, sourceFlow){
   window._pendingCardCode = cardCode;
   window._cardActivationCancel = onCancel;
@@ -1710,7 +1711,7 @@ function doActivateCard(isNew){
   apiCall('/agent?action=activate-card','POST',payload,getToken()).then(function(res){
     if(res && res.success){
       toast(t('card_activated_success'));
-      closeSheet();
+      continueOriginalCardFlow();
     } else if(!isNew && res && res.message && res.message.indexOf('ALREADY_HAS_ACTIVE_CARD:')===0){
       renderCardReissuePrompt();
     } else {
@@ -1718,6 +1719,26 @@ function doActivateCard(isNew){
       if(btn) btn.disabled=false;
     }
   }).catch(function(){ toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+// Une fois la carte activee (ou reemise), enchaine directement sur
+// l'operation d'origine (depot/retrait/envoyer) plutot que de forcer
+// l'agent a rescanner la meme carte physique qu'il vient de scanner -
+// friction reelle observee en conditions reelles (le depot/retrait/envoi
+// n'etait tout simplement jamais propose ensuite). Le compte vient d'etre
+// cree/relie, un nouvel appel resolve-customer suffit a recuperer un objet
+// client au format attendu par les ecrans de montant existants (identique a
+// une identification par numero tape, verified_live=false).
+function continueOriginalCardFlow(){
+  var phone = window._pendingCardPhone;
+  var flow = window._pendingCardSourceFlow;
+  apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
+    if(!res || !res.success || !res.data){ closeSheet(); return; }
+    var customer = res.data;
+    if(flow==='depot') renderDepotAmountForm(customer);
+    else if(flow==='retrait') renderRetraitPhoneAmountForm(customer);
+    else if(flow==='envoyer') renderEnvoyerRecipientForm(customer, null, false);
+    else closeSheet();
+  }).catch(function(){ closeSheet(); });
 }
 // ── Reemission d'une carte perdue/volee (SMS de confirmation au client) ──
 // Declenche quand doActivateCard() echoue avec ALREADY_HAS_ACTIVE_CARD : au
@@ -1761,7 +1782,7 @@ function confirmCardReissue(){
   apiCall('/agent?action=card-reissue-confirm','POST',{request_id:window._pendingReissueRequestId, code:code},getToken()).then(function(res){
     if(res && res.success){
       toast(t('card_reissue_success'));
-      closeSheet();
+      continueOriginalCardFlow();
     } else {
       toast((res&&res.message)||t('card_activate_err'), true);
       if(btn) btn.disabled=false;

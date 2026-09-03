@@ -8379,6 +8379,10 @@ function admin_delete_account() {
     // Debarrasse les autres comptes de la reference a ce parrain supprime,
     // sans les toucher autrement (ils gardent leur propre historique intact).
     q("UPDATE users SET referred_by=NULL WHERE referred_by=?",[$uid]);
+    // Libere toute carte physique liee (sinon elle reste marquee 'active' en
+    // pointant vers un compte qui n'existe plus - coincee pour toujours,
+    // ni reemissible ni reutilisable).
+    q("UPDATE physical_cards SET status='unassigned', user_id=NULL, activated_at=NULL, activated_by_agent_id=NULL WHERE user_id=?",[$uid]);
     q("DELETE FROM wallets WHERE user_id=?",[$uid]);
     q("DELETE FROM users WHERE id=?",[$uid]);
 
