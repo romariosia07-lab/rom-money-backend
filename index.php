@@ -8983,14 +8983,15 @@ function admin_unmark_cards_printed() {
 // uniquement - une carte deja liee a un client n'a pas vocation a etre
 // reimprimee en lot). Route dediee et legere (juste les codes, pas toute la
 // pagination/metadonnees) pour rester rapide meme au-dela d'une page
-// d'affichage. Plus ancienne d'abord, pour ecouler le stock jamais
-// distribue avant de piocher dans les lots plus recents.
+// d'affichage. Meme ordre que la liste affichee (plus recente d'abord),
+// pour que la selection corresponde visuellement au sens de lecture haut
+// vers le bas de la liste.
 function admin_select_unprinted_cards() {
     $b = body();
     check_admin_password($b);
     $count = (int)($b['count'] ?? 0);
     if($count < 1 || $count > 500) fail('Le nombre doit etre entre 1 et 500');
-    $rows = q("SELECT card_code FROM physical_cards WHERE status='unassigned' AND printed_at IS NULL ORDER BY created_at ASC LIMIT $count")->fetchAll();
+    $rows = q("SELECT card_code FROM physical_cards WHERE status='unassigned' AND printed_at IS NULL ORDER BY created_at DESC LIMIT $count")->fetchAll();
     ok(['codes'=>array_column($rows,'card_code')]);
 }
 
