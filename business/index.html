@@ -2265,7 +2265,7 @@ function renderKybDocs(b){
     if(!uploadedAt && pending){
       h+='<div class="card" style="padding:12px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t(d.label)+'</div>'
-        +'<img src="'+pending.photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:10px">';
+        +'<img src="'+pending.photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:10px;cursor:pointer" onclick="window.open(this.src)">';
       if(pending.ocrRunning){
         h+='<div style="padding:10px 0;text-align:center;color:var(--t3);font-size:12px">⏳ '+t('kyb_recto_ocr_running')+'</div>';
       } else {
