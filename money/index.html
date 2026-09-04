@@ -5655,20 +5655,30 @@ function adminBuildPrintableCardsHtml(codes){
     +'.print-toolbar button{padding:12px 20px;font-size:14px;font-weight:700;border:none;border-radius:8px;background:#0d4a30;color:#fff;cursor:pointer}'
     +'@media print{.print-toolbar{display:none}body{background:#fff;padding:0}}'
     +'</style></head><body>'
-    +'<div class="print-toolbar"><button onclick="window.print()">'+at('admin_cards_print_tab_btn')+'</button></div>'
+    +'<div class="print-toolbar"><button onclick="doPrintCards()">'+at('admin_cards_print_tab_btn')+'</button></div>'
     +cardsHtml
+    // Le marquage "imprimee" ne doit se declencher que lorsque le bouton
+    // ici DEDANS est reellement clique (donc la boite de dialogue
+    // d'impression du navigateur invoquee) - pas a la simple ouverture de
+    // l'onglet, corrige suite a un vrai bug signale (onglet ouvert sans
+    // avoir imprime, deja marque comme imprime quand meme). window.opener
+    // reste accessible car cet onglet n'a jamais navigue (about:blank,
+    // meme origine que la page d'origine).
+    +'<scr'+'ipt>var _CARDS='+JSON.stringify(codes)+';function doPrintCards(){window.print();if(window.opener&&window.opener.adminMarkCardsPrintedFromTab){window.opener.adminMarkCardsPrintedFromTab(_CARDS);}}</scr'+'ipt>'
     +'</body></html>';
 }
-// Marque les cartes imprimees des l'ouverture de l'onglet (pas apres coup :
-// aucun moyen fiable de detecter qu'une impression a reellement ete lancee
-// depuis le navigateur), puis ouvre l'onglet dedie.
 function adminOpenCardPrintTab(codes){
   if(!codes || !codes.length){ toast(at('admin_cards_err_count'), true); return; }
+  var html = adminBuildPrintableCardsHtml(codes);
+  var w = window.open('', '_blank');
+  if(!w){ toast(at('admin_print_popup_blocked'), true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+// Appele par l'onglet d'impression lui-meme (window.opener), uniquement
+// quand son bouton Imprimer a reellement ete clique - voir
+// adminBuildPrintableCardsHtml().
+function adminMarkCardsPrintedFromTab(codes){
   apiCall('/admin?action=cards-mark-printed','POST',{admin_password:window._adminPw,card_codes:codes},'').then(function(){
-    var html = adminBuildPrintableCardsHtml(codes);
-    var w = window.open('', '_blank');
-    if(!w){ toast(at('admin_print_popup_blocked'), true); return; }
-    w.document.open(); w.document.write(html); w.document.close();
     adminClearCardsSelection();
     adminLoadCards(1);
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
