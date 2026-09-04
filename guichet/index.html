@@ -492,6 +492,7 @@ var I18N = {
   kyc_agent_birthdate:{fr:'Date de naissance',en:'Date of birth'},
   kyc_agent_submit_confirm_btn:{fr:'Envoyer le dossier',en:'Send documents'},
   kyc_agent_ocr_running:{fr:'Lecture automatique de la pièce...',en:'Reading document automatically...'},
+  kyc_agent_processing:{fr:'Traitement de la photo...',en:'Processing photo...'},
   kyc_agent_err_photos:{fr:'Le recto et le verso sont requis',en:'Front and back photos are required'},
   kyc_agent_err_name:{fr:'Le nom et le prénom exacts sont requis',en:'Exact first and last name are required'},
   kyc_agent_submit_success:{fr:'Dossier envoyé, en attente de validation',en:'Documents sent, awaiting validation'},
@@ -1857,18 +1858,28 @@ function startCustomerKycSubmit(phone){
   window._customerKycPhone = phone;
   window._customerKycPending = {};
   window._customerKycOcr = {};
+  window._customerKycProcessing = {};
   renderCustomerKycScreen();
 }
 function renderCustomerKycScreen(){
   var b=document.getElementById('sh-body');
   var pending = window._customerKycPending;
   var ocr = window._customerKycOcr||{};
+  var processing = window._customerKycProcessing||{};
   var html = '<div class="fee-note free" style="margin-bottom:14px">'+t('kyc_agent_intro')+'</div>';
   ['recto','verso'].forEach(function(key){
     var photo = pending[key];
+    var isProcessing = processing[key];
     html += '<div class="card" style="padding:12px;margin-bottom:10px;text-align:left">'
       +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t('kyc_agent_'+key)+'</div>';
-    if(photo){
+    if(isProcessing){
+      // Retour visuel obligatoire pendant le redimensionnement (peut prendre
+      // plusieurs secondes sur une photo de camera haute resolution, sur un
+      // telephone modeste) - sans ca, l'ecran semblait fige et poussait a
+      // re-cliquer, parfois en double, avant que le premier traitement soit
+      // termine (bug reel signale : "je dois prendre la photo deux fois").
+      html += '<div style="padding:30px 0;text-align:center;color:var(--t2);font-size:12px">⏳ '+t('kyc_agent_processing')+'</div>';
+    } else if(photo){
       html += '<img src="'+photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:8px">'
         +'<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
         +'<button class="chip" style="width:100%;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>';
@@ -1891,6 +1902,12 @@ function renderCustomerKycScreen(){
 }
 function handleCustomerKycFile(input, key){
   if(!input.files||!input.files[0]) return;
+  // Empeche un second declenchement (double-tap pendant que le premier
+  // traite deja) de lancer un deuxieme traitement en parallele pour la
+  // meme cle - source du bug "il faut prendre la photo deux fois".
+  if(window._customerKycProcessing && window._customerKycProcessing[key]){ input.value=''; return; }
+  window._customerKycProcessing[key] = true;
+  renderCustomerKycScreen();
   var reader=new FileReader();
   reader.onload=function(e){
     var img=new Image();
@@ -1902,6 +1919,7 @@ function handleCustomerKycFile(input, key){
       cv.getContext('2d').drawImage(img,0,0,w,h);
       var dataUrl = cv.toDataURL('image/jpeg',0.8);
       window._customerKycPending[key] = dataUrl;
+      window._customerKycProcessing[key] = false;
       if(key==='recto') tryCustomerKycOcr(dataUrl);
       renderCustomerKycScreen();
     };
