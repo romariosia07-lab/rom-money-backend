@@ -1264,7 +1264,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
       <select class="finput" id="cards-status-filter" onchange="adminLoadCards(1)" style="margin-bottom:12px">
-        <option value="" data-i18n-admin="admin_cards_status_all">Statut : Toutes</option>
+        <option value="" data-i18n-admin="admin_cards_status_all">Statut : Toutes (hors bloquées)</option>
         <option value="unassigned" data-i18n-admin="admin_cards_status_unassigned">Non activées</option>
         <option value="active" data-i18n-admin="admin_cards_status_active">Actives</option>
         <option value="blocked" data-i18n-admin="admin_cards_status_blocked">Bloquées</option>
@@ -1861,7 +1861,8 @@ var I18N = {
   admin_cards_desc: {fr:"Cartes QR imprimables, alternative au téléphone pour identifier un client chez un agent. Génère un lot, imprime les QR, distribue-les aux agents/distributeurs pour activation.", en:'Printable QR cards, an alternative to a phone for identifying a customer at an agent. Generate a batch, print the QR codes, distribute them to agents/distributors for activation.'},
   admin_cards_generate_btn: {fr:'Générer', en:'Generate'},
   admin_cards_print_btn: {fr:'🖨 Imprimer', en:'🖨 Print'},
-  admin_cards_status_all: {fr:'Statut : Toutes', en:'Status: All'},
+  admin_cards_status_all: {fr:'Statut : Toutes (hors bloquées)', en:'Status: All (excluding blocked)'},
+  admin_cards_pill_all: {fr:'Toutes (hors bloquées)', en:'All (excluding blocked)'},
   admin_cards_status_unassigned: {fr:'Non activées', en:'Not activated'},
   admin_cards_status_active: {fr:'Actives', en:'Active'},
   admin_cards_status_blocked: {fr:'Bloquées', en:'Blocked'},
@@ -5619,7 +5620,7 @@ function adminLoadCards(page){
       var summaryEl=document.getElementById('cards-counts-summary');
       if(summaryEl){
         var summaryPills=[
-          ['','admin_cards_status_all',counts.unassigned+counts.active+counts.blocked,'var(--t2)'],
+          ['','admin_cards_pill_all',counts.unassigned+counts.active+counts.blocked,'var(--t2)'],
           ['unassigned','admin_cards_status_unassigned',counts.unassigned,'var(--t3)'],
           ['active','admin_cards_status_active',counts.active,'var(--g)'],
           ['blocked','admin_cards_status_blocked',counts.blocked,'var(--re)']

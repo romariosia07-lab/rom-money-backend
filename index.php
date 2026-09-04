@@ -8771,6 +8771,15 @@ function admin_list_physical_cards() {
     $where = $scopeWhere; $params = $scopeParamsFinal;
     if(in_array($status, ['unassigned','active','blocked'], true)){
         $where .= " AND pc.status=?"; $params[] = $status;
+    } else {
+        // "Toutes" (aucun statut choisi explicitement) masque les cartes
+        // bloquees par defaut - meme convention que la corbeille dans une
+        // boite mail, jamais incluse dans "Tous les messages" sauf a aller
+        // la chercher explicitement. Le compteur du bandeau reste honnete
+        // (base sur $scopeWhere, jamais filtre par statut) : "Toutes: 19"
+        // peut donc afficher moins de lignes que son propre chiffre, c'est
+        // attendu.
+        $where .= " AND pc.status != 'blocked'";
     }
     $total = (int)q("SELECT COUNT(*) FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT pc.id,pc.card_code,pc.status,pc.activated_at,pc.created_at,
