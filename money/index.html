@@ -3996,6 +3996,13 @@ function goto(id){
     var el=document.getElementById(all[i]);
     if(el) el.classList.toggle('on', all[i]===id);
   }
+  // Le toast vit dans un element global, independant de ces ecrans plein
+  // ecran - un message d'une action precedente pouvait donc rester visible
+  // par-dessus un nouvel ecran si son delai d'affichage n'etait pas encore
+  // ecoule. Chaque navigation dissout desormais immediatement un toast
+  // encore visible.
+  var toastEl=document.getElementById('toast');
+  if(toastEl){ clearTimeout(toastEl._t); toastEl.classList.remove('on'); }
 }
 
 // ═══════════════════════════════════════════

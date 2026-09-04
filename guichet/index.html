@@ -820,6 +820,13 @@ function goto(id){
     var el=document.getElementById(all[i]);
     if(el) el.classList.toggle('on', all[i]===id);
   }
+  // Le toast vit dans un element global, independant de ces ecrans plein
+  // ecran - un message d'une action precedente (ex: lecture OCR en cours)
+  // pouvait donc rester visible par-dessus un nouvel ecran (ex: saisie du
+  // PIN) si son delai d'affichage n'etait pas encore ecoule. Chaque
+  // navigation dissout desormais immediatement un toast encore visible.
+  var toastEl=document.getElementById('toast');
+  if(toastEl) toastEl.className='toast';
 }
 function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
 function curSuffix(){ return (APP.currency||'XOF')==='XOF' ? 'F' : APP.currency; }
