@@ -830,20 +830,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="admin-stitle" data-i18n-admin="admin_dash_title">Vue d'ensemble</div>
       <div id="admin-dash-scope-note" style="display:none;margin-bottom:14px;padding:10px 12px;border-radius:10px;background:var(--gl);color:var(--g);font-size:11px;font-weight:600"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
-        <select class="finput" id="dash-period" onchange="adminToggleDashCustomDates()">
-          <option value="today" data-i18n-admin="admin_period_today">Aujourd'hui</option>
-          <option value="7d" data-i18n-admin="admin_period_7d">7 derniers jours</option>
-          <option value="month" data-i18n-admin="admin_period_month">Ce mois-ci</option>
-          <option value="all" data-i18n-admin="admin_period_all">Tout</option>
-          <option value="custom" data-i18n-admin="admin_period_custom">Personnalisé</option>
-        </select>
+        <div id="dp-dash-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+        <div id="dp-dash-range" style="font-size:11px;color:var(--t3)"></div>
       </div>
       <div class="frow" id="dash-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="dash-country-box" style="display:flex;flex-wrap:wrap;gap:4px"></div>
-      </div>
-      <div id="dash-custom-dates" style="display:none;gap:10px;margin-bottom:14px">
-        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_from">Date de début</label><input class="finput" type="date" id="dash-date-from"></div>
-        <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_to">Date de fin</label><input class="finput" type="date" id="dash-date-to"></div>
       </div>
       <button class="btn-g" style="margin-bottom:16px" onclick="adminLoadDashboard()" data-i18n-admin="admin_btn_apply">Appliquer</button>
       <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -1038,17 +1029,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 
         <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_earnings_fees_title">Répartition des gains par période</div>
         <div class="frow"><label class="flabel" data-i18n-admin="admin_dash_period_label">Période (pour Volume et Gains ci-dessous)</label>
-          <select class="finput" id="earn-fees-period" onchange="adminToggleEarnFeesCustomDates()">
-            <option value="today" data-i18n-admin="admin_period_today">Aujourd'hui</option>
-            <option value="7d" data-i18n-admin="admin_period_7d">7 derniers jours</option>
-            <option value="month" data-i18n-admin="admin_period_month">Ce mois-ci</option>
-            <option value="all" data-i18n-admin="admin_period_all">Tout</option>
-            <option value="custom" data-i18n-admin="admin_period_custom">Personnalisé</option>
-          </select>
-        </div>
-        <div id="earn-fees-custom-dates" style="display:none;gap:10px;margin-bottom:14px">
-          <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_from">Date de début</label><input class="finput" type="date" id="earn-fees-date-from"></div>
-          <div class="frow" style="flex:1;margin-bottom:0"><label class="flabel" data-i18n-admin="admin_dash_date_to">Date de fin</label><input class="finput" type="date" id="earn-fees-date-to"></div>
+          <div id="dp-earn-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+          <div id="dp-earn-range" style="font-size:11px;color:var(--t3)"></div>
         </div>
         <button class="btn-g" style="margin-bottom:16px" onclick="adminLoadEarnFeesBreakdown()" data-i18n-admin="admin_btn_apply">Appliquer</button>
         <div id="earn-fees-box" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
@@ -1261,8 +1243,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_cards_date_filter_label">Date de génération</label>
-        <div id="cards-date-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
-        <div id="cards-date-range-display" style="font-size:11px;color:var(--t3)"></div>
+        <div id="dp-cards-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+        <div id="dp-cards-range" style="font-size:11px;color:var(--t3)"></div>
       </div>
       <select class="finput" id="cards-status-filter" onchange="adminLoadCards(1)" style="margin-bottom:12px">
         <option value="" data-i18n-admin="admin_cards_status_all">Statut : Toutes (hors bloquées)</option>
@@ -1690,14 +1672,7 @@ var I18N = {
   admin_dash_error_loading: {fr:'Erreur de chargement', en:'Loading error'},
   admin_dash_error_network: {fr:'Erreur réseau', en:'Network error'},
   admin_dash_select_dates: {fr:'Sélectionnez les deux dates', en:'Select both dates'},
-  admin_period_today: {fr:"Aujourd'hui", en:'Today'},
-  admin_period_7d: {fr:'7 derniers jours', en:'Last 7 days'},
-  admin_period_month: {fr:'Ce mois-ci', en:'This month'},
-  admin_period_all: {fr:'Tout', en:'All'},
-  admin_period_custom: {fr:'Période personnalisée', en:'Custom period'},
   admin_dash_period_label: {fr:'Période (pour Volume et Gains ci-dessous)', en:'Period (for Volume and Earnings below)'},
-  admin_dash_date_from: {fr:'Date de début', en:'Start date'},
-  admin_dash_date_to: {fr:'Date de fin', en:'End date'},
   admin_btn_apply: {fr:'Appliquer', en:'Apply'},
   admin_dash_export_xlsx: {fr:'⬇ Exporter Excel', en:'⬇ Export Excel'},
   admin_dash_export_pdf: {fr:'⬇ Exporter PDF', en:'⬇ Export PDF'},
@@ -3267,13 +3242,20 @@ function translateAuditDetail(details){
     return text;
   }catch(e){ return details; }
 }
-function DASH_PERIOD_FR_GET(key){
-  var map={today:'admin_period_today','7d':'admin_period_7d',month:'admin_period_month',all:'admin_period_all',custom:'admin_period_custom'};
-  return map[key] ? at(map[key]) : null;
-}
-function adminToggleDashCustomDates(){
-  var sel=document.getElementById('dash-period').value;
-  document.getElementById('dash-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
+// Traduit l'etat courant du filtre de date generique (voir adminDpRender
+// plus bas) en payload {period, date_from, date_to} attendu par
+// dashboard-stats/earnings-fees-stats - ces deux routes acceptent deja
+// period='custom'+dates arbitraires ou period='all' sans dates, donc aucun
+// changement backend n'est necessaire pour brancher le nouveau filtre a
+// boutons dessus. Retourne null si une plage manuelle (Date precise/Periode)
+// est choisie mais pas encore completee - l'appelant doit alors avertir
+// l'utilisateur plutot que d'envoyer une requete incomplete.
+function adminDpPeriodPayload(ns){
+  var st=adminDpState(ns);
+  if(st.preset==='all') return {period:'all'};
+  var r=adminDpRange(ns);
+  if(!r.from || !r.to) return null;
+  return {period:'custom', date_from:r.from, date_to:r.to};
 }
 // Peuple/rafraichit les cases a cocher "Pays" du tableau de bord a partir
 // de la reponse serveur (available_countries) - fait ici plutot qu'au
@@ -3337,15 +3319,13 @@ function adminLoadDashboard(){
       scopeNote.style.display='block';
     }
   }
+  adminDpRender('dash','adminLoadDashboard');
   var box=document.getElementById('admin-dashboard-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
-  var period=document.getElementById('dash-period').value;
-  var payload={admin_password:window._adminPw, period:period};
-  if(period==='custom'){
-    var df=document.getElementById('dash-date-from').value, dt=document.getElementById('dash-date-to').value;
-    if(!df||!dt){ toast(at('admin_dash_select_dates'), true); box.innerHTML=''; return; }
-    payload.date_from=df; payload.date_to=dt;
-  }
+  var periodPayload=adminDpPeriodPayload('dash');
+  if(!periodPayload){ toast(at('admin_dash_select_dates'), true); box.innerHTML=''; return; }
+  var payload={admin_password:window._adminPw, period:periodPayload.period};
+  if(periodPayload.date_from){ payload.date_from=periodPayload.date_from; payload.date_to=periodPayload.date_to; }
   var countryFilterVal=adminReadDashCountryFilter();
   if(countryFilterVal) payload.country=countryFilterVal;
   apiCall('/admin?action=dashboard-stats','POST',payload,'').then(function(res){
@@ -3354,7 +3334,7 @@ function adminLoadDashboard(){
       adminRenderDashCountryOptions(d.available_countries||[], d.country_filter||null);
       var cardsHtml='<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:8px">'
         +'<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_today')+'</div>'
-        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
+        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+adminDpLabel('dash')+' '+at('admin_dash_cumulative_suffix')+'</div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;margin-bottom:18px">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
@@ -3458,7 +3438,7 @@ function adminLoadDashboard(){
         +'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:8px">'
         +'<div class="admin-stitle" style="margin-top:0">'+at('admin_dash_today')+'</div>'
-        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+(DASH_PERIOD_FR_GET(d.period)||at('admin_dash_cumulative'))+' '+at('admin_dash_cumulative_suffix')+'</div>'
+        +'<div class="admin-stitle" style="margin-top:0;padding-left:12px">'+adminDpLabel('dash')+' '+at('admin_dash_cumulative_suffix')+'</div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:18px">'
         +'<div style="display:flex;flex-direction:column;gap:8px;padding-right:10px;border-right:1px solid var(--bord)">'
@@ -3689,23 +3669,19 @@ function adminPrintUsers(){
   adminPrintExport('users-export-pdf', payload);
 }
 function adminExportDashboard(format){
-  var period=document.getElementById('dash-period').value;
-  var payload={admin_password:window._adminPw, period:period};
-  if(period==='custom'){
-    payload.date_from=document.getElementById('dash-date-from').value;
-    payload.date_to=document.getElementById('dash-date-to').value;
-  }
+  var periodPayload=adminDpPeriodPayload('dash');
+  if(!periodPayload){ toast(at('admin_dash_select_dates'), true); return; }
+  var payload={admin_password:window._adminPw, period:periodPayload.period};
+  if(periodPayload.date_from){ payload.date_from=periodPayload.date_from; payload.date_to=periodPayload.date_to; }
   var countryFilterVal=adminReadDashCountryFilter();
   if(countryFilterVal) payload.country=countryFilterVal;
   adminDownloadExport('dashboard-export-'+format, payload, 'rom_money_dashboard.'+format);
 }
 function adminPrintDashboard(){
-  var period=document.getElementById('dash-period').value;
-  var payload={admin_password:window._adminPw, period:period};
-  if(period==='custom'){
-    payload.date_from=document.getElementById('dash-date-from').value;
-    payload.date_to=document.getElementById('dash-date-to').value;
-  }
+  var periodPayload=adminDpPeriodPayload('dash');
+  if(!periodPayload){ toast(at('admin_dash_select_dates'), true); return; }
+  var payload={admin_password:window._adminPw, period:periodPayload.period};
+  if(periodPayload.date_from){ payload.date_from=periodPayload.date_from; payload.date_to=periodPayload.date_to; }
   var countryFilterVal2=adminReadDashCountryFilter();
   if(countryFilterVal2) payload.country=countryFilterVal2;
   adminPrintExport('dashboard-export-pdf', payload);
@@ -5826,100 +5802,110 @@ function adminQuickSelectUnprinted(){
     }
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
-function adminCardsYmd(d){
+// Composant generique de filtre par date (boutons Aujourd'hui/Semaine/Mois/
+// Annee/Date precise/Periode/Tous + sous-controle contextuel sur la meme
+// ligne + intervalle resolu affiche en dessous) - un seul namespace (ns) par
+// instance (son propre etat, ses propres ids d'element genere en dp-<ns>-*),
+// reutilise partout ou l'admin avait un filtre par periode (Cartes,
+// Dashboard, repartition des gains). onChangeFn est le NOM (string) d'une
+// fonction globale a appeler apres chaque changement (ex: recharger la
+// liste concernee) - une string plutot qu'une reference directe car elle
+// doit pouvoir etre injectee dans un attribut onclick="" genere en HTML.
+function adminDpYmd(d){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-window._cardsDatePreset = window._cardsDatePreset || 'all';
-window._cardsDateMonth = (window._cardsDateMonth!==undefined) ? window._cardsDateMonth : new Date().getMonth();
-window._cardsDateYear = window._cardsDateYear || new Date().getFullYear();
-window._cardsDateExact = window._cardsDateExact || '';
-window._cardsDatePeriodFrom = window._cardsDatePeriodFrom || '';
-window._cardsDatePeriodTo = window._cardsDatePeriodTo || '';
-function adminCardsDateRange(){
+window._dp = window._dp || {};
+function adminDpState(ns){
+  if(!window._dp[ns]) window._dp[ns]={preset:'all', month:new Date().getMonth(), year:new Date().getFullYear(), exact:'', from:'', to:''};
+  return window._dp[ns];
+}
+function adminDpRange(ns){
+  var st=adminDpState(ns);
   var now=new Date();
-  var preset=window._cardsDatePreset;
-  if(preset==='today'){ var s=adminCardsYmd(now); return {from:s,to:s}; }
-  if(preset==='week'){
+  if(st.preset==='today'){ var s=adminDpYmd(now); return {from:s,to:s}; }
+  if(st.preset==='week'){
     var day=now.getDay(); var diffToMonday=(day===0?-6:1-day);
     var monday=new Date(now); monday.setDate(now.getDate()+diffToMonday);
     var sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
-    return {from:adminCardsYmd(monday),to:adminCardsYmd(sunday)};
+    return {from:adminDpYmd(monday),to:adminDpYmd(sunday)};
   }
-  if(preset==='month'){
-    var y=window._cardsDateYear, m=window._cardsDateMonth;
-    var first=new Date(y,m,1); var last=new Date(y,m+1,0);
-    return {from:adminCardsYmd(first),to:adminCardsYmd(last)};
+  if(st.preset==='month'){
+    var first=new Date(st.year,st.month,1); var last=new Date(st.year,st.month+1,0);
+    return {from:adminDpYmd(first),to:adminDpYmd(last)};
   }
-  if(preset==='year'){
-    var y2=window._cardsDateYear;
-    return {from:y2+'-01-01',to:y2+'-12-31'};
+  if(st.preset==='year'){
+    return {from:st.year+'-01-01',to:st.year+'-12-31'};
   }
-  if(preset==='exact'){
-    return window._cardsDateExact ? {from:window._cardsDateExact,to:window._cardsDateExact} : {from:'',to:''};
+  if(st.preset==='exact'){
+    return st.exact ? {from:st.exact,to:st.exact} : {from:'',to:''};
   }
-  if(preset==='period'){
-    return {from:window._cardsDatePeriodFrom||'',to:window._cardsDatePeriodTo||''};
+  if(st.preset==='period'){
+    return {from:st.from||'',to:st.to||''};
   }
   return {from:'',to:''};
 }
-function adminCardsDatePresetClick(preset){
-  window._cardsDatePreset=preset;
-  adminRenderCardsDatePresets();
-  adminLoadCards(1);
+function adminDpClick(ns, preset, onChangeFn){
+  adminDpState(ns).preset=preset;
+  adminDpRender(ns, onChangeFn);
+  window[onChangeFn]();
 }
-function adminCardsDateExtraHtml(){
-  var preset=window._cardsDatePreset;
-  if(preset==='month'){
+function adminDpExtraHtml(ns){
+  var st=adminDpState(ns);
+  if(st.preset==='month'){
     var months=[at('admin_cards_date_m01'),at('admin_cards_date_m02'),at('admin_cards_date_m03'),at('admin_cards_date_m04'),at('admin_cards_date_m05'),at('admin_cards_date_m06'),at('admin_cards_date_m07'),at('admin_cards_date_m08'),at('admin_cards_date_m09'),at('admin_cards_date_m10'),at('admin_cards_date_m11'),at('admin_cards_date_m12')];
-    return '<select class="finput" id="cards-date-month-sel" style="margin-bottom:0;width:auto">'
-      +months.map(function(name,i){ return '<option value="'+i+'"'+(i===window._cardsDateMonth?' selected':'')+'>'+name+'</option>'; }).join('')
+    return '<select class="finput" id="dp-'+ns+'-month" style="margin-bottom:0;width:auto">'
+      +months.map(function(name,i){ return '<option value="'+i+'"'+(i===st.month?' selected':'')+'>'+name+'</option>'; }).join('')
       +'</select>';
   }
-  if(preset==='year'){
+  if(st.preset==='year'){
     var curY=new Date().getFullYear(); var years=[];
     for(var y=curY;y>=curY-5;y--) years.push(y);
-    return '<select class="finput" id="cards-date-year-sel" style="margin-bottom:0;width:auto">'
-      +years.map(function(y){ return '<option value="'+y+'"'+(y===window._cardsDateYear?' selected':'')+'>'+y+'</option>'; }).join('')
+    return '<select class="finput" id="dp-'+ns+'-year" style="margin-bottom:0;width:auto">'
+      +years.map(function(y){ return '<option value="'+y+'"'+(y===st.year?' selected':'')+'>'+y+'</option>'; }).join('')
       +'</select>';
   }
-  if(preset==='exact'){
-    return '<input class="finput" id="cards-date-exact-input" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDateExact||'')+'">';
+  if(st.preset==='exact'){
+    return '<input class="finput" id="dp-'+ns+'-exact" type="date" style="margin-bottom:0;width:auto" value="'+(st.exact||'')+'">';
   }
-  if(preset==='period'){
-    return '<input class="finput" id="cards-date-period-from" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDatePeriodFrom||'')+'">'
-      +'<input class="finput" id="cards-date-period-to" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDatePeriodTo||'')+'">';
+  if(st.preset==='period'){
+    return '<input class="finput" id="dp-'+ns+'-from" type="date" style="margin-bottom:0;width:auto" value="'+(st.from||'')+'">'
+      +'<input class="finput" id="dp-'+ns+'-to" type="date" style="margin-bottom:0;width:auto" value="'+(st.to||'')+'">';
   }
   return '';
 }
-function adminCardsDateExtraBind(){
-  var monthSel=document.getElementById('cards-date-month-sel');
-  if(monthSel) monthSel.onchange=function(){ window._cardsDateMonth=parseInt(this.value,10); adminLoadCards(1); };
-  var yearSel=document.getElementById('cards-date-year-sel');
-  if(yearSel) yearSel.onchange=function(){ window._cardsDateYear=parseInt(this.value,10); adminLoadCards(1); };
-  var exactInput=document.getElementById('cards-date-exact-input');
-  if(exactInput) exactInput.onchange=function(){ window._cardsDateExact=this.value; adminLoadCards(1); };
-  var periodFrom=document.getElementById('cards-date-period-from');
-  if(periodFrom) periodFrom.onchange=function(){ window._cardsDatePeriodFrom=this.value; adminLoadCards(1); };
-  var periodTo=document.getElementById('cards-date-period-to');
-  if(periodTo) periodTo.onchange=function(){ window._cardsDatePeriodTo=this.value; adminLoadCards(1); };
+function adminDpBind(ns, onChangeFn){
+  var st=adminDpState(ns);
+  var m=document.getElementById('dp-'+ns+'-month'); if(m) m.onchange=function(){ st.month=parseInt(this.value,10); window[onChangeFn](); };
+  var y=document.getElementById('dp-'+ns+'-year'); if(y) y.onchange=function(){ st.year=parseInt(this.value,10); window[onChangeFn](); };
+  var ex=document.getElementById('dp-'+ns+'-exact'); if(ex) ex.onchange=function(){ st.exact=this.value; window[onChangeFn](); };
+  var pf=document.getElementById('dp-'+ns+'-from'); if(pf) pf.onchange=function(){ st.from=this.value; window[onChangeFn](); };
+  var pt=document.getElementById('dp-'+ns+'-to'); if(pt) pt.onchange=function(){ st.to=this.value; window[onChangeFn](); };
 }
-function adminRenderCardsDatePresets(){
-  var box=document.getElementById('cards-date-presets');
+function adminDpRender(ns, onChangeFn){
+  var box=document.getElementById('dp-'+ns+'-presets');
   if(!box) return;
   var presets=[['today','admin_cards_date_today'],['week','admin_cards_date_week'],['month','admin_cards_date_month'],['year','admin_cards_date_year'],['exact','admin_cards_date_exact'],['period','admin_cards_date_period'],['all','admin_cards_date_all']];
+  var st=adminDpState(ns);
   box.innerHTML=presets.map(function(p){
-    var isActive=window._cardsDatePreset===p[0];
-    return '<button onclick="adminCardsDatePresetClick(\''+p[0]+'\')" style="padding:7px 14px;border-radius:20px;border:1px solid var(--bord);background:'+(isActive?'var(--g)':'none')+';color:'+(isActive?'#fff':'var(--t2)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+'</button>';
-  }).join('') + adminCardsDateExtraHtml();
-  adminCardsDateExtraBind();
-  var rangeDisplay=document.getElementById('cards-date-range-display');
+    var isActive=st.preset===p[0];
+    return '<button onclick="adminDpClick(\''+ns+'\',\''+p[0]+'\',\''+onChangeFn+'\')" style="padding:7px 14px;border-radius:20px;border:1px solid var(--bord);background:'+(isActive?'var(--g)':'none')+';color:'+(isActive?'#fff':'var(--t2)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+'</button>';
+  }).join('') + adminDpExtraHtml(ns);
+  adminDpBind(ns, onChangeFn);
+  var rangeDisplay=document.getElementById('dp-'+ns+'-range');
   if(rangeDisplay){
-    var r=adminCardsDateRange();
+    var r=adminDpRange(ns);
     rangeDisplay.textContent = (r.from && r.to) ? (r.from+' — '+r.to) : '';
   }
 }
+// Libelle court du preset choisi (pour un affichage du type "Mois - Total
+// cumule") - independant de toute valeur renvoyee par le serveur.
+function adminDpLabel(ns){
+  var map={today:'admin_cards_date_today',week:'admin_cards_date_week',month:'admin_cards_date_month',year:'admin_cards_date_year',exact:'admin_cards_date_exact',period:'admin_cards_date_period',all:'admin_cards_date_all'};
+  return at(map[adminDpState(ns).preset]||'admin_cards_date_all');
+}
+function adminCardsDateChanged(){ adminLoadCards(1); }
 function adminLoadCards(page){
-  adminRenderCardsDatePresets();
+  adminDpRender('cards','adminCardsDateChanged');
   var box=document.getElementById('cards-list-box');
   var pag=document.getElementById('cards-pagination');
   if(!box) return;
@@ -5930,7 +5916,7 @@ function adminLoadCards(page){
   if(cardsSearchVal) payload.search=cardsSearchVal;
   var cardsCountryVal=adminReadCountryFilter('cards-country-box');
   if(cardsCountryVal) payload.country=cardsCountryVal;
-  var cardsDateRange=adminCardsDateRange();
+  var cardsDateRange=adminDpRange('cards');
   if(cardsDateRange.from) payload.date_from=cardsDateRange.from;
   if(cardsDateRange.to) payload.date_to=cardsDateRange.to;
   apiCall('/admin?action=cards-list','POST',payload,'').then(function(res){
@@ -7042,20 +7028,14 @@ function adminUnlockEarnings(){
     }
   }).catch(function(){ if(statusEl) statusEl.innerHTML = '<div style="color:var(--re);font-size:12px">'+at('admin_dash_error_network')+'</div>'; });
 }
-function adminToggleEarnFeesCustomDates(){
-  var sel=document.getElementById('earn-fees-period').value;
-  document.getElementById('earn-fees-custom-dates').style.display = sel==='custom' ? 'flex' : 'none';
-}
 function adminLoadEarnFeesBreakdown(){
+  adminDpRender('earn','adminLoadEarnFeesBreakdown');
   var box = document.getElementById('earn-fees-box');
   if(!window._earningsPw || !box) return;
-  var period = document.getElementById('earn-fees-period').value;
-  var payload = {admin_password:window._adminPw,earnings_password:window._earningsPw,period:period};
-  if(period==='custom'){
-    var df=document.getElementById('earn-fees-date-from').value, dt=document.getElementById('earn-fees-date-to').value;
-    if(!df||!dt){ toast(at('admin_dash_select_dates'), true); return; }
-    payload.date_from=df; payload.date_to=dt;
-  }
+  var periodPayload=adminDpPeriodPayload('earn');
+  if(!periodPayload){ toast(at('admin_dash_select_dates'), true); return; }
+  var payload = {admin_password:window._adminPw,earnings_password:window._earningsPw,period:periodPayload.period};
+  if(periodPayload.date_from){ payload.date_from=periodPayload.date_from; payload.date_to=periodPayload.date_to; }
   box.innerHTML = '<div class="admin-empty">'+at('admin_loading')+'</div>';
   apiCall('/admin?action=earnings-fees-stats','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
