@@ -1895,6 +1895,9 @@ var I18N = {
   admin_cards_none_unprinted: {fr:'Aucune carte non imprimée disponible', en:'No unprinted cards available'},
   admin_cards_printed_on_label: {fr:'Imprimée le', en:'Printed on'},
   admin_cards_printed_count_label: {fr:'{n}x', en:'{n}x'},
+  admin_cards_confirm_printed_btn: {fr:'✅ Confirmer l\'impression réelle', en:'✅ Confirm actual printing'},
+  admin_cards_confirm_printed_note: {fr:'Cliquez "Imprimer" pour ouvrir la boîte de dialogue. Une fois l\'impression réellement terminée (pas annulée), cliquez "Confirmer" — c\'est ce clic, pas le bouton Imprimer, qui marque les cartes comme imprimées.', en:'Click "Print" to open the dialog. Once printing is actually done (not cancelled), click "Confirm" — this click, not the Print button, is what marks the cards as printed.'},
+  admin_cards_confirmed_printed_done: {fr:'✅ Confirmé', en:'✅ Confirmed'},
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
@@ -5651,20 +5654,33 @@ function adminBuildPrintableCardsHtml(codes){
     +'.print-card-box{background:#fff;border-radius:2mm;padding:1.8mm;width:22mm;height:22mm;border:.4mm solid rgba(245,166,35,.4)}'
     +'.print-card-code{font-family:monospace;font-size:6.5pt;letter-spacing:.5pt;color:#fff;opacity:.9}'
     +'.print-card-slogan{color:#fff;font-size:5.5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85}'
-    +'.print-toolbar{width:100%;margin-bottom:2mm}'
+    +'.print-toolbar{width:100%;margin-bottom:2mm;display:flex;gap:8px;align-items:center;flex-wrap:wrap}'
     +'.print-toolbar button{padding:12px 20px;font-size:14px;font-weight:700;border:none;border-radius:8px;background:#0d4a30;color:#fff;cursor:pointer}'
+    +'.print-toolbar button#confirm-printed-btn{background:#F5A623}'
+    +'.print-toolbar button#confirm-printed-btn:disabled{background:#9a9a9a;cursor:default}'
+    +'.print-toolbar-note{width:100%;font-size:12px;color:#555}'
     +'@media print{.print-toolbar{display:none}body{background:#fff;padding:0}}'
     +'</style></head><body>'
-    +'<div class="print-toolbar"><button onclick="doPrintCards()">'+at('admin_cards_print_tab_btn')+'</button></div>'
+    // Deux boutons distincts et volontairement separes : "Imprimer" ouvre
+    // juste la boite de dialogue du navigateur (rejouable autant de fois
+    // que necessaire, ex. apres une annulation ou un souci d'imprimante) ;
+    // "Confirmer" est le SEUL declencheur du marquage cote serveur, cliquable
+    // uniquement par l'admin lui-meme une fois l'impression reellement faite.
+    // Necessaire car aucune API navigateur ne permet de savoir si l'utilisateur
+    // a clique Enregistrer/Imprimer ou Annuler dans la boite de dialogue
+    // native (limitation volontaire des navigateurs, pas contournable) - donc
+    // impossible de detecter automatiquement une impression reelle, seule une
+    // confirmation manuelle explicite est fiable.
+    +'<div class="print-toolbar">'
+    +'<button onclick="window.print()">'+at('admin_cards_print_tab_btn')+'</button>'
+    +'<button id="confirm-printed-btn" onclick="confirmCardsReallyPrinted()">'+at('admin_cards_confirm_printed_btn')+'</button>'
+    +'<div class="print-toolbar-note">'+at('admin_cards_confirm_printed_note')+'</div>'
+    +'</div>'
     +cardsHtml
-    // Le marquage "imprimee" ne doit se declencher que lorsque le bouton
-    // ici DEDANS est reellement clique (donc la boite de dialogue
-    // d'impression du navigateur invoquee) - pas a la simple ouverture de
-    // l'onglet, corrige suite a un vrai bug signale (onglet ouvert sans
-    // avoir imprime, deja marque comme imprime quand meme). window.opener
-    // reste accessible car cet onglet n'a jamais navigue (about:blank,
-    // meme origine que la page d'origine).
-    +'<scr'+'ipt>var _CARDS='+JSON.stringify(codes)+';function doPrintCards(){window.print();if(window.opener&&window.opener.adminMarkCardsPrintedFromTab){window.opener.adminMarkCardsPrintedFromTab(_CARDS);}}</scr'+'ipt>'
+    +'<scr'+'ipt>var _CARDS='+JSON.stringify(codes)+';function confirmCardsReallyPrinted(){'
+    +'if(window.opener&&window.opener.adminMarkCardsPrintedFromTab){window.opener.adminMarkCardsPrintedFromTab(_CARDS);}'
+    +'var b=document.getElementById(\'confirm-printed-btn\');b.disabled=true;b.textContent='+JSON.stringify(at('admin_cards_confirmed_printed_done'))+';'
+    +'}</scr'+'ipt>'
     +'</body></html>';
 }
 function adminOpenCardPrintTab(codes){

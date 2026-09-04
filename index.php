@@ -5840,6 +5840,7 @@ function route_admin($action) {
         'cards-block'       => admin_block_physical_card(),
         'cards-reactivate'  => admin_reactivate_physical_card(),
         'cards-mark-printed' => admin_mark_cards_printed(),
+        'cards-unmark-printed' => admin_unmark_cards_printed(),
         'cards-select-unprinted' => admin_select_unprinted_cards(),
         'agent-set-float-cap'      => admin_agent_set_float_cap(),
         'agent-pending-list'       => admin_agent_list_pending(),
@@ -8932,6 +8933,20 @@ function admin_mark_cards_printed() {
     $placeholders = implode(',', array_fill(0, count($codes), '?'));
     q("UPDATE physical_cards SET printed_at=COALESCE(printed_at,NOW()), print_count=print_count+1 WHERE card_code IN ($placeholders)", $codes);
     ok(null,'Cartes marquees imprimees');
+}
+
+// Corrige un marquage errone (ex: bug d'une version anterieure qui marquait
+// trop tot, ou simple erreur de manipulation) - remet une carte a l'etat
+// "jamais imprimee".
+function admin_unmark_cards_printed() {
+    $b = body();
+    check_admin_password($b);
+    $codes = is_array($b['card_codes'] ?? null) ? array_map('strtoupper', array_filter(array_map('trim', $b['card_codes']))) : [];
+    if(!$codes) fail('Aucun code fourni');
+    if(count($codes) > 500) fail('Maximum 500 cartes a la fois');
+    $placeholders = implode(',', array_fill(0, count($codes), '?'));
+    q("UPDATE physical_cards SET printed_at=NULL, print_count=0 WHERE card_code IN ($placeholders)", $codes);
+    ok(null,'Marquage impression annule');
 }
 
 // Selection rapide des N prochaines cartes jamais imprimees (non assignees
