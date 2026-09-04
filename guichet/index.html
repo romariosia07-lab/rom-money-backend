@@ -1535,6 +1535,13 @@ function closeSheet(){
   document.getElementById('sh').classList.remove('on');
   document.getElementById('sh-bg').classList.remove('on');
   stopQrScan();
+  // Un traitement de photo KYC deja lance (FileReader/redimensionnement/OCR)
+  // continue de tourner en arriere-plan meme apres la fermeture de cette
+  // feuille (rien ne l'annule) - sans ce drapeau, son toast et son rendu
+  // pouvaient s'incruster plus tard par-dessus un ecran totalement different
+  // (ex: saisie du PIN pour une toute autre action) - bug reel signale et
+  // reproduit plusieurs fois.
+  window._customerKycScreenActive = false;
 }
 
 // ── SCANNER QR GENERIQUE (partage entre depot et retrait) ──
@@ -1877,6 +1884,7 @@ function startCustomerKycSubmit(phone){
   window._customerKycPending = {};
   window._customerKycOcr = {};
   window._customerKycProcessing = {};
+  window._customerKycScreenActive = true;
   renderCustomerKycScreen();
 }
 function renderCustomerKycScreen(){
@@ -1938,6 +1946,11 @@ function handleCustomerKycFile(input, key){
       var dataUrl = cv.toDataURL('image/jpeg',0.8);
       window._customerKycPending[key] = dataUrl;
       window._customerKycProcessing[key] = false;
+      // L'ecran KYC a pu etre quitte (autre action lancee) pendant que ce
+      // traitement tournait encore en arriere-plan - dans ce cas, ne rien
+      // afficher/lancer ici, ce serait trompeur ou s'incrusterait sur un
+      // ecran totalement different.
+      if(!window._customerKycScreenActive) return;
       if(key==='recto') tryCustomerKycOcr(dataUrl);
       renderCustomerKycScreen();
     };
@@ -1947,9 +1960,10 @@ function handleCustomerKycFile(input, key){
   input.value='';
 }
 function tryCustomerKycOcr(rectoDataUrl){
+  if(!window._customerKycScreenActive) return;
   toast(t('kyc_agent_ocr_running'));
   apiCall('/agent?action=kyc-ocr-extract','POST',{photo_recto:rectoDataUrl},getToken()).then(function(res){
-    if(res && res.success && res.data){
+    if(res && res.success && res.data && window._customerKycScreenActive){
       window._customerKycOcr = {prenom:res.data.prenom||'', nom:res.data.nom||'', birthdate:res.data.birthdate||''};
       renderCustomerKycScreen();
     }
