@@ -482,6 +482,20 @@ var I18N = {
   agr_doc_uploaded_on:{fr:'Envoyé le {date}',en:'Sent on {date}'},
   agr_doc_photo:{fr:'📷 Photo',en:'📷 Photo'},
   agr_doc_import:{fr:'Importer',en:'Import'},
+  kyc_agent_pending_note:{fr:'📋 Dossier déjà envoyé, en cours d\'examen',en:'📋 Documents already sent, under review'},
+  kyc_agent_submit_btn:{fr:'📋 Soumettre les documents d\'identité',en:'📋 Submit identity documents'},
+  kyc_agent_intro:{fr:'Photographiez la pièce d\'identité du client (recto puis verso). Le dossier sera examiné par un administrateur.',en:'Photograph the customer\'s ID document (front then back). It will be reviewed by an administrator.'},
+  kyc_agent_recto:{fr:'Recto de la pièce d\'identité',en:'Front of ID document'},
+  kyc_agent_verso:{fr:'Verso de la pièce d\'identité',en:'Back of ID document'},
+  kyc_agent_prenom:{fr:'Prénom (exact, comme sur la pièce)',en:'First name (exact, as on the document)'},
+  kyc_agent_nom:{fr:'Nom (exact, comme sur la pièce)',en:'Last name (exact, as on the document)'},
+  kyc_agent_birthdate:{fr:'Date de naissance',en:'Date of birth'},
+  kyc_agent_submit_confirm_btn:{fr:'Envoyer le dossier',en:'Send documents'},
+  kyc_agent_ocr_running:{fr:'Lecture automatique de la pièce...',en:'Reading document automatically...'},
+  kyc_agent_err_photos:{fr:'Le recto et le verso sont requis',en:'Front and back photos are required'},
+  kyc_agent_err_name:{fr:'Le nom et le prénom exacts sont requis',en:'Exact first and last name are required'},
+  kyc_agent_submit_success:{fr:'Dossier envoyé, en attente de validation',en:'Documents sent, awaiting validation'},
+  kyc_agent_submit_err:{fr:'Échec de l\'envoi du dossier',en:'Failed to send documents'},
   agr_doc_uploading:{fr:'Envoi en cours...',en:'Uploading...'},
   agr_doc_upload_success:{fr:'Documents envoyés',en:'Documents sent'},
   agr_doc_upload_error:{fr:"Échec de l'envoi",en:'Failed to send'},
@@ -1639,6 +1653,25 @@ function identityBadgeHtml(customer){
     ? '<span style="color:var(--gold);font-size:11px;font-weight:700">'+t('id_verified_badge')+'</span>'
     : '<span style="color:var(--rd);font-size:11px;font-weight:700">'+t('id_unverified_badge')+'</span>';
 }
+// Sous le badge d'identite, pour un client non verifie physiquement present
+// (pas un destinataire distant, qui n'a pas sa piece sur lui) : propose de
+// soumettre son KYC via l'agent, ou signale un dossier deja en attente,
+// sans jamais bloquer l'operation en cours. N'importe quel client non
+// verifie en beneficie, pas seulement ceux crees par carte - la seule
+// condition est kyc_status !== 'verified'.
+function kycActionHtml(customer){
+  if(!customer || !customer.kyc_status || customer.kyc_status==='verified') return '';
+  if(customer.kyc_status==='pending'){
+    return '<div style="margin-top:6px;font-size:11px;color:var(--t2)">'+t('kyc_agent_pending_note')+'</div>';
+  }
+  return '<button class="chip" style="margin-top:8px;padding:8px 12px;font-size:11px" onclick="startCustomerKycSubmit(\''+customer.phone_number+'\')">'+t('kyc_agent_submit_btn')+'</button>';
+}
+// Bloc complet nom+badge+telephone+action KYC, partage par tous les ecrans
+// qui identifient un client physiquement present (pas le destinataire d'un
+// envoi, qui n'est pas devant l'agent).
+function customerInfoBoxHtml(customer, marginBottom){
+  return '<div class="fee-note free" style="margin-bottom:'+(marginBottom||14)+'px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+kycActionHtml(customer)+'</div>';
+}
 
 // ── CARTE PHYSIQUE (QR imprime) — activation ──
 // Detecte automatiquement, dans les 3 flux (depot/retrait/envoyer), quand un
@@ -1691,7 +1724,7 @@ function renderCardActivationConfirm(phone, customer, isNew){
       +'<div class="frow"><label class="flabel">'+t('card_full_name')+'</label><input class="finput" id="card-name" type="text"></div>'
       +'<div class="frow"><label class="flabel">'+t('reg_label_country')+'</label><select class="finput" id="card-country"><option value="">'+t('reg_country_loading')+'</option></select></div>';
   } else {
-    html+='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>';
+    html+=customerInfoBoxHtml(customer, 14);
   }
   html+='<button class="btn-g" style="background:var(--g)" id="card-activate-btn" onclick="doActivateCard('+(isNew?'true':'false')+')">'+t('card_activate_btn')+'</button>';
   b.innerHTML=html;
@@ -1790,10 +1823,109 @@ function confirmCardReissue(){
   }).catch(function(){ toast(t('network_error'), true); if(btn) btn.disabled=false; });
 }
 
+// ── KYC soumis par l'agent au nom d'un client non verifie ──
+// Meme mecanique de capture photo (camera + import galerie, redimensionne a
+// 1200px max, JPEG 0.8) que les documents d'agrement de l'agent lui-meme
+// (agrDocCard()/handleAgentDocFile()), juste appliquee a 2 cles fixes
+// (recto/verso) au lieu d'une liste de types. La lecture OCR est optionnelle
+// et best-effort (pre-remplit juste les champs, ne bloque jamais si elle
+// echoue) - la soumission reste possible avec une saisie 100% manuelle.
+function startCustomerKycSubmit(phone){
+  window._customerKycPhone = phone;
+  window._customerKycPending = {};
+  window._customerKycOcr = {};
+  renderCustomerKycScreen();
+}
+function renderCustomerKycScreen(){
+  var b=document.getElementById('sh-body');
+  var pending = window._customerKycPending;
+  var ocr = window._customerKycOcr||{};
+  var html = '<div class="fee-note free" style="margin-bottom:14px">'+t('kyc_agent_intro')+'</div>';
+  ['recto','verso'].forEach(function(key){
+    var photo = pending[key];
+    html += '<div class="card" style="padding:12px;margin-bottom:10px;text-align:left">'
+      +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t('kyc_agent_'+key)+'</div>';
+    if(photo){
+      html += '<img src="'+photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:8px">'
+        +'<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+        +'<button class="chip" style="width:100%;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>';
+    } else {
+      html += '<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+        +'<input type="file" accept="image/*" id="kyc-file-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+        +'<div style="display:flex;gap:8px">'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'kyc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
+        +'</div>';
+    }
+    html += '</div>';
+  });
+  html += '<div class="frow"><label class="flabel">'+t('kyc_agent_prenom')+'</label><input class="finput" id="kyc-legal-prenom" type="text" value="'+(ocr.prenom||'')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('kyc_agent_nom')+'</label><input class="finput" id="kyc-legal-nom" type="text" value="'+(ocr.nom||'')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('kyc_agent_birthdate')+'</label><input class="finput" id="kyc-legal-birthdate" type="date" value="'+(ocr.birthdate||'')+'"></div>'
+    +'<button class="btn-g" style="background:var(--g)" id="kyc-submit-btn" onclick="submitCustomerKyc()">'+t('kyc_agent_submit_confirm_btn')+'</button>'
+    +'<button class="chip" style="width:100%;margin-top:10px" onclick="closeSheet()">'+t('cancel')+'</button>';
+  b.innerHTML = html;
+}
+function handleCustomerKycFile(input, key){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var MAX=1200;
+      var w=img.width, h=img.height;
+      if(w>h){ if(w>MAX){ h=Math.round(h*MAX/w); w=MAX; } } else { if(h>MAX){ w=Math.round(w*MAX/h); h=MAX; } }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      var dataUrl = cv.toDataURL('image/jpeg',0.8);
+      window._customerKycPending[key] = dataUrl;
+      if(key==='recto') tryCustomerKycOcr(dataUrl);
+      renderCustomerKycScreen();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value='';
+}
+function tryCustomerKycOcr(rectoDataUrl){
+  toast(t('kyc_agent_ocr_running'));
+  apiCall('/agent?action=kyc-ocr-extract','POST',{photo_recto:rectoDataUrl},getToken()).then(function(res){
+    if(res && res.success && res.data){
+      window._customerKycOcr = {prenom:res.data.prenom||'', nom:res.data.nom||'', birthdate:res.data.birthdate||''};
+      renderCustomerKycScreen();
+    }
+  }).catch(function(){});
+}
+function submitCustomerKyc(){
+  var pending = window._customerKycPending;
+  if(!pending.recto || !pending.verso){ toast(t('kyc_agent_err_photos'), true); return; }
+  var prenom=document.getElementById('kyc-legal-prenom').value.trim();
+  var nom=document.getElementById('kyc-legal-nom').value.trim();
+  var birthdate=document.getElementById('kyc-legal-birthdate').value;
+  if(!prenom || !nom){ toast(t('kyc_agent_err_name'), true); return; }
+  var btn=document.getElementById('kyc-submit-btn');
+  if(btn) btn.disabled=true;
+  var ocr = window._customerKycOcr||{};
+  apiCall('/agent?action=submit-customer-kyc','POST',{
+    customer_phone: window._customerKycPhone,
+    photo_recto: pending.recto, photo_verso: pending.verso,
+    legal_prenom: prenom, legal_nom: nom, legal_birthdate: birthdate,
+    ocr_prenom: ocr.prenom||'', ocr_nom: ocr.nom||'', ocr_birthdate: ocr.birthdate||''
+  },getToken()).then(function(res){
+    if(res && res.success){
+      toast(t('kyc_agent_submit_success'));
+      closeSheet();
+    } else {
+      toast((res&&res.message)||t('kyc_agent_submit_err'), true);
+      if(btn) btn.disabled=false;
+    }
+  }).catch(function(){ toast(t('network_error'), true); if(btn) btn.disabled=false; });
+}
+
 function renderDepotAmountForm(customer){
   window._pendingDepotPhone = customer.phone_number;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+  b.innerHTML=customerInfoBoxHtml(customer, 14)
     +'<div class="frow"><label class="flabel">'+t('dep_amount')+'</label><input class="finput" id="dep-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note free">'+t('dep_note')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" onclick="doDepot()">'+t('dep_btn')+'</button>';
@@ -1882,7 +2014,7 @@ function renderRetraitQrAmountForm(customer, qrText){
   window._pendingRetraitQr = qrText;
   window._pendingRetraitPhone = null;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+  b.innerHTML=customerInfoBoxHtml(customer, 14)
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-qr-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note free">'+t('ret_note_qr')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="ret-qr-confirm-btn" onclick="doRetraitQr()">'+t('ret_btn')+'</button>';
@@ -1912,7 +2044,7 @@ function doRetraitQr(){
 function renderRetraitPhoneAmountForm(customer){
   window._pendingRetraitPhone = customer.phone_number;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+  b.innerHTML=customerInfoBoxHtml(customer, 14)
     +'<div class="frow"><label class="flabel">'+t('ret_amount')+'</label><input class="finput" id="ret-amount" type="number" inputmode="numeric"></div>'
     +'<div class="fee-note warn">'+t('ret_note_code')+'</div>'
     +'<button class="btn-g" style="background:var(--g)" id="ret-request-btn" onclick="doRequestRetraitCode()">'+t('ret_send_code_btn')+'</button>';
@@ -2018,7 +2150,7 @@ function renderEnvoyerRecipientForm(customer, qrText, verifiedLive){
   window._pendingEnvoyerQr = qrText;
   window._pendingEnvoyerVerifiedLive = verifiedLive;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:14px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+  b.innerHTML=customerInfoBoxHtml(customer, 14)
     +'<div class="frow"><label class="flabel">'+t('env_recipient_phone')+'</label><input class="finput" id="env-recipient-phone" type="tel"></div>'
     +'<button class="btn-g" style="background:var(--g)" onclick="resolveEnvoyerRecipient()">'+t('env_verify_recipient_btn')+'</button>';
 }
@@ -2036,7 +2168,7 @@ function renderEnvoyerAmountForm(customer, recipient){
   window._envLastField = 'brut';
   var verifiedLive = window._pendingEnvoyerVerifiedLive;
   var b=document.getElementById('sh-body');
-  b.innerHTML='<div class="fee-note free" style="margin-bottom:10px"><b>'+customer.full_name+'</b> '+identityBadgeHtml(customer)+'<br>'+customer.phone_number+'</div>'
+  b.innerHTML=customerInfoBoxHtml(customer, 10)
     +'<div style="text-align:center;font-size:16px;color:var(--t3);margin:-6px 0 10px">→</div>'
     +'<div class="fee-note free" style="margin-bottom:14px"><b>'+recipient.full_name+'</b> '+identityBadgeHtml(recipient)+'<br>'+recipient.phone_number+'</div>'
     +'<div class="frow"><label class="flabel">'+t('env_amount_brut')+'</label><input class="finput" id="env-amount-brut" type="number" inputmode="numeric" oninput="syncEnvoyerAmount(\'brut\')"></div>'

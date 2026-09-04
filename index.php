@@ -2285,6 +2285,8 @@ function route_agent($action) {
         'activate-card'     => agent_activate_card(),
         'card-reissue-request' => agent_request_card_reissue(),
         'card-reissue-confirm' => agent_confirm_card_reissue(),
+        'submit-customer-kyc' => agent_submit_customer_kyc(),
+        'kyc-ocr-extract'   => agent_kyc_ocr_extract(),
         'history'           => agent_tx_history(),
         'earnings-summary'  => agent_earnings_summary(),
         'send-earnings'     => agent_send_earnings(),
@@ -2765,7 +2767,8 @@ function agent_resolve_customer_qr() {
     $customer = agent_resolve_customer_by_qr($qr);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
         'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
-        'is_verified'=>!empty($customer['verified_name']),'verified_live'=>$customer['verified_live']]);
+        'is_verified'=>!empty($customer['verified_name']),'verified_live'=>$customer['verified_live'],
+        'kyc_status'=>agent_customer_kyc_status($customer['id'], !empty($customer['verified_name']))]);
 }
 
 // Identification par numero (saisie manuelle) - simple apercu en lecture
@@ -2779,7 +2782,19 @@ function agent_resolve_customer() {
     if(!$customer) fail('Client introuvable',404);
     ok(['user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],
         'phone_number'=>$customer['phone_number'],'currency'=>$customer['currency'],
-        'is_verified'=>!empty($customer['verified_name'])]);
+        'is_verified'=>!empty($customer['verified_name']),
+        'kyc_status'=>agent_customer_kyc_status($customer['id'], !empty($customer['verified_name']))]);
+}
+
+// Etat KYC resume pour l'ecran agent : 'verified' (rien a faire),
+// 'pending' (dossier deja envoye, en attente admin - pas de renvoi propose)
+// ou 'none' (peut soumettre). Reutilise le meme garde-fou deja en place
+// dans kyc_submit() (une seule demande pending a la fois), juste rendu
+// visible cote agent au lieu de laisser un renvoi echouer silencieusement.
+function agent_customer_kyc_status($userId, $isVerified) {
+    if($isVerified) return 'verified';
+    $pending = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$userId])->fetch();
+    return $pending ? 'pending' : 'none';
 }
 
 // Active une carte physique 'unassigned' : la lie a un compte personnel
@@ -2841,6 +2856,64 @@ function agent_activate_card() {
         admin_log('card_activate_existing_account','success',$customerPhone,'Carte '.$cardCode.' liee a un compte existant');
         ok(['card_code'=>$cardCode,'user_id'=>$customer['id'],'full_name'=>$customer['verified_name']?:$customer['full_name'],'phone_number'=>$customer['phone_number'],'new_account'=>false],'Carte activee et liee au compte existant');
     }
+}
+
+// Permet a un agent de soumettre le KYC AU NOM d'un client qui n'a pas
+// l'app pour le faire lui-meme - pas seulement un client cree par carte :
+// la seule condition est un compte non verifie (is_kyc=0), peu importe son
+// origine (nouveau via carte, ou deja inscrit depuis longtemps mais jamais
+// verifie). Reutilise integralement kyc_encrypt() et la meme table
+// kyc_requests que le KYC self-service existant (kyc_submit()) - un
+// dossier soumis par un agent est indiscernable d'un dossier soumis par le
+// client lui-meme une fois en base, donc aucune modification cote admin
+// n'est necessaire (meme onglet "Identite", meme validation).
+function agent_submit_customer_kyc() {
+    $pl = agent_auth(); $b = body();
+    $customerPhone = trim($b['customer_phone'] ?? '');
+    $recto = trim($b['photo_recto'] ?? '');
+    $verso = trim($b['photo_verso'] ?? '');
+    $legalPrenom = trim($b['legal_prenom'] ?? '');
+    $legalNom = trim($b['legal_nom'] ?? '');
+    $legalBirthdate = trim($b['legal_birthdate'] ?? '');
+    $ocrPrenom = trim($b['ocr_prenom'] ?? '');
+    $ocrNom = trim($b['ocr_nom'] ?? '');
+    $ocrBirthdate = trim($b['ocr_birthdate'] ?? '');
+    $ocrError = trim($b['ocr_error'] ?? '');
+    if(!preg_match('/^\+?[0-9]{8,15}$/', preg_replace('/[\s\-]/','', $customerPhone))) fail('Numero invalide');
+    if(!$recto || !$verso) fail('Recto et verso requis');
+    if(!$legalPrenom || !$legalNom) fail('Le prenom et le nom exacts (piece d\'identite) sont requis');
+    $legalName = trim($legalPrenom.' '.$legalNom);
+    $ocrName = trim($ocrPrenom.' '.$ocrNom);
+
+    $u = q("SELECT id,full_name,phone_number,is_kyc FROM users WHERE phone_number=?",[$customerPhone])->fetch();
+    if(!$u) fail('Client introuvable',404);
+    if((int)($u['is_kyc']??0) === 1) fail('Une piece d\'identite est deja validee sur ce compte',422);
+    $existing = q("SELECT id FROM kyc_requests WHERE user_id=? AND status='pending'",[$u['id']])->fetch();
+    if($existing) fail('Une demande est deja en attente de verification',422);
+
+    $id = uid();
+    q("INSERT INTO kyc_requests (id,user_id,phone_number,full_name,legal_name,legal_prenom,legal_nom,legal_birthdate,ocr_name,ocr_prenom,ocr_nom,ocr_birthdate,ocr_error,photo_recto,photo_verso,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')",
+      [$id,$u['id'],$u['phone_number'],$u['full_name'],$legalName,$legalPrenom,$legalNom,$legalBirthdate?:null,$ocrName?:null,$ocrPrenom?:null,$ocrNom?:null,$ocrBirthdate?:null,$ocrError?:null,kyc_encrypt($recto),kyc_encrypt($verso)]);
+    admin_log('agent_kyc_submit','success',$customerPhone,'Dossier d\'identite soumis par l\'agent au nom du client');
+    ok(['id'=>$id],'Dossier envoye, en attente de verification');
+}
+
+// Mirror exact de kyc_ocr_extract(), juste ouvert a agent_auth() au lieu de
+// auth() - la lecture OCR elle-meme est sans etat (ne touche a aucune
+// donnee du compte), donc aucune raison de la dupliquer autrement que pour
+// le controle d'acces.
+function agent_kyc_ocr_extract() {
+    agent_auth();
+    $b = body();
+    $recto = trim($b['photo_recto'] ?? '');
+    if(!$recto) fail('Photo recto requise');
+    $result = getenv('OCR_SPACE_API_KEY') ? ocrspace_ocr($recto) : google_vision_ocr($recto);
+    if(!$result['text']) {
+        ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>'[DIAGNOSTIC] '.($result['error']?:'Erreur inconnue')], 'OCR indisponible pour le moment, saisie manuelle requise');
+        return;
+    }
+    $parsed = kyc_parse_cni_text($result['text']);
+    ok(['prenom'=>$parsed['prenom'],'nom'=>$parsed['nom'],'birthdate'=>$parsed['birthdate'],'raw_text'=>$result['text']]);
 }
 
 // Reemission d'une carte perdue/volee en un seul passage chez l'agent, sans
