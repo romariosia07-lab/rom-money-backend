@@ -5727,6 +5727,16 @@ function adminRenderCardsSelectionToolbar(){
     +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminPrintCardsWithConfirm(Array.from(window._cardsSelected))">'+at('admin_cards_print_selection_btn')+'</button>'
     +'<button class="chip" style="padding:8px 14px;font-size:11px" onclick="adminClearCardsSelection()">'+at('admin_cards_clear_selection_btn')+'</button>';
 }
+// Remet a jour l'etat coche/decoche des cases DEJA affichees a l'ecran
+// d'apres window._cardsSelected - necessaire apres une selection rapide
+// (adminQuickSelectUnprinted()) qui modifie la selection sans recharger
+// toute la liste depuis le serveur (le bandeau se mettait deja a jour, pas
+// les cases elles-memes - bug reel signale).
+function adminSyncCardsCheckboxes(){
+  document.querySelectorAll('.cards-select-cb').forEach(function(cb){
+    cb.checked = window._cardsSelected.has(cb.getAttribute('data-code'));
+  });
+}
 // Selection rapide des N prochaines cartes jamais imprimees (voir discussion :
 // ne concerne que les cartes non assignees, qui n'ont pas de pays - le
 // filtre pays ne s'applique pas ici). Ajoute a la selection existante plutot
@@ -5739,6 +5749,7 @@ function adminQuickSelectUnprinted(){
       if(!res.data.codes.length){ toast(at('admin_cards_none_unprinted'), true); return; }
       res.data.codes.forEach(function(code){ window._cardsSelected.add(code); });
       adminRenderCardsSelectionToolbar();
+      adminSyncCardsCheckboxes();
       toast(at('admin_cards_quickselect_toast').replace('{n}',res.data.codes.length));
     } else {
       toast((res&&res.message)||at('admin_error_generic'), true);
@@ -5790,7 +5801,7 @@ function adminLoadCards(page){
         var isSelected=window._cardsSelected.has(c.card_code);
         html+='<div class="admin-tx-card">'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
-          +'<span style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="cards-select-cb" '+(isSelected?'checked':'')+' onchange="adminToggleCardSelect(\''+c.card_code+'\',this.checked)"><b style="font-family:monospace;font-size:13px">'+c.card_code+'</b></span>'
+          +'<span style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="cards-select-cb" data-code="'+c.card_code+'" '+(isSelected?'checked':'')+' onchange="adminToggleCardSelect(\''+c.card_code+'\',this.checked)"><b style="font-family:monospace;font-size:13px">'+c.card_code+'</b></span>'
           +'<span style="background:'+stColor+';color:#fff;font-weight:700;font-size:10px;padding:3px 9px;border-radius:10px">'+stLabel+'</span>'
           +'</div>';
         if(c.status!=='unassigned'){
