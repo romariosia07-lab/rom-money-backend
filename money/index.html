@@ -1062,11 +1062,9 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
           <option value="blocked" data-i18n-admin="admin_users_status_blocked">Statut : Bloqués</option>
         </select>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_from">Inscrit du</label>
-        <input class="finput" id="usr-date-from" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_users_registered_to">au</label>
-        <input class="finput" id="usr-date-to" type="date" onchange="adminLoadUsers(1)" style="margin-bottom:0">
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_users_registered_from">Inscrit le</label>
+        <div id="dp-usr-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+        <div id="dp-usr-range" style="font-size:11px;color:var(--t3)"></div>
       </div>
       <div class="frow" id="usr-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="usr-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadUsers(1)"></div>
@@ -1105,12 +1103,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <input class="finput" id="mrctx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" data-i18n-admin-ph="admin_advsearch_amt_min_ph" style="margin-bottom:0">
         <input class="finput" id="mrctx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" data-i18n-admin-ph="admin_advsearch_amt_max_ph" style="margin-bottom:0">
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_du_label">Du</label>
-        <input class="finput" id="mrctx-date-from" type="date" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_au_label">au</label>
-        <input class="finput" id="mrctx-date-to" type="date" style="margin-bottom:0">
-      </div>
+      <div id="dp-mrctx-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+      <div id="dp-mrctx-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>
       <select class="finput" id="mrctx-status">
         <option value="" data-i18n-admin="admin_advsearch_status_all">Statut : Tous</option>
         <option value="completed" data-i18n-admin="admin_advsearch_status_completed">Complétée</option>
@@ -1196,10 +1190,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_agents_movements_desc">Traçabilité complète : chaque recharge de float agent, créditée directement par l'Admin Principal ou redirigée depuis le float d'un distributeur — la file de demandes ci-dessus étant désormais partagée entre tous les distributeurs et l'admin, c'est ici que se vérifie qui a réellement servi chaque sortie d'argent.</div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_agent_phone_label">Numéro de l'agent</label><input class="finput" id="agtmv-agent-phone" placeholder="0000000000"></div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_movements_dist_phone_label">Numéro du distributeur</label><input class="finput" id="agtmv-dist-phone" placeholder="0000000000"></div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="finput" id="agtmv-date-from" type="date" style="margin-bottom:0">
-        <input class="finput" id="agtmv-date-to" type="date" style="margin-bottom:0">
-      </div>
+      <div id="dp-agtmv-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+      <div id="dp-agtmv-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <input class="finput" id="agtmv-min" type="number" data-i18n-admin-ph="admin_movements_min_ph" placeholder="Montant min" style="margin-bottom:0">
         <input class="finput" id="agtmv-max" type="number" data-i18n-admin-ph="admin_movements_max_ph" placeholder="Montant max" style="margin-bottom:0">
@@ -1347,12 +1339,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <input class="finput" id="advtx-amt-min" type="number" inputmode="numeric" placeholder="Montant min" data-i18n-admin-ph="admin_advsearch_amt_min_ph" style="margin-bottom:0">
         <input class="finput" id="advtx-amt-max" type="number" inputmode="numeric" placeholder="Montant max" data-i18n-admin-ph="admin_advsearch_amt_max_ph" style="margin-bottom:0">
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_du_label">Du</label>
-        <input class="finput" id="advtx-date-from" type="date" style="margin-bottom:0">
-        <label class="flabel" style="margin-bottom:0;flex-shrink:0" data-i18n-admin="admin_advsearch_au_label">au</label>
-        <input class="finput" id="advtx-date-to" type="date" style="margin-bottom:0">
-      </div>
+      <div id="dp-advtx-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+      <div id="dp-advtx-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>
       <select class="finput" id="advtx-status">
         <option value="" data-i18n-admin="admin_advsearch_status_all">Statut : Tous</option>
         <option value="completed" data-i18n-admin="admin_advsearch_status_completed">Complétée</option>
@@ -1406,10 +1394,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         </select>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_audit_account_number">Numéro de compte</label><input class="finput" id="audit-f-phone" placeholder="0000000000"></div>
-      <div style="display:flex;gap:10px">
-        <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_from">Date de début</label><input class="finput" type="date" id="audit-f-from"></div>
-        <div class="frow" style="flex:1"><label class="flabel" data-i18n-admin="admin_audit_date_to">Date de fin</label><input class="finput" type="date" id="audit-f-to"></div>
-      </div>
+      <div id="dp-audit-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+      <div id="dp-audit-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>
       <div class="frow" id="audit-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="audit-country-box" style="display:flex;flex-wrap:wrap;gap:4px"></div>
       </div>
@@ -1729,8 +1715,7 @@ var I18N = {
   admin_users_status_all: {fr:'Statut : Tous', en:'Status: All'},
   admin_users_status_active: {fr:'Statut : Actifs', en:'Status: Active'},
   admin_users_status_blocked: {fr:'Statut : Bloqués', en:'Status: Blocked'},
-  admin_users_registered_from: {fr:'Inscrit du', en:'Registered from'},
-  admin_users_registered_to: {fr:'au', en:'to'},
+  admin_users_registered_from: {fr:'Inscrit le', en:'Registered on'},
   admin_users_none_found: {fr:'Aucun compte trouvé', en:'No account found'},
   admin_users_blocked: {fr:'Bloqué', en:'Blocked'},
   admin_users_active: {fr:'Actif', en:'Active'},
@@ -1983,8 +1968,6 @@ var I18N = {
   admin_tx_advsearch_desc: {fr:'Retrouver une transaction sans connaître ni la référence ni le numéro du compte.', en:'Find a transaction without knowing the reference or the account number.'},
   admin_advsearch_amt_min_ph: {fr:'Montant min', en:'Min amount'},
   admin_advsearch_amt_max_ph: {fr:'Montant max', en:'Max amount'},
-  admin_advsearch_du_label: {fr:'Du', en:'From'},
-  admin_advsearch_au_label: {fr:'au', en:'to'},
   admin_advsearch_status_all: {fr:'Statut : Tous', en:'Status: All'},
   admin_advsearch_status_completed: {fr:'Complétée', en:'Completed'},
   admin_advsearch_status_pending: {fr:'En attente', en:'Pending'},
@@ -2048,8 +2031,6 @@ var I18N = {
   admin_filter_number_ph: {fr:'Numéro', en:'Number'},
   admin_filter_amt_min_ph: {fr:'Montant min', en:'Min amount'},
   admin_filter_amt_max_ph: {fr:'Montant max', en:'Max amount'},
-  admin_filter_from: {fr:'Du', en:'From'},
-  admin_filter_to: {fr:'Au', en:'To'},
   admin_not_found: {fr:'Introuvable', en:'Not found'},
   admin_device_unknown: {fr:'Appareil inconnu', en:'Unknown device'},
   admin_no_result: {fr:'Aucun résultat', en:'No result'},
@@ -2251,8 +2232,6 @@ var I18N = {
   admin_audit_action_account_unblock: {fr:'Déblocage de compte', en:'Account unblock'},
   admin_audit_action_update_country: {fr:'Modification du pays', en:'Country change'},
   admin_audit_account_number: {fr:'Numéro de compte', en:'Account number'},
-  admin_audit_date_from: {fr:'Date de début', en:'Start date'},
-  admin_audit_date_to: {fr:'Date de fin', en:'End date'},
   admin_audit_filter_btn: {fr:'Filtrer', en:'Filter'},
   admin_audit_reset_btn: {fr:'Réinitialiser', en:'Reset'},
   admin_audit_export_xlsx: {fr:'⬇ Exporter Excel', en:'⬇ Export Excel'},
@@ -3643,26 +3622,28 @@ function adminPrintMerchants(){
   adminPrintExport('merchants-export-pdf', payload);
 }
 function adminExportUsers(format){
+  var usrDateRange=adminDpRange('usr');
   var payload={
     admin_password:window._adminPw,
     search:document.getElementById('usr-search').value.trim(),
     kyc:document.getElementById('usr-kyc').value,
     status:document.getElementById('usr-status').value,
-    date_from:document.getElementById('usr-date-from').value,
-    date_to:document.getElementById('usr-date-to').value
+    date_from:usrDateRange.from,
+    date_to:usrDateRange.to
   };
   var usrCountryVal=adminReadCountryFilter('usr-country-box');
   if(usrCountryVal) payload.country=usrCountryVal;
   adminDownloadExport('users-export-'+format, payload, 'rom_money_utilisateurs.'+format);
 }
 function adminPrintUsers(){
+  var usrDateRange=adminDpRange('usr');
   var payload={
     admin_password:window._adminPw,
     search:document.getElementById('usr-search').value.trim(),
     kyc:document.getElementById('usr-kyc').value,
     status:document.getElementById('usr-status').value,
-    date_from:document.getElementById('usr-date-from').value,
-    date_to:document.getElementById('usr-date-to').value
+    date_from:usrDateRange.from,
+    date_to:usrDateRange.to
   };
   var usrCountryVal2=adminReadCountryFilter('usr-country-box');
   if(usrCountryVal2) payload.country=usrCountryVal2;
@@ -3688,24 +3669,26 @@ function adminPrintDashboard(){
 }
 
 function adminExportAudit(format){
+  var auditDateRange=adminDpRange('audit');
   var payload={
     admin_password:window._adminPw,
     action_filter:document.getElementById('audit-f-action').value,
     phone_filter:document.getElementById('audit-f-phone').value.trim(),
-    date_from:document.getElementById('audit-f-from').value,
-    date_to:document.getElementById('audit-f-to').value
+    date_from:auditDateRange.from,
+    date_to:auditDateRange.to
   };
   var auditCountryVal=adminReadCountryFilter('audit-country-box');
   if(auditCountryVal) payload.country=auditCountryVal;
   adminDownloadExport('audit-export-'+format, payload, 'rom_money_journal_audit.'+format);
 }
 function adminPrintAudit(){
+  var auditDateRange=adminDpRange('audit');
   var payload={
     admin_password:window._adminPw,
     action_filter:document.getElementById('audit-f-action').value,
     phone_filter:document.getElementById('audit-f-phone').value.trim(),
-    date_from:document.getElementById('audit-f-from').value,
-    date_to:document.getElementById('audit-f-to').value
+    date_from:auditDateRange.from,
+    date_to:auditDateRange.to
   };
   var auditCountryVal2=adminReadCountryFilter('audit-country-box');
   if(auditCountryVal2) payload.country=auditCountryVal2;
@@ -4429,8 +4412,9 @@ function adminTab(name){
   if(name==='countries') adminLoadCountries();
   if(name==='account') adminLoadCountryOptions();
   if(name==='users') adminLoadUsers(1);
-  if(name==='merchants') adminLoadMerchants(1);
-  if(name==='agents') adminLoadAgents(1);
+  if(name==='merchants'){ adminLoadMerchants(1); adminDpRender('mrctx',''); }
+  if(name==='agents'){ adminLoadAgents(1); adminDpRender('agtmv',''); }
+  if(name==='tx') adminDpRender('advtx','');
   if(name==='cards') adminLoadCards(1);
   if(name==='alerts') adminLoadAlerts();
   if(name==='settings') adminLoadSettings();
@@ -4727,12 +4711,8 @@ function adminSearchMerchant(){
         +'<input id="mtx-amt-min" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_min_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'<input id="mtx-amt-max" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_max_ph')+'" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'</div>'
-        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_from')+'</label>'
-        +'<input id="mtx-date-from" type="date" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_to')+'</label>'
-        +'<input id="mtx-date-to" type="date" oninput="renderAdminMerchantTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'</div>'
+        +'<div id="dp-mtx-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
+        +'<div id="dp-mtx-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>'
         +'<div id="admin-merchant-tx-list-box"></div>';
 
       html += '<div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px;color:var(--re)">⚠ Supprimer définitivement ce compte marchand</div>'
@@ -5048,12 +5028,8 @@ function adminSearchByPhone(){
         +'<input id="atx-amt-min" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_min_ph')+'" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'<input id="atx-amt-max" type="number" inputmode="numeric" placeholder="'+at('admin_filter_amt_max_ph')+'" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
         +'</div>'
-        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_from')+'</label>'
-        +'<input id="atx-date-from" type="date" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'<label style="font-size:11px;color:var(--t3);flex-shrink:0">'+at('admin_filter_to')+'</label>'
-        +'<input id="atx-date-to" type="date" oninput="renderAdminTxList()" style="flex:1;min-width:0;padding:9px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:9px;font-size:12px;color:var(--t1);outline:none;font-family:inherit;box-sizing:border-box">'
-        +'</div>'
+        +'<div id="dp-atx-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>'
+        +'<div id="dp-atx-range" style="font-size:11px;color:var(--t3);margin-bottom:12px"></div>'
         +'<div id="admin-tx-list-box"></div>';
       box.innerHTML=html;
       renderAdminTxList();
@@ -5428,13 +5404,15 @@ function adminApproveAgentRecharge(id){
 // ci-dessus n'est que la queue "en attente" ; ceci est la tracabilite reelle
 // de chaque sortie d'argent, avec tous les filtres.
 function adminLoadAgentRechargeMovements(){
+  adminDpRender('agtmv','');
   var box=document.getElementById('agtmv-box');
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   var body={admin_password:window._adminPw};
   var agentPhone=document.getElementById('agtmv-agent-phone').value.trim();
   var distPhone=document.getElementById('agtmv-dist-phone').value.trim();
-  var dateFrom=document.getElementById('agtmv-date-from').value;
-  var dateTo=document.getElementById('agtmv-date-to').value;
+  var agtmvDateRange=adminDpRange('agtmv');
+  var dateFrom=agtmvDateRange.from;
+  var dateTo=agtmvDateRange.to;
   var minAmount=document.getElementById('agtmv-min').value;
   var maxAmount=document.getElementById('agtmv-max').value;
   var source=document.getElementById('agtmv-source').value;
@@ -5819,6 +5797,9 @@ function adminDpState(ns){
   if(!window._dp[ns]) window._dp[ns]={preset:'all', month:new Date().getMonth(), year:new Date().getFullYear(), exact:'', from:'', to:''};
   return window._dp[ns];
 }
+function adminDpReset(ns){
+  window._dp[ns]={preset:'all', month:new Date().getMonth(), year:new Date().getFullYear(), exact:'', from:'', to:''};
+}
 function adminDpRange(ns){
   var st=adminDpState(ns);
   var now=new Date();
@@ -5853,7 +5834,7 @@ function adminDpClick(ns, preset, onChangeFn){
   // l'utilisateur ait pu saisir quoi que ce soit. Les autres presets
   // (Aujourd'hui/Semaine/Mois/Annee/Tous) donnent toujours un intervalle
   // complet immediatement, donc peuvent se declencher au clic.
-  if(preset!=='exact' && preset!=='period') window[onChangeFn]();
+  if(onChangeFn && preset!=='exact' && preset!=='period') window[onChangeFn]();
 }
 function adminDpExtraHtml(ns){
   var st=adminDpState(ns);
@@ -5879,13 +5860,17 @@ function adminDpExtraHtml(ns){
   }
   return '';
 }
+// onChangeFn peut etre '' (chaine vide) pour un panneau muni de son propre
+// bouton de recherche explicite (montant+date+statut valides ensemble,
+// jamais en direct) - dans ce cas on met juste a jour l'etat/l'affichage,
+// sans jamais rappeler quoi que ce soit tout seul.
 function adminDpBind(ns, onChangeFn){
   var st=adminDpState(ns);
-  var m=document.getElementById('dp-'+ns+'-month'); if(m) m.onchange=function(){ st.month=parseInt(this.value,10); window[onChangeFn](); };
-  var y=document.getElementById('dp-'+ns+'-year'); if(y) y.onchange=function(){ st.year=parseInt(this.value,10); window[onChangeFn](); };
-  var ex=document.getElementById('dp-'+ns+'-exact'); if(ex) ex.onchange=function(){ st.exact=this.value; window[onChangeFn](); };
-  var pf=document.getElementById('dp-'+ns+'-from'); if(pf) pf.onchange=function(){ st.from=this.value; window[onChangeFn](); };
-  var pt=document.getElementById('dp-'+ns+'-to'); if(pt) pt.onchange=function(){ st.to=this.value; window[onChangeFn](); };
+  var m=document.getElementById('dp-'+ns+'-month'); if(m) m.onchange=function(){ st.month=parseInt(this.value,10); if(onChangeFn) window[onChangeFn](); };
+  var y=document.getElementById('dp-'+ns+'-year'); if(y) y.onchange=function(){ st.year=parseInt(this.value,10); if(onChangeFn) window[onChangeFn](); };
+  var ex=document.getElementById('dp-'+ns+'-exact'); if(ex) ex.onchange=function(){ st.exact=this.value; if(onChangeFn) window[onChangeFn](); };
+  var pf=document.getElementById('dp-'+ns+'-from'); if(pf) pf.onchange=function(){ st.from=this.value; if(onChangeFn) window[onChangeFn](); };
+  var pt=document.getElementById('dp-'+ns+'-to'); if(pt) pt.onchange=function(){ st.to=this.value; if(onChangeFn) window[onChangeFn](); };
 }
 function adminDpRender(ns, onChangeFn){
   var box=document.getElementById('dp-'+ns+'-presets');
@@ -6170,6 +6155,7 @@ function parseUserAgent(ua){
 }
 
 function renderAdminTxList(){
+  adminDpRender('atx','renderAdminTxList');
   var box = document.getElementById('admin-tx-list-box');
   if(!box) return;
   var txs = (window._adminTxCache||[]).slice();
@@ -6197,9 +6183,9 @@ function renderAdminTxList(){
   if(min!==null && !isNaN(min)) txs = txs.filter(function(t){ return txFilterAmt(t)>=min; });
   if(max!==null && !isNaN(max)) txs = txs.filter(function(t){ return txFilterAmt(t)<=max; });
 
-  var fromEl=document.getElementById('atx-date-from'), toEl=document.getElementById('atx-date-to');
-  var fromTs = fromEl && fromEl.value ? new Date(fromEl.value+'T00:00:00').getTime() : null;
-  var toTs = toEl && toEl.value ? new Date(toEl.value+'T23:59:59').getTime() : null;
+  var atxDateRange=adminDpRange('atx');
+  var fromTs = atxDateRange.from ? new Date(atxDateRange.from+'T00:00:00').getTime() : null;
+  var toTs = atxDateRange.to ? new Date(atxDateRange.to+'T23:59:59').getTime() : null;
   if(fromTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()>=fromTs; });
   if(toTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()<=toTs; });
 
@@ -6228,6 +6214,7 @@ function renderAdminTxList(){
 // (mrccncl-ref) au lieu de srch-ref/cncl-ref (qui n'existent que dans
 // l'onglet Transactions generique cote personnel).
 function renderAdminMerchantTxList(){
+  adminDpRender('mtx','renderAdminMerchantTxList');
   var box = document.getElementById('admin-merchant-tx-list-box');
   if(!box) return;
   var txs = (window._adminMerchantTxCache||[]).slice();
@@ -6255,9 +6242,9 @@ function renderAdminMerchantTxList(){
   if(min!==null && !isNaN(min)) txs = txs.filter(function(t){ return mtxFilterAmt(t)>=min; });
   if(max!==null && !isNaN(max)) txs = txs.filter(function(t){ return mtxFilterAmt(t)<=max; });
 
-  var fromEl=document.getElementById('mtx-date-from'), toEl=document.getElementById('mtx-date-to');
-  var fromTs = fromEl && fromEl.value ? new Date(fromEl.value+'T00:00:00').getTime() : null;
-  var toTs = toEl && toEl.value ? new Date(toEl.value+'T23:59:59').getTime() : null;
+  var mtxDateRange=adminDpRange('mtx');
+  var fromTs = mtxDateRange.from ? new Date(mtxDateRange.from+'T00:00:00').getTime() : null;
+  var toTs = mtxDateRange.to ? new Date(mtxDateRange.to+'T23:59:59').getTime() : null;
   if(fromTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()>=fromTs; });
   if(toTs!==null) txs = txs.filter(function(t){ return new Date(t.created_at).getTime()<=toTs; });
 
@@ -6331,18 +6318,20 @@ function adminSearchTx(){
 // connaitre la reference exacte ni le numero du compte, meme mecanique de
 // pagination que adminLoadUsers()/adminLoadMerchants().
 function adminSearchTxAdvanced(page){
+  adminDpRender('advtx','');
   window._advTxPage = page || window._advTxPage || 1;
   var box=document.getElementById('advtx-box');
   var pag=document.getElementById('advtx-pagination');
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
+  var advtxDateRange=adminDpRange('advtx');
   apiCall('/admin?action=search-tx-advanced','POST',{
     admin_password: window._adminPw,
     amount_min: document.getElementById('advtx-amt-min').value,
     amount_max: document.getElementById('advtx-amt-max').value,
-    date_from: document.getElementById('advtx-date-from').value,
-    date_to: document.getElementById('advtx-date-to').value,
+    date_from: advtxDateRange.from,
+    date_to: advtxDateRange.to,
     status: document.getElementById('advtx-status').value,
     page: window._advTxPage
   },'').then(function(res){
@@ -6380,18 +6369,20 @@ function adminSearchTxAdvanced(page){
 // marchandes (encaissements et virements). Chaque resultat ouvre la fiche
 // du marchand concerne (pas le contact personnel de l'autre cote).
 function adminSearchMerchantTxAdvanced(page){
+  adminDpRender('mrctx','');
   window._mrcTxPage = page || window._mrcTxPage || 1;
   var box=document.getElementById('mrctx-box');
   var pag=document.getElementById('mrctx-pagination');
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
+  var mrctxDateRange=adminDpRange('mrctx');
   apiCall('/admin?action=merchant-search-tx-advanced','POST',{
     admin_password: window._adminPw,
     amount_min: document.getElementById('mrctx-amt-min').value,
     amount_max: document.getElementById('mrctx-amt-max').value,
-    date_from: document.getElementById('mrctx-date-from').value,
-    date_to: document.getElementById('mrctx-date-to').value,
+    date_from: mrctxDateRange.from,
+    date_to: mrctxDateRange.to,
     status: document.getElementById('mrctx-status').value,
     page: window._mrcTxPage
   },'').then(function(res){
@@ -6653,14 +6644,16 @@ function adminConfirmCancelFrozen(ref){
 }
 
 function adminLoadAuditLog(){
+  adminDpRender('audit','');
   var box=document.getElementById('admin-audit-box');
   box.innerHTML='<div style="text-align:center;padding:16px;color:var(--t3)">'+at('admin_loading')+'</div>';
+  var auditDateRange=adminDpRange('audit');
   var payload={
     admin_password:window._adminPw,
     action_filter:document.getElementById('audit-f-action').value,
     phone_filter:document.getElementById('audit-f-phone').value.trim(),
-    date_from:document.getElementById('audit-f-from').value,
-    date_to:document.getElementById('audit-f-to').value
+    date_from:auditDateRange.from,
+    date_to:auditDateRange.to
   };
   var auditCountryVal=adminReadCountryFilter('audit-country-box');
   if(auditCountryVal) payload.country=auditCountryVal;
@@ -6688,8 +6681,7 @@ function adminLoadAuditLog(){
 function adminResetAuditFilters(){
   document.getElementById('audit-f-action').value='';
   document.getElementById('audit-f-phone').value='';
-  document.getElementById('audit-f-from').value='';
-  document.getElementById('audit-f-to').value='';
+  adminDpReset('audit');
   var countryBox=document.getElementById('audit-country-box');
   if(countryBox) countryBox.querySelectorAll('input[type=checkbox]').forEach(function(el){ el.checked=false; });
   adminLoadAuditLog();
@@ -6700,20 +6692,23 @@ function adminResetAuditFilters(){
 // ═══════════════════════════════════════════
 // Liste/recherche globale des comptes, avec filtres combinables et pagination.
 window._usrPage = 1;
+function adminUsrDateChanged(){ adminLoadUsers(1); }
 function adminLoadUsers(page){
+  adminDpRender('usr','adminUsrDateChanged');
   window._usrPage = page || window._usrPage || 1;
   var box = document.getElementById('usr-list-box');
   var pag = document.getElementById('usr-pagination');
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
+  var usrDateRange=adminDpRange('usr');
   var payload={
     admin_password: window._adminPw,
     search: document.getElementById('usr-search').value.trim(),
     kyc: document.getElementById('usr-kyc').value,
     status: document.getElementById('usr-status').value,
-    date_from: document.getElementById('usr-date-from').value,
-    date_to: document.getElementById('usr-date-to').value,
+    date_from: usrDateRange.from,
+    date_to: usrDateRange.to,
     page: window._usrPage
   };
   var usrCountryVal=adminReadCountryFilter('usr-country-box');
