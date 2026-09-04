@@ -387,8 +387,8 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 }
 .print-card::before{content:'';position:absolute;right:-6mm;bottom:-5mm;width:30mm;height:30mm;background:url('./icon-watermark.png') no-repeat center/contain;opacity:.15;pointer-events:none;z-index:0}
 .print-card-top-row{display:flex;justify-content:space-between;align-items:center;width:100%;justify-self:stretch;position:relative;z-index:1}
-.print-card-brand{display:flex;align-items:center;position:relative;z-index:1;padding-left:8mm}
-.print-card-icon{position:absolute;left:0;top:50%;transform:translateY(-50%);width:7mm;height:7mm;border-radius:1.8mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}
+.print-card-brand{display:flex;align-items:center;position:relative;z-index:1;padding-left:11mm}
+.print-card-icon{position:absolute;left:0;top:50%;transform:translateY(-50%);width:10mm;height:10mm;border-radius:2.5mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}
 .print-card-brandname{color:#fff;font-size:6.5pt;font-weight:900;letter-spacing:.2pt}
 .print-card-brandname span{color:#F5A623}
 .print-card-box{background:#fff;border-radius:2mm;padding:1.3mm;width:36mm;height:36mm;box-sizing:border-box;border:.4mm solid rgba(245,166,35,.4);position:relative;z-index:1;justify-self:center}
@@ -5667,8 +5667,8 @@ function adminBuildPrintableCardsHtml(codes){
     +'border:.4mm solid rgba(245,166,35,.5);border-radius:4mm;padding:2.5mm;display:grid;grid-template-rows:auto 1fr auto;align-items:center;'
     +'page-break-inside:avoid;position:relative;overflow:hidden;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.print-card-top-row{display:flex;justify-content:space-between;align-items:center;width:100%;justify-self:stretch}'
-    +'.print-card-brand{display:flex;align-items:center;position:relative;padding-left:8mm}'
-    +'.print-card-icon{position:absolute;left:0;top:50%;transform:translateY(-50%);width:7mm;height:7mm;border-radius:1.8mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}'
+    +'.print-card-brand{display:flex;align-items:center;position:relative;padding-left:11mm}'
+    +'.print-card-icon{position:absolute;left:0;top:50%;transform:translateY(-50%);width:10mm;height:10mm;border-radius:2.5mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}'
     +'.print-card-brandname{color:#fff;font-size:6.5pt;font-weight:900;letter-spacing:.2pt}'
     +'.print-card-brandname span{color:#F5A623}'
     +'.print-card-box{background:#fff;border-radius:2mm;padding:1.3mm;width:36mm;height:36mm;box-sizing:border-box;border:.4mm solid rgba(245,166,35,.4);justify-self:center}'
