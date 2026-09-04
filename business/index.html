@@ -690,6 +690,7 @@ var I18N = {
   kyb_doc_shop_photo:{fr:'Photo du magasin / local commercial',en:'Photo of the shop / premises'},
   kyb_uploaded_on:{fr:'Enregistré le {date}',en:'Saved on {date}'},
   kyb_take_photo:{fr:'Photo',en:'Photo'},
+  kyb_photo_processing:{fr:'Traitement de la photo...',en:'Processing photo...'},
   kyb_retake:{fr:'Reprendre',en:'Retake'},
   kyb_import:{fr:'Importer',en:'Import'},
   kyb_uploading:{fr:'Envoi en cours...',en:'Uploading...'},
@@ -2218,28 +2219,41 @@ function shKybDocs(b){
 }
 function renderKybDocs(b){
   var status=window._kybDocStatus||{};
+  var processing=window._kybDocProcessing||{};
   var loc=APP.lang==='en'?'en-US':'fr-FR';
   var h='<div style="font-size:11px;color:var(--t2);margin-bottom:14px">'+t('kyb_docs_intro')+'</div>';
   KYB_DOC_TYPES.forEach(function(d){
     var uploadedAt=status[d.key];
+    var isProcessing=processing[d.key];
     h+='<div class="card" style="padding:12px;margin-bottom:10px">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:'+(uploadedAt?'4px':'8px')+'">'
       +'<span style="font-size:13px;font-weight:700">'+t(d.label)+'</span>'
       +(uploadedAt?'<span style="color:var(--g);font-size:17px;font-weight:900">✓</span>':'')
       +'</div>'
-      +(uploadedAt?'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">'+t('kyb_uploaded_on').replace('{date}',new Date(uploadedAt).toLocaleDateString(loc))+'</div>':'')
-      +'<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
-      +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
-      +'<div style="display:flex;gap:8px">'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'
-      +'</div>'
-      +'</div>';
+      +(uploadedAt?'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">'+t('kyb_uploaded_on').replace('{date}',new Date(uploadedAt).toLocaleDateString(loc))+'</div>':'');
+    if(isProcessing){
+      // Retour visuel obligatoire pendant le redimensionnement (peut prendre
+      // plusieurs secondes sur une photo de camera haute resolution) - sans
+      // ca, l'ecran semblait fige et poussait a re-cliquer en double.
+      h+='<div style="padding:16px 0;text-align:center;color:var(--t3);font-size:12px">⏳ '+t('kyb_photo_processing')+'</div>';
+    } else {
+      h+='<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+        +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+        +'<div style="display:flex;gap:8px">'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'
+        +'</div>';
+    }
+    h+='</div>';
   });
   b.innerHTML=h;
 }
 function handleKybDocFile(input, key){
   if(!input.files||!input.files[0]) return;
+  if(window._kybDocProcessing && window._kybDocProcessing[key]){ input.value=''; return; }
+  window._kybDocProcessing=window._kybDocProcessing||{};
+  window._kybDocProcessing[key]=true;
+  renderKybDocs(document.getElementById('sh-body'));
   var reader=new FileReader();
   reader.onload=function(e){
     var img=new Image();
@@ -2249,6 +2263,7 @@ function handleKybDocFile(input, key){
       if(w>h){ if(w>MAX){ h=Math.round(h*MAX/w); w=MAX; } } else { if(h>MAX){ w=Math.round(w*MAX/h); h=MAX; } }
       var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
       cv.getContext('2d').drawImage(img,0,0,w,h);
+      window._kybDocProcessing[key]=false;
       uploadKybDoc(key, cv.toDataURL('image/jpeg',0.8));
     };
     img.src=e.target.result;
