@@ -378,7 +378,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
   background-image:repeating-linear-gradient(135deg,rgba(245,166,35,.08) 0 3mm,transparent 3mm 7mm),linear-gradient(155deg,#146b45 0%,#0d4a30 55%,#073321 100%);
   border:.4mm solid rgba(245,166,35,.5);
   border-radius:4mm;
-  padding:4mm;
+  padding:3mm;
   display:flex;flex-direction:column;align-items:center;justify-content:space-between;
   page-break-inside:avoid;
   position:relative;overflow:hidden;
@@ -387,12 +387,13 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 }
 .print-card::before{content:'';position:absolute;right:-6mm;bottom:-5mm;width:30mm;height:30mm;background:url('./icon-watermark.png') no-repeat center/contain;opacity:.15;pointer-events:none;z-index:0}
 .print-card-brand{display:flex;align-items:center;gap:2mm;width:100%;position:relative;z-index:1}
-.print-card-icon{width:7mm;height:7mm;border-radius:2mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}
-.print-card-brandname{color:#fff;font-size:9pt;font-weight:900;letter-spacing:.2pt}
+.print-card-icon{width:6mm;height:6mm;border-radius:1.5mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}
+.print-card-brandname{color:#fff;font-size:8pt;font-weight:900;letter-spacing:.2pt}
 .print-card-brandname span{color:#F5A623}
-.print-card-box{background:#fff;border-radius:2mm;padding:1.8mm;border:.4mm solid rgba(245,166,35,.4);position:relative;z-index:1}
-.print-card-code{font-family:monospace;font-size:6.5pt;letter-spacing:.5pt;color:#fff;opacity:.9;position:relative;z-index:1}
-.print-card-slogan{color:#fff;font-size:5.5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85;position:relative;z-index:1}
+.print-card-box{background:#fff;border-radius:2mm;padding:1.5mm;width:28mm;height:28mm;box-sizing:border-box;border:.4mm solid rgba(245,166,35,.4);position:relative;z-index:1}
+.print-card-box canvas,.print-card-box img{display:block;width:100%;height:100%}
+.print-card-code{font-family:monospace;font-size:6pt;letter-spacing:.5pt;color:#fff;opacity:.9;position:relative;z-index:1}
+.print-card-slogan{color:#fff;font-size:5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85;position:relative;z-index:1}
 </style>
 </head>
 <body>
@@ -5585,7 +5586,7 @@ function adminGenerateCards(){
         +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90mm,1fr));gap:10px" id="cards-qr-grid"></div>';
       var grid=document.getElementById('cards-qr-grid');
       grid.innerHTML=codes.map(function(code, idx){ return adminCardMarkup(code, 'card-qr-'+idx); }).join('');
-      codes.forEach(function(code, idx){ drawQR('card-qr-'+idx, code, 100); });
+      codes.forEach(function(code, idx){ drawQR('card-qr-'+idx, code, 130); });
       adminLoadCards(1);
     } else {
       toast((res&&res.message)||at('admin_error_generic'), true);
@@ -5615,7 +5616,7 @@ function adminShowCardPreview(code){
   actions.appendChild(printBtn); actions.appendChild(closeBtn);
   overlay.appendChild(wrap); overlay.appendChild(actions);
   document.body.appendChild(overlay);
-  drawQR('preview-card-qr', code, 100);
+  drawQR('preview-card-qr', code, 130);
 }
 // Dessine un QR hors-ecran (jamais visible) juste pour en extraire l'image -
 // necessaire car le nouvel onglet d'impression est une page independante,
@@ -5643,7 +5644,7 @@ function adminCardsQrDataUrl(code, size){
 function adminBuildPrintableCardsHtml(codes){
   var baseUrl = location.href.replace(/[^/]*$/, '');
   var cardsHtml = codes.map(function(code){
-    var qrDataUrl = adminCardsQrDataUrl(code, 220);
+    var qrDataUrl = adminCardsQrDataUrl(code, 280);
     return '<div class="print-card">'
       +'<div class="print-card-brand">'
       +'<img src="'+baseUrl+'icon-96.png" class="print-card-icon" alt="ROM_MONEY">'
@@ -5658,15 +5659,16 @@ function adminBuildPrintableCardsHtml(codes){
     +'*{box-sizing:border-box}body{margin:0;padding:6mm;background:#f4f4f4;font-family:Arial,sans-serif;display:flex;flex-wrap:wrap;gap:4mm;align-content:flex-start}'
     +'.print-card{width:85.6mm;height:54mm;background-color:#0d4a30;'
     +'background-image:repeating-linear-gradient(135deg,rgba(245,166,35,.08) 0 3mm,transparent 3mm 7mm),linear-gradient(155deg,#146b45 0%,#0d4a30 55%,#073321 100%);'
-    +'border:.4mm solid rgba(245,166,35,.5);border-radius:4mm;padding:4mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between;'
+    +'border:.4mm solid rgba(245,166,35,.5);border-radius:4mm;padding:3mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between;'
     +'page-break-inside:avoid;position:relative;overflow:hidden;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.print-card-brand{display:flex;align-items:center;gap:2mm;width:100%}'
-    +'.print-card-icon{width:7mm;height:7mm;border-radius:2mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}'
-    +'.print-card-brandname{color:#fff;font-size:9pt;font-weight:900;letter-spacing:.2pt}'
+    +'.print-card-icon{width:6mm;height:6mm;border-radius:1.5mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}'
+    +'.print-card-brandname{color:#fff;font-size:8pt;font-weight:900;letter-spacing:.2pt}'
     +'.print-card-brandname span{color:#F5A623}'
-    +'.print-card-box{background:#fff;border-radius:2mm;padding:1.8mm;width:22mm;height:22mm;border:.4mm solid rgba(245,166,35,.4)}'
-    +'.print-card-code{font-family:monospace;font-size:6.5pt;letter-spacing:.5pt;color:#fff;opacity:.9}'
-    +'.print-card-slogan{color:#fff;font-size:5.5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85}'
+    +'.print-card-box{background:#fff;border-radius:2mm;padding:1.5mm;width:28mm;height:28mm;box-sizing:border-box;border:.4mm solid rgba(245,166,35,.4)}'
+    +'.print-card-box img{display:block;width:100%;height:100%}'
+    +'.print-card-code{font-family:monospace;font-size:6pt;letter-spacing:.5pt;color:#fff;opacity:.9}'
+    +'.print-card-slogan{color:#fff;font-size:5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85}'
     +'.print-toolbar{width:100%;margin-bottom:2mm;display:flex;gap:8px;align-items:center;flex-wrap:wrap}'
     +'.print-toolbar button{padding:12px 20px;font-size:14px;font-weight:700;border:none;border-radius:8px;background:#0d4a30;color:#fff;cursor:pointer}'
     +'.print-toolbar button#confirm-printed-btn{background:#F5A623}'
