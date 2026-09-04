@@ -8874,6 +8874,18 @@ function admin_list_physical_cards() {
         $like = '%'.$search.'%';
         array_push($scopeParamsFinal, $like, $like, $like, $like);
     }
+    // Filtre par date de generation (memes bornes affichees partout sur
+    // chaque carte, "Generee le ..." - le plus lisible/previsible quel que
+    // soit le statut, plutot qu'une date qui changerait de sens selon la
+    // ligne).
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    if($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)){
+        $scopeWhere .= " AND pc.created_at::date >= ?"; $scopeParamsFinal[] = $dateFrom;
+    }
+    if($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)){
+        $scopeWhere .= " AND pc.created_at::date <= ?"; $scopeParamsFinal[] = $dateTo;
+    }
     $where = $scopeWhere; $params = $scopeParamsFinal;
     if(in_array($status, ['unassigned','active','blocked'], true)){
         $where .= " AND pc.status=?"; $params[] = $status;
@@ -8895,7 +8907,11 @@ function admin_list_physical_cards() {
                ag.full_name activated_by_agent_name, ag.phone_number activated_by_agent_phone
                FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
                LEFT JOIN agents ag ON ag.id=pc.activated_by_agent_id
-               WHERE $where ORDER BY CASE pc.status WHEN 'unassigned' THEN 0 WHEN 'active' THEN 1 ELSE 2 END, pc.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+               WHERE $where ORDER BY
+                 CASE pc.status WHEN 'unassigned' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,
+                 CASE WHEN pc.status='unassigned' THEN pc.created_at WHEN pc.status='active' THEN pc.activated_at END ASC,
+                 pc.created_at DESC
+               LIMIT $perPage OFFSET $offset", $params)->fetchAll();
     // Compteurs par statut (perimetre pays + recherche, hors filtre statut)
     // pour un resume immediat sans devoir changer le filtre 3 fois de suite.
     $countRows = q("SELECT pc.status, COUNT(*) c FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
@@ -8983,15 +8999,16 @@ function admin_unmark_cards_printed() {
 // uniquement - une carte deja liee a un client n'a pas vocation a etre
 // reimprimee en lot). Route dediee et legere (juste les codes, pas toute la
 // pagination/metadonnees) pour rester rapide meme au-dela d'une page
-// d'affichage. Meme ordre que la liste affichee (plus recente d'abord),
-// pour que la selection corresponde visuellement au sens de lecture haut
-// vers le bas de la liste.
+// d'affichage. Plus ancienne d'abord (meme ordre que la liste affichee,
+// qui montre desormais les cartes non assignees les plus anciennes en
+// premier) pour ecouler le stock jamais distribue avant de piocher dans
+// les lots plus recents.
 function admin_select_unprinted_cards() {
     $b = body();
     check_admin_password($b);
     $count = (int)($b['count'] ?? 0);
     if($count < 1 || $count > 500) fail('Le nombre doit etre entre 1 et 500');
-    $rows = q("SELECT card_code FROM physical_cards WHERE status='unassigned' AND printed_at IS NULL ORDER BY created_at DESC LIMIT $count")->fetchAll();
+    $rows = q("SELECT card_code FROM physical_cards WHERE status='unassigned' AND printed_at IS NULL ORDER BY created_at ASC LIMIT $count")->fetchAll();
     ok(['codes'=>array_column($rows,'card_code')]);
 }
 

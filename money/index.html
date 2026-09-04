@@ -1260,6 +1260,12 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow" id="cards-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_cards_date_filter_label">Date de génération (du / au)</label>
+        <div style="display:flex;gap:8px">
+          <input class="finput" id="cards-date-from" type="date" style="margin-bottom:0" onchange="adminLoadCards(1)">
+          <input class="finput" id="cards-date-to" type="date" style="margin-bottom:0" onchange="adminLoadCards(1)">
+        </div>
+      </div>
       <select class="finput" id="cards-status-filter" onchange="adminLoadCards(1)" style="margin-bottom:12px">
         <option value="" data-i18n-admin="admin_cards_status_all">Statut : Toutes (hors bloquées)</option>
         <option value="unassigned" data-i18n-admin="admin_cards_status_unassigned">Non activées</option>
@@ -1912,6 +1918,7 @@ var I18N = {
   admin_cards_preview_btn: {fr:'👁 Aperçu', en:'👁 Preview'},
   admin_close_btn: {fr:'Fermer', en:'Close'},
   admin_cards_search_label: {fr:'Rechercher (numéro, nom ou code carte)', en:'Search (phone, name or card code)'},
+  admin_cards_date_filter_label: {fr:'Date de génération (du / au)', en:'Generation date (from / to)'},
   admin_cards_activated_by_label: {fr:'Activée par l\'agent', en:'Activated by agent'},
   admin_fiche_status: {fr:'Statut :', en:'Status:'},
   admin_fiche_phone: {fr:'Téléphone :', en:'Phone:'},
@@ -5813,6 +5820,10 @@ function adminLoadCards(page){
   if(cardsSearchVal) payload.search=cardsSearchVal;
   var cardsCountryVal=adminReadCountryFilter('cards-country-box');
   if(cardsCountryVal) payload.country=cardsCountryVal;
+  var cardsDateFrom=document.getElementById('cards-date-from').value;
+  var cardsDateTo=document.getElementById('cards-date-to').value;
+  if(cardsDateFrom) payload.date_from=cardsDateFrom;
+  if(cardsDateTo) payload.date_to=cardsDateTo;
   apiCall('/admin?action=cards-list','POST',payload,'').then(function(res){
     if(res&&res.success&&res.data){
       adminRenderCountryFilterOptions('cards-country-box', 'cards-country-row', res.data.available_countries||[], res.data.country_filter||null);
