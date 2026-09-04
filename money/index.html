@@ -1261,8 +1261,7 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <div id="cards-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadCards(1)"></div>
       </div>
       <div class="frow"><label class="flabel" data-i18n-admin="admin_cards_date_filter_label">Date de génération</label>
-        <div id="cards-date-presets" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-        <div id="cards-date-extra" style="display:none;margin-bottom:8px"></div>
+        <div id="cards-date-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
         <div id="cards-date-range-display" style="font-size:11px;color:var(--t3)"></div>
       </div>
       <select class="finput" id="cards-status-filter" onchange="adminLoadCards(1)" style="margin-bottom:12px">
@@ -5868,6 +5867,42 @@ function adminCardsDatePresetClick(preset){
   adminRenderCardsDatePresets();
   adminLoadCards(1);
 }
+function adminCardsDateExtraHtml(){
+  var preset=window._cardsDatePreset;
+  if(preset==='month'){
+    var months=[at('admin_cards_date_m01'),at('admin_cards_date_m02'),at('admin_cards_date_m03'),at('admin_cards_date_m04'),at('admin_cards_date_m05'),at('admin_cards_date_m06'),at('admin_cards_date_m07'),at('admin_cards_date_m08'),at('admin_cards_date_m09'),at('admin_cards_date_m10'),at('admin_cards_date_m11'),at('admin_cards_date_m12')];
+    return '<select class="finput" id="cards-date-month-sel" style="margin-bottom:0;width:auto">'
+      +months.map(function(name,i){ return '<option value="'+i+'"'+(i===window._cardsDateMonth?' selected':'')+'>'+name+'</option>'; }).join('')
+      +'</select>';
+  }
+  if(preset==='year'){
+    var curY=new Date().getFullYear(); var years=[];
+    for(var y=curY;y>=curY-5;y--) years.push(y);
+    return '<select class="finput" id="cards-date-year-sel" style="margin-bottom:0;width:auto">'
+      +years.map(function(y){ return '<option value="'+y+'"'+(y===window._cardsDateYear?' selected':'')+'>'+y+'</option>'; }).join('')
+      +'</select>';
+  }
+  if(preset==='exact'){
+    return '<input class="finput" id="cards-date-exact-input" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDateExact||'')+'">';
+  }
+  if(preset==='period'){
+    return '<input class="finput" id="cards-date-period-from" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDatePeriodFrom||'')+'">'
+      +'<input class="finput" id="cards-date-period-to" type="date" style="margin-bottom:0;width:auto" value="'+(window._cardsDatePeriodTo||'')+'">';
+  }
+  return '';
+}
+function adminCardsDateExtraBind(){
+  var monthSel=document.getElementById('cards-date-month-sel');
+  if(monthSel) monthSel.onchange=function(){ window._cardsDateMonth=parseInt(this.value,10); adminLoadCards(1); };
+  var yearSel=document.getElementById('cards-date-year-sel');
+  if(yearSel) yearSel.onchange=function(){ window._cardsDateYear=parseInt(this.value,10); adminLoadCards(1); };
+  var exactInput=document.getElementById('cards-date-exact-input');
+  if(exactInput) exactInput.onchange=function(){ window._cardsDateExact=this.value; adminLoadCards(1); };
+  var periodFrom=document.getElementById('cards-date-period-from');
+  if(periodFrom) periodFrom.onchange=function(){ window._cardsDatePeriodFrom=this.value; adminLoadCards(1); };
+  var periodTo=document.getElementById('cards-date-period-to');
+  if(periodTo) periodTo.onchange=function(){ window._cardsDatePeriodTo=this.value; adminLoadCards(1); };
+}
 function adminRenderCardsDatePresets(){
   var box=document.getElementById('cards-date-presets');
   if(!box) return;
@@ -5875,41 +5910,8 @@ function adminRenderCardsDatePresets(){
   box.innerHTML=presets.map(function(p){
     var isActive=window._cardsDatePreset===p[0];
     return '<button onclick="adminCardsDatePresetClick(\''+p[0]+'\')" style="padding:7px 14px;border-radius:20px;border:1px solid var(--bord);background:'+(isActive?'var(--g)':'none')+';color:'+(isActive?'#fff':'var(--t2)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+'</button>';
-  }).join('');
-  var extra=document.getElementById('cards-date-extra');
-  if(extra){
-    var preset=window._cardsDatePreset;
-    if(preset==='month'){
-      extra.style.display='block';
-      var months=[at('admin_cards_date_m01'),at('admin_cards_date_m02'),at('admin_cards_date_m03'),at('admin_cards_date_m04'),at('admin_cards_date_m05'),at('admin_cards_date_m06'),at('admin_cards_date_m07'),at('admin_cards_date_m08'),at('admin_cards_date_m09'),at('admin_cards_date_m10'),at('admin_cards_date_m11'),at('admin_cards_date_m12')];
-      extra.innerHTML='<select class="finput" id="cards-date-month-sel" style="margin-bottom:0;display:inline-block;width:auto">'
-        +months.map(function(name,i){ return '<option value="'+i+'"'+(i===window._cardsDateMonth?' selected':'')+'>'+name+'</option>'; }).join('')
-        +'</select>';
-      document.getElementById('cards-date-month-sel').onchange=function(){ window._cardsDateMonth=parseInt(this.value,10); adminLoadCards(1); adminRenderCardsDatePresets(); };
-    } else if(preset==='year'){
-      extra.style.display='block';
-      var curY=new Date().getFullYear(); var years=[];
-      for(var y=curY;y>=curY-5;y--) years.push(y);
-      extra.innerHTML='<select class="finput" id="cards-date-year-sel" style="margin-bottom:0;display:inline-block;width:auto">'
-        +years.map(function(y){ return '<option value="'+y+'"'+(y===window._cardsDateYear?' selected':'')+'>'+y+'</option>'; }).join('')
-        +'</select>';
-      document.getElementById('cards-date-year-sel').onchange=function(){ window._cardsDateYear=parseInt(this.value,10); adminLoadCards(1); adminRenderCardsDatePresets(); };
-    } else if(preset==='exact'){
-      extra.style.display='block';
-      extra.innerHTML='<input class="finput" id="cards-date-exact-input" type="date" style="margin-bottom:0" value="'+(window._cardsDateExact||'')+'">';
-      document.getElementById('cards-date-exact-input').onchange=function(){ window._cardsDateExact=this.value; adminLoadCards(1); adminRenderCardsDatePresets(); };
-    } else if(preset==='period'){
-      extra.style.display='block';
-      extra.innerHTML='<div style="display:flex;gap:8px">'
-        +'<input class="finput" id="cards-date-period-from" type="date" style="margin-bottom:0" value="'+(window._cardsDatePeriodFrom||'')+'">'
-        +'<input class="finput" id="cards-date-period-to" type="date" style="margin-bottom:0" value="'+(window._cardsDatePeriodTo||'')+'">'
-        +'</div>';
-      document.getElementById('cards-date-period-from').onchange=function(){ window._cardsDatePeriodFrom=this.value; adminLoadCards(1); };
-      document.getElementById('cards-date-period-to').onchange=function(){ window._cardsDatePeriodTo=this.value; adminLoadCards(1); };
-    } else {
-      extra.style.display='none'; extra.innerHTML='';
-    }
-  }
+  }).join('') + adminCardsDateExtraHtml();
+  adminCardsDateExtraBind();
   var rangeDisplay=document.getElementById('cards-date-range-display');
   if(rangeDisplay){
     var r=adminCardsDateRange();
