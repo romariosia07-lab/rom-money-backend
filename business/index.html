@@ -2250,16 +2250,18 @@ function shKybDocs(b){
 function renderKybDocs(b){
   var status=window._kybDocStatus||{};
   var processing=window._kybDocProcessing||{};
+  var pendingAll=window._kybPending||{};
   var loc=APP.lang==='en'?'en-US':'fr-FR';
   var h='<div style="font-size:11px;color:var(--t2);margin-bottom:14px">'+t('kyb_docs_intro')+'</div>';
   KYB_DOC_TYPES.forEach(function(d){
     var uploadedAt=status[d.key];
     var isProcessing=processing[d.key];
-    // Le recto porte l'identite du gerant (nom/date de naissance, comme sur
-    // une CNI) - une fois la photo prise, on marque une pause pour lire l'OCR
-    // et faire confirmer ces champs avant l'envoi, plutot que l'envoi
-    // immediat des autres types de documents.
-    var pending = d.key==='id_recto' ? window._kybIdRectoPending : null;
+    // Chaque document passe desormais par un apercu avant envoi (photo prise
+    // != envoyee) - le gerant peut la reconsulter et reprendre en cas
+    // d'erreur, puisqu'un document deja envoye reste verrouille jusqu'a
+    // suppression par un admin (voir merchant_document_upload()). Le recto
+    // porte en plus le nom/date de naissance (OCR) a confirmer avant envoi.
+    var pending = pendingAll[d.key];
     if(!uploadedAt && pending){
       h+='<div class="card" style="padding:12px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t(d.label)+'</div>'
@@ -2267,11 +2269,13 @@ function renderKybDocs(b){
       if(pending.ocrRunning){
         h+='<div style="padding:10px 0;text-align:center;color:var(--t3);font-size:12px">⏳ '+t('kyb_recto_ocr_running')+'</div>';
       } else {
-        h+='<div class="frow"><label class="flabel">'+t('kyb_recto_prenom')+'</label><input class="finput" id="kybrecto-prenom" value="'+adminEscBiz(pending.ocrPrenom||'').replace(/"/g,'&quot;')+'"></div>'
-          +'<div class="frow"><label class="flabel">'+t('kyb_recto_nom')+'</label><input class="finput" id="kybrecto-nom" value="'+adminEscBiz(pending.ocrNom||'').replace(/"/g,'&quot;')+'"></div>'
-          +'<div class="frow"><label class="flabel">'+t('kyb_recto_birthdate')+'</label><input class="finput" id="kybrecto-birthdate" value="'+adminEscBiz(pending.ocrBirthdate||'').replace(/"/g,'&quot;')+'" placeholder="JJ/MM/AAAA"></div>'
-          +'<button class="chip" style="width:100%;background:var(--g);color:#fff;margin-bottom:8px" onclick="confirmKybIdRecto()">'+t('kyb_recto_confirm_btn')+'</button>'
-          +'<button class="chip" style="width:100%;background:var(--bg);color:var(--t1)" onclick="window._kybIdRectoPending=null;renderKybDocs(document.getElementById(\'sh-body\'))">'+t('kyb_retake')+'</button>';
+        if(d.key==='id_recto'){
+          h+='<div class="frow"><label class="flabel">'+t('kyb_recto_prenom')+'</label><input class="finput" id="kybrecto-prenom" value="'+adminEscBiz(pending.ocrPrenom||'').replace(/"/g,'&quot;')+'"></div>'
+            +'<div class="frow"><label class="flabel">'+t('kyb_recto_nom')+'</label><input class="finput" id="kybrecto-nom" value="'+adminEscBiz(pending.ocrNom||'').replace(/"/g,'&quot;')+'"></div>'
+            +'<div class="frow"><label class="flabel">'+t('kyb_recto_birthdate')+'</label><input class="finput" id="kybrecto-birthdate" value="'+adminEscBiz(pending.ocrBirthdate||'').replace(/"/g,'&quot;')+'" placeholder="JJ/MM/AAAA"></div>';
+        }
+        h+='<button class="chip" style="width:100%;background:var(--g);color:#fff;margin-bottom:8px" onclick="confirmKybDoc(\''+d.key+'\')">'+t('kyb_recto_confirm_btn')+'</button>'
+          +'<button class="chip" style="width:100%;background:var(--bg);color:var(--t1)" onclick="delete window._kybPending[\''+d.key+'\'];renderKybDocs(document.getElementById(\'sh-body\'))">'+t('kyb_retake')+'</button>';
       }
       h+='</div>';
       return;
@@ -2317,7 +2321,11 @@ function handleKybDocFile(input, key){
       window._kybDocProcessing[key]=false;
       var dataUrl=cv.toDataURL('image/jpeg',0.8);
       if(key==='id_recto'){ handleKybIdRectoPhoto(dataUrl); }
-      else { uploadKybDoc(key, dataUrl); }
+      else {
+        window._kybPending=window._kybPending||{};
+        window._kybPending[key]={photo:dataUrl};
+        renderKybDocs(document.getElementById('sh-body'));
+      }
     };
     img.src=e.target.result;
   };
@@ -2325,38 +2333,43 @@ function handleKybDocFile(input, key){
   input.value='';
 }
 // Recto de la CNI du gerant : marque une pause pour lire le nom/date de
-// naissance via OCR et les faire confirmer avant l'envoi (au lieu de
-// l'upload immediat des autres types) - securise l'identite reellement
-// enregistree plutot que de se fier a une simple photo jamais relue.
+// naissance via OCR en plus de l'apercu commun a tous les documents.
 function handleKybIdRectoPhoto(dataUrl){
-  window._kybIdRectoPending={photo:dataUrl, ocrRunning:true, ocrPrenom:'', ocrNom:'', ocrBirthdate:''};
+  window._kybPending=window._kybPending||{};
+  window._kybPending.id_recto={photo:dataUrl, ocrRunning:true, ocrPrenom:'', ocrNom:'', ocrBirthdate:''};
   renderKybDocs(document.getElementById('sh-body'));
   apiCall('/merchant?action=kyc-ocr-extract','POST',{photo_recto:dataUrl},getToken()).then(function(res){
-    if(!window._kybIdRectoPending) return;
+    var p=window._kybPending && window._kybPending.id_recto;
+    if(!p) return;
     if(res && res.success && res.data){
-      window._kybIdRectoPending.ocrPrenom=res.data.prenom||'';
-      window._kybIdRectoPending.ocrNom=res.data.nom||'';
-      window._kybIdRectoPending.ocrBirthdate=res.data.birthdate||'';
+      p.ocrPrenom=res.data.prenom||'';
+      p.ocrNom=res.data.nom||'';
+      p.ocrBirthdate=res.data.birthdate||'';
     }
-    window._kybIdRectoPending.ocrRunning=false;
+    p.ocrRunning=false;
     renderKybDocs(document.getElementById('sh-body'));
   }).catch(function(){
-    if(!window._kybIdRectoPending) return;
-    window._kybIdRectoPending.ocrRunning=false;
+    var p=window._kybPending && window._kybPending.id_recto;
+    if(!p) return;
+    p.ocrRunning=false;
     renderKybDocs(document.getElementById('sh-body'));
   });
 }
-function confirmKybIdRecto(){
-  var pending=window._kybIdRectoPending;
+function confirmKybDoc(key){
+  var pending=window._kybPending && window._kybPending[key];
   if(!pending) return;
-  var prenom=document.getElementById('kybrecto-prenom').value.trim();
-  var nom=document.getElementById('kybrecto-nom').value.trim();
-  var birthdate=document.getElementById('kybrecto-birthdate').value.trim();
-  if(!prenom || !nom){ toast(t('kyb_recto_err_name'), true); return; }
-  uploadKybDoc('id_recto', pending.photo, {
-    legal_prenom:prenom, legal_nom:nom, legal_birthdate:birthdate,
-    ocr_prenom:pending.ocrPrenom||'', ocr_nom:pending.ocrNom||'', ocr_birthdate:pending.ocrBirthdate||''
-  });
+  if(key==='id_recto'){
+    var prenom=document.getElementById('kybrecto-prenom').value.trim();
+    var nom=document.getElementById('kybrecto-nom').value.trim();
+    var birthdate=document.getElementById('kybrecto-birthdate').value.trim();
+    if(!prenom || !nom){ toast(t('kyb_recto_err_name'), true); return; }
+    uploadKybDoc(key, pending.photo, {
+      legal_prenom:prenom, legal_nom:nom, legal_birthdate:birthdate,
+      ocr_prenom:pending.ocrPrenom||'', ocr_nom:pending.ocrNom||'', ocr_birthdate:pending.ocrBirthdate||''
+    });
+  } else {
+    uploadKybDoc(key, pending.photo);
+  }
 }
 function uploadKybDoc(key, photo, extra){
   toast(t('kyb_uploading'));
@@ -2366,7 +2379,7 @@ function uploadKybDoc(key, photo, extra){
     if(res && res.success){
       window._kybDocStatus=window._kybDocStatus||{};
       window._kybDocStatus[key]=(res.data&&res.data.uploaded_at)||new Date().toISOString();
-      if(key==='id_recto') window._kybIdRectoPending=null;
+      if(window._kybPending) delete window._kybPending[key];
       var body=document.getElementById('sh-body');
       if(body) renderKybDocs(body);
       toast(t('kyb_upload_success'));
