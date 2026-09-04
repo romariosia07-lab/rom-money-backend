@@ -8865,7 +8865,7 @@ function admin_list_physical_cards() {
                ag.full_name activated_by_agent_name, ag.phone_number activated_by_agent_phone
                FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
                LEFT JOIN agents ag ON ag.id=pc.activated_by_agent_id
-               WHERE $where ORDER BY pc.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
+               WHERE $where ORDER BY CASE pc.status WHEN 'unassigned' THEN 0 WHEN 'active' THEN 1 ELSE 2 END, pc.created_at DESC LIMIT $perPage OFFSET $offset", $params)->fetchAll();
     // Compteurs par statut (perimetre pays + recherche, hors filtre statut)
     // pour un resume immediat sans devoir changer le filtre 3 fois de suite.
     $countRows = q("SELECT pc.status, COUNT(*) c FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
