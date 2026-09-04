@@ -1435,6 +1435,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       <div class="frow" id="rev-country-row" style="display:none"><label class="flabel" data-i18n-admin="admin_dash_country_filter_label">Pays (aucun coché = tous)</label>
         <div id="rev-country-box" style="display:flex;flex-wrap:wrap;gap:4px" onchange="adminLoadReviews(1)"></div>
       </div>
+      <div class="frow"><label class="flabel" data-i18n-admin="admin_reviews_date_filter_label">Date de l'avis</label>
+        <div id="dp-rev-presets" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+        <div id="dp-rev-range" style="font-size:11px;color:var(--t3)"></div>
+      </div>
       <div id="rev-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="rev-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
@@ -1612,6 +1616,7 @@ var I18N = {
   admin_reviews_avg_label: {fr:'Note moyenne', en:'Average rating'},
   admin_reviews_total_suffix: {fr:'Total des avis', en:'Total reviews'},
   admin_reviews_filter_rating_label: {fr:'Note', en:'Rating'},
+  admin_reviews_date_filter_label: {fr:"Date de l'avis", en:'Review date'},
   admin_reviews_filter_rating_all: {fr:'Toutes', en:'All'},
   admin_reviews_none_found: {fr:'Aucun avis pour le moment', en:'No feedback yet'},
   admin_reviews_no_comment: {fr:'(pas de commentaire)', en:'(no comment)'},
@@ -5872,16 +5877,36 @@ function adminDpBind(ns, onChangeFn){
   var pf=document.getElementById('dp-'+ns+'-from'); if(pf) pf.onchange=function(){ st.from=this.value; if(onChangeFn) window[onChangeFn](); };
   var pt=document.getElementById('dp-'+ns+'-to'); if(pt) pt.onchange=function(){ st.to=this.value; if(onChangeFn) window[onChangeFn](); };
 }
+window._dpRendered = window._dpRendered || {};
+// Ne reconstruit les boutons + le sous-controle (select mois/annee, champ(s)
+// date) QUE quand le preset choisi change reellement depuis le dernier
+// rendu - jamais a chaque frappe dans un champ date. Un <input type=date>
+// a plusieurs segments (jj/mm/aaaa) ; remplacer son DOM pendant que
+// l'utilisateur tape encore l'annee lui fait perdre le focus, ce qui
+// declenche un blur/change premature avec une annee tronquee (bug observe :
+// "0002" au lieu de "2026"). En dehors d'un changement de preset, on se
+// contente de rafraichir le style actif des boutons et le texte
+// d'intervalle resolu - jamais le sous-controle lui-meme.
 function adminDpRender(ns, onChangeFn){
   var box=document.getElementById('dp-'+ns+'-presets');
   if(!box) return;
-  var presets=[['today','admin_cards_date_today'],['week','admin_cards_date_week'],['month','admin_cards_date_month'],['year','admin_cards_date_year'],['exact','admin_cards_date_exact'],['period','admin_cards_date_period'],['all','admin_cards_date_all']];
   var st=adminDpState(ns);
-  box.innerHTML=presets.map(function(p){
-    var isActive=st.preset===p[0];
-    return '<button onclick="adminDpClick(\''+ns+'\',\''+p[0]+'\',\''+onChangeFn+'\')" style="padding:7px 14px;border-radius:20px;border:1px solid var(--bord);background:'+(isActive?'var(--g)':'none')+';color:'+(isActive?'#fff':'var(--t2)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+'</button>';
-  }).join('') + adminDpExtraHtml(ns);
-  adminDpBind(ns, onChangeFn);
+  var needsFullRebuild = (window._dpRendered[ns] !== st.preset) || box.children.length===0;
+  if(needsFullRebuild){
+    var presets=[['today','admin_cards_date_today'],['week','admin_cards_date_week'],['month','admin_cards_date_month'],['year','admin_cards_date_year'],['exact','admin_cards_date_exact'],['period','admin_cards_date_period'],['all','admin_cards_date_all']];
+    box.innerHTML=presets.map(function(p){
+      var isActive=st.preset===p[0];
+      return '<button data-preset="'+p[0]+'" onclick="adminDpClick(\''+ns+'\',\''+p[0]+'\',\''+onChangeFn+'\')" style="padding:7px 14px;border-radius:20px;border:1px solid var(--bord);background:'+(isActive?'var(--g)':'none')+';color:'+(isActive?'#fff':'var(--t2)')+';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'+at(p[1])+'</button>';
+    }).join('') + adminDpExtraHtml(ns);
+    adminDpBind(ns, onChangeFn);
+    window._dpRendered[ns] = st.preset;
+  } else {
+    Array.prototype.forEach.call(box.querySelectorAll('button[data-preset]'), function(b){
+      var isActive = b.getAttribute('data-preset')===st.preset;
+      b.style.background = isActive?'var(--g)':'none';
+      b.style.color = isActive?'#fff':'var(--t2)';
+    });
+  }
   var rangeDisplay=document.getElementById('dp-'+ns+'-range');
   if(rangeDisplay){
     var r=adminDpRange(ns);
@@ -6042,13 +6067,18 @@ function adminReviewDistributionHtml(dist, total){
   }
   return rows;
 }
+function adminRevDateChanged(){ adminLoadReviews(1); }
 function adminLoadReviews(page){
+  adminDpRender('rev','adminRevDateChanged');
   var box=document.getElementById('rev-list-box');
   var pag=document.getElementById('rev-pagination');
   if(!box) return;
   box.innerHTML='<div class="admin-empty">'+at('admin_loading')+'</div>';
   if(pag) pag.innerHTML='';
+  var revDateRange=adminDpRange('rev');
   var payload={admin_password:window._adminPw, page:page||1, rating:document.getElementById('rev-rating').value};
+  if(revDateRange.from) payload.date_from=revDateRange.from;
+  if(revDateRange.to) payload.date_to=revDateRange.to;
   var revCountryVal=adminReadCountryFilter('rev-country-box');
   if(revCountryVal) payload.country=revCountryVal;
   apiCall('/admin?action=reviews-list','POST',payload,'').then(function(res){

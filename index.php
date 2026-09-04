@@ -6649,6 +6649,14 @@ function admin_list_reviews() {
 
     $where = $baseWhere; $params = $scopeParams;
     if($ratingFilter >= 1 && $ratingFilter <= 5){ $where .= " AND r.rating=?"; $params[] = $ratingFilter; }
+    $dateFrom = trim($b['date_from'] ?? '');
+    $dateTo = trim($b['date_to'] ?? '');
+    if($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)){
+        $where .= " AND r.created_at::date >= ?"; $params[] = $dateFrom;
+    }
+    if($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)){
+        $where .= " AND r.created_at::date <= ?"; $params[] = $dateTo;
+    }
 
     try {
         $total = (int)q("SELECT COUNT(*) FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE $where", $params)->fetchColumn();
