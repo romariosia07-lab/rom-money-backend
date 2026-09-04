@@ -5826,7 +5826,11 @@ function adminDpRange(ns){
     return st.exact ? {from:st.exact,to:st.exact} : {from:'',to:''};
   }
   if(st.preset==='period'){
-    return {from:st.from||'',to:st.to||''};
+    // Les deux dates sont obligatoires pour "Periode" - une seule ne
+    // constitue pas un intervalle valide, donc pas de filtre partiel tant
+    // que les deux ne sont pas renseignees (contrairement a un simple
+    // "a partir de" qui n'a pas ete demande ici).
+    return (st.from && st.to) ? {from:st.from,to:st.to} : {from:'',to:''};
   }
   return {from:'',to:''};
 }

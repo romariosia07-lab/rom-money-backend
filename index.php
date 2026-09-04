@@ -6649,13 +6649,20 @@ function admin_list_reviews() {
 
     $where = $baseWhere; $params = $scopeParams;
     if($ratingFilter >= 1 && $ratingFilter <= 5){ $where .= " AND r.rating=?"; $params[] = $ratingFilter; }
+    // Les stats (moyenne/total/repartition) suivent le filtre de date (mais
+    // pas le filtre de note - la repartition par etoile n'aurait aucun sens
+    // si on ne comptait que la note deja selectionnee) : where dedie, calque
+    // sur baseWhere plutot que sur where qui lui inclut aussi la note.
+    $statsWhere = $baseWhere; $statsParams = $scopeParams;
     $dateFrom = trim($b['date_from'] ?? '');
     $dateTo = trim($b['date_to'] ?? '');
     if($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)){
         $where .= " AND r.created_at::date >= ?"; $params[] = $dateFrom;
+        $statsWhere .= " AND r.created_at::date >= ?"; $statsParams[] = $dateFrom;
     }
     if($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)){
         $where .= " AND r.created_at::date <= ?"; $params[] = $dateTo;
+        $statsWhere .= " AND r.created_at::date <= ?"; $statsParams[] = $dateTo;
     }
 
     try {
@@ -6669,7 +6676,7 @@ function admin_list_reviews() {
             SUM(CASE WHEN r.rating=3 THEN 1 ELSE 0 END) AS r3,
             SUM(CASE WHEN r.rating=4 THEN 1 ELSE 0 END) AS r4,
             SUM(CASE WHEN r.rating=5 THEN 1 ELSE 0 END) AS r5
-            FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE $baseWhere", $scopeParams)->fetch();
+            FROM user_reviews r JOIN users u ON u.id=r.user_id WHERE $statsWhere", $statsParams)->fetch();
     } catch(Exception $e) {
         $restore();
         log_and_fail($e, 'Service avis indisponible (base non initialisee).', 503);
