@@ -1921,7 +1921,7 @@ function renderCustomerKycScreen(){
   });
   html += '<div class="frow"><label class="flabel">'+t('kyc_agent_prenom')+'</label><input class="finput" id="kyc-legal-prenom" type="text" value="'+(ocr.prenom||'')+'"></div>'
     +'<div class="frow"><label class="flabel">'+t('kyc_agent_nom')+'</label><input class="finput" id="kyc-legal-nom" type="text" value="'+(ocr.nom||'')+'"></div>'
-    +'<div class="frow"><label class="flabel">'+t('kyc_agent_birthdate')+'</label><input class="finput" id="kyc-legal-birthdate" type="date" value="'+(ocr.birthdate||'')+'"></div>'
+    +'<div class="frow"><label class="flabel">'+t('kyc_agent_birthdate')+'</label><input class="finput" id="kyc-legal-birthdate" value="'+(ocr.birthdate||'')+'" placeholder="JJ/MM/AAAA"></div>'
     +'<button class="btn-g" style="background:var(--g)" id="kyc-submit-btn" onclick="submitCustomerKyc()">'+t('kyc_agent_submit_confirm_btn')+'</button>'
     +'<button class="chip" style="width:100%;margin-top:10px" onclick="closeSheet()">'+t('cancel')+'</button>';
   b.innerHTML = html;
