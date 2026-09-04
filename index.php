@@ -2910,6 +2910,13 @@ function agent_activate_card() {
             db()->commit();
             admin_log('card_activate_new_account','success',$customerPhone,'Carte '.$cardCode.' - nouveau compte cree par agent, depot initial de '.$depositAmount.' '.$aw['currency']);
             agent_commission_for($pl['sub'], $aw['id']);
+            // Seul moyen pour ce client de recuperer son PIN (genere au hasard,
+            // jamais affiche a l'agent) et son code de parrainage - sans ce SMS,
+            // le compte reste inaccessible depuis l'app pour toujours (aucun
+            // ecran de recuperation de PIN cote client actuellement). Best-effort,
+            // ne bloque jamais la reponse : l'activation elle-meme a deja reussi.
+            send_sms($customerPhone, 'ROM_MONEY: Bienvenue ! Votre code secret (PIN) pour l\'application : '.$randomPin
+                .'. Votre code de parrainage : '.$myReferralCode.'. Gardez votre PIN confidentiel, ne le partagez avec personne.', $country);
             $newAgentBal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
             ok(['card_code'=>$cardCode,'user_id'=>$uid,'full_name'=>$name,'phone_number'=>$customerPhone,'new_account'=>true,
                 'deposit_amount'=>$depositAmount,'agent_new_balance'=>$newAgentBal],'Carte activee, compte cree et alimente');
