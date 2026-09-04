@@ -5831,7 +5831,13 @@ function adminDpRange(ns){
   return {from:'',to:''};
 }
 function adminDpClick(ns, preset, onChangeFn){
-  adminDpState(ns).preset=preset;
+  var st=adminDpState(ns);
+  // Quitter "Date precise"/"Periode" efface la saisie manuelle - sinon en y
+  // revenant plus tard (apres etre passe par un autre bouton), l'ancienne
+  // date tapee reapparaissait comme si elle etait toujours active.
+  if(st.preset==='exact') st.exact='';
+  if(st.preset==='period'){ st.from=''; st.to=''; }
+  st.preset=preset;
   adminDpRender(ns, onChangeFn);
   // "Date precise"/"Periode" n'ont pas encore de date renseignee au moment
   // du clic sur le bouton lui-meme - ne pas declencher tout de suite,
