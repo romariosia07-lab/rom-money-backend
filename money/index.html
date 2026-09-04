@@ -1879,6 +1879,9 @@ var I18N = {
   admin_cards_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
   admin_cards_reactivate_confirm_msg: {fr:'Carte retrouvée par le client, pas remplacée entre-temps ? Elle redevient utilisable normalement.', en:'Card found by the customer, not replaced in the meantime? It becomes usable again.'},
   admin_cards_reactivated_toast: {fr:'Carte réactivée', en:'Card reactivated'},
+  admin_cards_blocked_on_label: {fr:'Bloquée le', en:'Blocked on'},
+  admin_cards_blocked_by_label: {fr:'Par', en:'By'},
+  admin_cards_blocked_reason_label: {fr:'Raison', en:'Reason'},
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
@@ -5647,6 +5650,13 @@ function adminLoadCards(page){
         html+='<div style="color:var(--t3);margin-top:4px;font-size:11px">'+at('admin_cards_created_label')+' '+new Date(c.created_at).toLocaleDateString()+(c.activated_at?' · '+at('admin_cards_activated_label')+' '+new Date(c.activated_at).toLocaleDateString():'')+'</div>';
         if(c.activated_by_agent_name){
           html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">'+at('admin_cards_activated_by_label')+' '+adminEsc(c.activated_by_agent_name)+' · '+(c.activated_by_agent_phone||'-')+'</div>';
+        }
+        if(c.status==='blocked' && c.blocked_at){
+          html+='<div style="color:var(--re);margin-top:6px;padding:8px 10px;background:var(--rl);border-radius:8px;font-size:11px">'
+            +at('admin_cards_blocked_on_label')+' '+new Date(c.blocked_at).toLocaleString()+'<br>'
+            +at('admin_cards_blocked_by_label')+' '+adminEsc(c.blocked_by_admin||'-')+'<br>'
+            +at('admin_cards_blocked_reason_label')+' '+adminEsc(c.blocked_reason||'-')
+            +'</div>';
         }
         html+='<div style="display:flex;gap:8px;margin-top:8px">';
         html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminShowCardPreview(\''+c.card_code+'\')">'+at('admin_cards_preview_btn')+'</button>';

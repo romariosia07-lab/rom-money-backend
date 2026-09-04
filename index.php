@@ -8774,6 +8774,7 @@ function admin_list_physical_cards() {
     }
     $total = (int)q("SELECT COUNT(*) FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT pc.id,pc.card_code,pc.status,pc.activated_at,pc.created_at,
+               pc.blocked_at,pc.blocked_by_admin,pc.blocked_reason,
                u.full_name,u.verified_name,u.phone_number,u.country,
                ag.full_name activated_by_agent_name, ag.phone_number activated_by_agent_phone
                FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
@@ -8802,7 +8803,8 @@ function admin_block_physical_card() {
     $card = q("SELECT pc.*, u.phone_number, u.country FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE pc.card_code=?",[$cardCode])->fetch();
     if(!$card) fail('Carte introuvable',404);
     if($card['country']) admin_check_country_access($card['country']);
-    q("UPDATE physical_cards SET status='blocked' WHERE id=?",[$card['id']]);
+    $adminName = $GLOBALS['_current_admin_name'] ?? 'Admin Principal';
+    q("UPDATE physical_cards SET status='blocked', blocked_at=NOW(), blocked_by_admin=?, blocked_reason=? WHERE id=?",[$adminName,$reason,$card['id']]);
     admin_log('physical_card_block','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>$reason]));
     ok(null,'Carte bloquee');
 }
@@ -8826,7 +8828,7 @@ function admin_reactivate_physical_card() {
     if($card['country']) admin_check_country_access($card['country']);
     $otherActive = q("SELECT id FROM physical_cards WHERE user_id=? AND status='active'",[$card['user_id']])->fetch();
     if($otherActive) fail('Ce client a deja recu une nouvelle carte active - impossible de reactiver aussi celle-ci.',422);
-    q("UPDATE physical_cards SET status='active' WHERE id=?",[$card['id']]);
+    q("UPDATE physical_cards SET status='active', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
     admin_log('physical_card_reactivate','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte retrouvee par le client']));
     ok(null,'Carte reactivee');
 }
@@ -10088,7 +10090,14 @@ function route_install() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     "CREATE INDEX IF NOT EXISTS idx_physical_cards_code ON physical_cards(card_code)",
-    "CREATE INDEX IF NOT EXISTS idx_physical_cards_user ON physical_cards(user_id)"
+    "CREATE INDEX IF NOT EXISTS idx_physical_cards_user ON physical_cards(user_id)",
+    // Metadonnees du blocage - affichees directement sur la carte plutot que
+    // de forcer un detour par le Journal d'audit. Effacees a la reactivation
+    // (ces champs decrivent "pourquoi bloquee MAINTENANT", pas un historique
+    // permanent - l'entree admin_log, elle, reste pour toujours).
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMP",
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_by_admin VARCHAR(150)",
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_reason VARCHAR(255)"
     ];
 
     $created = [];
