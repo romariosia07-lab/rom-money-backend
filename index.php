@@ -2822,10 +2822,28 @@ function agent_activate_card() {
     if(!$customer){
         $name = trim($b['full_name'] ?? '');
         $country = trim($b['country'] ?? '');
+        $depositAmount = (float)($b['deposit_amount'] ?? 0);
+        $pin = trim($b['pin'] ?? '');
         if(!$name) fail('Nom du client requis');
         if(!$country) fail('Pays du client requis');
+        // Un compte tout juste cree n'a aucune raison d'exister a 0 - le
+        // depot initial est obligatoire et fusionne dans la meme action que
+        // l'activation (impossible d'activer sans financer, contrairement a
+        // avant ou l'agent pouvait fermer l'ecran de depot qui suivait sans
+        // le completer). C'est l'agent qui autorise avec SON PIN, puisque
+        // c'est son float a lui qui est debite - meme principe que
+        // agent_cash_in().
+        if($depositAmount<=0) fail('Le montant du depot initial est requis');
+        if(!preg_match('/^\d{4}$/', $pin)) fail('PIN invalide');
         $countryRow = q("SELECT is_active FROM active_countries WHERE name=?",[$country])->fetch();
         if(!$countryRow || !$countryRow['is_active']) fail('ROM_MONEY n\'est pas encore disponible dans ce pays');
+
+        $agentRow = q("SELECT pin_hash FROM agents WHERE id=?",[$pl['sub']])->fetch();
+        agent_pin_check($pl['sub'], $pin, $agentRow['pin_hash']);
+        $aw = q("SELECT * FROM agent_wallets WHERE agent_id=?",[$pl['sub']])->fetch();
+        $walletCurrency = country_to_currency($country);
+        if($walletCurrency !== $aw['currency']) fail('Le depot doit se faire dans la meme devise que votre guichet.', 422);
+        if((float)$aw['balance'] < $depositAmount) fail('Solde du guichet insuffisant, demandez une recharge');
 
         db()->beginTransaction();
         try {
@@ -2838,12 +2856,24 @@ function agent_activate_card() {
             q("INSERT INTO users (id,full_name,phone_number,operator,password_hash,pin_hash,referral_code,country) VALUES (?,?,?,?,?,?,?,?)",
               [$uid,$name,$customerPhone,'Carte physique',$passh,$pinh,$myReferralCode,$country]);
             q("INSERT INTO wallets (id,user_id,balance,vault_balance,currency,qr_seed) VALUES (?,?,0,0,?,?)",
-              [$wid,$uid,country_to_currency($country),$qrseed]);
+              [$wid,$uid,$walletCurrency,$qrseed]);
             q("UPDATE physical_cards SET status='active', user_id=?, activated_at=NOW(), activated_by_agent_id=? WHERE id=?",
               [$uid,$pl['sub'],$card['id']]);
+            $txid = uid(); $reference = ref();
+            $deadline = date('Y-m-d H:i:s', time()+CANCEL_MINS*60);
+            q("INSERT INTO transactions (id,sender_agent_wallet_id,receiver_wallet_id,amount,type,status,reference,description,cancel_deadline,currency)
+               VALUES (?,?,?,?,'agent_cash_in','pending',?,?,?,?)",
+              [$txid,$aw['id'],$wid,$depositAmount,$reference,'Depot initial a l\'activation de la carte',$deadline,$aw['currency']]);
+            $rows = q("UPDATE agent_wallets SET balance=balance-? WHERE id=? AND balance>=?",[$depositAmount,$aw['id'],$depositAmount])->rowCount();
+            if(!$rows) throw new Exception('Solde du guichet insuffisant');
+            q("UPDATE wallets SET balance=balance+? WHERE id=?",[$depositAmount,$wid]);
+            q("UPDATE transactions SET status='completed' WHERE id=?",[$txid]);
             db()->commit();
-            admin_log('card_activate_new_account','success',$customerPhone,'Carte '.$cardCode.' - nouveau compte cree par agent');
-            ok(['card_code'=>$cardCode,'user_id'=>$uid,'full_name'=>$name,'phone_number'=>$customerPhone,'new_account'=>true],'Carte activee, nouveau compte cree');
+            admin_log('card_activate_new_account','success',$customerPhone,'Carte '.$cardCode.' - nouveau compte cree par agent, depot initial de '.$depositAmount.' '.$aw['currency']);
+            agent_commission_for($pl['sub'], $aw['id']);
+            $newAgentBal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
+            ok(['card_code'=>$cardCode,'user_id'=>$uid,'full_name'=>$name,'phone_number'=>$customerPhone,'new_account'=>true,
+                'deposit_amount'=>$depositAmount,'agent_new_balance'=>$newAgentBal],'Carte activee, compte cree et alimente');
         } catch(Exception $e) {
             db()->rollBack();
             log_and_fail($e, 'Erreur activation carte', 500);

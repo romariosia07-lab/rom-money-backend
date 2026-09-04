@@ -616,6 +616,8 @@ var I18N = {
   card_activated_success:{fr:'Carte activée.',en:'Card activated.'},
   card_err_name:{fr:'Le nom du client est requis',en:"Customer's name is required"},
   card_activate_err:{fr:"Échec de l'activation de la carte",en:'Card activation failed'},
+  card_deposit_amount:{fr:'Montant du dépôt initial',en:'Initial deposit amount'},
+  card_deposit_required_note:{fr:"Un nouveau compte doit être alimenté dès sa création — ce montant sera débité de votre float et crédité au client.",en:'A new account must be funded as soon as it is created — this amount will be debited from your float and credited to the customer.'},
   card_reissue_prompt:{fr:"Ce client a déjà une carte active. Bloquer l'ancienne et activer celle-ci à la place ? Un code de confirmation sera envoyé par SMS au client.",en:'This customer already has an active card. Block the old one and activate this one instead? A confirmation code will be sent to the customer by SMS.'},
   card_reissue_btn:{fr:'Envoyer le code de remplacement',en:'Send replacement code'},
   card_reissue_sending:{fr:'Envoi du code au client...',en:'Sending code to customer...'},
@@ -1722,7 +1724,9 @@ function renderCardActivationConfirm(phone, customer, isNew){
   if(isNew){
     html+='<div class="fee-note warn" style="margin-bottom:14px">'+t('card_new_account_note')+'</div>'
       +'<div class="frow"><label class="flabel">'+t('card_full_name')+'</label><input class="finput" id="card-name" type="text"></div>'
-      +'<div class="frow"><label class="flabel">'+t('reg_label_country')+'</label><select class="finput" id="card-country"><option value="">'+t('reg_country_loading')+'</option></select></div>';
+      +'<div class="frow"><label class="flabel">'+t('reg_label_country')+'</label><select class="finput" id="card-country"><option value="">'+t('reg_country_loading')+'</option></select></div>'
+      +'<div class="frow"><label class="flabel">'+t('card_deposit_amount')+'</label><input class="finput" id="card-deposit-amount" type="number" inputmode="numeric"></div>'
+      +'<div class="fee-note warn">'+t('card_deposit_required_note')+'</div>';
   } else {
     html+=customerInfoBoxHtml(customer, 14);
   }
@@ -1735,15 +1739,28 @@ function doActivateCard(isNew){
   if(isNew){
     var name=document.getElementById('card-name').value.trim();
     var country=document.getElementById('card-country').value;
+    var amount=parseFloat(document.getElementById('card-deposit-amount').value);
     if(!name){ toast(t('card_err_name'), true); return; }
     if(!country){ toast(t('reg_err_country'), true); return; }
-    payload.full_name=name; payload.country=country;
+    if(!amount || amount<=0){ toast(t('err_amount_invalid'), true); return; }
+    payload.full_name=name; payload.country=country; payload.deposit_amount=amount;
+    // Le depot initial debite le float de L'AGENT (comme un depot normal),
+    // donc c'est son PIN a lui qui autorise ici - jamais celui du client.
+    requirePin(t('dep_note'), function(){
+      payload.pin=PIN_MEM;
+      submitActivateCard(payload, isNew);
+    });
+    return;
   }
+  submitActivateCard(payload, isNew);
+}
+function submitActivateCard(payload, isNew){
   var btn=document.getElementById('card-activate-btn');
   if(btn) btn.disabled=true;
   apiCall('/agent?action=activate-card','POST',payload,getToken()).then(function(res){
     if(res && res.success){
       toast(t('card_activated_success'));
+      window._pendingCardWasNewAccount = isNew;
       continueOriginalCardFlow();
     } else if(!isNew && res && res.message && res.message.indexOf('ALREADY_HAS_ACTIVE_CARD:')===0){
       renderCardReissuePrompt();
@@ -1764,6 +1781,12 @@ function doActivateCard(isNew){
 function continueOriginalCardFlow(){
   var phone = window._pendingCardPhone;
   var flow = window._pendingCardSourceFlow;
+  var wasNewAccount = window._pendingCardWasNewAccount;
+  window._pendingCardWasNewAccount = false;
+  // Pour un nouveau compte, le depot initial vient deja d'etre effectue dans
+  // la meme action que l'activation (voir doActivateCard()) - inutile (et
+  // trompeur) de redemander un montant ici.
+  if(flow==='depot' && wasNewAccount){ closeSheet(); refreshBalance(); refreshHistory(); return; }
   apiCall('/agent?action=resolve-customer&phone='+encodeURIComponent(phone),'GET',null,getToken()).then(function(res){
     if(!res || !res.success || !res.data){ closeSheet(); return; }
     var customer = res.data;
