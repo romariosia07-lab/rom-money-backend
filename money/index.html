@@ -1898,6 +1898,8 @@ var I18N = {
   admin_cards_confirm_printed_btn: {fr:'✅ Confirmer l\'impression réelle', en:'✅ Confirm actual printing'},
   admin_cards_confirm_printed_note: {fr:'Cliquez "Imprimer" pour ouvrir la boîte de dialogue. Une fois l\'impression réellement terminée (pas annulée), cliquez "Confirmer" — c\'est ce clic, pas le bouton Imprimer, qui marque les cartes comme imprimées.', en:'Click "Print" to open the dialog. Once printing is actually done (not cancelled), click "Confirm" — this click, not the Print button, is what marks the cards as printed.'},
   admin_cards_confirmed_printed_done: {fr:'✅ Confirmé', en:'✅ Confirmed'},
+  admin_cards_unmark_printed_link: {fr:'annuler', en:'undo'},
+  admin_cards_unmarked_toast: {fr:'Marquage impression annulé', en:'Print mark undone'},
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
@@ -5699,6 +5701,15 @@ function adminMarkCardsPrintedFromTab(codes){
     adminLoadCards(1);
   }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
+// Corrige un marquage errone (confirmation cliquee par erreur, ou impression
+// ratee/annulee malgre la confirmation) - remet la carte a l'etat "jamais
+// imprimee" pour qu'elle redevienne eligible a la selection rapide.
+function adminUnmarkCardPrinted(cardCode){
+  apiCall('/admin?action=cards-unmark-printed','POST',{admin_password:window._adminPw,card_codes:[cardCode]},'').then(function(res){
+    if(res&&res.success){ toast(at('admin_cards_unmarked_toast')); adminLoadCards(1); }
+    else { toast((res&&res.message)||at('admin_error_generic'), true); }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
 // Avant d'imprimer, verifie si une des cartes a deja ete imprimee au moins
 // une fois (via le cache local, deja rempli par adminLoadCards()) - pas un
 // risque de securite (une carte deja active bloque toute activation en
@@ -5828,7 +5839,7 @@ function adminLoadCards(page){
           html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">'+at('admin_cards_activated_by_label')+' '+adminEsc(c.activated_by_agent_name)+' · '+(c.activated_by_agent_phone||'-')+'</div>';
         }
         if(c.printed_at){
-          html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">🖨 '+at('admin_cards_printed_on_label')+' '+new Date(c.printed_at).toLocaleDateString()+(c.print_count>1?' ('+at('admin_cards_printed_count_label').replace('{n}',c.print_count)+')':'')+'</div>';
+          html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">🖨 '+at('admin_cards_printed_on_label')+' '+new Date(c.printed_at).toLocaleDateString()+(c.print_count>1?' ('+at('admin_cards_printed_count_label').replace('{n}',c.print_count)+')':'')+' · <span style="text-decoration:underline;cursor:pointer" onclick="adminUnmarkCardPrinted(\''+c.card_code+'\')">'+at('admin_cards_unmark_printed_link')+'</span></div>';
         }
         if(c.status==='blocked' && c.blocked_at){
           html+='<div style="color:var(--re);margin-top:6px;padding:8px 10px;background:var(--rl);border-radius:8px;font-size:11px">'
