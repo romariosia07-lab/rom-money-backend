@@ -2916,7 +2916,9 @@ function agent_activate_card() {
             // ecran de recuperation de PIN cote client actuellement). Best-effort,
             // ne bloque jamais la reponse : l'activation elle-meme a deja reussi.
             send_sms($customerPhone, 'ROM_MONEY: Bienvenue ! Votre code secret (PIN) pour l\'application : '.$randomPin
-                .'. Votre code de parrainage : '.$myReferralCode.'. Gardez votre PIN confidentiel, ne le partagez avec personne.', $country);
+                .'. Votre code de parrainage : '.$myReferralCode.'. Gardez votre PIN confidentiel, ne le partagez avec personne. '
+                .'En cas d\'oubli, contactez le service client au +225 01 60 62 95 02.'."\n\n"
+                .'Merci de votre confiance, l\'equipe ROM_MONEY.', $country);
             $newAgentBal = (float)q("SELECT balance FROM agent_wallets WHERE id=?",[$aw['id']])->fetchColumn();
             ok(['card_code'=>$cardCode,'user_id'=>$uid,'full_name'=>$name,'phone_number'=>$customerPhone,'new_account'=>true,
                 'deposit_amount'=>$depositAmount,'agent_new_balance'=>$newAgentBal],'Carte activee, compte cree et alimente');
