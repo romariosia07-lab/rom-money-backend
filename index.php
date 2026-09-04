@@ -6805,6 +6805,8 @@ function admin_merchant_search() {
         'verified'=>(bool)($m['verified']??false),'created_at'=>$m['created_at'],
         'country'=>$m['country']??null,'currency'=>$w['currency']??'XOF',
         'balance'=>(float)($w['balance']??0),'vault_balance'=>(float)($w['vault_balance']??0),
+        'verified_manager_name'=>$m['verified_manager_name']??null,
+        'verified_manager_birthdate'=>$m['verified_manager_birthdate']??null,
         'notes'=>$notes,'transactions'=>$txs,'known_devices'=>$devices]);
 }
 
