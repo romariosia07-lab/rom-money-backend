@@ -8974,7 +8974,7 @@ function kycStepHtml(step,label,existingPhoto){
       +'<button class="btn-w" style="flex:1;padding:10px;font-size:12px" onclick="kycRotatePhoto(\''+step+'\',-90)">'+t('kyc_rotate_left')+'</button>'
       +'<button class="btn-w" style="flex:1;padding:10px;font-size:12px" onclick="kycRotatePhoto(\''+step+'\',90)">'+t('kyc_rotate_right')+'</button>'
       +'</div>':'')
-    +'<input type="file" accept="image/*" capture="environment" id="kyc-input-'+step+'" style="display:none" onchange="handleKycPhoto(this,\''+step+'\')">'
+    +'<input type="file" accept="image/*" capture="environment" id="kyc-input-'+step+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleKycPhoto(this,\''+step+'\')">'
     +'<button class="btn-w" '+(isProcessing?'disabled':'')+' onclick="document.getElementById(\'kyc-input-'+step+'\').click()">'+(existingPhoto?t('kyc_retake_photo'):t('kyc_take_photo'))+'</button>'
     +(existingPhoto&&!isProcessing?'<button class="btn-g" style="margin-top:8px" onclick="kycNext(\''+step+'\')">'+t('kyc_btn_validate')+'</button>':'');
 }
@@ -10729,7 +10729,7 @@ function shEditProfile(b){
   b.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px;gap:10px">'
     +'<div style="width:80px;height:80px;border-radius:50%;background:var(--gl);border:3px solid var(--gm);overflow:hidden;display:flex;align-items:center;justify-content:center" id="photo-preview">'+photoHTML+'</div>'
     +'<button type="button" onclick="triggerPhotoInput()" style="background:var(--gl);border:.5px solid var(--gm);color:var(--accent-text);padding:8px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">'+t('edit_profile_choose_photo')+'</button>'
-    +'<input type="file" id="photo-input" accept="image/*" style="display:none" onchange="previewPhoto(this)">'
+    +'<input type="file" id="photo-input" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="previewPhoto(this)">'
     +'</div>'
     +'<div class="frow"><label class="flabel">'+t('edit_profile_label_name')+'</label><input class="finput" id="ep-nm" value="'+APP.name+'" placeholder="'+t('edit_profile_ph_name')+'"></div>'
     +'<div class="frow"><label class="flabel">'+t('edit_profile_label_phone')+'</label><input class="finput" id="ep-ph" value="'+APP.phone+'" placeholder="+225 07 XX XX XX XX" type="tel" disabled style="background:var(--div);color:var(--t3)"></div>'

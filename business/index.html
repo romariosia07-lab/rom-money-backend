@@ -2244,8 +2244,8 @@ function renderKybDocs(b){
       // ca, l'ecran semblait fige et poussait a re-cliquer en double.
       h+='<div style="padding:16px 0;text-align:center;color:var(--t3);font-size:12px">⏳ '+t('kyb_photo_processing')+'</div>';
     } else {
-      h+='<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
-        +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="display:none" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+      h+='<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleKybDocFile(this,\''+d.key+'\')">'
+        +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleKybDocFile(this,\''+d.key+'\')">'
         +'<div style="display:flex;gap:8px">'
         +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
         +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'

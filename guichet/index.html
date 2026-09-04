@@ -1160,8 +1160,8 @@ function agrDocCard(key){
       +'<button class="chip" style="width:100%;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="viewAgentDoc(\''+key+'\')">'+t('agr_doc_view')+'</button>';
   } else if(pending){
     h+='<img src="'+pending+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:8px">'
-      +'<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
-      +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
+      +'<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
+      +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<div style="display:flex;gap:8px">'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'agrdoc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--rl);color:var(--rd)" onclick="removePendingAgentDoc(\''+key+'\')">'+t('agr_doc_remove')+'</button>'
@@ -1173,8 +1173,8 @@ function agrDocCard(key){
       h+='<div class="fee-note warn" style="margin-bottom:8px"><b>'+t('agr_doc_notice_title')+'</b> '+notice.reason
         +'<div style="font-size:10px;margin-top:2px;opacity:.8">'+t('agr_doc_notice_date').replace('{date}',noticeDate)+'</div></div>';
     }
-    h+='<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
-      +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="display:none" onchange="handleAgentDocFile(this,\''+key+'\')">'
+    h+='<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
+      +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<div style="display:flex;gap:8px">'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'agrdoc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'agrdoc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
@@ -1899,11 +1899,11 @@ function renderCustomerKycScreen(){
       html += '<div style="padding:30px 0;text-align:center;color:var(--t2);font-size:12px">⏳ '+t('kyc_agent_processing')+'</div>';
     } else if(photo){
       html += '<img src="'+photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:8px">'
-        +'<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+        +'<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
         +'<button class="chip" style="width:100%;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>';
     } else {
-      html += '<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
-        +'<input type="file" accept="image/*" id="kyc-file-'+key+'" style="display:none" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+      html += '<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
+        +'<input type="file" accept="image/*" id="kyc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
         +'<div style="display:flex;gap:8px">'
         +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
         +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'kyc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
