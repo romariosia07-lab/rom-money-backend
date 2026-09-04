@@ -364,14 +364,14 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .admin-empty{text-align:center;padding:20px 16px;color:var(--t3);font-size:12px;}
 .use-ref-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--g);cursor:pointer;margin-top:4px;}
 
-/* Impression des cartes physiques - format carte bancaire standard
-   (85,6 x 54 mm), plusieurs par page, prete a decouper. Meme identite
-   visuelle que .qr-real-card (Mon QR/Recevoir) - degrade vert, motif
-   diagonal, filigrane, bordure or - pour rester coherent avec les autres
-   "cartes" deja affichees dans l'app, juste adapte au format papier (mm au
-   lieu de px). Masque tout le reste de l'app pendant l'impression (voir
-   adminPrintCards()). */
-#cards-print-area{display:none}
+/* Rendu des cartes physiques a l'ecran (apercu apres generation / dans la
+   liste). Meme identite visuelle que .qr-real-card (Mon QR/Recevoir) -
+   degrade vert, motif diagonal, filigrane, bordure or. L'impression
+   elle-meme se fait dans un nouvel onglet dedie (voir
+   adminOpenCardPrintTab()), dont le CSS est construit a part (inline dans
+   le HTML genere) plutot que de dependre de ces regles - plus fiable
+   entre navigateurs/appareils qu'une zone masquee + window.print() sur la
+   page courante. */
 .print-card{
   width:85.6mm;height:54mm;box-sizing:border-box;
   background-color:#0d4a30;
@@ -393,10 +393,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
 .print-card-box{background:#fff;border-radius:2mm;padding:1.8mm;border:.4mm solid rgba(245,166,35,.4);position:relative;z-index:1}
 .print-card-code{font-family:monospace;font-size:6.5pt;letter-spacing:.5pt;color:#fff;opacity:.9;position:relative;z-index:1}
 .print-card-slogan{color:#fff;font-size:5.5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85;position:relative;z-index:1}
-@media print{
-  body.printing-cards > *:not(#cards-print-area){display:none!important}
-  body.printing-cards #cards-print-area{display:flex!important;flex-wrap:wrap;gap:4mm;padding:6mm}
-}
 </style>
 </head>
 <body>
@@ -1254,7 +1250,6 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
       </div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:14px" data-i18n-admin="admin_cards_max_note">Maximum 500 cartes par lot.</div>
       <div id="cards-gen-result" style="margin-bottom:16px"></div>
-      <div id="cards-print-area"></div>
 
       <div class="admin-stitle" style="margin-top:24px;border-top:1px solid var(--bord);padding-top:20px" data-i18n-admin="admin_cards_list_title">Toutes les cartes</div>
       <div id="cards-counts-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
@@ -1269,6 +1264,11 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <option value="active" data-i18n-admin="admin_cards_status_active">Actives</option>
         <option value="blocked" data-i18n-admin="admin_cards_status_blocked">Bloquées</option>
       </select>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <input class="finput" id="cards-quickselect-count" type="number" inputmode="numeric" placeholder="25" style="margin-bottom:0;width:90px">
+        <button class="btn-w" style="margin-bottom:0;width:auto;padding:10px 14px;font-size:12px" onclick="adminQuickSelectUnprinted()" data-i18n-admin="admin_cards_quickselect_btn">Sélectionner les N premières jamais imprimées</button>
+      </div>
+      <div id="cards-selection-toolbar" style="display:none;margin-bottom:14px"></div>
       <div id="cards-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="cards-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
     </div>
@@ -1883,6 +1883,18 @@ var I18N = {
   admin_cards_blocked_on_label: {fr:'Bloquée le', en:'Blocked on'},
   admin_cards_blocked_by_label: {fr:'Par', en:'By'},
   admin_cards_blocked_reason_label: {fr:'Raison', en:'Reason'},
+  admin_cards_print_tab_title: {fr:'Cartes à imprimer', en:'Cards to print'},
+  admin_cards_print_tab_btn: {fr:'🖨 Imprimer', en:'🖨 Print'},
+  admin_cards_reprint_confirm_one: {fr:'Cette carte a déjà été imprimée le {date} — imprimer quand même ?', en:'This card was already printed on {date} — print again?'},
+  admin_cards_reprint_confirm_many: {fr:'{n} carte(s) sur {total} ont déjà été imprimées — imprimer quand même ?', en:'{n} of {total} card(s) were already printed — print again?'},
+  admin_cards_selected_count: {fr:'{n} sélectionnée(s)', en:'{n} selected'},
+  admin_cards_print_selection_btn: {fr:'🖨 Imprimer la sélection', en:'🖨 Print selection'},
+  admin_cards_clear_selection_btn: {fr:'Vider la sélection', en:'Clear selection'},
+  admin_cards_quickselect_btn: {fr:'Sélectionner les N premières jamais imprimées', en:'Select first N never printed'},
+  admin_cards_quickselect_toast: {fr:'{n} carte(s) ajoutée(s) à la sélection', en:'{n} card(s) added to selection'},
+  admin_cards_none_unprinted: {fr:'Aucune carte non imprimée disponible', en:'No unprinted cards available'},
+  admin_cards_printed_on_label: {fr:'Imprimée le', en:'Printed on'},
+  admin_cards_printed_count_label: {fr:'{n}x', en:'{n}x'},
   admin_tab_cards: {fr:'Cartes', en:'Cards'},
   admin_cards_max_note: {fr:'Maximum 500 cartes par lot.', en:'Maximum 500 cards per batch.'},
   admin_cards_list_title: {fr:'Toutes les cartes', en:'All cards'},
@@ -5512,9 +5524,9 @@ function adminLoadAgents(page){
 // ADMIN - Cartes physiques (QR imprime)
 // ═══════════════════════════════════════════
 // Balisage d'une carte brandee (meme motif que .qr-real-card : degrade vert/or,
-// filigrane, boite QR blanche) - utilise a la fois pour l'apercu a l'ecran
-// (juste apres generation ou depuis la liste) et pour l'impression, afin que
-// ce que l'admin voit soit exactement ce qui sort sur papier.
+// filigrane, boite QR blanche) - utilise pour l'apercu a l'ecran (juste
+// apres generation ou depuis la liste). L'impression papier utilise un
+// balisage equivalent mais construit a part, voir adminBuildPrintableCardsHtml().
 function adminCardMarkup(code, qrId){
   return '<div class="print-card">'
     +'<div class="print-card-brand">'
@@ -5526,9 +5538,19 @@ function adminCardMarkup(code, qrId){
     +'<div class="print-card-slogan">'+t('wallet_slogan')+'</div>'
     +'</div>';
 }
+// Cache des objets carte deja recus (accumule au fil des pages/filtres,
+// jamais vide entre deux appels) - permet de savoir si une carte selectionnee
+// sur une page precedente a deja ete imprimee sans avoir a la recharger.
+window._cardsListCache = window._cardsListCache || {};
+// Codes actuellement selectionnes pour une impression groupee - persiste
+// entre changements de page/filtre le temps de la session (vide uniquement
+// sur demande explicite ou apres une impression reussie).
+window._cardsSelected = window._cardsSelected || new Set();
+
 // Genere un lot de codes et affiche directement l'apercu visuel brande de
 // chaque carte (pas juste un QR nu) pour que l'admin voie exactement ce qui
-// sera imprime avant de le faire.
+// sera imprime avant de le faire. Un lot fraichement genere n'a jamais pu
+// etre imprime avant, donc le bouton imprime directement sans verification.
 function adminGenerateCards(){
   var count=parseInt(document.getElementById('cards-gen-count').value,10);
   if(!count || count<1 || count>500){ toast(at('admin_cards_err_count'), true); return; }
@@ -5542,7 +5564,7 @@ function adminGenerateCards(){
       var box=document.getElementById('cards-gen-result');
       box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
         +'<div style="font-size:11px;color:var(--t3)">'+at('admin_cards_generated_note').replace('{n}',codes.length)+'</div>'
-        +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminPrintCards()">'+at('admin_cards_print_btn')+'</button>'
+        +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminOpenCardPrintTab(window._lastGeneratedCards)">'+at('admin_cards_print_btn')+'</button>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90mm,1fr));gap:10px" id="cards-qr-grid"></div>';
       var grid=document.getElementById('cards-qr-grid');
@@ -5556,7 +5578,7 @@ function adminGenerateCards(){
 }
 // Apercu d'une carte deja existante depuis la liste (pas seulement le dernier
 // lot genere) - petit visionneur qui reutilise le meme balisage brande, avec
-// un bouton pour l'imprimer directement depuis la.
+// un bouton pour l'imprimer (avec confirmation si deja imprimee).
 function adminShowCardPreview(code){
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px';
@@ -5569,7 +5591,7 @@ function adminShowCardPreview(code){
   var printBtn=document.createElement('button');
   printBtn.className='btn-w'; printBtn.style.cssText='margin-bottom:0;width:auto;padding:10px 18px';
   printBtn.textContent=at('admin_cards_print_btn');
-  printBtn.onclick=function(){ document.body.removeChild(overlay); adminPrintCards([code]); };
+  printBtn.onclick=function(){ document.body.removeChild(overlay); adminPrintCardsWithConfirm([code]); };
   var closeBtn=document.createElement('button');
   closeBtn.className='btn-w'; closeBtn.style.cssText='margin-bottom:0;width:auto;padding:10px 18px;background:var(--bord);color:var(--t1)';
   closeBtn.textContent=at('admin_close_btn');
@@ -5579,26 +5601,139 @@ function adminShowCardPreview(code){
   document.body.appendChild(overlay);
   drawQR('preview-card-qr', code, 100);
 }
-// Mise en page impression (format carte bancaire 85,6x54mm, plusieurs par
-// page) - accepte une liste explicite de codes (apercu individuel depuis la
-// liste) ou reprend par defaut le dernier lot genere. Re-rendu dans un
-// conteneur dedie (#cards-print-area, masque hors impression) plutot que de
-// reutiliser le QR deja affiche a l'ecran, pour garder une taille fixe et
-// coherente sur papier quelle que soit la resolution d'affichage.
-// body.printing-cards (voir CSS @media print) masque tout le reste de l'app
-// le temps de l'impression.
-function adminPrintCards(codes){
-  codes = codes || window._lastGeneratedCards || [];
-  if(!codes.length){ toast(at('admin_cards_err_count'), true); return; }
-  var area=document.getElementById('cards-print-area');
-  area.innerHTML=codes.map(function(code, idx){ return adminCardMarkup(code, 'print-card-qr-'+idx); }).join('');
-  codes.forEach(function(code, idx){ drawQR('print-card-qr-'+idx, code, 100); });
-  document.body.classList.add('printing-cards');
-  window.onafterprint=function(){
-    document.body.classList.remove('printing-cards');
-    window.onafterprint=null;
-  };
-  setTimeout(function(){ window.print(); }, 150);
+// Dessine un QR hors-ecran (jamais visible) juste pour en extraire l'image -
+// necessaire car le nouvel onglet d'impression est une page independante,
+// sans acces a la librairie QR ni au CSS de cette page-ci : on embarque donc
+// une image deja rendue (data URI) plutot qu'un element vivant.
+function adminCardsQrDataUrl(code, size){
+  size = size || 220;
+  var id = 'qrtmp-'+Math.random().toString(36).slice(2);
+  var tmp = document.createElement('div');
+  tmp.id = id;
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(tmp);
+  drawQR(id, code, size);
+  var canvas = tmp.querySelector('canvas');
+  var dataUrl = canvas ? canvas.toDataURL('image/png') : '';
+  document.body.removeChild(tmp);
+  return dataUrl;
+}
+// Construit une page HTML autonome (CSS inline, images en data URI ou URL
+// absolue) pour le nouvel onglet d'impression - plus fiable qu'une zone
+// masquee + window.print() sur la page courante, qui se comportait de facon
+// incoherente sur certains navigateurs/appareils (rien ne s'affichait a
+// l'impression). L'admin voit directement les cartes a l'ecran avant
+// d'imprimer, ce qui permet aussi de verifier visuellement que tout est bon.
+function adminBuildPrintableCardsHtml(codes){
+  var baseUrl = location.href.replace(/[^/]*$/, '');
+  var cardsHtml = codes.map(function(code){
+    var qrDataUrl = adminCardsQrDataUrl(code, 220);
+    return '<div class="print-card">'
+      +'<div class="print-card-brand">'
+      +'<img src="'+baseUrl+'icon-96.png" class="print-card-icon" alt="ROM_MONEY">'
+      +'<div class="print-card-brandname">ROM_<span>MONEY</span></div>'
+      +'</div>'
+      +'<div class="print-card-box">'+(qrDataUrl?'<img src="'+qrDataUrl+'" style="width:100%;height:100%;display:block">':'')+'</div>'
+      +'<div class="print-card-code">'+code+'</div>'
+      +'<div class="print-card-slogan">'+t('wallet_slogan')+'</div>'
+      +'</div>';
+  }).join('');
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+at('admin_cards_print_tab_title')+'</title><style>'
+    +'*{box-sizing:border-box}body{margin:0;padding:6mm;background:#f4f4f4;font-family:Arial,sans-serif;display:flex;flex-wrap:wrap;gap:4mm;align-content:flex-start}'
+    +'.print-card{width:85.6mm;height:54mm;background-color:#0d4a30;'
+    +'background-image:repeating-linear-gradient(135deg,rgba(245,166,35,.08) 0 3mm,transparent 3mm 7mm),linear-gradient(155deg,#146b45 0%,#0d4a30 55%,#073321 100%);'
+    +'border:.4mm solid rgba(245,166,35,.5);border-radius:4mm;padding:4mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between;'
+    +'page-break-inside:avoid;position:relative;overflow:hidden;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.print-card-brand{display:flex;align-items:center;gap:2mm;width:100%}'
+    +'.print-card-icon{width:7mm;height:7mm;border-radius:2mm;object-fit:cover;flex-shrink:0;border:.3mm solid rgba(245,166,35,.4)}'
+    +'.print-card-brandname{color:#fff;font-size:9pt;font-weight:900;letter-spacing:.2pt}'
+    +'.print-card-brandname span{color:#F5A623}'
+    +'.print-card-box{background:#fff;border-radius:2mm;padding:1.8mm;width:22mm;height:22mm;border:.4mm solid rgba(245,166,35,.4)}'
+    +'.print-card-code{font-family:monospace;font-size:6.5pt;letter-spacing:.5pt;color:#fff;opacity:.9}'
+    +'.print-card-slogan{color:#fff;font-size:5.5pt;font-weight:700;letter-spacing:.5pt;text-align:center;text-transform:uppercase;opacity:.85}'
+    +'.print-toolbar{width:100%;margin-bottom:2mm}'
+    +'.print-toolbar button{padding:12px 20px;font-size:14px;font-weight:700;border:none;border-radius:8px;background:#0d4a30;color:#fff;cursor:pointer}'
+    +'@media print{.print-toolbar{display:none}body{background:#fff;padding:0}}'
+    +'</style></head><body>'
+    +'<div class="print-toolbar"><button onclick="window.print()">'+at('admin_cards_print_tab_btn')+'</button></div>'
+    +cardsHtml
+    +'</body></html>';
+}
+// Marque les cartes imprimees des l'ouverture de l'onglet (pas apres coup :
+// aucun moyen fiable de detecter qu'une impression a reellement ete lancee
+// depuis le navigateur), puis ouvre l'onglet dedie.
+function adminOpenCardPrintTab(codes){
+  if(!codes || !codes.length){ toast(at('admin_cards_err_count'), true); return; }
+  apiCall('/admin?action=cards-mark-printed','POST',{admin_password:window._adminPw,card_codes:codes},'').then(function(){
+    var html = adminBuildPrintableCardsHtml(codes);
+    var w = window.open('', '_blank');
+    if(!w){ toast(at('admin_print_popup_blocked'), true); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    adminClearCardsSelection();
+    adminLoadCards(1);
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+// Avant d'imprimer, verifie si une des cartes a deja ete imprimee au moins
+// une fois (via le cache local, deja rempli par adminLoadCards()) - pas un
+// risque de securite (une carte deja active bloque toute activation en
+// double), mais un vrai gaspillage/confusion si deux exemplaires physiques
+// du meme code finissent chez deux agents differents.
+function adminPrintCardsWithConfirm(codes){
+  var alreadyPrinted = codes.filter(function(code){
+    var c = window._cardsListCache[code];
+    return c && c.printed_at;
+  });
+  if(alreadyPrinted.length){
+    var msg = codes.length===1
+      ? at('admin_cards_reprint_confirm_one').replace('{date}', new Date(window._cardsListCache[codes[0]].printed_at).toLocaleDateString())
+      : at('admin_cards_reprint_confirm_many').replace('{n}', alreadyPrinted.length).replace('{total}', codes.length);
+    adminOpenConfirmModal({
+      icon:'🖨', title:at('admin_final_confirmation'), message:msg,
+      needsReason:false, confirmLabel:at('admin_cards_print_btn'), confirmColor:'var(--g)',
+      onConfirm:function(){ adminOpenCardPrintTab(codes); }
+    });
+  } else {
+    adminOpenCardPrintTab(codes);
+  }
+}
+function adminToggleCardSelect(code, checked){
+  if(checked) window._cardsSelected.add(code); else window._cardsSelected.delete(code);
+  adminRenderCardsSelectionToolbar();
+}
+function adminClearCardsSelection(){
+  window._cardsSelected.clear();
+  adminRenderCardsSelectionToolbar();
+  var box=document.getElementById('cards-list-box');
+  if(box) box.querySelectorAll('.cards-select-cb').forEach(function(cb){ cb.checked=false; });
+}
+function adminRenderCardsSelectionToolbar(){
+  var el=document.getElementById('cards-selection-toolbar');
+  if(!el) return;
+  var n=window._cardsSelected.size;
+  if(!n){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='flex';
+  el.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;background:var(--bg);border:1px solid var(--bord);border-radius:10px';
+  el.innerHTML='<span style="font-size:12px;font-weight:700">'+at('admin_cards_selected_count').replace('{n}',n)+'</span>'
+    +'<button class="btn-w" style="margin-bottom:0;width:auto;padding:8px 14px;font-size:11px" onclick="adminPrintCardsWithConfirm(Array.from(window._cardsSelected))">'+at('admin_cards_print_selection_btn')+'</button>'
+    +'<button class="chip" style="padding:8px 14px;font-size:11px" onclick="adminClearCardsSelection()">'+at('admin_cards_clear_selection_btn')+'</button>';
+}
+// Selection rapide des N prochaines cartes jamais imprimees (voir discussion :
+// ne concerne que les cartes non assignees, qui n'ont pas de pays - le
+// filtre pays ne s'applique pas ici). Ajoute a la selection existante plutot
+// que de la remplacer, pour pouvoir cumuler plusieurs lots si besoin.
+function adminQuickSelectUnprinted(){
+  var count=parseInt(document.getElementById('cards-quickselect-count').value,10);
+  if(!count || count<1 || count>500){ toast(at('admin_cards_err_count'), true); return; }
+  apiCall('/admin?action=cards-select-unprinted','POST',{admin_password:window._adminPw,count:count},'').then(function(res){
+    if(res&&res.success&&res.data&&res.data.codes){
+      if(!res.data.codes.length){ toast(at('admin_cards_none_unprinted'), true); return; }
+      res.data.codes.forEach(function(code){ window._cardsSelected.add(code); });
+      adminRenderCardsSelectionToolbar();
+      toast(at('admin_cards_quickselect_toast').replace('{n}',res.data.codes.length));
+    } else {
+      toast((res&&res.message)||at('admin_error_generic'), true);
+    }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
 }
 function adminLoadCards(page){
   var box=document.getElementById('cards-list-box');
@@ -5615,6 +5750,8 @@ function adminLoadCards(page){
     if(res&&res.success&&res.data){
       adminRenderCountryFilterOptions('cards-country-box', 'cards-country-row', res.data.available_countries||[], res.data.country_filter||null);
       var cards=res.data.cards||[];
+      cards.forEach(function(c){ window._cardsListCache[c.card_code]=c; });
+      adminRenderCardsSelectionToolbar();
       var total=res.data.total||0, perPage=res.data.per_page||25, curPage=res.data.page||1;
       var counts=res.data.counts||{unassigned:0,active:0,blocked:0};
       var summaryEl=document.getElementById('cards-counts-summary');
@@ -5640,9 +5777,10 @@ function adminLoadCards(page){
       cards.forEach(function(c){
         var stColor=statusColors[c.status]||'var(--t3)';
         var stLabel=statusLabels[c.status]||c.status;
+        var isSelected=window._cardsSelected.has(c.card_code);
         html+='<div class="admin-tx-card">'
           +'<div style="display:flex;justify-content:space-between;align-items:center">'
-          +'<b style="font-family:monospace;font-size:13px">'+c.card_code+'</b>'
+          +'<span style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="cards-select-cb" '+(isSelected?'checked':'')+' onchange="adminToggleCardSelect(\''+c.card_code+'\',this.checked)"><b style="font-family:monospace;font-size:13px">'+c.card_code+'</b></span>'
           +'<span style="background:'+stColor+';color:#fff;font-weight:700;font-size:10px;padding:3px 9px;border-radius:10px">'+stLabel+'</span>'
           +'</div>';
         if(c.status!=='unassigned'){
@@ -5652,6 +5790,9 @@ function adminLoadCards(page){
         if(c.activated_by_agent_name){
           html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">'+at('admin_cards_activated_by_label')+' '+adminEsc(c.activated_by_agent_name)+' · '+(c.activated_by_agent_phone||'-')+'</div>';
         }
+        if(c.printed_at){
+          html+='<div style="color:var(--t3);margin-top:2px;font-size:11px">🖨 '+at('admin_cards_printed_on_label')+' '+new Date(c.printed_at).toLocaleDateString()+(c.print_count>1?' ('+at('admin_cards_printed_count_label').replace('{n}',c.print_count)+')':'')+'</div>';
+        }
         if(c.status==='blocked' && c.blocked_at){
           html+='<div style="color:var(--re);margin-top:6px;padding:8px 10px;background:var(--rl);border-radius:8px;font-size:11px">'
             +at('admin_cards_blocked_on_label')+' '+new Date(c.blocked_at).toLocaleString()+'<br>'
@@ -5659,8 +5800,9 @@ function adminLoadCards(page){
             +at('admin_cards_blocked_reason_label')+' '+adminEsc(c.blocked_reason||'-')
             +'</div>';
         }
-        html+='<div style="display:flex;gap:8px;margin-top:8px">';
+        html+='<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">';
         html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminShowCardPreview(\''+c.card_code+'\')">'+at('admin_cards_preview_btn')+'</button>';
+        html+='<button style="padding:6px 10px;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminPrintCardsWithConfirm([\''+c.card_code+'\'])">'+at('admin_cards_print_btn')+'</button>';
         if(c.status!=='blocked'){
           html+='<button style="padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
         } else if(c.phone_number){

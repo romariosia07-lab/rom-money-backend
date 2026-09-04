@@ -5839,6 +5839,8 @@ function route_admin($action) {
         'cards-list'        => admin_list_physical_cards(),
         'cards-block'       => admin_block_physical_card(),
         'cards-reactivate'  => admin_reactivate_physical_card(),
+        'cards-mark-printed' => admin_mark_cards_printed(),
+        'cards-select-unprinted' => admin_select_unprinted_cards(),
         'agent-set-float-cap'      => admin_agent_set_float_cap(),
         'agent-pending-list'       => admin_agent_list_pending(),
         'agent-documents'          => admin_agent_documents(),
@@ -8857,6 +8859,7 @@ function admin_list_physical_cards() {
     $total = (int)q("SELECT COUNT(*) FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE $where", $params)->fetchColumn();
     $rows = q("SELECT pc.id,pc.card_code,pc.status,pc.activated_at,pc.created_at,
                pc.blocked_at,pc.blocked_by_admin,pc.blocked_reason,
+               pc.printed_at,pc.print_count,
                u.full_name,u.verified_name,u.phone_number,u.country,
                ag.full_name activated_by_agent_name, ag.phone_number activated_by_agent_phone
                FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id
@@ -8913,6 +8916,37 @@ function admin_reactivate_physical_card() {
     q("UPDATE physical_cards SET status='active', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
     admin_log('physical_card_reactivate','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte retrouvee par le client']));
     ok(null,'Carte reactivee');
+}
+
+// Marque un lot de cartes comme imprimees (premiere impression datee une
+// fois pour toutes, print_count incremente a chaque appel) - appele des
+// l'ouverture de l'onglet d'impression cote client, pas apres coup (aucun
+// moyen fiable de detecter qu'une impression a reellement ete lancee/menee
+// a bien depuis le navigateur).
+function admin_mark_cards_printed() {
+    $b = body();
+    check_admin_password($b);
+    $codes = is_array($b['card_codes'] ?? null) ? array_map('strtoupper', array_filter(array_map('trim', $b['card_codes']))) : [];
+    if(!$codes) fail('Aucun code fourni');
+    if(count($codes) > 500) fail('Maximum 500 cartes a la fois');
+    $placeholders = implode(',', array_fill(0, count($codes), '?'));
+    q("UPDATE physical_cards SET printed_at=COALESCE(printed_at,NOW()), print_count=print_count+1 WHERE card_code IN ($placeholders)", $codes);
+    ok(null,'Cartes marquees imprimees');
+}
+
+// Selection rapide des N prochaines cartes jamais imprimees (non assignees
+// uniquement - une carte deja liee a un client n'a pas vocation a etre
+// reimprimee en lot). Route dediee et legere (juste les codes, pas toute la
+// pagination/metadonnees) pour rester rapide meme au-dela d'une page
+// d'affichage. Plus ancienne d'abord, pour ecouler le stock jamais
+// distribue avant de piocher dans les lots plus recents.
+function admin_select_unprinted_cards() {
+    $b = body();
+    check_admin_password($b);
+    $count = (int)($b['count'] ?? 0);
+    if($count < 1 || $count > 500) fail('Le nombre doit etre entre 1 et 500');
+    $rows = q("SELECT card_code FROM physical_cards WHERE status='unassigned' AND printed_at IS NULL ORDER BY created_at ASC LIMIT $count")->fetchAll();
+    ok(['codes'=>array_column($rows,'card_code')]);
 }
 
 // Ajustement manuel du plafond de float d'un distributeur - permet a
@@ -10179,7 +10213,14 @@ function route_install() {
     // permanent - l'entree admin_log, elle, reste pour toujours).
     "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMP",
     "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_by_admin VARCHAR(150)",
-    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_reason VARCHAR(255)"
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS blocked_reason VARCHAR(255)",
+    // Tracabilite d'impression - evite une reimpression accidentelle d'une
+    // carte deja donnee a un agent (deux exemplaires physiques du meme code
+    // en circulation : pas un risque de securite, la carte deja active
+    // bloque toute activation en double, mais un vrai gaspillage/confusion
+    // operationnel).
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS printed_at TIMESTAMP",
+    "ALTER TABLE physical_cards ADD COLUMN IF NOT EXISTS print_count INT DEFAULT 0"
     ];
 
     $created = [];
