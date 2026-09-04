@@ -1036,17 +1036,55 @@ function merchant_document_upload() {
     // document existant (avec raison) pour permettre un nouvel envoi.
     $existing = q("SELECT id FROM merchant_documents WHERE merchant_id=? AND doc_type=?",[$pl['sub'],$docType])->fetch();
     if($existing) fail('Ce document est deja envoye - contactez un administrateur pour le remplacer');
+    // Identite du gerant, recto uniquement (le verso n'a ni nom ni date de
+    // naissance sur une CNI) - meme convention legal_*/ocr_* que
+    // kyc_requests/agent_documents.
+    $legalName = null; $legalBirthdate = null; $ocrName = null; $ocrBirthdate = null;
+    if($docType === 'id_recto'){
+        $legalPrenom = trim($b['legal_prenom'] ?? '');
+        $legalNom = trim($b['legal_nom'] ?? '');
+        if(!$legalPrenom || !$legalNom) fail('Le prenom et le nom du gerant (piece d\'identite) sont requis');
+        $legalName = trim($legalPrenom.' '.$legalNom);
+        $legalBirthdate = trim($b['legal_birthdate'] ?? '') ?: null;
+        $ocrPrenom = trim($b['ocr_prenom'] ?? '');
+        $ocrNom = trim($b['ocr_nom'] ?? '');
+        $ocrName = ($ocrPrenom || $ocrNom) ? trim($ocrPrenom.' '.$ocrNom) : null;
+        $ocrBirthdate = trim($b['ocr_birthdate'] ?? '') ?: null;
+    }
     $encrypted = kyc_encrypt($photo);
     // Toujours un INSERT, jamais un remplacement : chaque envoi reste
     // consultable indefiniment (peut servir de preuve des annees plus tard),
     // meme si un document plus recent du meme type est envoye ensuite.
     try {
-        q("INSERT INTO merchant_documents (merchant_id,doc_type,photo,uploaded_at) VALUES (?,?,?,NOW())",
-          [$pl['sub'],$docType,$encrypted]);
+        q("INSERT INTO merchant_documents (merchant_id,doc_type,photo,legal_name,legal_birthdate,ocr_name,ocr_birthdate,uploaded_at) VALUES (?,?,?,?,?,?,?,NOW())",
+          [$pl['sub'],$docType,$encrypted,$legalName,$legalBirthdate,$ocrName,$ocrBirthdate]);
+        // Assigne au marchand le nom confirme par le gerant (pas la valeur
+        // OCR brute) - visible partout ou ce marchand est recherche/affiche
+        // cote admin, meme logique que verified_name pour un compte personnel.
+        if($docType === 'id_recto'){
+            q("UPDATE merchants SET verified_manager_name=?, verified_manager_birthdate=? WHERE id=?",
+              [$legalName, $legalBirthdate, $pl['sub']]);
+        }
     } catch(Exception $e) {
         log_and_fail($e, 'Service indisponible (base non initialisee).', 503);
     }
     ok(['uploaded_at'=>date('c')], 'Document enregistre');
+}
+
+// Mirror de agent_kyc_ocr_extract()/kyc_ocr_extract() - meme lecture OCR
+// sans etat, juste ouverte a merchant_auth() pour le gerant.
+function merchant_kyc_ocr_extract() {
+    merchant_auth();
+    $b = body();
+    $recto = trim($b['photo_recto'] ?? '');
+    if(!$recto) fail('Photo recto requise');
+    $result = getenv('OCR_SPACE_API_KEY') ? ocrspace_ocr($recto) : google_vision_ocr($recto);
+    if(!$result['text']) {
+        ok(['prenom'=>null,'nom'=>null,'birthdate'=>null,'raw_text'=>'[DIAGNOSTIC] '.($result['error']?:'Erreur inconnue')], 'OCR indisponible pour le moment, saisie manuelle requise');
+        return;
+    }
+    $parsed = kyc_parse_cni_text($result['text']);
+    ok(['prenom'=>$parsed['prenom'],'nom'=>$parsed['nom'],'birthdate'=>$parsed['birthdate'],'raw_text'=>$result['text']]);
 }
 
 function merchant_document_list() {
@@ -1324,6 +1362,7 @@ function route_merchant($action) {
         'revoke-device'      => merchant_revoke_device(),
         'doc-upload'         => merchant_document_upload(),
         'doc-list'           => merchant_document_list(),
+        'kyc-ocr-extract'    => merchant_kyc_ocr_extract(),
         'notifications'      => merchant_notifications(),
         default              => fail('Action inconnue',404)
     };
@@ -6804,7 +6843,7 @@ function admin_merchant_documents() {
     if(!$mc) fail('Marchand introuvable',404);
     admin_check_country_access($mc['country']);
     try {
-        $rows = q("SELECT id, doc_type, status, photo, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY uploaded_at DESC",[$merchantId])->fetchAll();
+        $rows = q("SELECT id, doc_type, status, photo, legal_name, legal_birthdate, ocr_name, ocr_birthdate, uploaded_at FROM merchant_documents WHERE merchant_id=? ORDER BY uploaded_at DESC",[$merchantId])->fetchAll();
     } catch(Exception $e) {
         $rows = [];
     }
@@ -9700,6 +9739,13 @@ function route_install() {
     )",
     "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified SMALLINT DEFAULT 0",
     "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+    // Identite du gerant confirmee (recto de la CNI + OCR) - assignee des
+    // l'envoi du document par le marchand (pas de gate d'inscription pour
+    // les marchands, donc pas d'etape d'approbation admin ici non plus,
+    // voir merchant_document_upload()). Visible partout ou le marchand est
+    // recherche/affiche cote admin.
+    "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified_manager_name VARCHAR(150)",
+    "ALTER TABLE merchants ADD COLUMN IF NOT EXISTS verified_manager_birthdate VARCHAR(20)",
     // Notes admin en texte libre sur un compte personnel - contexte humain
     // (appel client, litige en cours...) distinct du journal d'actions
     // automatique (audit_logs), qui ne trace que les actions structurees.
@@ -9755,6 +9801,14 @@ function route_install() {
     // pour etre utilisables - le statut ne sert qu'a enregistrer une
     // action explicite de l'admin.
     "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'approved'",
+    // Identite confirmee par le gerant (recto uniquement) - meme
+    // legal_*/ocr_* que kyc_requests/agent_documents, pour securiser
+    // l'identite du gerant comme le reste du projet le fait deja pour les
+    // clients et les agents.
+    "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS legal_name VARCHAR(150)",
+    "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS legal_birthdate VARCHAR(20)",
+    "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS ocr_name VARCHAR(150)",
+    "ALTER TABLE merchant_documents ADD COLUMN IF NOT EXISTS ocr_birthdate VARCHAR(20)",
     "CREATE INDEX IF NOT EXISTS idx_merchant_documents_merchant ON merchant_documents(merchant_id)",
     // Lien de paiement a distance : le marchand indique un montant/motif,
     // partage le lien (id sert de jeton, deja imprevisible via uid()) par

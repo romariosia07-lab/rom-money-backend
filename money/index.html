@@ -1693,6 +1693,8 @@ var I18N = {
   admin_kyc_field_birthdate: {fr:'Date de naissance', en:'Date of birth'},
   admin_kyc_field_label: {fr:'Champ', en:'Field'},
   admin_kyc_confirmed_editable: {fr:'Confirmé (modifiable)', en:'Confirmed (editable)'},
+  admin_mrc_confirmed: {fr:'Confirmé', en:'Confirmed'},
+  admin_mrc_identity_title: {fr:"Identité du gérant (recto)", en:"Manager's identity (front)"},
   admin_kyc_ocr_not_detected: {fr:'Non détecté', en:'Not detected'},
   admin_kyc_edit_note: {fr:"✎ Compare avec la photo ci-dessous et corrige si besoin avant d'approuver — c'est ce nom corrigé qui deviendra le nom vérifié du compte.", en:"✎ Compare with the photo below and correct if needed before approving — this corrected name will become the account's verified name."},
   admin_kyc_ocr_fail_reason: {fr:"🛈 Raison de l'échec OCR : {reason}", en:'🛈 OCR failure reason: {reason}'},
@@ -4610,6 +4612,7 @@ function adminSearchMerchant(){
       var statusColor = m.status==='blocked' ? 'var(--re)' : 'var(--g)';
       var html='<div style="background:var(--bg);border:1px solid var(--bord);border-radius:12px;padding:14px;font-size:12px;line-height:1.9">'
         +'<div style="font-size:14px;font-weight:800;color:var(--accent-text);margin-bottom:6px">'+adminEsc(m.business_name)+(m.verified?' <span style="color:var(--g)" title="Commerce vérifié">✓</span>':'')+'</div>'
+        +(m.verified_manager_name?'<b>Gérant vérifié :</b> <span style="color:var(--g)">'+adminEsc(m.verified_manager_name)+'</span>'+(m.verified_manager_birthdate?' &middot; Né(e) le '+adminEsc(m.verified_manager_birthdate):'')+'<br>':'')
         +'<b>Statut :</b> <span style="color:'+statusColor+';font-weight:700">'+(m.status==='blocked'?'Bloqué':'Actif')+'</span><br>'
         +'<b>Téléphone :</b> '+(m.phone_number||'-')+'<br>'
         +'<b>Type :</b> '+(m.location_type==='physical'?'Local commercial':'En ligne')+(m.address?' — '+adminEsc(m.address):'')+'<br>'
@@ -4618,6 +4621,10 @@ function adminSearchMerchant(){
         +'<b>Créé le :</b> '+(m.created_at?new Date(m.created_at).toLocaleString():'-')+'<br>'
         +'<b>Badge vérifié :</b> '+(m.verified?'<span style="color:var(--g);font-weight:700">Actif</span>':'<span style="color:var(--t3)">Inactif</span>')
         +'</div>'
+        +'<div class="admin-stitle" style="margin-top:16px">Documents de l\'entreprise</div>'
+        +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pieces justificatives envoyees par le marchand (identite, RCCM, DFE...), a consulter avant d\'accorder le badge verifie.</div>'
+        +'<button class="btn-w" onclick="adminLoadMerchantDocuments(\''+m.id+'\')">Voir les documents</button>'
+        +'<div id="admin-merchant-docs-box" style="margin-top:10px"></div>'
         +'<button style="width:100%;padding:13px;margin-top:12px;background:'+(m.verified?'var(--rl)':'var(--gl)')+';color:'+(m.verified?'var(--re)':'var(--g)')+';border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="adminToggleMerchantVerified(\''+m.id+'\')">'+(m.verified?'Retirer le badge vérifié':'Accorder le badge vérifié')+'</button>'
         +'<div class="frow" style="margin-top:14px;margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
         +'<select class="finput" id="mrc-reason-sel" onchange="toggleReasonCustom(\'mrc\')">'
@@ -4644,10 +4651,6 @@ function adminSearchMerchant(){
         +'<input class="finput" id="mrc-cty-reason-custom" placeholder="Précisez la raison" style="display:none;margin-top:8px">'
         +'</div>'
         +'<button class="btn-g" style="margin-top:10px" onclick="adminUpdateMerchantCountry(\''+m.phone_number+'\')">Mettre à jour le pays</button>'
-        +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Documents de l\'entreprise</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pieces justificatives envoyees par le marchand (identite, RCCM, DFE...), a consulter avant d\'accorder le badge verifie.</div>'
-        +'<button class="btn-w" onclick="adminLoadMerchantDocuments(\''+m.id+'\')">Voir les documents</button>'
-        +'<div id="admin-merchant-docs-box" style="margin-top:10px"></div>'
         +'<div class="admin-stitle" style="margin-top:20px;border-top:1px solid var(--bord);padding-top:16px">Réinitialiser le PIN</div>'
         +'<div class="frow"><label class="flabel">Nouveau PIN (4 chiffres)</label><input class="finput" id="mrcpin-newpin" maxlength="4" inputmode="numeric" placeholder="0000"></div>'
         +'<div class="frow" style="margin-bottom:0"><label class="flabel">Raison (obligatoire, journalisée)</label>'
@@ -4868,7 +4871,29 @@ function adminLoadMerchantDocuments(merchantId){
         box.innerHTML='<div class="admin-empty">'+at('admin_no_document_sent')+'</div>';
         return;
       }
-      var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+      var html='';
+      // Identite du gerant (recto uniquement) affichee en premier, avant les
+      // photos elles-memes - c'est la donnee assignee au marchand (voir
+      // "Gerant verifie" en haut de la fiche), utile de la voir tout de
+      // suite plutot qu'apres avoir defile toutes les pieces.
+      var rectoDoc = docs.filter(function(d){ return d.doc_type==='id_recto' && d.legal_name; })[0];
+      if(rectoDoc){
+        var nameMismatch = rectoDoc.ocr_name && rectoDoc.legal_name && rectoDoc.ocr_name!==rectoDoc.legal_name;
+        var bdMismatch = rectoDoc.ocr_birthdate && rectoDoc.legal_birthdate && rectoDoc.ocr_birthdate!==rectoDoc.legal_birthdate;
+        function mrcIdentityRow(label, legalVal, ocrVal, mismatch){
+          return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;background:'+(mismatch?'var(--rl)':'var(--gl)')+';border-radius:10px;padding:10px;margin-bottom:6px;align-items:center">'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">'+label+' — '+at('admin_mrc_confirmed')+'</div><div style="font-size:11px;font-weight:700;color:var(--accent-text)">'+adminEsc(legalVal||'-')+'</div></div>'
+            +'<div><div style="font-size:9px;color:var(--t3);margin-bottom:2px">OCR</div><div style="font-size:11px;font-weight:700;color:'+(ocrVal?'var(--gdd)':'var(--t3)')+'">'+adminEsc(ocrVal||at('admin_kyc_ocr_not_detected'))+'</div></div>'
+            +'</div>';
+        }
+        html+='<div style="background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px;margin-bottom:14px">'
+          +'<div style="font-size:12px;font-weight:700;margin-bottom:8px">'+at('admin_mrc_identity_title')+'</div>'
+          +mrcIdentityRow(at('admin_kyc_field_lastname'), rectoDoc.legal_name, rectoDoc.ocr_name, nameMismatch)
+          +mrcIdentityRow(at('admin_kyc_field_birthdate'), rectoDoc.legal_birthdate, rectoDoc.ocr_birthdate, bdMismatch)
+          +((nameMismatch||bdMismatch)?'<div style="font-size:10px;color:var(--rd);font-weight:700">'+at('admin_kyc_mismatch_warning')+'</div>':'')
+          +'</div>';
+      }
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
       docs.forEach(function(d){
         var statusLabel = d.status==='approved' ? at('admin_doc_status_approved') : at('admin_doc_status_pending');
         var statusColor = d.status==='approved' ? 'var(--g)' : 'var(--t3)';
