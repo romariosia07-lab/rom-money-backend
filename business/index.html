@@ -1201,8 +1201,25 @@ function resetInactivityTimer(){
   if(_inactivityTimer) clearTimeout(_inactivityTimer);
   _inactivityTimer = setTimeout(lockAppForInactivity, _INACTIVITY_MS);
 }
+// Ouvrir l'appareil photo/la galerie native (input file capture) met la
+// page en arriere-plan exactement comme si l'utilisateur avait quitte
+// l'app - sans ce drapeau, ca declenchait a tort le verrouillage par
+// inactivite a CHAQUE prise de photo (meme bug que ROM_GUICHET : impossible
+// de finaliser un envoi de document, l'app se reverrouillait avant que la
+// photo soit meme traitee).
+var _expectingFilePicker = false;
+function openFileInput(id){
+  _expectingFilePicker = true;
+  var el = document.getElementById(id);
+  if(el) el.click();
+}
 function onVisibilityChange(){
-  if(document.hidden){ lockAppForInactivity(); return; }
+  if(document.hidden){
+    if(_expectingFilePicker) return;
+    lockAppForInactivity();
+    return;
+  }
+  _expectingFilePicker = false;
   resetInactivityTimer();
   // Rafraichit les donnees au retour (ex: un admin a annule/gele un
   // paiement pendant que l'app etait en arriere-plan/verrouillee) - sans
@@ -2247,8 +2264,8 @@ function renderKybDocs(b){
       h+='<input type="file" accept="image/*" capture="environment" id="kybdoc-cam-'+d.key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleKybDocFile(this,\''+d.key+'\')">'
         +'<input type="file" accept="image/*" id="kybdoc-file-'+d.key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleKybDocFile(this,\''+d.key+'\')">'
         +'<div style="display:flex;gap:8px">'
-        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kybdoc-cam-'+d.key+'\').click()">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
-        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById(\'kybdoc-file-'+d.key+'\').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="openFileInput(\'kybdoc-cam-'+d.key+'\')">📷 '+(uploadedAt?t('kyb_retake'):t('kyb_take_photo'))+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1);display:flex;align-items:center;justify-content:center;gap:5px" onclick="openFileInput(\'kybdoc-file-'+d.key+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+t('kyb_import')+'</button>'
         +'</div>';
     }
     h+='</div>';

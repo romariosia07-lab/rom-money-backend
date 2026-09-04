@@ -1163,7 +1163,7 @@ function agrDocCard(key){
       +'<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<div style="display:flex;gap:8px">'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'agrdoc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="openFileInput(\'agrdoc-cam-'+key+'\')">'+t('agr_doc_retake')+'</button>'
       +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--rl);color:var(--rd)" onclick="removePendingAgentDoc(\''+key+'\')">'+t('agr_doc_remove')+'</button>'
       +'</div>';
   } else {
@@ -1176,8 +1176,8 @@ function agrDocCard(key){
     h+='<input type="file" accept="image/*" capture="environment" id="agrdoc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<input type="file" accept="image/*" id="agrdoc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleAgentDocFile(this,\''+key+'\')">'
       +'<div style="display:flex;gap:8px">'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'agrdoc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
-      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'agrdoc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="openFileInput(\'agrdoc-cam-'+key+'\')">'+t('agr_doc_photo')+'</button>'
+      +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="openFileInput(\'agrdoc-file-'+key+'\')">'+t('agr_doc_import')+'</button>'
       +'</div>';
   }
   h+='</div>';
@@ -1908,13 +1908,13 @@ function renderCustomerKycScreen(){
     } else if(photo){
       html += '<img src="'+photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:8px">'
         +'<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
-        +'<button class="chip" style="width:100%;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_retake')+'</button>';
+        +'<button class="chip" style="width:100%;padding:10px;font-size:12px" onclick="openFileInput(\'kyc-cam-'+key+'\')">'+t('agr_doc_retake')+'</button>';
     } else {
       html += '<input type="file" accept="image/*" capture="environment" id="kyc-cam-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
         +'<input type="file" accept="image/*" id="kyc-file-'+key+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;left:-9999px" onchange="handleCustomerKycFile(this,\''+key+'\')">'
         +'<div style="display:flex;gap:8px">'
-        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="document.getElementById(\'kyc-cam-'+key+'\').click()">'+t('agr_doc_photo')+'</button>'
-        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="document.getElementById(\'kyc-file-'+key+'\').click()">'+t('agr_doc_import')+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px" onclick="openFileInput(\'kyc-cam-'+key+'\')">'+t('agr_doc_photo')+'</button>'
+        +'<button class="chip" style="flex:1;padding:10px;font-size:12px;background:var(--bg);color:var(--t1)" onclick="openFileInput(\'kyc-file-'+key+'\')">'+t('agr_doc_import')+'</button>'
         +'</div>';
     }
     html += '</div>';
@@ -3181,8 +3181,25 @@ function resetInactivityTimer(){
   if(_inactivityTimer) clearTimeout(_inactivityTimer);
   _inactivityTimer = setTimeout(lockAppForInactivity, _INACTIVITY_MS);
 }
+// Ouvrir l'appareil photo/la galerie native (input file capture) met la page
+// en arriere-plan exactement comme si l'utilisateur avait quitte l'app -
+// sans ce drapeau, ca declenchait a tort le verrouillage par inactivite a
+// CHAQUE prise de photo (bug reel signale : impossible de finaliser un
+// envoi de piece d'identite, l'app se reverrouillait avant que la photo
+// soit meme traitee).
+var _expectingFilePicker = false;
+function openFileInput(id){
+  _expectingFilePicker = true;
+  var el = document.getElementById(id);
+  if(el) el.click();
+}
 function onVisibilityChange(){
-  if(document.hidden){ lockAppForInactivity(); return; }
+  if(document.hidden){
+    if(_expectingFilePicker) return;
+    lockAppForInactivity();
+    return;
+  }
+  _expectingFilePicker = false;
   resetInactivityTimer();
   var appScreen = document.getElementById('s-app');
   if(appScreen && appScreen.classList.contains('on')){ refreshBalance(); refreshHistory(); }
