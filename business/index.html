@@ -1219,6 +1219,21 @@ function openFileInput(id){
   var el = document.getElementById(id);
   if(el) el.click();
 }
+// Ouvre une photo (souvent un data: URI issu de la camera, pas une vraie
+// URL) en plein ecran par-dessus la page - window.open() est bloque sans
+// avertissement sur beaucoup de navigateurs/webviews mobiles pour une
+// navigation vers un data: URI (ecran noir/vide constate), donc on affiche
+// l'image directement dans la page plutot que d'ouvrir un nouvel onglet.
+function viewFullPhoto(src){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+  ov.onclick=function(){ document.body.removeChild(ov); };
+  var img=document.createElement('img');
+  img.src=src;
+  img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;border-radius:8px';
+  ov.appendChild(img);
+  document.body.appendChild(ov);
+}
 function onVisibilityChange(){
   if(document.hidden){
     if(_expectingFilePicker) return;
@@ -2265,7 +2280,7 @@ function renderKybDocs(b){
     if(!uploadedAt && pending){
       h+='<div class="card" style="padding:12px;margin-bottom:10px">'
         +'<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+t(d.label)+'</div>'
-        +'<img src="'+pending.photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:10px;cursor:pointer" onclick="window.open(this.src)">';
+        +'<img src="'+pending.photo+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bord);margin-bottom:10px;cursor:pointer" onclick="viewFullPhoto(this.src)">';
       if(pending.ocrRunning){
         h+='<div style="padding:10px 0;text-align:center;color:var(--t3);font-size:12px">⏳ '+t('kyb_recto_ocr_running')+'</div>';
       } else {
