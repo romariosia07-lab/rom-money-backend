@@ -5847,7 +5847,13 @@ function adminDpRange(ns){
 function adminDpClick(ns, preset, onChangeFn){
   adminDpState(ns).preset=preset;
   adminDpRender(ns, onChangeFn);
-  window[onChangeFn]();
+  // "Date precise"/"Periode" n'ont pas encore de date renseignee au moment
+  // du clic sur le bouton lui-meme - ne pas declencher tout de suite,
+  // sinon ca recharge/avertit "Selectionnez les deux dates" avant meme que
+  // l'utilisateur ait pu saisir quoi que ce soit. Les autres presets
+  // (Aujourd'hui/Semaine/Mois/Annee/Tous) donnent toujours un intervalle
+  // complet immediatement, donc peuvent se declencher au clic.
+  if(preset!=='exact' && preset!=='period') window[onChangeFn]();
 }
 function adminDpExtraHtml(ns){
   var st=adminDpState(ns);
