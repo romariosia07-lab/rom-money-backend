@@ -1245,9 +1245,10 @@ html,body{height:100%;background:#085041;overflow:hidden;color:var(--t1)}
         <option value="blocked" data-i18n-admin="admin_cards_status_blocked">Bloquées</option>
       </select>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-        <input class="finput" id="cards-quickselect-count" type="number" inputmode="numeric" placeholder="25" style="margin-bottom:0;width:90px">
+        <input class="finput" id="cards-quickselect-count" type="number" inputmode="numeric" style="margin-bottom:0;width:90px">
         <button class="btn-w" style="margin-bottom:0;width:auto;padding:10px 14px;font-size:12px" onclick="adminQuickSelectUnprinted()" data-i18n-admin="admin_cards_quickselect_btn">Sélectionner les N premières jamais imprimées</button>
       </div>
+      <button class="btn-w" style="margin-bottom:14px;width:auto;padding:10px 14px;font-size:12px" onclick="adminFixOrphanedCards()" data-i18n-admin="admin_cards_fix_orphaned_btn">🔧 Réparer les cartes orphelines (compte supprimé)</button>
       <div id="cards-selection-toolbar" style="display:none;margin-bottom:14px"></div>
       <div id="cards-list-box"><div class="admin-empty" data-i18n-admin="admin_loading">Chargement...</div></div>
       <div id="cards-pagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px"></div>
@@ -1867,6 +1868,8 @@ var I18N = {
   admin_cards_print_selection_btn: {fr:'🖨 Imprimer la sélection', en:'🖨 Print selection'},
   admin_cards_clear_selection_btn: {fr:'Vider la sélection', en:'Clear selection'},
   admin_cards_quickselect_btn: {fr:'Sélectionner les N premières jamais imprimées', en:'Select first N never printed'},
+  admin_cards_fix_orphaned_btn: {fr:'🔧 Réparer les cartes orphelines (compte supprimé)', en:'🔧 Repair orphaned cards (deleted account)'},
+  admin_cards_fix_orphaned_toast: {fr:'{n} carte(s) réparée(s)', en:'{n} card(s) repaired'},
   admin_cards_quickselect_toast: {fr:'{n} carte(s) ajoutée(s) à la sélection', en:'{n} card(s) added to selection'},
   admin_cards_none_unprinted: {fr:'Aucune carte non imprimée disponible', en:'No unprinted cards available'},
   admin_cards_printed_on_label: {fr:'Imprimée le', en:'Printed on'},
@@ -5822,6 +5825,20 @@ function adminQuickSelectUnprinted(){
       adminRenderCardsSelectionToolbar();
       adminSyncCardsCheckboxes();
       toast(at('admin_cards_quickselect_toast').replace('{n}',res.data.codes.length));
+    } else {
+      toast((res&&res.message)||at('admin_error_generic'), true);
+    }
+  }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+}
+// Reparation retroactive des cartes restees marquees "Activee" malgre la
+// suppression du compte lie (avant que admin_delete_account() ne libere
+// automatiquement la carte) - affichait un nom/telephone vide ("-") dans la
+// liste. Sans risque a relancer plusieurs fois (ne trouve rien si deja propre).
+function adminFixOrphanedCards(){
+  apiCall('/admin?action=cards-fix-orphaned','POST',{admin_password:window._adminPw},'').then(function(res){
+    if(res&&res.success){
+      toast(at('admin_cards_fix_orphaned_toast').replace('{n}',(res.data&&res.data.fixed)||0));
+      adminLoadCards(1);
     } else {
       toast((res&&res.message)||at('admin_error_generic'), true);
     }

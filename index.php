@@ -5917,6 +5917,7 @@ function route_admin($action) {
         'cards-list'        => admin_list_physical_cards(),
         'cards-block'       => admin_block_physical_card(),
         'cards-reactivate'  => admin_reactivate_physical_card(),
+        'cards-fix-orphaned' => admin_fix_orphaned_cards(),
         'cards-mark-printed' => admin_mark_cards_printed(),
         'cards-unmark-printed' => admin_unmark_cards_printed(),
         'cards-select-unprinted' => admin_select_unprinted_cards(),
@@ -9028,6 +9029,28 @@ function admin_reactivate_physical_card() {
     q("UPDATE physical_cards SET status='active', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
     admin_log('physical_card_reactivate','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte retrouvee par le client']));
     ok(null,'Carte reactivee');
+}
+
+// Reparation retroactive : avant que admin_delete_account() ne libere
+// automatiquement la carte liee, une suppression de compte laissait la
+// carte marquee 'active' pointant vers un user_id qui n'existe plus -
+// coincee pour toujours (nom/telephone affiches en "-" cote admin, comme
+// n'importe quel autre compte). Ne concerne que les cartes crees avant ce
+// correctif ; les suppressions faites depuis liberent deja correctement.
+function admin_fix_orphaned_cards() {
+    $b = body();
+    check_admin_password($b);
+    $orphans = q("SELECT pc.id FROM physical_cards pc
+        WHERE pc.status='active' AND pc.user_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=pc.user_id)")->fetchAll();
+    $count = count($orphans);
+    if($count > 0){
+        q("UPDATE physical_cards SET status='unassigned', user_id=NULL, activated_at=NULL, activated_by_agent_id=NULL
+            WHERE status='active' AND user_id IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=physical_cards.user_id)");
+        admin_log('physical_cards_fix_orphaned','success',null,$count.' carte(s) orpheline(s) liberee(s)');
+    }
+    ok(['fixed'=>$count],$count.' carte(s) reparee(s)');
 }
 
 // Marque un lot de cartes comme imprimees (premiere impression datee une
