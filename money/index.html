@@ -1859,7 +1859,7 @@ var I18N = {
   admin_cards_released_toast: {fr:'Carte libérée', en:'Card released'},
   admin_cards_blocked_toast: {fr:'Carte bloquée', en:'Card blocked'},
   admin_cards_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
-  admin_cards_reactivate_confirm_msg: {fr:'Carte retrouvée par le client, pas remplacée entre-temps ? Elle redevient utilisable normalement.', en:'Card found by the customer, not replaced in the meantime? It becomes usable again.'},
+  admin_cards_reactivate_confirm_msg: {fr:"Si liée à un client (pas remplacée entre-temps), elle redevient active. Si c'est une carte vierge, elle repasse simplement en stock.", en:"If linked to a customer (not replaced in the meantime), it becomes active again. If it's a blank card, it simply goes back into stock."},
   admin_cards_reactivated_toast: {fr:'Carte réactivée', en:'Card reactivated'},
   admin_cards_blocked_on_label: {fr:'Bloquée le', en:'Blocked on'},
   admin_cards_blocked_by_label: {fr:'Par', en:'By'},
@@ -6071,7 +6071,7 @@ function adminLoadCards(page){
         if(c.status==='active' && c.phone_number){
           html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminReleaseCard(\''+c.card_code+'\')">'+at('admin_cards_release_btn')+'</button>';
         }
-        if(c.status==='blocked' && c.phone_number){
+        if(c.status==='blocked'){
           html+='<button style="padding:6px 10px;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminReactivateCard(\''+c.card_code+'\')">'+at('admin_cards_reactivate_btn')+'</button>';
         }
         html+='</div>';
@@ -6131,7 +6131,7 @@ function adminReactivateCard(cardCode){
     needsReason:false, confirmLabel:at('admin_cards_reactivate_btn'), confirmColor:'var(--g)',
     onConfirm:function(){
       apiCall('/admin?action=cards-reactivate','POST',{admin_password:window._adminPw,card_code:cardCode},'').then(function(res){
-        if(res&&res.success){ toast(at('admin_cards_reactivated_toast')); adminLoadCards(1); }
+        if(res&&res.success){ toast(res.message||at('admin_cards_reactivated_toast')); adminLoadCards(1); }
         else { toast((res&&res.message)||at('admin_error_generic'), true); }
       }).catch(function(){ toast(at('admin_dash_error_network'), true); });
     }

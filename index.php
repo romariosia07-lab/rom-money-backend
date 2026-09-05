@@ -9023,8 +9023,16 @@ function admin_reactivate_physical_card() {
     $card = q("SELECT pc.*, u.phone_number, u.country FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE pc.card_code=?",[$cardCode])->fetch();
     if(!$card) fail('Carte introuvable',404);
     if($card['status'] !== 'blocked') fail('Cette carte n\'est pas bloquee',422);
-    if(!$card['user_id']) fail('Cette carte n\'a jamais ete liee a un compte',422);
     if($card['country']) admin_check_country_access($card['country']);
+    if(!$card['user_id']){
+        // Carte vierge bloquee sans jamais avoir ete liee a un client (ex:
+        // blocage par erreur/test) - "debloquer" n'a ici aucun client a
+        // restaurer, ca revient simplement a la remettre en stock.
+        q("UPDATE physical_cards SET status='unassigned', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
+        admin_log('physical_card_reactivate','success',null,dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte vierge debloquee, remise en stock']));
+        ok(null,'Carte debloquee et remise en stock');
+        return;
+    }
     $otherActive = q("SELECT id FROM physical_cards WHERE user_id=? AND status='active'",[$card['user_id']])->fetch();
     if($otherActive) fail('Ce client a deja recu une nouvelle carte active - impossible de reactiver aussi celle-ci.',422);
     q("UPDATE physical_cards SET status='active', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
