@@ -1853,6 +1853,10 @@ var I18N = {
   admin_cards_reason_lost: {fr:'Carte perdue', en:'Lost card'},
   admin_cards_reason_stolen: {fr:'Carte volée', en:'Stolen card'},
   admin_cards_reason_test: {fr:'Carte de test', en:'Test card'},
+  admin_cards_reason_wrong_attribution: {fr:'Attribuée par erreur', en:'Wrongly attributed'},
+  admin_cards_release_btn: {fr:'Libérer', en:'Release'},
+  admin_cards_release_confirm_msg: {fr:'Cette carte redevient disponible en stock. Le compte du client n\'est pas supprimé.', en:'This card becomes available in stock again. The customer account is not deleted.'},
+  admin_cards_released_toast: {fr:'Carte libérée', en:'Card released'},
   admin_cards_blocked_toast: {fr:'Carte bloquée', en:'Card blocked'},
   admin_cards_reactivate_btn: {fr:'Réactiver', en:'Reactivate'},
   admin_cards_reactivate_confirm_msg: {fr:'Carte retrouvée par le client, pas remplacée entre-temps ? Elle redevient utilisable normalement.', en:'Card found by the customer, not replaced in the meantime? It becomes usable again.'},
@@ -6063,7 +6067,11 @@ function adminLoadCards(page){
         html+='<button style="padding:6px 10px;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminPrintCardsWithConfirm([\''+c.card_code+'\'])">'+at('admin_cards_print_btn')+'</button>';
         if(c.status!=='blocked'){
           html+='<button style="padding:6px 10px;background:var(--rl);color:var(--re);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminBlockCard(\''+c.card_code+'\')">'+at('admin_cards_block_btn')+'</button>';
-        } else if(c.phone_number){
+        }
+        if(c.status==='active' && c.phone_number){
+          html+='<button style="padding:6px 10px;background:var(--bord);color:var(--t1);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminReleaseCard(\''+c.card_code+'\')">'+at('admin_cards_release_btn')+'</button>';
+        }
+        if(c.status==='blocked' && c.phone_number){
           html+='<button style="padding:6px 10px;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:10px" onclick="adminReactivateCard(\''+c.card_code+'\')">'+at('admin_cards_reactivate_btn')+'</button>';
         }
         html+='</div>';
@@ -6100,6 +6108,23 @@ function adminBlockCard(cardCode){
 // blocage) : c'est une action benigne/restaurative, pas destructive. Le
 // serveur refuse de toute facon si le client a deja recu une nouvelle carte
 // active entre-temps.
+// Libere une carte ACTIVE (compte encore existant) sans supprimer le
+// compte - distinct de "Bloquer" (definitif) et de admin_delete_account()
+// (supprime aussi le client). Utile pour une carte de test ou attribuee par
+// erreur, quand on veut juste la remettre en stock sans autre consequence.
+function adminReleaseCard(cardCode){
+  adminOpenConfirmModal({
+    icon:'↩', title:at('admin_final_confirmation'), message:at('admin_cards_release_confirm_msg'),
+    needsReason:true, reasonOptions:[at('admin_cards_reason_test'),at('admin_cards_reason_wrong_attribution')],
+    confirmLabel:at('admin_cards_release_btn'), confirmColor:'var(--re)',
+    onConfirm:function(reason){
+      apiCall('/admin?action=cards-release','POST',{admin_password:window._adminPw,card_code:cardCode,reason:reason},'').then(function(res){
+        if(res&&res.success){ toast(at('admin_cards_released_toast')); adminLoadCards(1); }
+        else { toast((res&&res.message)||at('admin_error_generic'), true); }
+      }).catch(function(){ toast(at('admin_dash_error_network'), true); });
+    }
+  });
+}
 function adminReactivateCard(cardCode){
   adminOpenConfirmModal({
     icon:'✅', title:at('admin_final_confirmation'), message:at('admin_cards_reactivate_confirm_msg'),

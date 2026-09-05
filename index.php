@@ -5917,6 +5917,7 @@ function route_admin($action) {
         'cards-list'        => admin_list_physical_cards(),
         'cards-block'       => admin_block_physical_card(),
         'cards-reactivate'  => admin_reactivate_physical_card(),
+        'cards-release'     => admin_release_physical_card(),
         'cards-fix-orphaned' => admin_fix_orphaned_cards(),
         'cards-mark-printed' => admin_mark_cards_printed(),
         'cards-unmark-printed' => admin_unmark_cards_printed(),
@@ -9029,6 +9030,27 @@ function admin_reactivate_physical_card() {
     q("UPDATE physical_cards SET status='active', blocked_at=NULL, blocked_by_admin=NULL, blocked_reason=NULL WHERE id=?",[$card['id']]);
     admin_log('physical_card_reactivate','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>'Carte retrouvee par le client']));
     ok(null,'Carte reactivee');
+}
+
+// Libere une carte ACTIVE (liee a un vrai compte encore existant) vers le
+// stock "non attribuee", sans toucher au compte lui-meme (contrairement a
+// admin_delete_account(), qui supprime le compte en plus) - utile pour une
+// carte de test ou une carte attribuee par erreur, quand on veut juste
+// annuler le lien plutot que bloquer definitivement ou supprimer le client.
+function admin_release_physical_card() {
+    $b = body();
+    check_admin_password($b);
+    $cardCode = strtoupper(trim($b['card_code'] ?? ''));
+    $reason = trim($b['reason'] ?? '');
+    if(!$cardCode) fail('Code carte requis');
+    if(!$reason) fail('La raison est obligatoire (journalisee)');
+    $card = q("SELECT pc.*, u.phone_number, u.country FROM physical_cards pc LEFT JOIN users u ON u.id=pc.user_id WHERE pc.card_code=?",[$cardCode])->fetch();
+    if(!$card) fail('Carte introuvable',404);
+    if($card['status'] !== 'active') fail('Cette carte n\'est pas active',422);
+    if($card['country']) admin_check_country_access($card['country']);
+    q("UPDATE physical_cards SET status='unassigned', user_id=NULL, activated_at=NULL, activated_by_agent_id=NULL WHERE id=?",[$card['id']]);
+    admin_log('physical_card_release','success',$card['phone_number'],dk('d_ref_with_reason',['ref'=>$cardCode,'reason'=>$reason]));
+    ok(null,'Carte liberee');
 }
 
 // Reparation retroactive : avant que admin_delete_account() ne libere
